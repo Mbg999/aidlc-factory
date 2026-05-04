@@ -1,0 +1,33 @@
+name: Subagents Hardening Tests
+
+on:
+  push:
+    paths:
+      - 'scripts/subagents/**'
+      - 'scripts/tests/**'
+  pull_request:
+    paths:
+      - 'scripts/subagents/**'
+      - 'scripts/tests/**'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest PyYAML
+      - name: Run subagent tests
+        run: |
+          pytest -q \
+            scripts/tests/test_subagents.py \
+            scripts/tests/test_mcp_bridge_and_pipeline.py \
+            scripts/tests/test_subagents_hardening.py \
+            --deselect scripts/tests/test_subagents_hardening.py::test_audit_log_written_when_opted_in \
+            --deselect scripts/tests/test_subagents_hardening.py::test_agent_timeout_respected

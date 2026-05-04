@@ -2,7 +2,7 @@
 """Simple subagent manager/dispatcher used by AIDLC example tests.
 
 Responsibilities:
-- Load `agents.yaml` from rule-details/extensions/subagents
+- Load `agents.yaml` from aws-aidlc-rule-details/extensions/subagents
 - Execute the configured entrypoint (script) and call `run(context)` in it
 """
 from __future__ import annotations
@@ -453,6 +453,14 @@ def _check_context_permissions(ctx: dict, perm_paths: tuple[list[Path], list[Pat
         # No declared permissions -> nothing to enforce
         return True
 
+    # run_folder is the manager-controlled sandbox; always permit it and its children
+    run_folder_val = ctx.get("run_folder")
+    if run_folder_val:
+        try:
+            bases.append(Path(run_folder_val))
+        except Exception:
+            pass
+
     # Collect candidate paths from context values that look like paths
     candidates: list[Path] = []
     for k, v in ctx.items():
@@ -688,7 +696,11 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
     else:
         out = _run_agent_subprocess(agent_id, entrypoint, context=tx_ctx, timeout=agent_timeout, limits=limits)
 
-    # Validate output against minimal schema (or agent-provided schema)
+    # Validate output against minimal schema (or agent-provided schema).
+    # Skip validation for manager-level errors (timeout, subprocess failure, etc.) —
+    # these are not agent output and will not satisfy the agent_id/status contract.
+    if isinstance(out, dict) and out.get("error"):
+        return out
     validation = _validate_agent_output(agent_id, cfg, out if isinstance(out, dict) else {})
     if validation:
         return {"error": f"output validation failed: {validation.get('error')}", "raw_output": out}

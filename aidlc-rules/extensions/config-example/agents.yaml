@@ -1,0 +1,90 @@
+# agents.yaml — minimal example configuration
+#
+# Copy this file to:
+#   aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml
+#
+# Then customize agents, skills, and pipelines for your project.
+# Full reference: aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml
+
+agents:
+  # ── Code Reviewer ─────────────────────────────────────────────────────────
+  - id: code-reviewer
+    name: Code Reviewer
+    role: reviewer
+    entrypoint: scripts/subagents/code_reviewer.py
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # Skills loaded from ~/.agents/skills/<name>/SKILL.md
+    skills:
+      - caveman-review    # compact review output style
+    # MCP tools this agent may call (each call requires human approval)
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceSyntaxErrors
+      - mcp_pylance_mcp_s_pylanceFileSyntaxErrors
+
+  # ── Construction Planner ──────────────────────────────────────────────────
+  - id: planner
+    name: Construction Planner
+    role: planner
+    entrypoint: scripts/subagents/planner.py
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    skills:
+      - find-skills       # discovers relevant skills for the project
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceInstalledTopLevelModules
+      - mcp_pylance_mcp_s_pylanceWorkspaceUserFiles
+
+  # ── Construction Reviewer ─────────────────────────────────────────────────
+  - id: construction-reviewer
+    name: Construction Reviewer
+    role: reviewer
+    entrypoint: scripts/subagents/construction_reviewer.py
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # "*" = inject ALL skills installed in ~/.agents/skills/
+    skills:
+      - "*"
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceSyntaxErrors
+
+# ── Pipelines ──────────────────────────────────────────────────────────────
+# Stages run sequentially; agents within a group run in parallel.
+pipelines:
+  - id: review-only
+    name: Review only
+    description: "Run both reviewers in parallel — fastest CI check."
+    stages:
+      - group:
+          - code-reviewer
+          - construction-reviewer
+
+  - id: full
+    name: Full pipeline
+    description: "Plan, then build and review in parallel."
+    stages:
+      - group:
+          - planner
+      - group:
+          - code-reviewer
+          - construction-reviewer
