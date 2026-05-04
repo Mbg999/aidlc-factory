@@ -687,6 +687,23 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
     if bridge is not None:
         tx_ctx["mcp"] = bridge.to_context_dict()
 
+    # --- Developer memory injection (best-effort) ---
+    # If a developer_id is present in the context, retrieve relevant memory
+    # entries and inject them as tx_ctx["developer_memory"] so the agent starts
+    # with cross-session knowledge about the developer's project context.
+    developer_id = ctx.get("developer_id") if isinstance(ctx, dict) else None
+    if developer_id:
+        try:
+            _mem_root = REPO_ROOT / ".aidlc-memory"
+            if _mem_root.exists():
+                from memory import MemoryStore as _MemStore
+                _mstore = _MemStore(str(_mem_root))
+                tx_ctx["developer_memory"] = _mstore.recall_context(
+                    developer_id, limit=20
+                )
+        except Exception:
+            pass  # Best-effort: memory is optional
+
     if use_docker:
         # Run inside Docker container with mounts derived from permissions
         # If docker missing, return error
@@ -786,6 +803,37 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
                 return {"error": "executor not available on host", "raw_output": out}
     except Exception as e:
         return {"error": f"executor invocation error: {e}", "raw_output": out}
+
+    # --- Memory write-back (best-effort) ---
+    # Agents may return memory_observations: [{content, tags, memory_type}]
+    # The manager writes them to the developer's MemoryStore so knowledge
+    # persists across sessions without agents needing to import MemoryStore.
+    if developer_id and isinstance(out, dict):
+        observations = out.get("memory_observations") or []
+        if observations:
+            try:
+                from memory import MemoryStore as _MemStore
+                from memory.types import MemoryType as _MT
+                _mem_root = REPO_ROOT / ".aidlc-memory"
+                _mstore = _MemStore(str(_mem_root))
+                _type_map = {
+                    "episodic": _MT.EPISODIC,
+                    "semantic": _MT.SEMANTIC,
+                    "procedural": _MT.PROCEDURAL,
+                }
+                for obs in observations:
+                    if not isinstance(obs, dict) or not obs.get("content"):
+                        continue
+                    _mstore.remember(
+                        developer_id,
+                        obs["content"],
+                        memory_type=_type_map.get(obs.get("memory_type", ""), _MT.EPISODIC),
+                        tags=obs.get("tags") or [],
+                        metadata={"agent_id": agent_id, "run_folder": tx_ctx.get("run_folder", "")},
+                        session_id=tx_ctx.get("run_folder", ""),
+                    )
+            except Exception:
+                pass  # Best-effort: never fail the run for a memory write error
 
     return out
 

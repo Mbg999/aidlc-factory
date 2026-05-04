@@ -112,7 +112,31 @@ def run(context: Dict | None = None) -> Dict:
         except Exception:
             autosummary = {"error": "failed to read autoskills directory"}
 
-    return {"agent_id": AGENT_ID, "status": "ok", "plan_path": str(out), "plan": plan, "autoskills": autosummary}
+    # --- Memory: surface prior developer knowledge in plan ---
+    developer_memory = ctx.get("developer_memory", "")
+    if developer_memory:
+        try:
+            with open(out, "a", encoding="utf-8") as _rf:
+                _rf.write(f"\n## Prior Developer Context\n\n{developer_memory}\n")
+        except Exception:
+            pass
+
+    # --- Memory: emit learnings for write-back by the manager ---
+    memory_observations: List[Dict] = []
+    if plan:
+        memory_observations.append({
+            "content": f"Construction plan for {workspace.name}: {'; '.join(plan[:5])}",
+            "tags": ["plan", "construction", workspace.name],
+            "memory_type": "semantic",
+        })
+    if manifests:
+        memory_observations.append({
+            "content": f"Detected manifests at {workspace.name}: {', '.join(manifests)}",
+            "tags": ["manifests", "dependencies", workspace.name],
+            "memory_type": "semantic",
+        })
+
+    return {"agent_id": AGENT_ID, "status": "ok", "plan_path": str(out), "plan": plan, "autoskills": autosummary, "memory_observations": memory_observations}
 
 
 if __name__ == "__main__":

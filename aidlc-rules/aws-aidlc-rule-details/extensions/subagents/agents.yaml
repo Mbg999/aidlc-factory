@@ -77,6 +77,25 @@ agents:
       - mcp_pylance_mcp_s_pylancePythonEnvironments
       - mcp_pylance_mcp_s_pylanceRunCodeSnippet
 
+  - id: memory
+    name: Persistent Memory
+    role: memory
+    description: "Cross-session, multi-developer persistent memory. Stores facts, decisions, events, and developer profiles. Thread-safe for concurrent access."
+    entrypoint: scripts/subagents/memory_agent.py
+    enabled_by_default: true
+    enforce_in_phases:
+      - reverse-engineering
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - .aidlc-memory/**
+        - aidlc-docs/**
+    skills: []
+    mcp_tools: []
+
   - id: construction-reviewer
     name: Construction Reviewer
     role: reviewer
@@ -104,7 +123,7 @@ agents:
 pipelines:
   - id: construction-full
     name: Full construction pipeline
-    description: "Planner first, then builder and reviewers in parallel."
+    description: "Planner first, then builder and reviewers in parallel, then memory consolidation."
     stages:
       - group:
           - planner
@@ -113,6 +132,8 @@ pipelines:
           - code-reviewer
       - group:
           - construction-reviewer
+      - group:
+          - memory
 
   - id: review-only
     name: Review only pipeline

@@ -68,6 +68,116 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 
 Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/subagents/` and `aidlc-rules/adapters/`.
 
+## Persistent Memory (how it works)
+
+This fork includes a simple, pluggable persistent memory system used by subagents and developer tools. It is designed for cross-session, multi-developer usage with offline resilience and an optional central backend (Engram).
+
+- Default location: repository root `.aidlc-memory/` (per-developer subfolders). The directory is local by default and is added to `.gitignore` to avoid leaking private notes.
+- Local storage layout:
+  - `developers/<developer_id>/profile.json` — developer profile and preferences
+  - `developers/<developer_id>/episodic.jsonl` — append-only event log (episodic memories)
+  - `developers/<developer_id>/semantic.json` — keyed JSON knowledge store (semantic/procedural memories)
+  - `shared/semantic.json` and `shared/decisions.jsonl` — project-scoped shared knowledge and decisions
+
+- Concurrency: file-level advisory locks (POSIX `flock`) ensure safe concurrent access by multiple agents/processes.
+
+- Backends supported:
+  - Local file-backed (default)
+  - Engram HTTP backend (optional): rich FTS-backed store; configured via `MemoryStore.with_engram(...)` or environment variables (see examples below)
+
+- Read/write semantics:
+  - Writes are "write-through": entries are always written locally; if Engram is configured, the system will also attempt to save to Engram (best-effort).
+  - Reads prefer Engram (full-text search) and fall back to the local store on error.
+
+- Memory types mapping to Engram: `SEMANTIC → decision`, `EPISODIC → discovery`, `PROCEDURAL → pattern`.
+
+- Developer isolation: entries include a `tool_name` like `aidlc-memory:<developer_id>` so observations are scoped per-developer in Engram.
+
+- Subagent actions: `remember`, `recall`, `context`, `forget`, `compact`, `share`, `profile`, `list_devs`.
+
+Quick usage examples
+
+Python (local):
+
+```python
+from memory import MemoryStore, MemoryEntry, MemoryType
+
+store = MemoryStore('.aidlc-memory')
+store.remember('alice', 'API uses FastAPI', memory_type=MemoryType.SEMANTIC, tags=['arch'])
+results = store.recall('alice', tags=['arch'])
+```
+
+Enable Engram (optional):
+
+```python
+store = MemoryStore.with_engram('.aidlc-memory', engram_url='http://127.0.0.1:7437', project='aidlc')
+```
+
+Environment variables (used by `scripts/subagents/memory_agent.py`):
+
+```bash
+export AIDLC_MEMORY_BACKEND=engram
+export AIDLC_ENGRAM_URL="http://127.0.0.1:7437"
+export AIDLC_ENGRAM_PROJECT="aidlc"
+```
+
+Realtime sharing notes (for small teams)
+
+For live sharing across a small team (e.g., 5 people), run a central Engram instance and add a small broadcast bridge (WebSocket or Server-Sent Events). Options:
+
+- Simple webhook/HTTP events from the manager
+- Redis Pub/Sub + WS bridge (recommended for reliability)
+- Polling Engram `/search` (simpler, higher latency)
+
+This repo contains the local primitives and the Engram client at `scripts/subagents/memory/backends/engram.py`. A bridge and client UI/CLI are recommended next steps for realtime updates.
+
+Autonomous Memory Workflow
+
+AI-DLC now wires the persistent memory into the orchestration so agents can both
+consume and produce persistent knowledge without importing the store directly.
+
+- Injection (read): before each agent runs, `manager.py` does a best-effort
+  load from the local memory (`.aidlc-memory/`) and injects a preformatted
+  string into the agent context as `ctx["developer_memory"]`. Agents append
+  that context into their reports for human review.
+
+- Emission (write): agents produce a `memory_observations` list in their
+  return value (a list of simple dicts: `{content, tags, memory_type}`). The
+  manager detects `memory_observations` and calls `MemoryStore.remember()` for
+  the active `developer_id` so the knowledge is persisted for future runs.
+
+- Design rationale: agents stay lightweight and sandboxed (no direct
+  dependency on the memory implementation). The manager centralizes access,
+  enforces permissions, and performs best-effort persistence so failures in
+  the memory layer don't break agent runs.
+
+Pipeline behavior
+
+- The `construction-full` pipeline runs `planner` → (`builder` + `code-reviewer`) →
+  `construction-reviewer` → `memory` (consolidation). The `memory` agent may
+  summarize or re-index entries written by the earlier stages.
+
+Privacy and safety
+
+- Local-first: by default the `.aidlc-memory/` folder lives in the repo root and
+  is git-ignored. Use Engram only when you intentionally enable a central
+  backend (`AIDLC_MEMORY_BACKEND=engram`).
+- The manager sanitizes context and audit-logs all agent runs; sensitive keys
+  (password, token, private, aws, etc.) are redacted from audit records.
+
+Quick run examples
+
+Run a construction pipeline for the current repo (memory read/write enabled):
+
+```bash
+python scripts/subagents/manager.py construction-full '{"run_folder":"runs/my-run","developer_id":"alice"}'
+```
+
+Write an observation manually via the memory agent:
+
+```bash
+python scripts/subagents/manager.py memory '{"developer_id":"alice","action":"remember","content":"API uses FastAPI","tags":["arch"]}'
+```
 
 - [Kiro](#kiro)
 - [Amazon Q Developer](#amazon-q-developer-ide-pluginextension)
@@ -1063,7 +1173,9 @@ This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`. Au
 
 - [X] Implement agents, orchestration, skills, mcps
 - [ ] Cure agents, orchestration, skills, mcps
-- [ ] Persistent memory across sessions and users
+- [X] Persistent memory across sessions and users
+- [ ] Probably shared memory in real time
+- [ ] Try to reduce tokens usage
 
 ## License
 

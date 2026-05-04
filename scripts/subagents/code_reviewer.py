@@ -211,6 +211,42 @@ def run(context: dict | None = None) -> dict:
     blocking = [f for f in security_findings if f.get("severity") == "blocking"]
     is_blocking = len(blocking) > 0
 
+    # --- Memory: surface prior developer knowledge in report ---
+    developer_memory = ctx.get("developer_memory", "")
+    if developer_memory:
+        try:
+            with open(report_path, "a", encoding="utf-8") as _rf:
+                _rf.write(f"\n## Prior Developer Context\n\n{developer_memory}\n")
+        except Exception:
+            pass
+
+    # --- Memory: emit learnings for write-back by the manager ---
+    memory_observations: list[dict] = []
+    if security_findings:
+        labels = list({f.get("label", "") for f in security_findings if f.get("label")})
+        memory_observations.append({
+            "content": (
+                f"Code review found {len(blocking)} blocking and "
+                f"{len(security_findings)-len(blocking)} warning security issues in {workspace.name}. "
+                f"Patterns: {', '.join(labels[:5])}"
+            ),
+            "tags": ["security", "code-review", workspace.name],
+            "memory_type": "episodic",
+        })
+    if todo_findings:
+        memory_observations.append({
+            "content": f"Found {len(todo_findings)} TODO/FIXME markers in {workspace.name}",
+            "tags": ["todos", "code-review", workspace.name],
+            "memory_type": "episodic",
+        })
+    if linter_results:
+        clean = [t for t, r in linter_results.items() if r.get("exit_code") == 0]
+        memory_observations.append({
+            "content": f"Linters run in {workspace.name}: {list(linter_results.keys())}. Clean: {clean}",
+            "tags": ["linting", "code-review", workspace.name],
+            "memory_type": "semantic",
+        })
+
     return {
         "agent_id": AGENT_ID,
         "status": "error" if is_blocking else ("warning" if security_findings or todo_findings else "ok"),
@@ -222,6 +258,7 @@ def run(context: dict | None = None) -> dict:
             "linters_run": list(linter_results.keys()),
         },
         "report_path": str(report_path),
+        "memory_observations": memory_observations,
     }
 
 

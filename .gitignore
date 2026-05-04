@@ -12,3 +12,4 @@ codebuild_build.sh
 **/__pycache__/**
 **.out
 **.pyc
+.aidlc-memory/**

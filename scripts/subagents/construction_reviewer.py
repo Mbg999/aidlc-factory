@@ -140,7 +140,38 @@ def run(context: Dict | None = None) -> Dict:
         return {"agent_id": AGENT_ID, "status": "error", "error": str(e)}
 
     summary = {"todos": len(scan.get("todos", [])), "secrets": len(scan.get("secrets", [])), "linters": list(linters.keys())}
-    return {"agent_id": AGENT_ID, "status": "ok", "report_path": str(out), "summary": summary, "autoskills": autosummary}
+
+    # --- Memory: surface prior developer knowledge in report ---
+    developer_memory = ctx.get("developer_memory", "")
+    if developer_memory:
+        try:
+            with open(out, "a", encoding="utf-8") as _rf:
+                _rf.write(f"\n## Prior Developer Context\n\n{developer_memory}\n")
+        except Exception:
+            pass
+
+    # --- Memory: emit learnings for write-back by the manager ---
+    memory_observations: List[Dict] = []
+    n_todos = len(scan.get("todos", []))
+    n_secrets = len(scan.get("secrets", []))
+    if n_todos or n_secrets:
+        memory_observations.append({
+            "content": (
+                f"Construction review of {workspace.name}: "
+                f"{n_todos} TODO files, {n_secrets} potential secret files"
+            ),
+            "tags": ["review", "quality", workspace.name],
+            "memory_type": "episodic",
+        })
+    if linters:
+        clean = [name for name, res in linters.items() if res.get("exit_code") == 0]
+        memory_observations.append({
+            "content": f"Linters run on {workspace.name}: {list(linters.keys())}. Clean: {clean}",
+            "tags": ["linting", "review", workspace.name],
+            "memory_type": "semantic",
+        })
+
+    return {"agent_id": AGENT_ID, "status": "ok", "report_path": str(out), "summary": summary, "autoskills": autosummary, "memory_observations": memory_observations}
 
 
 if __name__ == "__main__":
