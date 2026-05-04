@@ -338,8 +338,9 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
    - Generate technology stack documentation
    - Generate dependencies documentation
 
-4. **Wait for Explicit Approval**: Present detailed completion message (see reverse-engineering.md for message format) - DO NOT PROCEED until user confirms
-5. **MANDATORY**: Log user's response in audit.md with complete raw input
+4. **AutoSkills (conditional)**: If the AutoSkills extension is enabled, run the `midudev-autoskills` subagent to discover recommended skills for this brownfield project (see `reverse-engineering.md` Step 11). Write results to `aidlc-docs/autoskills-recommendations.md`.
+5. **Wait for Explicit Approval**: Present detailed completion message (see reverse-engineering.md for message format) - DO NOT PROCEED until user confirms
+6. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ## Requirements Analysis (ALWAYS EXECUTE - Adaptive Depth)
 
@@ -446,9 +447,10 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
    - Determine depth level for each phase
    - Create multi-package change sequence (if brownfield)
    - Generate workflow visualization (VALIDATE Mermaid syntax before writing)
-6. **MANDATORY**: Validate all content before file creation per content-validation.md rules
-7. **Wait for Explicit Approval**: Present recommendations using language from workflow-planning.md Step 9, emphasizing user control to override recommendations - DO NOT PROCEED until user confirms
-8. **MANDATORY**: Log user's response in audit.md with complete raw input
+6. **AutoSkills (conditional — greenfield only)**: If the AutoSkills extension is enabled AND this is a greenfield project (Reverse Engineering was not executed), run the `midudev-autoskills` subagent (see `workflow-planning.md` Step 9). Write results to `aidlc-docs/autoskills-recommendations.md`.
+7. **MANDATORY**: Validate all content before file creation per content-validation.md rules
+8. **Wait for Explicit Approval**: Present recommendations using language from workflow-planning.md Step 10, emphasizing user control to override recommendations - DO NOT PROCEED until user confirms
+9. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ## Application Design (CONDITIONAL)
 

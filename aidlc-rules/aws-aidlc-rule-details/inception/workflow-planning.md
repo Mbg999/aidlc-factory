@@ -388,7 +388,27 @@ Update `aidlc-docs/aidlc-state.md`:
 - **Status**: Ready to proceed
 ```
 
-## Step 9: Present Plan to User
+## Step 9: AutoSkills Discovery (Conditional — Greenfield Only)
+
+**Execute IF**: The AutoSkills extension is enabled (user chose A or B in the opt-in prompt) AND this is a **greenfield** project (no Reverse Engineering executed).
+
+**Skip IF**: AutoSkills extension is disabled, OR AutoSkills already ran during Reverse Engineering (brownfield).
+
+When enabled, run the `midudev-autoskills` subagent using the Vision and Technical Environment documents as project context:
+
+```bash
+python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":false}'
+```
+
+- Parse the subagent output and write `aidlc-docs/autoskills-recommendations.md` with proposed skills, rationale, and where each skill applies in the workflow.
+- If the user chose option **B** (install), request explicit approval before running with `install=true`:
+  ```bash
+  python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":true}'
+  ```
+- Validate any files created by AutoSkills per `common/content-validation.md` and record results in `aidlc-docs/audit.md`.
+- Include AutoSkills recommendations in the Workflow Planning completion message.
+
+## Step 10: Present Plan to User
 
 ```markdown
 # 📋 Workflow Planning Complete
@@ -451,13 +471,13 @@ I recommend skipping [Y] stages:
 > ✅ **Approve & Continue** - Approve plan and proceed to **[Next Stage Name]**
 ```
 
-## Step 10: Handle User Response
+## Step 11: Handle User Response
 
 - **If approved**: Proceed to next stage in execution plan
 - **If changes requested**: Update execution plan and re-confirm
 - **If user wants to force include/exclude stages**: Update plan accordingly
 
-## Step 11: Log Interaction
+## Step 12: Log Interaction
 
 Log in `aidlc-docs/audit.md`:
 

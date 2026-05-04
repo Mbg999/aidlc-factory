@@ -277,7 +277,27 @@ Create `aidlc-docs/inception/reverse-engineering/reverse-engineering-timestamp.m
 - [x] code-quality-assessment.md
 ```
 
-## Step 11: Update State Tracking
+## Step 11: AutoSkills Discovery (Conditional)
+
+**Execute IF**: The AutoSkills extension is enabled (user chose A or B in the opt-in prompt).
+
+**Skip IF**: AutoSkills extension is disabled (user chose C) or was not presented.
+
+When enabled, run the `midudev-autoskills` subagent to discover recommended skills for this brownfield project:
+
+```bash
+python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":false}'
+```
+
+- Parse the subagent output and write `aidlc-docs/autoskills-recommendations.md` with the proposed skills, rationale, and install commands.
+- If the user chose option **B** (install), request explicit approval before running with `install=true`:
+  ```bash
+  python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":true}'
+  ```
+- Validate any files created by AutoSkills per `common/content-validation.md` and record results in `aidlc-docs/audit.md`.
+- Present AutoSkills recommendations as part of the Reverse Engineering completion message.
+
+## Step 12: Update State Tracking
 
 Update `aidlc-docs/aidlc-state.md`:
 
@@ -287,7 +307,7 @@ Update `aidlc-docs/aidlc-state.md`:
 - **Artifacts Location**: aidlc-docs/inception/reverse-engineering/
 ```
 
-## Step 12: Present Completion Message to User
+## Step 13: Present Completion Message to User
 
 ```markdown
 # 🔍 Reverse Engineering Complete
@@ -305,7 +325,7 @@ Update `aidlc-docs/aidlc-state.md`:
 > ✅ **Approve & Continue** - Approve analysis and proceed to **Requirements Analysis**
 ```
 
-## Step 13: Wait for User Approval
+## Step 14: Wait for User Approval
 
 - **MANDATORY**: Do not proceed until user explicitly approves
 - **MANDATORY**: Log user's response in audit.md with complete raw input
