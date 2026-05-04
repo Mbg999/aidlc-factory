@@ -38,6 +38,7 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
 - [Generated aidlc-docs/ Reference](#generated-aidlc-docs-reference)
 - [Experimental: AI-Assisted Setup (Release Download)](#experimental-ai-assisted-setup-release-download)
 - [Contributing](#contributing)
+- [Roadmap](#roadmap)
 - [License](#license)
 
 ---
@@ -1057,6 +1058,12 @@ python3 scripts/aidlc-evaluator/scripts/run_evaluation.py \
 This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`. AutoSkills
 (`midudev-autoskills`) is never auto-enabled — it always requires manual review of
 `aidlc-docs/autoskills-recommendations.md` before install.
+
+## Roadmap
+
+- [X] Implement agents, orchestration, skills, mcps
+- [ ] Cure agents, orchestration, skills, mcps
+- [ ] Persistent memory across sessions and users
 
 ## License
 
