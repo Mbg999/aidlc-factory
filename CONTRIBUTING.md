@@ -1,8 +1,42 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to AI-DLC. Whether it's a bug report, new rule, correction, or documentation improvement, we value feedback and contributions from the community.
+Thank you for your interest in contributing to AI-DLC. Whether it's a bug report, new rule, correction, or documentation improvement, we welcome your contributions.
 
 Please read through this document before submitting any issues or pull requests.
+
+## Developer Quickstart
+
+```bash
+# 1. Clone and enter the repo
+git clone <your-fork-url>
+cd custom\ aidlc
+
+# 2. Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate          # macOS/Linux
+# .venv\Scripts\activate           # Windows
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run all tests
+python -m pytest scripts/tests/ -q
+
+# 5. Explore available skills
+python scripts/subagents/mcp_bridge.py --list-skills
+
+# 6. List available pipelines
+python scripts/subagents/pipeline.py --list
+
+# 7. Run a single agent (dry-run against this repo)
+python scripts/subagents/manager.py code-reviewer '{"path": "."}'
+```
+
+**What to expect:**
+- All tests pass in ~1 second (29 tests)
+- `--list-skills` shows skills installed in `~/.agents/skills/`
+- `--list` shows `construction-full` and `review-only` pipelines
+- The `code-reviewer` agent produces a report in `../aidlc-docs/reporting/`
 
 ## Tenets
 
@@ -14,22 +48,26 @@ AI-DLC rules live in `aidlc-rules/aws-aidlc-rule-details/`. When contributing:
 
 - **Be reproducible**: Changes should be consistently reproducible either via test case or a series of steps.
 - **Single source of truth**: Don't duplicate content. If guidance applies to multiple stages, put it in `common/` and reference it.
-- **Keep it agnostic**: The core methodology shouldn't assume specific IDEs, agents, or models. Tool-specific files are generated from the source.
+- **Keep it agnostic**: The core methodology must not assume specific IDEs, agents, cloud providers, or models. Tool-specific files go in `aidlc-rules/adapters/`.
 
-### Directory Structure — Do Not Rename or Move
-
-The folder names `aws-aidlc-rules/` and `aws-aidlc-rule-details/` under `aidlc-rules/` are part of the public contract. Workshops, tests, and the `core-workflow.md` path-resolution logic all depend on these exact names. Do not flatten, rename, or reorganize them.
+### Directory Structure
 
 ```text
 aidlc-rules/
 ├── aws-aidlc-rules/            # Core workflow entry point
 │   └── core-workflow.md
-└── aws-aidlc-rule-details/     # Detailed rules referenced by the workflow
-    ├── common/
-    ├── inception/
-    ├── construction/
-    ├── extensions/
-    └── operations/
+├── aws-aidlc-rule-details/          # Detailed rules referenced by the workflow
+│   ├── common/
+│   ├── inception/
+│   ├── construction/
+│   ├── extensions/
+│   └── operations/
+└── adapters/              # Tool-specific setup guides (informational only)
+    ├── copilot.md
+    ├── cursor.md
+    ├── claude-code.md
+    ├── cline.md
+    └── generic.md
 ```
 
 ### Rule Structure
@@ -44,10 +82,14 @@ Rules are organized by phase:
 
 ### Testing Changes
 
-Test your rule changes with at least one supported platform (Amazon Q Developer, Kiro, or other tools) before submitting. Describe what you tested in your PR.
+Run the full test suite before submitting:
 
-If you're adding or updating installation instructions, ensure you've tested them on Mac,
-Windows CMD, and Windows Powershell.
+```bash
+python -m pytest scripts/tests/ -v
+```
+
+When adding or modifying subagent scripts, add tests to `scripts/tests/test_mcp_bridge_and_pipeline.py`.
+When adding or modifying rule files, verify them against at least one supported coding agent.
 
 ## Reporting Bugs/Feature Requests
 
@@ -76,13 +118,11 @@ To submit:
 
 ## Code of Conduct
 
-This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
-
-For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact <opensource-codeofconduct@amazon.com> with any additional questions or comments.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Security Issue Notifications
 
-If you discover a potential security issue, notify AWS/Amazon Security via the [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/). Please do not create a public GitHub issue.
+If you discover a potential security issue in this project, please open a GitHub issue with the `security` label or contact the maintainers directly. Do not post sensitive details publicly.
 
 ## Licensing
 
