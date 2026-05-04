@@ -211,15 +211,6 @@ def run(context: dict | None = None) -> dict:
     blocking = [f for f in security_findings if f.get("severity") == "blocking"]
     is_blocking = len(blocking) > 0
 
-    # --- Memory: surface prior developer knowledge in report ---
-    developer_memory = ctx.get("developer_memory", "")
-    if developer_memory:
-        try:
-            with open(report_path, "a", encoding="utf-8") as _rf:
-                _rf.write(f"\n## Prior Developer Context\n\n{developer_memory}\n")
-        except Exception:
-            pass
-
     # --- Memory: emit learnings for write-back by the manager ---
     memory_observations: list[dict] = []
     if security_findings:

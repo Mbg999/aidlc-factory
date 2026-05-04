@@ -141,15 +141,6 @@ def run(context: Dict | None = None) -> Dict:
 
     summary = {"todos": len(scan.get("todos", [])), "secrets": len(scan.get("secrets", [])), "linters": list(linters.keys())}
 
-    # --- Memory: surface prior developer knowledge in report ---
-    developer_memory = ctx.get("developer_memory", "")
-    if developer_memory:
-        try:
-            with open(out, "a", encoding="utf-8") as _rf:
-                _rf.write(f"\n## Prior Developer Context\n\n{developer_memory}\n")
-        except Exception:
-            pass
-
     # --- Memory: emit learnings for write-back by the manager ---
     memory_observations: List[Dict] = []
     n_todos = len(scan.get("todos", []))

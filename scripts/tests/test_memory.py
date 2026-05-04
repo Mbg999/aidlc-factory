@@ -114,9 +114,8 @@ class TestMemoryStore:
         store = MemoryStore(tmp_path / "mem")
         store.remember("ivan", "API runs on port 8080", tags=["api"])
         ctx = store.recall_context("ivan")
-        assert "ivan" in ctx
         assert "8080" in ctx
-        assert "[semantic]" in ctx
+        assert "[api]" in ctx
 
     def test_recall_context_empty(self, tmp_path):
         store = MemoryStore(tmp_path / "mem")

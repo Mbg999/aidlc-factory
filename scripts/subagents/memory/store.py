@@ -226,17 +226,19 @@ class MemoryStore:
         tags: list[str] | None = None,
         limit: int = 20,
     ) -> str:
-        """Return a preformatted context string suitable for injection into an LLM prompt."""
+        """Return a compact context string suitable for injection into an LLM prompt.
+
+        Format is one entry per line to minimise token usage:
+            [tag1,tag2] content text
+        No markdown headers or type labels (tags already encode the type).
+        """
         entries = self.recall(developer_id, tags=tags, limit=limit)
         if not entries:
             return ""
-        lines = [f"## Developer Memory ({developer_id})\n"]
+        lines: list[str] = []
         for e in entries:
-            tag_str = ", ".join(e.tags) if e.tags else ""
-            prefix = f"[{e.memory_type.value}]"
-            if tag_str:
-                prefix += f" ({tag_str})"
-            lines.append(f"- {prefix} {e.content}")
+            tag_str = ",".join(e.tags) if e.tags else ""
+            lines.append(f"[{tag_str}] {e.content}" if tag_str else e.content)
         return "\n".join(lines)
 
     def list_developers(self) -> list[str]:

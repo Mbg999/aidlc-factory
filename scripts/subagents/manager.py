@@ -691,16 +691,33 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
     # If a developer_id is present in the context, retrieve relevant memory
     # entries and inject them as tx_ctx["developer_memory"] so the agent starts
     # with cross-session knowledge about the developer's project context.
+    #
+    # Token-saving optimisations:
+    # 1) Tag-scoped: each agent role only gets memory entries relevant to it.
+    # 2) Pipeline-aware: if a previous stage already injected memory (marker
+    #    key "_memory_injected" in ctx), skip re-injection for later stages.
+    # 3) Compact format: recall_context now emits a single-line-per-entry
+    #    format instead of markdown headers.
+    ROLE_MEMORY_TAGS: dict[str, list[str]] = {
+        "planner": ["plan", "arch", "dependencies", "manifests"],
+        "builder": ["build", "commands", "dependencies", "manifests"],
+        "reviewer": ["security", "linting", "code-review", "quality", "review"],
+    }
     developer_id = ctx.get("developer_id") if isinstance(ctx, dict) else None
-    if developer_id:
+    if developer_id and not ctx.get("_memory_injected"):
         try:
             _mem_root = REPO_ROOT / ".aidlc-memory"
             if _mem_root.exists():
                 from memory import MemoryStore as _MemStore
                 _mstore = _MemStore(str(_mem_root))
+                role_tags = ROLE_MEMORY_TAGS.get(cfg.get("role", ""))
                 tx_ctx["developer_memory"] = _mstore.recall_context(
-                    developer_id, limit=20
+                    developer_id, tags=role_tags, limit=10
                 )
+                # Mark that memory has been injected so later pipeline stages
+                # skip re-injection (saves ~1K tokens per skipped agent).
+                if isinstance(ctx, dict):
+                    ctx["_memory_injected"] = True
         except Exception:
             pass  # Best-effort: memory is optional
 
@@ -808,6 +825,9 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
     # Agents may return memory_observations: [{content, tags, memory_type}]
     # The manager writes them to the developer's MemoryStore so knowledge
     # persists across sessions without agents needing to import MemoryStore.
+    #
+    # Token-saving: episodic entries get a 72h TTL so they auto-expire,
+    # and after writes we trigger compaction to prune stale entries.
     if developer_id and isinstance(out, dict):
         observations = out.get("memory_observations") or []
         if observations:
@@ -824,14 +844,26 @@ def run(agent_id: str, context: dict | None = None, conf_path: str | Path | None
                 for obs in observations:
                     if not isinstance(obs, dict) or not obs.get("content"):
                         continue
+                    mem_type = _type_map.get(obs.get("memory_type", ""), _MT.EPISODIC)
+                    # Episodic observations (linter counts, TODO counts) go stale
+                    # quickly; default them to 72h TTL unless explicitly overridden.
+                    ttl = obs.get("ttl_hours")
+                    if ttl is None and mem_type == _MT.EPISODIC:
+                        ttl = 72.0
                     _mstore.remember(
                         developer_id,
                         obs["content"],
-                        memory_type=_type_map.get(obs.get("memory_type", ""), _MT.EPISODIC),
+                        memory_type=mem_type,
                         tags=obs.get("tags") or [],
                         metadata={"agent_id": agent_id, "run_folder": tx_ctx.get("run_folder", "")},
                         session_id=tx_ctx.get("run_folder", ""),
+                        ttl_hours=ttl,
                     )
+                # Auto-compact: prune expired entries so recall stays lean
+                try:
+                    _mstore.compact(developer_id)
+                except Exception:
+                    pass
             except Exception:
                 pass  # Best-effort: never fail the run for a memory write error
 
