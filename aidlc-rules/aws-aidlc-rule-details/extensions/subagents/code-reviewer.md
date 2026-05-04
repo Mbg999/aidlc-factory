@@ -1,6 +1,6 @@
 # Code Reviewer Subagent
 
-This file documents the Code Reviewer subagent. It is the full rule/definition that is loaded after the user opts in via `code-reviewer.opt-in.md`.
+This file documents the Code Reviewer subagent. It is always enabled and loaded automatically at workflow start.
 
 Purpose
 - Provide fast, deterministic lint and lightweight security checks on generated code artifacts.

@@ -201,7 +201,7 @@ Adapter files live in `aidlc-rules/adapters/`. Available adapters:
 Adapters are informational only — no adapter changes AIDLC rule content.
 
 ## MANDATORY: Subagent Execution During Construction
-**CRITICAL**: When subagent extensions are **enabled** (opted-in or enabled by default in `agents.yaml`), the AI coding assistant MUST actually **execute** the subagent scripts — not simulate their behavior or generate their output artifacts manually.
+**CRITICAL**: The AI coding assistant MUST always **execute** the subagent scripts during the Construction phase — not simulate their behavior or generate their output artifacts manually. Subagents are **always enabled** (no opt-in required). If `scripts/subagents/` exists in the workspace, subagent execution is mandatory.
 
 ### How to Execute Subagents
 
@@ -252,7 +252,7 @@ python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
 
 ### Fallback When Scripts Are Unavailable
 
-If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not exist in the workspace (e.g., the user only copied rules but not scripts), fall back to generating the artifacts manually as the AI assistant — but inform the user that subagent execution was skipped because the scripts are not present.
+If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not exist in the workspace (e.g., the user only copied rules but not scripts), fall back to generating the artifacts manually as the AI assistant — but inform the user that subagent execution was skipped because the scripts are not present. This is the **only** valid reason to skip subagent execution.
 
 ## MANDATORY: Content Validation
 **CRITICAL**: Before creating ANY file, you MUST validate content according to `common/content-validation.md` rules:
@@ -605,14 +605,14 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
 **Execution**:
 1. **MANDATORY**: Log any user input during this stage in audit.md
 2. Load all steps from `construction/code-generation.md`
-3. **SUBAGENT — Planner**: If the `planner` subagent is enabled, execute it BEFORE planning code generation:
+3. **SUBAGENT — Planner (ALWAYS)**: Execute the `planner` subagent BEFORE planning code generation:
    ```bash
    python scripts/subagents/manager.py planner '{"run_folder": "."}'
    ```
    Read `aidlc-docs/construction-plan.md` and incorporate its install/test/lint/build steps into the code generation plan.
 4. **PART 1 - Planning**: Create code generation plan with checkboxes, get user approval
 5. **PART 2 - Generation**: Execute approved plan to generate code for this unit
-6. **SUBAGENT — Code Review**: If the `code-reviewer` subagent is enabled, execute it AFTER code generation completes for this unit:
+6. **SUBAGENT — Code Review (ALWAYS)**: Execute the `code-reviewer` subagent AFTER code generation completes for this unit:
    ```bash
    python scripts/subagents/manager.py code-reviewer '{"run_folder": "."}'
    ```
@@ -627,29 +627,26 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
 
 1. **MANDATORY**: Log any user input during this phase in audit.md
 2. Load all steps from `construction/build-and-test.md`
-3. **SUBAGENT — Builder**: If the `builder` subagent is enabled, execute it to generate build commands and diagnostics:
-   ```bash
-   python scripts/subagents/manager.py builder '{"run_folder": "."}'
-   ```
-   Read `aidlc-docs/build-report.md` and incorporate its suggested commands into the build instructions.
-4. **SUBAGENT — Construction Reviewer**: If the `construction-reviewer` subagent is enabled, execute it to scan for TODOs, secrets, and style issues:
-   ```bash
-   python scripts/subagents/manager.py construction-reviewer '{"run_folder": "."}'
-   ```
-   Read `aidlc-docs/construction-review.md` and present findings to the user.
-5. **Alternative — Run full pipeline**: Instead of steps 3-4, you MAY run the full pipeline which executes all enabled agents in the correct order (planner → [builder + code-reviewer] → construction-reviewer):
+3. **SUBAGENT — Full Pipeline (ALWAYS)**: Execute the full construction pipeline. This runs all agents in the correct order (planner → [builder + code-reviewer] → construction-reviewer → memory):
    ```bash
    python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
    ```
-6. Generate comprehensive build and test instructions:
+   Read the generated artifacts (`aidlc-docs/construction-plan.md`, `aidlc-docs/build-report.md`, `aidlc-docs/construction-review.md`) and present findings to the user.
+   
+   **Alternative — Run agents individually**: If the pipeline fails or you need granular control, run agents one by one:
+   ```bash
+   python scripts/subagents/manager.py builder '{"run_folder": "."}'
+   python scripts/subagents/manager.py construction-reviewer '{"run_folder": "."}'
+   ```
+4. Generate comprehensive build and test instructions:
    - Build instructions for all units
    - Unit test execution instructions
    - Integration test instructions (test interactions between units)
    - Performance test instructions (if applicable)
    - Additional test instructions as needed (contract tests, security tests, e2e tests)
-7. Create instruction files in build-and-test/ subdirectory: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, build-and-test-summary.md
-8. **Wait for Explicit Approval**: Ask: "**Build and test instructions complete. Ready to proceed to Operations stage?**" - DO NOT PROCEED until user confirms
-9. **MANDATORY**: Log user's response in audit.md with complete raw input
+5. Create instruction files in build-and-test/ subdirectory: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, build-and-test-summary.md
+6. **Wait for Explicit Approval**: Ask: "**Build and test instructions complete. Ready to proceed to Operations stage?**" - DO NOT PROCEED until user confirms
+7. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ---
 

@@ -11,7 +11,6 @@
       "role": "reviewer",
       "capabilities": ["lint", "security-scan", "annotate"],
       "entrypoint": "scripts/subagents/code_reviewer.py",
-      "opt_in": "extensions/subagents/code-reviewer.opt-in.md",
       "enabled_by_default": true,
       "enforce_in_phases": ["construction", "build-and-test"],
       "permissions": {
