@@ -42,6 +42,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import runpy
 
 import yaml
 
@@ -378,6 +379,299 @@ def stage_execute(args: argparse.Namespace) -> Path | None:
     return run_folder
 
 
+def run_subagents_for_phases(run_folder: Path, phases: list[str]) -> dict:
+    """Run enabled subagents whose `enforce_in_phases` intersects *phases*.
+
+    This helper loads `scripts/subagents/manager.py` from the repository root
+    and invokes `run(agent_id, context)` for each matching agent. Results are
+    returned as a mapping of agent_id -> result dict (or error info).
+    """
+    results: dict = {}
+    try:
+        # Project root is two levels above this script's REPO_ROOT
+        project_root = REPO_ROOT.parent.parent
+        manager_path = project_root / "scripts" / "subagents" / "manager.py"
+        if not manager_path.exists():
+            print(f"Subagent manager not found: {manager_path}")
+            return results
+
+        mgr = runpy.run_path(str(manager_path))
+        load_agents = mgr.get("load_agents")
+        run_agent = mgr.get("run")
+        if not load_agents or not run_agent:
+            print("Subagent manager missing required functions (load_agents/run)")
+            return results
+
+        agents = load_agents()
+        context = {
+            "run_folder": str(run_folder),
+            "workspace": str(run_folder / "workspace"),
+            "path": str(run_folder / "workspace"),
+            "aidlc_docs": str(run_folder / "aidlc-docs"),
+        }
+
+        # AutoSkills integration: detect any AutoSkills artifacts produced
+        # during reverse-engineering (skills-lock.json or .agents/skills/) and
+        # include them in the context passed to subagents. Subagents can
+        # consult `context['autoskills']` to adapt behavior or apply skills.
+        try:
+            workspace_dir = Path(context["workspace"])
+            skills_lock = workspace_dir / "skills-lock.json"
+            autoskills_dir = workspace_dir / ".agents" / "skills"
+            if skills_lock.exists():
+                import json as _json
+                with open(skills_lock, encoding="utf-8") as f:
+                    skills_lock_data = _json.load(f)
+                context["autoskills"] = {
+                    "skills_lock_path": str(skills_lock),
+                    "skills_lock": skills_lock_data,
+                    "autoskills_dir": str(autoskills_dir) if autoskills_dir.exists() else None,
+                }
+            elif autoskills_dir.exists():
+                context["autoskills"] = {
+                    "skills_lock_path": None,
+                    "skills_lock": None,
+                    "autoskills_dir": str(autoskills_dir),
+                }
+            else:
+                context["autoskills"] = {"skills_lock_path": None, "skills_lock": None, "autoskills_dir": None}
+        except Exception as e:  # pragma: no cover - best-effort detection
+            print(f"[WARN] Failed to detect AutoSkills artifacts: {e}", file=sys.stderr)
+            context.setdefault("autoskills", {"skills_lock_path": None, "skills_lock": None, "autoskills_dir": None})
+        # Run matching agents concurrently with a configurable concurrency limit
+        to_run = [a for a in agents if any(p in (a.get("enforce_in_phases") or []) for p in phases)]
+        if to_run:
+            import concurrent.futures
+            concurrency = int(os.environ.get("AIDLC_SUBAGENT_CONCURRENCY", "4"))
+            max_workers = min(len(to_run), max(1, concurrency))
+            futures: dict = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+                for a in to_run:
+                    agent_id = a.get("id")
+                    # Agent may declare a timeout in its metadata
+                    agent_timeout = a.get("timeout") or 120
+                    futures[ex.submit(run_agent, agent_id, context, None, agent_timeout)] = agent_id
+
+                for fut in concurrent.futures.as_completed(futures):
+                    aid = futures[fut]
+                    try:
+                        res = fut.result()
+                        results[aid] = {"ok": True, "result": res}
+                    except Exception as e:  # pragma: no cover - best-effort
+                        results[aid] = {"ok": False, "error": str(e)}
+                        print(f"[SUBAGENT ERROR] {aid}: {e}", file=sys.stderr)
+
+    except Exception as e:  # pragma: no cover - protect evaluation runner
+        print(f"Error running subagents: {e}", file=sys.stderr)
+
+    return results
+
+
+def generate_autoskills_recommendations(run_folder: Path, subagent_results: dict) -> Path | None:
+    """Generate a human-friendly Markdown summary of AutoSkills recommendations.
+
+    Writes `aidlc-docs/autoskills-recommendations.md` inside the run folder
+    when the `midudev-autoskills` subagent produced recommendations.
+    Returns the path to the written file, or None if nothing was written.
+    """
+    try:
+        autos = subagent_results.get("midudev-autoskills")
+        if not autos:
+            return None
+
+        docs_dir = run_folder / "aidlc-docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        out_path = docs_dir / "autoskills-recommendations.md"
+
+        if not autos.get("ok"):
+            content = [
+                "# AutoSkills — Recommendations\n\n",
+                "AutoSkills subagent failed to run during reverse-engineering.\n\n",
+                f"Error: {autos.get('error')}\n",
+            ]
+            out_path.write_text("".join(content), encoding="utf-8")
+            return out_path
+
+        res = autos.get("result", {})
+        recommendations = res.get("recommendations", []) or []
+        exit_code = res.get("autoskills_exit_code")
+
+        lines: list[str] = []
+        lines.append("# AutoSkills — Recommendations\n\n")
+        lines.append("AutoSkills scanned the project during Reverse Engineering and produced the following proposed skills.\n\n")
+
+        if not recommendations:
+            lines.append("No recommended skills were detected.\n")
+        else:
+            lines.append("## Proposed skills\n\n")
+            for i, r in enumerate(recommendations, start=1):
+                lines.append(f"{i}. {r}\n")
+            lines.append("\n")
+            lines.append("## Next steps\n\n")
+            lines.append("- Review the proposed skills and rationale above.\n")
+            lines.append("- If you approve installation, run the install command below (requires Node.js >= 22 and npx).\n\n")
+            lines.append("```bash\n")
+            lines.append(
+                f"python3 scripts/subagents/manager.py midudev-autoskills '{{\"path\": \"{str(run_folder / 'workspace')}\", \"install\": true}}'\n"
+            )
+            lines.append("```\n\n")
+            lines.append("**Security note:** Before installing, validate any files that would be written by AutoSkills using the content validation guidance (see `aidlc-rules/aws-aidlc-rule-details/common/content-validation.md`) and record results in `aidlc-docs/audit.md`.\n\n")
+            lines.append("Approval options: Request Changes (edit this file and note concerns) or Approve and Install (run the install command above).\n")
+
+        lines.append(f"\n_AutoSkills exit code: {exit_code}_\n")
+
+        out_path.write_text("".join(lines), encoding="utf-8")
+        return out_path
+
+    except Exception as e:  # pragma: no cover - best-effort reporting
+        print(f"Error writing autoskills recommendations: {e}", file=sys.stderr)
+        return None
+
+
+def auto_install_autoskills(run_folder: Path) -> dict:
+    """Run the `midudev-autoskills` subagent with `install=true` and return the result dict.
+
+    Returns a dict with keys `ok` and either `result` (on success) or `error` (on failure).
+    """
+    try:
+        project_root = REPO_ROOT.parent.parent
+        manager_path = project_root / "scripts" / "subagents" / "manager.py"
+        if not manager_path.exists():
+            return {"ok": False, "error": f"Subagent manager not found: {manager_path}"}
+
+        mgr = runpy.run_path(str(manager_path))
+        run_agent = mgr.get("run")
+        if not run_agent:
+            return {"ok": False, "error": "Subagent manager missing required run()"}
+
+        ctx = {
+            "path": str(run_folder / "workspace"),
+            "run_folder": str(run_folder),
+            "workspace": str(run_folder / "workspace"),
+            "aidlc_docs": str(run_folder / "aidlc-docs"),
+            "install": True,
+        }
+        res = run_agent("midudev-autoskills", ctx)
+        return {"ok": True, "result": res}
+    except Exception as e:  # pragma: no cover - best-effort
+        return {"ok": False, "error": str(e)}
+
+
+def apply_autoskills(run_folder: Path) -> dict:
+    """Attempt to apply installed AutoSkills by executing well-known
+    entry scripts inside each skill directory under `.agents/skills/`.
+
+    This is opt-in and should be used only when the installation has been
+    audited. The function returns a mapping skill_name -> result dict.
+    """
+    results: dict = {}
+    try:
+        workspace = run_folder / "workspace"
+        skills_base = workspace / ".agents" / "skills"
+        if not skills_base.exists() or not skills_base.is_dir():
+            return {"ok": False, "error": "skills directory not found", "path": str(skills_base)}
+
+        for skill_dir in sorted([p for p in skills_base.iterdir() if p.is_dir()]):
+            name = skill_dir.name
+            results[name] = {"ok": False, "tried": [], "error": None}
+            # Candidate entrypoints (checked in order)
+            cand = ["apply.py", "install.py", "entrypoint.py", "run.py", "main.py", "apply.sh", "install.sh"]
+            found = None
+            for c in cand:
+                p = skill_dir / c
+                if p.exists():
+                    found = p
+                    break
+            if not found:
+                results[name]["error"] = "no apply script found"
+                continue
+
+            results[name]["tried"].append(str(found.relative_to(workspace)))
+            try:
+                if found.suffix == ".py":
+                    cmd = [sys.executable, str(found)]
+                else:
+                    # Shell script
+                    cmd = ["bash", str(found)]
+
+                proc = subprocess.run(cmd, cwd=str(skill_dir), capture_output=True, text=True, timeout=300)
+                results[name]["exit_code"] = proc.returncode
+                results[name]["stdout"] = (proc.stdout or "")[:20000]
+                results[name]["stderr"] = (proc.stderr or "")[:20000]
+                results[name]["ok"] = proc.returncode == 0
+            except Exception as e:  # pragma: no cover - best-effort
+                results[name]["error"] = str(e)
+
+        return {"ok": True, "results": results}
+    except Exception as e:  # pragma: no cover - best-effort
+        return {"ok": False, "error": str(e)}
+
+
+def generate_autoskills_installation_report(run_folder: Path, install_result: dict) -> Path | None:
+    """Generate a Markdown installation report summarizing AutoSkills installation.
+
+    Writes `aidlc-docs/autoskills-installation.md` and returns its path, or None on error.
+    """
+    try:
+        docs_dir = run_folder / "aidlc-docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        out_path = docs_dir / "autoskills-installation.md"
+
+        lines: list[str] = ["# AutoSkills — Installation Report\n\n"]
+        ts = datetime.now(timezone.utc).isoformat()
+
+        if not install_result.get("ok"):
+            lines.append(f"Installation attempted at {ts} and FAILED.\n\n")
+            lines.append(f"Error: {install_result.get('error')}\n")
+            out_path.write_text("".join(lines), encoding="utf-8")
+            return out_path
+
+        res = install_result.get("result", {})
+        exit_code = res.get("autoskills_exit_code")
+        stdout = (res.get("autoskills_stdout") or "").strip()
+        stderr = (res.get("autoskills_stderr") or "").strip()
+
+        lines.append(f"Installation completed at {ts}. Exit code: {exit_code}\n\n")
+        if stdout:
+            lines.append("## AutoSkills stdout\n\n```")
+            lines.append(stdout[:800])
+            lines.append("\n```\n\n")
+        if stderr:
+            lines.append("## AutoSkills stderr\n\n```")
+            lines.append(stderr[:800])
+            lines.append("\n```\n\n")
+
+        # Detect created/modified files (best-effort)
+        workspace = run_folder / "workspace"
+        created: list[str] = []
+        skills_lock = workspace / "skills-lock.json"
+        autoskills_dir = workspace / ".agents" / "skills"
+        if skills_lock.exists():
+            created.append(str(skills_lock.relative_to(run_folder)))
+        if autoskills_dir.exists():
+            for p in sorted(autoskills_dir.rglob("*")):
+                if p.is_file():
+                    try:
+                        created.append(str(p.relative_to(run_folder)))
+                    except Exception:
+                        created.append(str(p))
+
+        if created:
+            lines.append("## Files written/updated by AutoSkills\n\n")
+            for c in created:
+                lines.append(f"- {c}\n")
+        else:
+            lines.append("No skill files detected in workspace after installation (check AutoSkills output).\n")
+
+        lines.append("\n**Security note:** Verify all installed skill files per content-validation guidance and record results in `aidlc-docs/audit.md`.\n")
+
+        out_path.write_text("".join(lines), encoding="utf-8")
+        return out_path
+    except Exception as e:  # pragma: no cover - best-effort
+        print(f"Error writing autoskills installation report: {e}", file=sys.stderr)
+        return None
+
+
 def stage_quantitative(workspace: Path, output_path: Path, pmd_path: str | None = None) -> dict | None:
     """Stage 3: Lint and security analysis on generated code."""
     import os
@@ -661,6 +955,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bedrock model for qualitative scoring (default: from config YAML)",
     )
 
+    # Auto-install AutoSkills behavior (default: enabled)
+    auto_group = parser.add_mutually_exclusive_group()
+    auto_group.add_argument(
+        "--auto-install-autoskills",
+        dest="auto_install_autoskills",
+        action="store_true",
+        help="Enable automatic installation of AutoSkills recommended skills (default)",
+    )
+    auto_group.add_argument(
+        "--no-auto-install-autoskills",
+        dest="auto_install_autoskills",
+        action="store_false",
+        help="Disable automatic AutoSkills installation",
+    )
+    parser.set_defaults(auto_install_autoskills=True)
+
+    # Apply installed AutoSkills (execute skill-provided apply scripts)
+    apply_group = parser.add_mutually_exclusive_group()
+    apply_group.add_argument(
+        "--apply-autoskills",
+        dest="apply_autoskills",
+        action="store_true",
+        help="After installing AutoSkills, attempt to apply each installed skill by executing its apply script (disabled by default)",
+    )
+    apply_group.add_argument(
+        "--no-apply-autoskills",
+        dest="apply_autoskills",
+        action="store_false",
+        help="Do not attempt to execute skill apply scripts",
+    )
+    parser.set_defaults(apply_autoskills=False)
+
+    # Auto-enable opt-in subagents (writes run_folder/aidlc-docs/aidlc-state.yaml)
+    enable_group = parser.add_mutually_exclusive_group()
+    enable_group.add_argument(
+        "--auto-enable-extensions",
+        dest="auto_enable_extensions",
+        action="store_true",
+        help="Automatically enable opt-in subagents by writing run-level state",
+    )
+    enable_group.add_argument(
+        "--no-auto-enable-extensions",
+        dest="auto_enable_extensions",
+        action="store_false",
+        help="Do not auto-enable opt-in subagents (default)",
+    )
+    parser.set_defaults(auto_enable_extensions=False)
+
     return parser
 
 
@@ -796,8 +1138,117 @@ def main() -> None:
 
     print(f"\nRun completed: {run_folder}")
 
+    # Optionally auto-enable opt-in subagents by writing aidlc-state.yaml
+    if getattr(args, "auto_enable_extensions", False):
+        try:
+            project_root = REPO_ROOT.parent.parent
+            manager_path = project_root / "scripts" / "subagents" / "manager.py"
+            if manager_path.exists():
+                mgr = runpy.run_path(str(manager_path))
+                load_agents = mgr.get("load_agents")
+                if load_agents:
+                    agents = load_agents()
+                    to_enable = [a.get("id") for a in agents if a.get("opt_in") and a.get("id") != "midudev-autoskills"]
+                    if to_enable:
+                        docs_dir = run_folder / "aidlc-docs"
+                        docs_dir.mkdir(parents=True, exist_ok=True)
+                        state_path = docs_dir / "aidlc-state.yaml"
+                        try:
+                            existing = yaml.safe_load(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+                        except Exception:
+                            existing = {}
+                        subagents = existing.get("subagents", {}) if isinstance(existing, dict) else {}
+                        for aid in to_enable:
+                            subagents.setdefault(aid, True)
+                        existing["subagents"] = subagents
+                        atomic_yaml_dump(existing, state_path)
+                        print(f"  Auto-enabled subagents: {', '.join(to_enable)}")
+        except Exception as e:  # pragma: no cover - best-effort
+            print(f"[WARN] Failed to auto-enable extensions: {e}", file=sys.stderr)
+
+    # Run subagents that are configured to run during Reverse Engineering
+    # (some agents, e.g., AutoSkills, are intended to run at this stage)
+    print("\nRunning enabled subagents for phase: reverse-engineering")
+    re_subagent_results = run_subagents_for_phases(run_folder, ["reverse-engineering"])
+    if re_subagent_results:
+        try:
+            atomic_yaml_dump(re_subagent_results, run_folder / "subagents-reverse-engineering.yaml")
+        except Exception:
+            pass
+        for aid, rec in re_subagent_results.items():
+            if not rec.get("ok"):
+                print(f"  SUBAGENT {aid}: FAIL — {rec.get('error')}")
+            else:
+                print(f"  SUBAGENT {aid}: OK")
+        # Generate AutoSkills recommendations document if the autoskills subagent ran
+        try:
+            rec_path = generate_autoskills_recommendations(run_folder, re_subagent_results)
+            if rec_path:
+                print(f"  AutoSkills recommendations written: {rec_path}")
+        except Exception:
+            pass
+        # If configured, perform automatic installation of recommended skills
+        try:
+            if args.auto_install_autoskills:
+                print("  Auto-install AutoSkills enabled — installing recommended skills...")
+                install_res = auto_install_autoskills(run_folder)
+                try:
+                    atomic_yaml_dump(install_res, run_folder / "autoskills-install-results.yaml")
+                except Exception:
+                    pass
+                install_md = generate_autoskills_installation_report(run_folder, install_res)
+                if install_md:
+                    print(f"  AutoSkills installation report written: {install_md}")
+                # Append audit entry
+                try:
+                    audit_path = run_folder / "aidlc-docs" / "audit.md"
+                    audit_path.parent.mkdir(parents=True, exist_ok=True)
+                    ts = datetime.now(timezone.utc).isoformat()
+                    status = "success" if install_res.get("ok") else "failed"
+                    with open(audit_path, "a", encoding="utf-8") as f:
+                        f.write(f"- {ts} — AutoSkills automatic install: {status}\n")
+                except Exception:
+                    pass
+                # Optionally apply installed skills (execute per-skill apply scripts)
+                try:
+                    if args.apply_autoskills:
+                        print("  Applying installed AutoSkills to workspace...")
+                        apply_res = apply_autoskills(run_folder)
+                        try:
+                            atomic_yaml_dump(apply_res, run_folder / "autoskills-apply-results.yaml")
+                        except Exception:
+                            pass
+                        # Append audit entry
+                        try:
+                            ts2 = datetime.now(timezone.utc).isoformat()
+                            status2 = "success" if apply_res.get("ok") else "failed"
+                            with open(audit_path, "a", encoding="utf-8") as f:
+                                f.write(f"- {ts2} — AutoSkills apply step: {status2}\n")
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     # Save evaluation config and repo info
     _save_evaluation_config(run_folder, args, cfg_data)
+
+    # Run subagents that are configured to run during Construction / Build & Test
+    print("\nRunning enabled subagents for phases: construction, build-and-test")
+    subagent_results = run_subagents_for_phases(run_folder, ["construction", "build-and-test"])
+    if subagent_results:
+        try:
+            atomic_yaml_dump(subagent_results, run_folder / "subagents-results.yaml")
+        except Exception:
+            # best-effort save; do not fail the evaluation if dump fails
+            pass
+        # Print a concise summary
+        for aid, rec in subagent_results.items():
+            if not rec.get("ok"):
+                print(f"  SUBAGENT {aid}: FAIL — {rec.get('error')}")
+            else:
+                print(f"  SUBAGENT {aid}: OK")
 
     # Stage 2: Post-run test results (executed inside the runner)
     test_results_path = run_folder / "test-results.yaml"

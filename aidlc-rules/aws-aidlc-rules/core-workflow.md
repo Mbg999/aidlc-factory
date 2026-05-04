@@ -11,11 +11,10 @@ The AI model intelligently assesses what stages are needed based on:
 4. Risk and impact assessment
 
 ## MANDATORY: Rule Details Loading
-**CRITICAL**: When performing any phase, you MUST read and use relevant content from rule detail files. Check these paths in order and use the first one that exists, regardless of which IDE or setup method was used:
-- `.aidlc/aidlc-rules/aws-aidlc-rule-details/` (typical with AI-assisted setup)
-- `.aidlc-rule-details/` (typical with Cursor, Cline, Claude Code, GitHub Copilot)
-- `.kiro/aws-aidlc-rule-details/` (typical with Kiro IDE and CLI)
-- `.amazonq/aws-aidlc-rule-details/` (typical with Amazon Q Developer)
+**CRITICAL**: When performing any phase, you MUST read and use relevant content from rule detail files. Check these paths in order and use the first one that exists, regardless of which AI coding tool is in use:
+- `.aidlc/aidlc-rules/aws-aidlc-rule-details/` (canonical location — AI-assisted setup)
+- `.aidlc-rule-details/` (flat layout — Cursor, Cline, Claude Code, GitHub Copilot, Windsurf, etc.)
+- `aidlc-rules/aws-aidlc-rule-details/` (monorepo layout — rules committed at repo root)
 
 All subsequent rule detail file references (e.g., `common/process-overview.md`, `inception/workspace-detection.md`) are relative to whichever rule details directory was resolved above.
 
@@ -47,7 +46,213 @@ All subsequent rule detail file references (e.g., `common/process-overview.md`, 
 - Non-compliance with any applicable enabled extension rule is a **blocking finding** — do NOT present stage completion until resolved
 - When presenting stage completion, include a summary of extension rule compliance (compliant/non-compliant/N/A per rule, with brief rationale for N/A determinations)
 
-**Conditional Enforcement**: Extensions may be conditionally enabled/disabled. See `inception/requirements-analysis.md` for the opt-in mechanism. Before enforcing any extension at ANY stage, check its `Enabled` status in `aidlc-docs/aidlc-state.md` under `## Extension Configuration`. Skip disabled extensions and log the skip in audit.md. Default to enforced if no configuration exists. 
+**Conditional Enforcement**: Extensions may be conditionally enabled/disabled. See `inception/requirements-analysis.md` for the opt-in mechanism.
+
+Runner resolution order for whether an extension is enabled (preference order):
+
+1. Manifest-level default: If the agent manifest (`agents.yaml` or `agents.json`) for an extension contains `enabled_by_default: true`, treat that extension as enabled and load the full rule file automatically.
+2. Repository run state: If the run contains `aidlc-docs/aidlc-state.md` with an explicit entry for the extension, follow that value (`enabled: true|false`).
+3. Opt-in prompt: If neither manifest nor run state indicates a decision and an opt-in prompt file (`*.opt-in.md`) exists, present it and honor the user's answer. If no opt-in prompt exists, default to enforced (load the full rule file).
+
+Always record the decision (enabled/disabled/auto-enabled) in `aidlc-docs/audit.md` and log any skips. 
+## AutoSkills Integration
+
+**RECOMMENDED**: When a run workspace contains AutoSkills artifacts, the
+evaluation runner will detect them and include details in the subagent
+`context` under the `autoskills` key so subagents can consult the data and
+adapt behavior.
+
+What is detected (check these locations under the run `workspace`):
+- `skills-lock.json` — canonical lock file produced by AutoSkills
+- `.agents/skills/<skill-directory>/` — per-skill directories containing installed/generated skill files (e.g., `.agents/skills/<skill_name>/`)
+
+What is added to subagent context:
+
+- `context['autoskills']` — mapping with:
+   - `skills_lock_path`: path to `skills-lock.json` or `null`
+   - `skills_lock`: parsed JSON content of the lock file or `null`
+   - `autoskills_dir`: path to `.agents/skills/` (contains per-skill subdirectories) or `null`
+
+Behavior and safety:
+
+- Subagents MAY consult `context['autoskills']` and optionally alter
+   recommendations or behavior based on installed skills.
+- By default the workflow does NOT automatically install or enable skills.
+   Installation is an explicit step and must be approved by the user or CI
+   policy.
+- To attempt installation manually run the recommended command written in
+   `aidlc-docs/autoskills-recommendations.md` (or use the helper below):
+
+```bash
+python3 scripts/subagents/manager.py midudev-autoskills '{"path":"<workspace>","install":true}'
+```
+
+- The evaluation runner exposes a helper `auto_install_autoskills(run_folder)`
+   (in `scripts/aidlc-evaluator/scripts/run_evaluation.py`) which programmatically
+   invokes the `midudev-autoskills` subagent with `install=true` and writes an
+   installation report to `aidlc-docs/autoskills-installation.md`.
+
+- The evaluation runner can optionally perform automatic installation of
+   recommended AutoSkills during evaluation. Control this behavior with the CLI
+   flags:
+   - `--auto-install-autoskills` (enabled by default)
+   - `--no-auto-install-autoskills` (disable automatic installation)
+   Use this option in CI only after auditing the recommended skills.
+
+- The evaluation runner can also optionally *apply* installed skills by
+   executing a well-known apply script inside each skill directory under
+   `.agents/skills/<skill>/`. Supported entrypoints (checked in order) are:
+   `apply.py`, `install.py`, `entrypoint.py`, `run.py`, `main.py`, `apply.sh`,
+   `install.sh`. Control this behavior with the CLI flag `--apply-autoskills`.
+
+   When `--apply-autoskills` is enabled the runner will attempt to execute
+   these scripts (one per skill) and record per-skill results under the run
+   folder (e.g. `autoskills-apply-results.yaml`). This is an opt-in action and
+   must only be used after auditing the installed skill files.
+
+Security note: Always validate any files created by AutoSkills per
+`common/content-validation.md` and record validation results in
+`aidlc-docs/audit.md` before relying on installed skill code.
+
+## Custom Skills Integration
+
+In addition to AutoSkills (which are discovered and installed per-project),
+the workflow supports **custom skills** — pre-installed skill packages that
+live in the user's home directory or the repository.
+
+### What are custom skills?
+
+Custom skills are SKILL.md files installed under well-known directories:
+- `~/.agents/skills/<skill-name>/SKILL.md` — user-global skills (persist across workspaces)
+- `<repo>/.agents/skills/<skill-name>/SKILL.md` — repo-local skills (shared with the team)
+
+Each SKILL.md file contains domain-specific instructions, best practices, or
+specialized behavior that an agent (or the AI assistant itself) can use during
+any phase of the workflow.
+
+### How custom skills are used
+
+There are two complementary mechanisms:
+
+**1. Skill injection into subagents (via `agents.yaml`).**
+Each agent definition in `agents.yaml` has a `skills` list.  Skills named
+there are loaded at execution time: the manager reads the SKILL.md content
+and injects it into `context['skills'][<name>]`.  The subagent script then
+has full access to the skill instructions as in-context guidance.
+
+An agent may also set `skills: ["*"]` to request ALL installed skills be
+discovered and injected (auto-discovery mode).
+
+**2. Direct use by the AI coding assistant.**
+The AI assistant running this workflow (Copilot, Cursor, Claude Code, etc.)
+has its own installed skills visible in its system prompt.  During any AIDLC
+phase, the assistant SHOULD proactively consult relevant skills:
+
+| Phase / task              | Relevant skills (examples)                    |
+|---------------------------|-----------------------------------------------|
+| Code review               | `caveman-review`, security-related skills     |
+| Commit messages           | `caveman-commit`                              |
+| Infrastructure design     | `azure-observability`, cloud-specific skills  |
+| Discovering new skills    | `find-skills`                                 |
+| PR creation               | `create-pull-request`                         |
+| Addressing PR feedback    | `address-pr-comments`                         |
+
+The assistant does NOT need to wait for a subagent to use a skill.  If a
+skill matches the current task, read it and apply its guidance directly.
+
+### Relationship between AutoSkills and Custom Skills
+
+| Aspect        | AutoSkills                           | Custom Skills                         |
+|---------------|--------------------------------------|---------------------------------------|
+| Source        | Discovered per-project               | Pre-installed by user or team         |
+| Location      | `.agents/skills/` (workspace)        | `~/.agents/skills/` or repo-local    |
+| Lock file     | `skills-lock.json`                   | None (filesystem presence is enough) |
+| Installation  | Requires explicit approval           | Already installed                     |
+| Injection     | `context['autoskills']`              | `context['skills']`                   |
+| AI assistant  | Informational (reads lock file)      | Directly actionable (reads SKILL.md) |
+
+Both can coexist.  When an agent has both autoskills artifacts AND custom
+skills injected, it should use both — custom skills for domain guidance,
+autoskills for project-specific context.
+
+### Discovering installed skills
+
+To list all custom skills currently available:
+
+```bash
+python3 scripts/subagents/mcp_bridge.py --list-skills
+```
+
+This scans `~/.agents/skills/` and `<repo>/.agents/skills/` and prints the
+name and first line of each SKILL.md found.
+
+## Tool Adapters (Optional)
+AIDLC is tool-agnostic. Its rules are pure Markdown and work with any AI coding
+assistant that can read files. Optional adapter files provide tool-specific
+setup guidance (e.g., where to symlink rules, which config file to create).
+
+Adapter files live in `aidlc-rules/adapters/`. Available adapters:
+- `copilot.md` — GitHub Copilot (`.github/copilot-instructions.md`)
+- `cursor.md` — Cursor (`.cursor/rules/`)
+- `claude-code.md` — Claude Code (`.claude/CLAUDE.md`)
+- `cline.md` — Cline (`.clinerules/`)
+- `generic.md` — Any other agent (copy rules to agent context manually)
+
+Adapters are informational only — no adapter changes AIDLC rule content.
+
+## MANDATORY: Subagent Execution During Construction
+**CRITICAL**: When subagent extensions are **enabled** (opted-in or enabled by default in `agents.yaml`), the AI coding assistant MUST actually **execute** the subagent scripts — not simulate their behavior or generate their output artifacts manually.
+
+### How to Execute Subagents
+
+Subagents are executed via terminal commands. The AI assistant MUST run these commands in the user's terminal (shell tool / run_in_terminal / bash / etc.) — never just describe what they would do.
+
+**Single agent execution:**
+```bash
+python scripts/subagents/manager.py <agent-id> '{"run_folder": "<workspace-or-run-path>"}'
+```
+
+**Full pipeline execution (recommended for construction phase):**
+```bash
+python scripts/subagents/pipeline.py construction-full '{"run_folder": "<workspace-or-run-path>"}'
+```
+
+### When to Execute
+
+The execution points are defined by each agent's `enforce_in_phases` field in `agents.yaml`:
+
+| Agent | Phase(s) | Artifacts Produced |
+|-------|----------|-------------------|
+| `planner` | construction | `aidlc-docs/construction-plan.md` |
+| `builder` | construction, build-and-test | `aidlc-docs/build-report.md` |
+| `code-reviewer` | construction, build-and-test | `aidlc-docs/reporting/` |
+| `construction-reviewer` | construction, build-and-test | `aidlc-docs/construction-review.md` |
+
+**Construction Phase — recommended execution flow:**
+
+1. **Before Code Generation starts** → Run the `planner` agent (or the `construction-full` pipeline which runs planner first). The planner reads the workspace, detects manifest files, and writes `construction-plan.md` with concrete install/test/lint/build steps.
+
+2. **After Code Generation completes (per unit or after all units)** → Run `builder` + `code-reviewer` (they run in parallel in the `construction-full` pipeline). Builder produces `build-report.md` with suggested commands. Code reviewer produces lint/security findings.
+
+3. **Before Build and Test completion** → Run `construction-reviewer`. It scans for TODOs, secrets, style issues and writes `construction-review.md`.
+
+**Alternatively**, run the entire pipeline at once after Code Generation:
+```bash
+python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
+```
+
+### Execution Rules
+
+- **MUST execute via terminal**: Use the shell/terminal tool available in your coding assistant. Do NOT try to import or call Python functions directly — use `python scripts/subagents/manager.py` or `python scripts/subagents/pipeline.py` as subprocess commands.
+- **MUST pass run_folder**: Always include `run_folder` in the JSON context so audit logs and output artifacts land in the correct location.
+- **MUST read and present results**: After execution, read the output artifacts (e.g., `aidlc-docs/construction-plan.md`) and present key findings to the user.
+- **MUST respect errors**: If an agent returns an error, report it to the user and do NOT proceed as if the stage completed successfully.
+- **MUST NOT simulate**: Do not generate `construction-plan.md`, `build-report.md`, or `construction-review.md` manually when the corresponding agent is enabled. The real agent script produces these files.
+- **MCP calls**: If agent output contains `mcp_calls`, present each tool call to the user for approval before proceeding.
+
+### Fallback When Scripts Are Unavailable
+
+If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not exist in the workspace (e.g., the user only copied rules but not scripts), fall back to generating the artifacts manually as the AI assistant — but inform the user that subagent execution was skipped because the scripts are not present.
 
 ## MANDATORY: Content Validation
 **CRITICAL**: Before creating ANY file, you MUST validate content according to `common/content-validation.md` rules:
@@ -398,11 +603,21 @@ All subsequent rule detail file references (e.g., `common/process-overview.md`, 
 **Execution**:
 1. **MANDATORY**: Log any user input during this stage in audit.md
 2. Load all steps from `construction/code-generation.md`
-3. **PART 1 - Planning**: Create code generation plan with checkboxes, get user approval
-4. **PART 2 - Generation**: Execute approved plan to generate code for this unit
-5. **MANDATORY**: Present standardized 2-option completion message as defined in code-generation.md - DO NOT use emergent behavior
-6. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-7. **MANDATORY**: Log user's response in audit.md with complete raw input
+3. **SUBAGENT — Planner**: If the `planner` subagent is enabled, execute it BEFORE planning code generation:
+   ```bash
+   python scripts/subagents/manager.py planner '{"run_folder": "."}'
+   ```
+   Read `aidlc-docs/construction-plan.md` and incorporate its install/test/lint/build steps into the code generation plan.
+4. **PART 1 - Planning**: Create code generation plan with checkboxes, get user approval
+5. **PART 2 - Generation**: Execute approved plan to generate code for this unit
+6. **SUBAGENT — Code Review**: If the `code-reviewer` subagent is enabled, execute it AFTER code generation completes for this unit:
+   ```bash
+   python scripts/subagents/manager.py code-reviewer '{"run_folder": "."}'
+   ```
+   Present lint/security findings to the user. Blocking findings must be resolved before proceeding.
+7. **MANDATORY**: Present standardized 2-option completion message as defined in code-generation.md - DO NOT use emergent behavior
+8. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
+9. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ---
 
@@ -410,15 +625,29 @@ All subsequent rule detail file references (e.g., `common/process-overview.md`, 
 
 1. **MANDATORY**: Log any user input during this phase in audit.md
 2. Load all steps from `construction/build-and-test.md`
-3. Generate comprehensive build and test instructions:
+3. **SUBAGENT — Builder**: If the `builder` subagent is enabled, execute it to generate build commands and diagnostics:
+   ```bash
+   python scripts/subagents/manager.py builder '{"run_folder": "."}'
+   ```
+   Read `aidlc-docs/build-report.md` and incorporate its suggested commands into the build instructions.
+4. **SUBAGENT — Construction Reviewer**: If the `construction-reviewer` subagent is enabled, execute it to scan for TODOs, secrets, and style issues:
+   ```bash
+   python scripts/subagents/manager.py construction-reviewer '{"run_folder": "."}'
+   ```
+   Read `aidlc-docs/construction-review.md` and present findings to the user.
+5. **Alternative — Run full pipeline**: Instead of steps 3-4, you MAY run the full pipeline which executes all enabled agents in the correct order (planner → [builder + code-reviewer] → construction-reviewer):
+   ```bash
+   python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
+   ```
+6. Generate comprehensive build and test instructions:
    - Build instructions for all units
    - Unit test execution instructions
    - Integration test instructions (test interactions between units)
    - Performance test instructions (if applicable)
    - Additional test instructions as needed (contract tests, security tests, e2e tests)
-4. Create instruction files in build-and-test/ subdirectory: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, build-and-test-summary.md
-5. **Wait for Explicit Approval**: Ask: "**Build and test instructions complete. Ready to proceed to Operations stage?**" - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
+7. Create instruction files in build-and-test/ subdirectory: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, build-and-test-summary.md
+8. **Wait for Explicit Approval**: Ask: "**Build and test instructions complete. Ready to proceed to Operations stage?**" - DO NOT PROCEED until user confirms
+9. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ---
 

@@ -34,6 +34,11 @@ Verification items in this document are plain bullet points describing complianc
 - Object storage enforces encryption at rest and rejects non-TLS requests via policy
 - Database instances have storage encryption enabled and enforce TLS connections
 
+**Cloud Provider Examples**:
+- **AWS**: Enable `StorageEncrypted: true` on RDS; set `BucketEncryption` on S3; use AWS KMS CMKs for customer-managed keys; enforce TLS via S3 bucket policy `aws:SecureTransport`.
+- **Azure**: Enable `infrastructureEncryption` on Azure SQL / PostgreSQL; use Azure Storage encryption with customer-managed keys in Azure Key Vault; enforce HTTPS-only on Storage Accounts (`supportsHttpsTrafficOnly: true`).
+- **Generic**: Use envelope encryption with a managed KMS/Key Vault; rotate keys on a defined schedule; audit key usage.
+
 ---
 
 ## Rule SECURITY-02: Access Logging on Network Intermediaries
@@ -118,6 +123,11 @@ Verification items in this document are plain bullet points describing complianc
 - Inline policies are avoided in favor of managed policies where possible
 - Every role has a trust policy scoped to the specific service or account
 
+**Cloud Provider Examples**:
+- **AWS**: Use IAM policies with specific `Action` and `Resource` ARNs; use `Condition` blocks to restrict by VPC endpoint or MFA; prefer AWS Managed Policies for well-known permission sets.
+- **Azure**: Use Azure RBAC built-in roles scoped to the specific resource (not subscription); use custom roles only when built-in roles are too broad; use Managed Identities instead of service principal secrets.
+- **Generic**: Never share credentials between services; use workload identity federation where supported.
+
 ---
 
 ## Rule SECURITY-07: Restrictive Network Configuration
@@ -134,6 +144,11 @@ Verification items in this document are plain bullet points describing complianc
 - Database and application firewall rules restrict source to specific CIDR blocks or security group references
 - Private subnets route through a NAT gateway (not an internet gateway)
 - Private endpoints are used for high-traffic cloud service calls
+
+**Cloud Provider Examples**:
+- **AWS**: Security groups with specific source SG references (not `0.0.0.0/0`); private subnets with NAT Gateway route; VPC Endpoints for S3, DynamoDB, and other AWS services.
+- **Azure**: Network Security Groups (NSGs) with `Deny` as default rule; route tables pointing to an Azure Firewall or NAT Gateway; Private Endpoints for Azure Storage, Key Vault, SQL, and App Service.
+- **Generic**: Apply network segmentation (DMZ → app tier → data tier); use a deny-all default with explicit allow rules.
 
 ---
 
@@ -292,16 +307,19 @@ These rules are cross-cutting constraints that apply to every AI-DLC stage. At e
 
 ## Appendix: OWASP Reference Mapping
 
-<!-- TODO: CRITICAL - This entire OWASP mapping table needs verification. The "2025" edition may not exist; the latest published OWASP Top 10 is 2021. Category IDs (A01-A10), numbering, and names must be validated against the actual published standard before relying on this mapping. -->
-For human reviewers, the following maps SECURITY rules to OWASP Top 10 (2025) categories:
+For human reviewers, the following maps SECURITY rules to OWASP Top 10 (2021) categories
+(reference: https://owasp.org/www-project-top-ten/):
 
-| SECURITY Rule | OWASP Category |
+| SECURITY Rule | OWASP 2021 Category |
 |---|---|
-| SECURITY-08 | A01:2025 – Broken Access Control |
-| SECURITY-09 | A02:2025 – Security Misconfiguration |
-| SECURITY-10 | A03:2025 – Software Supply Chain Failures |
-| SECURITY-11 | A06:2025 – Insecure Design |
-| SECURITY-12 | A07:2025 – Authentication Failures |
-| SECURITY-13 | A08:2025 – Software or Data Integrity Failures |
-| SECURITY-14 | A09:2025 – Logging & Alerting Failures |
-| SECURITY-15 | A10:2025 – Mishandling of Exceptional Conditions |
+| SECURITY-08 | A01:2021 – Broken Access Control |
+| SECURITY-09 | A05:2021 – Security Misconfiguration |
+| SECURITY-10 | A06:2021 – Vulnerable and Outdated Components |
+| SECURITY-11 | A04:2021 – Insecure Design |
+| SECURITY-12 | A07:2021 – Identification and Authentication Failures |
+| SECURITY-13 | A08:2021 – Software and Data Integrity Failures |
+| SECURITY-14 | A09:2021 – Security Logging and Monitoring Failures |
+| SECURITY-15 | A03:2021 – Injection (fail-safe / input handling) |
+| SECURITY-05 | A03:2021 – Injection |
+| SECURITY-01 | A02:2021 – Cryptographic Failures |
+| SECURITY-02 | A09:2021 – Security Logging and Monitoring Failures |

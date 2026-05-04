@@ -11,6 +11,11 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
 - [Common](#common)
 - [Platform-Specific Setup](#platform-specific-setup)
 - [Usage](#usage)
+- [Advanced Features (This Fork)](#advanced-features-this-fork)
+  - [Skills Injection](#skills-injection)
+  - [MCP Tool Bridge](#mcp-tool-bridge)
+  - [Pipeline Orchestration](#pipeline-orchestration)
+  - [Tool Adapters](#tool-adapters)
 - [Three-Phase Adaptive Workflow](#three-phase-adaptive-workflow)
 - [Key Features](#key-features)
 - [Extensions](#extensions)
@@ -34,9 +39,23 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
    - `aws-aidlc-rule-details/` — detailed rules conditionally referenced by the core rules
 3. Follow the setup instructions for your coding agent and platform below.
 
----
 
-## Platform-Specific Setup
+## What's in This Fork
+
+This repository extends the upstream AWS AI-DLC with additional capabilities. All extensions are **opt-in** and copy-paste ready — take only what you need.
+
+| Feature | What it is | Requires |
+|---------|-----------|----------|
+| **Skills injection** | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` populated |
+| **MCP tool bridge** | Subagents can request MCP tool calls (with human approval) | VS Code + MCP servers |
+| **Pipeline orchestration** | Chain agents sequentially with parallel groups in a single command | Python 3.11+ |
+| **Tool adapters** | Setup guides for Copilot, Cursor, Claude Code, Cline | None |
+| **Multi-cloud security** | Security rules with AWS + Azure examples | None |
+| **AutoSkills integration** | Automatic skill discovery via `npx autoskills` | Node.js ≥ 22 |
+| **Evaluation framework** | Automated scoring and reporting pipeline | Docker |
+
+Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/subagents/` and `aidlc-rules/adapters/`.
+
 
 - [Kiro](#kiro)
 - [Amazon Q Developer IDE Plugin](#amazon-q-developer-ide-pluginextension)
@@ -507,6 +526,142 @@ If your agent has no convention for rules files, place both folders at your proj
 
 ---
 
+## Advanced Features (This Fork)
+
+These features are available when you copy `scripts/subagents/` into your project. All require **Python 3.11+** and `PyYAML` (`pip install pyyaml`).
+
+### Skills Injection
+
+When a subagent runs, `manager.py` automatically reads the SKILL.md files for skills listed in that agent's `skills` field in `agents.yaml` and injects their content into `context['skills']`. Agents use these as in-context instructions.
+
+**Where skills are resolved** (in order):
+1. Custom `skills_root` passed in context
+2. `~/.agents/skills/<skill-name>/SKILL.md`
+3. `<repo-root>/.agents/skills/<skill-name>/SKILL.md`
+
+**Assigning skills to an agent** — edit `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`:
+
+```yaml
+- id: code-reviewer
+  ...
+  skills:
+    - caveman-review   # skill name = directory name under ~/.agents/skills/
+    - find-skills
+```
+
+**Verifying injection:**
+
+```bash
+python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
+```
+
+---
+
+### MCP Tool Bridge
+
+Subagents can request MCP tool calls by returning `mcp_calls` in their output. Each call requires human approval — the manager audit-logs the request and the host agentic tool (Copilot, Cursor, etc.) executes it.
+
+**List tools available to all agents:**
+
+```bash
+python scripts/subagents/mcp_bridge.py --list-tools
+```
+
+**List tools available to a specific agent (filtered by its allowlist):**
+
+```bash
+python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
+```
+
+**Assigning MCP tools to an agent** — edit `agents.yaml`:
+
+```yaml
+- id: code-reviewer
+  ...
+  mcp_tools:
+    - mcp_pylance_mcp_s_pylanceSyntaxErrors
+    - mcp_pylance_mcp_s_pylanceFileSyntaxErrors
+```
+
+**Agent output format** (agents express intent; manager handles approval):
+
+```json
+{
+  "agent_id": "code-reviewer",
+  "status": "ok",
+  "mcp_calls": [
+    {"tool": "mcp_pylance_mcp_s_pylanceSyntaxErrors", "args": {}}
+  ]
+}
+```
+
+Approval requests and results are audit-logged to `runs/<run>/subagents-logs/*-mcp_bridge.json`.
+
+---
+
+### Pipeline Orchestration
+
+Run multiple agents as a DAG: stages execute sequentially, agents within a stage run in parallel.
+
+**List available pipelines:**
+
+```bash
+python scripts/subagents/pipeline.py --list
+```
+
+**Run a pipeline:**
+
+```bash
+python scripts/subagents/pipeline.py construction-full '{"run_folder": "runs/my-run"}'
+```
+
+**Run a single agent directly:**
+
+```bash
+python scripts/subagents/manager.py planner '{"run_folder": "runs/my-run"}'
+```
+
+**Define a custom pipeline** in `agents.yaml`:
+
+```yaml
+pipelines:
+  - id: my-pipeline
+    name: My custom pipeline
+    stages:
+      - group:
+          - planner          # runs first (alone)
+      - group:
+          - builder          # these two run
+          - code-reviewer    # in parallel
+      - group:
+          - construction-reviewer  # runs last
+```
+
+**Built-in pipelines:**
+
+| Pipeline | Stages | Description |
+|----------|--------|-------------|
+| `construction-full` | planner → [builder + code-reviewer] → construction-reviewer | Full construction flow |
+| `review-only` | [code-reviewer + construction-reviewer] | Run reviewers only |
+
+Pipeline results and per-stage agent outputs are audit-logged to `runs/<run>/subagents-logs/*-pipeline_*.json`.
+
+---
+
+### Tool Adapters
+
+Adapter files explain how to wire AI-DLC rules into each agentic coding tool. They live in `aidlc-rules/adapters/` and are informational only — the core rules stay unchanged.
+
+| File | Tool |
+|------|------|
+| [`adapters/copilot.md`](aidlc-rules/adapters/copilot.md) | GitHub Copilot |
+| [`adapters/cursor.md`](aidlc-rules/adapters/cursor.md) | Cursor |
+| [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md) | Claude Code |
+| [`adapters/cline.md`](aidlc-rules/adapters/cline.md) | Cline |
+| [`adapters/generic.md`](aidlc-rules/adapters/generic.md) | Any other agent |
+
+---
+
 ## Usage
 
 1. Start any software development project by stating your intent starting with the phrase **"Using AI-DLC, ..."** in the chat
@@ -808,6 +963,38 @@ The agent will download the latest release, create the correct config file for y
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Secure Executor & Allowlist (Advanced)
+
+The manager delegates script execution to `scripts/executors/runner.py`. By default it
+allows paths under `scripts/`, `bin/`, and `.venv/bin/`. To allow additional base paths,
+edit `scripts/executors/allowlist.txt` (one path per line, relative to repo root) or
+export `EXECUTOR_ALLOW_BASES` as a colon-separated list.
+
+```text
+# allowlist.txt — relative to repo root
+runs
+packages
+packages/*/workspace
+```
+
+```bash
+export EXECUTOR_ALLOW_BASES="custom_tools:tools/bin"
+```
+
+The manager writes audit records to `runs/<run>/subagents-logs/`. Review these and
+`aidlc-docs/` before approving any changes that involve script execution in your workspace.
+
+To auto-enable subagent extensions during evaluation:
+
+```bash
+python3 scripts/aidlc-evaluator/scripts/run_evaluation.py \
+    --scenario sci-calc --auto-enable-extensions
+```
+
+This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`. AutoSkills
+(`midudev-autoskills`) is never auto-enabled — it always requires manual review of
+`aidlc-docs/autoskills-recommendations.md` before install.
 
 ## License
 

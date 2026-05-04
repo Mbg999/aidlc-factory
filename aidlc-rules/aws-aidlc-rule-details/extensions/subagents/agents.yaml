@@ -1,0 +1,123 @@
+agents:
+  - id: midudev-autoskills
+    name: AutoSkills discovery agent
+    entrypoint: scripts/subagents/autoskills_agent.py
+    enforce_in_phases:
+      - reverse-engineering
+    # Skills and MCP tools available to this agent
+    skills: []
+    mcp_tools: []
+
+  - id: code-reviewer
+    name: Code Reviewer
+    role: reviewer
+    capabilities:
+      - lint
+      - security-scan
+      - annotate
+    entrypoint: scripts/subagents/code_reviewer.py
+    opt_in: extensions/subagents/code-reviewer.opt-in.md
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # Skills injected into context as instructions (SKILL.md content)
+    skills:
+      - caveman-review
+    # MCP tool prefixes this agent may call (human approval required per call)
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceSyntaxErrors
+      - mcp_pylance_mcp_s_pylanceFileSyntaxErrors
+
+  - id: planner
+    name: Construction Planner
+    role: planner
+    description: "Generate a concrete construction/build plan for the workspace (install, test, lint, build steps). Writes aidlc-docs/construction-plan.md."
+    entrypoint: scripts/subagents/planner.py
+    allow_autoskills: true
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # Custom skills injected as in-context instructions
+    skills:
+      - find-skills        # helps discover additional skills for the project
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceInstalledTopLevelModules
+      - mcp_pylance_mcp_s_pylanceWorkspaceUserFiles
+
+  - id: builder
+    name: Construction Builder
+    role: builder
+    description: "Suggests build commands and (optionally) runs non-destructive build checks. Writes aidlc-docs/build-report.md."
+    entrypoint: scripts/subagents/builder.py
+    allow_autoskills: true
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # Custom skills injected as in-context instructions
+    skills:
+      - azure-observability  # helps with monitoring/infra decisions
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylancePythonEnvironments
+      - mcp_pylance_mcp_s_pylanceRunCodeSnippet
+
+  - id: construction-reviewer
+    name: Construction Reviewer
+    role: reviewer
+    description: "Automated review during construction: style, TODOs, secrets, and optional linters (flake8/eslint). Writes aidlc-docs/construction-review.md."
+    entrypoint: scripts/subagents/construction_reviewer.py
+    allow_autoskills: true
+    enabled_by_default: true
+    enforce_in_phases:
+      - construction
+      - build-and-test
+    permissions:
+      read:
+        - workspace/**
+      write:
+        - aidlc-docs/**
+    # "*" = auto-discover and inject ALL installed custom skills
+    skills:
+      - "*"
+    mcp_tools:
+      - mcp_pylance_mcp_s_pylanceSyntaxErrors
+      - mcp_pylance_mcp_s_pylanceFileSyntaxErrors
+
+# Pipeline definitions: sequential stages with optional parallel groups within each stage.
+# Agents listed in a group run concurrently; groups run in order.
+pipelines:
+  - id: construction-full
+    name: Full construction pipeline
+    description: "Planner first, then builder and reviewers in parallel."
+    stages:
+      - group:
+          - planner
+      - group:
+          - builder
+          - code-reviewer
+      - group:
+          - construction-reviewer
+
+  - id: review-only
+    name: Review only pipeline
+    description: "Run both reviewers in parallel without planning or building."
+    stages:
+      - group:
+          - code-reviewer
+          - construction-reviewer
