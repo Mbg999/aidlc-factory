@@ -489,13 +489,46 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 <my-project>/
 ├── .clinerules/
 │   └── core-workflow.md
-└── .aidlc-rule-details/
-    ├── common/
-    ├── inception/
-    ├── construction/
-    ├── extensions/
-    └── operations/
+├── .aidlc-rule-details/
+│   ├── common/
+│   ├── inception/
+│   ├── construction/
+│   ├── extensions/
+│   └── operations/
+└── scripts/
+    ├── subagents/
+    └── executors/
 ```
+
+---
+
+### Install script
+
+You can use the bundled installer script to copy the AI-DLC rules and (optionally) helper scripts into a project. The script lives at `scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
+
+Examples:
+
+```bash
+# Dry-run (shows planned actions, no files written)
+python scripts/install_aidlc.py --tool cursor --dry-run
+
+# Install into a specific destination non-interactively
+python scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes
+
+# Install but skip copying helper scripts (subagents/executors)
+python scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes --no-scripts
+```
+
+Key options:
+
+- `--tool`: target agent (one of `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `other`)
+- `--dest`: destination path to install rules into (defaults to current directory; interactive prompt if omitted)
+- `--dry-run`: show planned changes without performing them
+- `--yes`: assume yes for confirmation prompts (useful for scripting / CI)
+- `--no-scripts`: do not copy helper `scripts/` folders (`scripts/subagents`, `scripts/executors`, `scripts/aidlc-evaluator`) into the destination
+- `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
+
+After running the installer, verify the created files for your target tool (for example: `.cursor/rules/ai-dlc-workflow.mdc` for Cursor, `.github/copilot-instructions.md` for Copilot, or `.kiro/steering/aws-aidlc-rules/` for Kiro).
 
 ---
 
