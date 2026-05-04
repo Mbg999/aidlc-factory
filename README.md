@@ -1,3 +1,14 @@
+para mantener esto privado pero actualizado con respecto al repo original, hay que ejecutar lo siguiente en local y despues pushearlo al origin:
+
+```
+git remote add upstream https://github.com/awslabs/aidlc-workflows
+git fetch upstream
+git merge upstream/main
+git push
+```
+
+
+
 # AI-DLC (AI-Driven Development Life Cycle)
 
 > [!IMPORTANT]
