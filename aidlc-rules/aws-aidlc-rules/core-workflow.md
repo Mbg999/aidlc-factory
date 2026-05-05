@@ -200,8 +200,8 @@ Adapter files live in `aidlc-rules/adapters/`. Available adapters:
 
 Adapters are informational only — no adapter changes AIDLC rule content.
 
-## MANDATORY: Subagent Execution During Construction
-**CRITICAL**: The AI coding assistant MUST always **execute** the subagent scripts during the Construction phase — not simulate their behavior or generate their output artifacts manually. Subagents are **always enabled** (no opt-in required). If `scripts/subagents/` exists in the workspace, subagent execution is mandatory.
+## MANDATORY: Subagent Execution
+**CRITICAL**: The AI coding assistant MUST always **execute** the subagent scripts during ANY phase where an agent's `enforce_in_phases` applies — not simulate their behavior or generate their output artifacts manually. Subagents are **always enabled** (no opt-in required). If `scripts/subagents/` exists in the workspace, subagent execution is mandatory.
 
 ### How to Execute Subagents
 
@@ -223,10 +223,18 @@ The execution points are defined by each agent's `enforce_in_phases` field in `a
 
 | Agent | Phase(s) | Artifacts Produced |
 |-------|----------|-------------------|
+| `midudev-autoskills` | reverse-engineering (conditional) | `aidlc-docs/autoskills-recommendations.md` |
+| `memory` | reverse-engineering, construction, build-and-test | `.aidlc-memory/`, `aidlc-docs/` |
 | `planner` | construction | `aidlc-docs/construction-plan.md` |
 | `builder` | construction, build-and-test | `aidlc-docs/build-report.md` |
 | `code-reviewer` | construction, build-and-test | `aidlc-docs/reporting/` |
 | `construction-reviewer` | construction, build-and-test | `aidlc-docs/construction-review.md` |
+
+**Inception Phase (Reverse Engineering) — recommended execution flow:**
+
+1. **After analysis artifacts are generated** → Run `midudev-autoskills` (if the AutoSkills extension is enabled) to discover recommended skills for the brownfield project.
+
+2. **After Reverse Engineering completes** → Run `memory` to persist discovered architectural facts, decisions, and developer context across sessions.
 
 **Construction Phase — recommended execution flow:**
 
@@ -236,7 +244,9 @@ The execution points are defined by each agent's `enforce_in_phases` field in `a
 
 3. **Before Build and Test completion** → Run `construction-reviewer`. It scans for TODOs, secrets, style issues and writes `construction-review.md`.
 
-**Alternatively**, run the entire pipeline at once after Code Generation:
+4. **At Build and Test completion** → The `construction-full` pipeline runs `memory` as its final stage to consolidate learnings.
+
+**Alternatively**, run the entire construction pipeline at once after Code Generation:
 ```bash
 python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
 ```
@@ -247,7 +257,7 @@ python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
 - **MUST pass run_folder**: Always include `run_folder` in the JSON context so audit logs and output artifacts land in the correct location.
 - **MUST read and present results**: After execution, read the output artifacts (e.g., `aidlc-docs/construction-plan.md`) and present key findings to the user.
 - **MUST respect errors**: If an agent returns an error, report it to the user and do NOT proceed as if the stage completed successfully.
-- **MUST NOT simulate**: Do not generate `construction-plan.md`, `build-report.md`, or `construction-review.md` manually when the corresponding agent is enabled. The real agent script produces these files.
+- **MUST NOT simulate**: Do not generate `construction-plan.md`, `build-report.md`, `construction-review.md`, or `autoskills-recommendations.md` manually when the corresponding agent is enabled. The real agent script produces these files.
 - **MCP calls**: If agent output contains `mcp_calls`, present each tool call to the user for approval before proceeding.
 
 ### Fallback When Scripts Are Unavailable
@@ -338,9 +348,18 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
    - Generate technology stack documentation
    - Generate dependencies documentation
 
-4. **AutoSkills (conditional)**: If the AutoSkills extension is enabled, run the `midudev-autoskills` subagent to discover recommended skills for this brownfield project (see `reverse-engineering.md` Step 11). Write results to `aidlc-docs/autoskills-recommendations.md`.
-5. **Wait for Explicit Approval**: Present detailed completion message (see reverse-engineering.md for message format) - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
+4. **SUBAGENT — AutoSkills (conditional)**: If the AutoSkills extension is enabled, execute the `midudev-autoskills` subagent to discover recommended skills for this brownfield project:
+   ```bash
+   python scripts/subagents/manager.py midudev-autoskills '{"run_folder": "."}'
+   ```
+   Read and present findings from `aidlc-docs/autoskills-recommendations.md`.
+5. **SUBAGENT — Memory (ALWAYS)**: Execute the `memory` subagent to persist discovered architectural facts, decisions, and context for future sessions:
+   ```bash
+   python scripts/subagents/manager.py memory '{"run_folder": "."}'
+   ```
+   This ensures findings from Reverse Engineering are available across sessions.
+6. **Wait for Explicit Approval**: Present detailed completion message (see reverse-engineering.md for message format) - DO NOT PROCEED until user confirms
+7. **MANDATORY**: Log user's response in audit.md with complete raw input
 
 ## Requirements Analysis (ALWAYS EXECUTE - Adaptive Depth)
 

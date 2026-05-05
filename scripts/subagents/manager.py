@@ -39,6 +39,7 @@ except ImportError:
 
 # Candidate agent config paths (new default name first, fallback to legacy name)
 AGENTS_CONF_CANDIDATES = [
+    REPO_ROOT / ".aidlc-rule-details" / "extensions" / "subagents" / "agents.yaml",
     REPO_ROOT / "aidlc-rules" / "aidlc-rule-details" / "extensions" / "subagents" / "agents.yaml",
     REPO_ROOT / "aidlc-rules" / "aws-aidlc-rule-details" / "extensions" / "subagents" / "agents.yaml",
 ]

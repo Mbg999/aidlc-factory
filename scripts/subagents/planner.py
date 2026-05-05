@@ -2,30 +2,94 @@
 """Construction Planner subagent — generates a construction/build plan.
 
 Writes `aidlc-docs/construction-plan.md` with suggested steps based on
-detected manifests in the `workspace`.
+detected manifests in the `workspace`. Scans recursively so manifests
+inside sub-project directories (e.g. /root/original-project/package.json)
+are found and generate concrete, path-specific commands.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 AGENT_ID = "planner"
 
+_SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".git", "dist", "build", ".tox", ".mypy_cache", ".eggs"}
+_MANIFEST_FILES = {"requirements.txt", "pyproject.toml", "package.json", "go.mod", "pom.xml", "Cargo.toml", "Gemfile", "build.gradle"}
 
-def _detect_manifests(ws: Path) -> List[str]:
-    files = []
-    if (ws / "requirements.txt").exists():
-        files.append("requirements.txt")
-    if (ws / "pyproject.toml").exists():
-        files.append("pyproject.toml")
-    if (ws / "package.json").exists():
-        files.append("package.json")
-    if (ws / "go.mod").exists():
-        files.append("go.mod")
-    if (ws / "pom.xml").exists():
-        files.append("pom.xml")
-    return files
+
+def _detect_manifests(ws: Path) -> Dict[Path, List[str]]:
+    """Recursively find manifest files, grouped by their parent directory.
+
+    Returns a dict mapping absolute directory Path → list of manifest filenames
+    found in that directory. Skips common noise directories.
+    """
+    found: Dict[Path, List[str]] = {}
+    for path in sorted(ws.rglob("*")):
+        if any(part in _SKIP_DIRS for part in path.relative_to(ws).parts):
+            continue
+        if path.is_file() and path.name in _MANIFEST_FILES:
+            found.setdefault(path.parent, []).append(path.name)
+    return found
+
+
+def _steps_for_dir(ws: Path, abs_dir: Path, manifests: List[str]) -> List[Tuple[str, str]]:
+    """Return concrete (description, command) pairs for a directory's manifests.
+
+    Commands use 'cd <rel>' prefix when the manifest is not at workspace root.
+    """
+    try:
+        rel = abs_dir.relative_to(ws)
+        prefix = f"cd {rel} && " if str(rel) != "." else ""
+        dir_label = str(rel) if str(rel) != "." else "(root)"
+    except ValueError:
+        prefix = ""
+        dir_label = str(abs_dir)
+
+    steps: List[Tuple[str, str]] = []
+
+    # Install
+    if "requirements.txt" in manifests:
+        steps.append(("Install Python deps", f"{prefix}pip install -r requirements.txt"))
+    if "pyproject.toml" in manifests:
+        # prefer uv/poetry if requirements.txt is absent to avoid double-install
+        if "requirements.txt" not in manifests:
+            steps.append(("Install Python deps (pyproject)", f"{prefix}pip install -e '.[dev]'  # or: poetry install / uv sync"))
+    if "package.json" in manifests:
+        steps.append(("Install Node deps", f"{prefix}npm ci"))
+    if "go.mod" in manifests:
+        steps.append(("Download Go modules", f"{prefix}go mod download"))
+        steps.append(("Build Go project", f"{prefix}go build ./..."))
+    if "pom.xml" in manifests:
+        steps.append(("Maven build", f"{prefix}mvn -B package -DskipTests"))
+    if "Cargo.toml" in manifests:
+        steps.append(("Cargo build", f"{prefix}cargo build"))
+    if "Gemfile" in manifests:
+        steps.append(("Bundle install", f"{prefix}bundle install"))
+    if "build.gradle" in manifests:
+        steps.append(("Gradle build", f"{prefix}./gradlew build -x test"))
+
+    # Test
+    if "requirements.txt" in manifests or "pyproject.toml" in manifests:
+        steps.append(("Run Python tests", f"{prefix}pytest"))
+    if "package.json" in manifests:
+        steps.append(("Run Node tests", f"{prefix}npm test"))
+    if "go.mod" in manifests:
+        steps.append(("Run Go tests", f"{prefix}go test ./..."))
+    if "pom.xml" in manifests:
+        steps.append(("Run Maven tests", f"{prefix}mvn -B test"))
+    if "Cargo.toml" in manifests:
+        steps.append(("Run Cargo tests", f"{prefix}cargo test"))
+
+    # Lint
+    if "requirements.txt" in manifests or "pyproject.toml" in manifests:
+        steps.append(("Lint Python", f"{prefix}ruff check .  # or: flake8 ."))
+    if "package.json" in manifests:
+        steps.append(("Lint JS/TS", f"{prefix}npx eslint ."))
+    if "go.mod" in manifests:
+        steps.append(("Lint Go", f"{prefix}go vet ./..."))
+
+    return [(f"[{dir_label}] {desc}", cmd) for desc, cmd in steps]
 
 
 def run(context: Dict | None = None) -> Dict:
@@ -37,36 +101,38 @@ def run(context: Dict | None = None) -> Dict:
     docs = Path(ctx.get("aidlc_docs") or workspace.parent / "aidlc-docs")
     docs.mkdir(parents=True, exist_ok=True)
 
-    manifests = _detect_manifests(workspace)
-    plan: List[str] = []
+    manifests_by_dir = _detect_manifests(workspace)
 
-    if "requirements.txt" in manifests or "pyproject.toml" in manifests:
-        plan.append("Install Python dependencies (pip install -r requirements.txt or poetry install)")
-    if "package.json" in manifests:
-        plan.append("Install Node dependencies (npm ci or pnpm install)")
-    if "go.mod" in manifests:
-        plan.append("Run `go mod download` and `go build` as appropriate")
-    if "pom.xml" in manifests:
-        plan.append("Run Maven build (mvn -B package)")
+    # Build per-directory step lists
+    all_steps: List[Tuple[str, str]] = []  # (description, command)
+    for abs_dir, dir_manifests in sorted(manifests_by_dir.items()):
+        all_steps.extend(_steps_for_dir(workspace, abs_dir, dir_manifests))
 
-    if not manifests:
-        plan.append("No dependency manifests detected — run language detection and request instructions")
+    if not manifests_by_dir:
+        all_steps.append(("No manifests detected", "# No dependency manifests found — inspect the workspace and run setup manually"))
 
-    plan.append("Run unit tests (pytest, npm test, go test, etc.)")
-    plan.append("Run static analysis and linters")
-    plan.append("Build artifacts and run smoke tests")
+    # Flatten plan for backward-compat return value
+    plan: List[str] = [cmd for _, cmd in all_steps]
 
+    # Build report lines
     out = docs / "construction-plan.md"
-    lines: List[str] = ["# Construction Plan\n\n", f"Workspace: {workspace}\n\n", "## Detected manifests\n\n"]
-    if manifests:
-        for m in manifests:
-            lines.append(f"- {m}\n")
+    lines: List[str] = ["# Construction Plan\n\n", f"Workspace: {workspace}\n\n"]
+
+    lines.append("## Detected manifests\n\n")
+    if manifests_by_dir:
+        for abs_dir, dir_manifests in sorted(manifests_by_dir.items()):
+            try:
+                rel = abs_dir.relative_to(workspace)
+                label = str(rel) if str(rel) != "." else "(root)"
+            except ValueError:
+                label = str(abs_dir)
+            lines.append(f"- `{label}`: {', '.join(sorted(dir_manifests))}\n")
     else:
         lines.append("None\n")
 
     lines.append("\n## Proposed steps\n\n")
-    for s in plan:
-        lines.append(f"- {s}\n")
+    for desc, cmd in all_steps:
+        lines.append(f"### {desc}\n\n```bash\n{cmd}\n```\n\n")
 
     try:
         out.write_text("".join(lines), encoding="utf-8")
@@ -113,6 +179,7 @@ def run(context: Dict | None = None) -> Dict:
             autosummary = {"error": "failed to read autoskills directory"}
 
     # --- Memory: emit learnings for write-back by the manager ---
+    all_manifest_names = sorted({m for ms in manifests_by_dir.values() for m in ms})
     memory_observations: List[Dict] = []
     if plan:
         memory_observations.append({
@@ -120,9 +187,9 @@ def run(context: Dict | None = None) -> Dict:
             "tags": ["plan", "construction", workspace.name],
             "memory_type": "semantic",
         })
-    if manifests:
+    if manifests_by_dir:
         memory_observations.append({
-            "content": f"Detected manifests at {workspace.name}: {', '.join(manifests)}",
+            "content": f"Detected manifests at {workspace.name}: {', '.join(all_manifest_names)} in {len(manifests_by_dir)} director(y/ies)",
             "tags": ["manifests", "dependencies", workspace.name],
             "memory_type": "semantic",
         })

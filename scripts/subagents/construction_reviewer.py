@@ -17,9 +17,14 @@ from typing import Dict, List
 AGENT_ID = "construction-reviewer"
 
 
+_SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".git", "dist", "build", ".tox", ".mypy_cache", ".eggs"}
+
+
 def _gather_files(base: Path, patterns: List[str]) -> List[Path]:
     out: List[Path] = []
     for p in base.rglob("*"):
+        if any(part in _SKIP_DIRS for part in p.relative_to(base).parts):
+            continue
         if not p.is_file():
             continue
         for pat in patterns:
@@ -67,7 +72,9 @@ def run(context: Dict | None = None) -> Dict:
     scan = _search_todos_and_secrets(code_files)
 
     linters: Dict[str, Dict] = {}
-    if shutil.which("flake8"):
+    if shutil.which("ruff"):
+        linters["ruff"] = _run_linter(["ruff", "check", "--output-format", "concise", str(workspace)], workspace)
+    elif shutil.which("flake8"):
         linters["flake8"] = _run_linter(["flake8", str(workspace)], workspace)
     if shutil.which("eslint"):
         linters["eslint"] = _run_linter(["eslint", "--format", "compact", str(workspace)], workspace)

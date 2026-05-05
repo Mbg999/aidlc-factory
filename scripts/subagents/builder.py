@@ -3,6 +3,7 @@
 
 Writes `aidlc-docs/build-report.md`. By default this agent only *suggests*
 commands; it will run anything only if `context['run_build']` is truthy.
+Scans recursively so manifests inside sub-project directories are detected.
 """
 from __future__ import annotations
 
@@ -10,24 +11,67 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 AGENT_ID = "builder"
 
+_SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".git", "dist", "build", ".tox", ".mypy_cache", ".eggs"}
+_MANIFEST_FILES = {"requirements.txt", "pyproject.toml", "package.json", "go.mod", "pom.xml", "Cargo.toml", "Gemfile", "build.gradle"}
 
-def _detect_manifests(ws: Path) -> List[str]:
-    files = []
-    if (ws / "requirements.txt").exists():
-        files.append("requirements.txt")
-    if (ws / "pyproject.toml").exists():
-        files.append("pyproject.toml")
-    if (ws / "package.json").exists():
-        files.append("package.json")
-    if (ws / "go.mod").exists():
-        files.append("go.mod")
-    if (ws / "pom.xml").exists():
-        files.append("pom.xml")
-    return files
+
+def _detect_manifests(ws: Path) -> Dict[Path, List[str]]:
+    """Recursively find manifest files grouped by directory. Skips noise dirs."""
+    found: Dict[Path, List[str]] = {}
+    for path in sorted(ws.rglob("*")):
+        if any(part in _SKIP_DIRS for part in path.relative_to(ws).parts):
+            continue
+        if path.is_file() and path.name in _MANIFEST_FILES:
+            found.setdefault(path.parent, []).append(path.name)
+    return found
+
+
+def _commands_for_dir(ws: Path, abs_dir: Path, manifests: List[str]) -> List[Tuple[str, str]]:
+    """Return (description, command) pairs for one sub-project directory."""
+    try:
+        rel = abs_dir.relative_to(ws)
+        prefix = f"cd {rel} && " if str(rel) != "." else ""
+        label = str(rel) if str(rel) != "." else "(root)"
+    except ValueError:
+        prefix = ""
+        label = str(abs_dir)
+
+    cmds: List[Tuple[str, str]] = []
+
+    if "requirements.txt" in manifests:
+        cmds.append(("Install Python deps", f"{prefix}pip install -r requirements.txt"))
+    if "pyproject.toml" in manifests and "requirements.txt" not in manifests:
+        cmds.append(("Install Python deps", f"{prefix}pip install -e '.[dev]'  # or: poetry install / uv sync"))
+    if "package.json" in manifests:
+        cmds.append(("Install Node deps", f"{prefix}npm ci"))
+    if "go.mod" in manifests:
+        cmds.append(("Build Go", f"{prefix}go build ./..."))
+    if "pom.xml" in manifests:
+        cmds.append(("Maven build", f"{prefix}mvn -B package -DskipTests"))
+    if "Cargo.toml" in manifests:
+        cmds.append(("Cargo build", f"{prefix}cargo build"))
+    if "Gemfile" in manifests:
+        cmds.append(("Bundle install", f"{prefix}bundle install"))
+    if "build.gradle" in manifests:
+        cmds.append(("Gradle build", f"{prefix}./gradlew build -x test"))
+
+    # Test
+    if "requirements.txt" in manifests or "pyproject.toml" in manifests:
+        cmds.append(("Run tests", f"{prefix}pytest"))
+    if "package.json" in manifests:
+        cmds.append(("Run tests", f"{prefix}npm test"))
+    if "go.mod" in manifests:
+        cmds.append(("Run tests", f"{prefix}go test ./..."))
+    if "pom.xml" in manifests:
+        cmds.append(("Run tests", f"{prefix}mvn -B test"))
+    if "Cargo.toml" in manifests:
+        cmds.append(("Run tests", f"{prefix}cargo test"))
+
+    return [(f"[{label}] {desc}", cmd) for desc, cmd in cmds]
 
 
 def run(context: Dict | None = None) -> Dict:
@@ -39,40 +83,40 @@ def run(context: Dict | None = None) -> Dict:
     docs = Path(ctx.get("aidlc_docs") or workspace.parent / "aidlc-docs")
     docs.mkdir(parents=True, exist_ok=True)
 
-    manifests = _detect_manifests(workspace)
-    suggested: List[str] = []
-    if "requirements.txt" in manifests:
-        suggested.append("python -m pip install -r requirements.txt")
-    if "pyproject.toml" in manifests:
-        suggested.append("poetry install (or pip-compile + pip install)")
-    if "package.json" in manifests:
-        suggested.append("npm ci || pnpm install || yarn install")
-    if "go.mod" in manifests:
-        suggested.append("go build ./...")
-    if "pom.xml" in manifests:
-        suggested.append("mvn -B package")
+    manifests_by_dir = _detect_manifests(workspace)
 
-    suggested.append("Run unit tests (pytest, npm test, go test)")
-    suggested.append("Run linter/static analysis")
+    all_cmds: List[Tuple[str, str]] = []
+    for abs_dir, dir_manifests in sorted(manifests_by_dir.items()):
+        all_cmds.extend(_commands_for_dir(workspace, abs_dir, dir_manifests))
+
+    if not manifests_by_dir:
+        all_cmds.append(("No manifests found", "# No dependency manifests detected — inspect workspace manually"))
+
+    suggested: List[str] = [cmd for _, cmd in all_cmds]
 
     ran: Dict[str, Dict] = {}
     if ctx.get("run_build"):
-        # Only perform safe, read-only checks by default.
-        # Example: check tool availability
-        for tool in ("python", "node", "go", "mvn", "npm", "flake8"):
+        for tool in ("python3", "node", "go", "mvn", "npm", "cargo", "ruff", "flake8"):
             ran[tool] = {"available": bool(shutil.which(tool))}
 
     out = docs / "build-report.md"
-    lines: List[str] = ["# Build Report\n\n", f"Workspace: {workspace}\n\n", "## Detected manifests\n\n"]
-    if manifests:
-        for m in manifests:
-            lines.append(f"- {m}\n")
+    lines: List[str] = ["# Build Report\n\n", f"Workspace: {workspace}\n\n"]
+
+    lines.append("## Detected manifests\n\n")
+    if manifests_by_dir:
+        for abs_dir, dir_manifests in sorted(manifests_by_dir.items()):
+            try:
+                rel = abs_dir.relative_to(workspace)
+                label = str(rel) if str(rel) != "." else "(root)"
+            except ValueError:
+                label = str(abs_dir)
+            lines.append(f"- `{label}`: {', '.join(sorted(dir_manifests))}\n")
     else:
         lines.append("None\n")
 
     lines.append("\n## Suggested commands\n\n")
-    for s in suggested:
-        lines.append(f"- {s}\n")
+    for desc, cmd in all_cmds:
+        lines.append(f"### {desc}\n\n```bash\n{cmd}\n```\n\n")
 
     if ran:
         lines.append("\n## Environment checks (run_build=true)\n\n")
@@ -121,10 +165,11 @@ def run(context: Dict | None = None) -> Dict:
             autosummary = {"error": "failed to read autoskills directory"}
 
     # --- Memory: emit learnings for write-back by the manager ---
+    all_manifest_names = sorted({m for ms in manifests_by_dir.values() for m in ms})
     memory_observations: List[Dict] = []
-    if manifests:
+    if manifests_by_dir:
         memory_observations.append({
-            "content": f"Project at {workspace.name} uses: {', '.join(manifests)}",
+            "content": f"Project at {workspace.name} uses: {', '.join(all_manifest_names)} in {len(manifests_by_dir)} director(y/ies)",
             "tags": ["build", "dependencies", workspace.name],
             "memory_type": "semantic",
         })
