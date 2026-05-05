@@ -17,6 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 import textwrap
+import subprocess
 
 
 def copy_tree(src: Path, dst: Path, dry_run: bool) -> None:
@@ -49,6 +50,69 @@ def write_file(path: Path, content: str, dry_run: bool) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
+    if not src.exists():
+        raise FileNotFoundError(f"Source not found: {src}")
+    if dry_run:
+        print(f"[DRY-RUN] Would copy file {src} -> {dst}")
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+
+
+def create_venv_and_install_requirements(target_root: Path, requirements_path: Path, dry_run: bool) -> None:
+    venv_path = target_root / ".venv"
+    python_cmds = ["python", "python3"]
+    created = False
+    last_err = None
+
+    for cmd in python_cmds:
+        try:
+            if dry_run:
+                print(f"[DRY-RUN] Would run: {cmd} -m venv {venv_path}")
+                created = True
+                break
+            print(f"Creating virtual environment using '{cmd}'...")
+            subprocess.run([cmd, "-m", "venv", str(venv_path)], check=True)
+            created = True
+            break
+        except FileNotFoundError as e:
+            last_err = e
+            continue
+        except subprocess.CalledProcessError as e:
+            last_err = e
+            continue
+
+    if not created:
+        raise EnvironmentError("Could not create virtual environment: 'python' and 'python3' not found or failed. Python is required.")
+    if dry_run:
+        # In dry-run mode we already printed the venv creation step; nothing more to do here.
+        return
+
+    # locate the python executable inside the venv
+    venv_python = venv_path / "bin" / "python"
+    if not venv_python.exists():
+        venv_python = venv_path / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        raise EnvironmentError(f"Could not find python executable in virtualenv at {venv_path}")
+
+    if dry_run:
+        print(f"[DRY-RUN] Would install requirements using {venv_python} -m pip install -r {requirements_path}")
+        return
+
+    try:
+        print("Upgrading pip in virtualenv...")
+        subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
+    except subprocess.CalledProcessError:
+        print("Warning: Failed to upgrade pip in the virtualenv; continuing to install requirements.")
+
+    try:
+        print(f"Installing requirements from {requirements_path} into virtualenv...")
+        subprocess.run([str(venv_python), "-m", "pip", "install", "-r", str(requirements_path)], check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to install requirements: {e}")
 
 
 def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path, dry_run: bool, include_scripts: bool = True) -> None:
@@ -135,6 +199,26 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
                 copy_tree(ssrc, dest, dry_run)
         if printed_any:
             print(f"  scripts: {scripts_dir} -> {target_root / 'scripts'}")
+
+    # Copy requirements.txt from the repo and try to create a venv + install
+    repo_root = src_rules.parent.parent
+    req_src = repo_root / "requirements.txt"
+    if req_src.exists():
+        dest_req = target_root / "requirements.txt"
+        print(f"Copying requirements: {req_src} -> {dest_req}")
+        try:
+            copy_file(req_src, dest_req, dry_run)
+        except Exception as e:
+            print(f"Warning: failed to copy requirements.txt: {e}")
+
+        try:
+            create_venv_and_install_requirements(target_root, dest_req, dry_run)
+        except EnvironmentError as e:
+            print("ERROR: Python is required to create a virtual environment and install requirements:", e)
+        except RuntimeError as e:
+            print("ERROR: Failed to install requirements:", e)
+    else:
+        print(f"No requirements.txt found at {req_src}; skipping venv setup and package installation")
 
 
 def parse_args() -> argparse.Namespace:
