@@ -12,4 +12,6 @@ description = "Global allowlist"
 paths = [
     '''\.gitleaks-baseline\.json$''',
     '''uv\.lock$''',
+    # Credential scrubber tests intentionally contain fake credentials as fixtures
+    '''test_credential_scrubber\.py$''',
 ]
