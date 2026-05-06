@@ -200,6 +200,32 @@ Adapter files live in `aidlc-rules/adapters/`. Available adapters:
 
 Adapters are informational only — no adapter changes AIDLC rule content.
 
+## Agency-Agents Integration (Optional Extension)
+
+When the **agency-agents** extension is enabled (see `extensions/agency-agents/agency-agents.opt-in.md`),
+the AI assistant gains access to specialist agent personas from
+[The Agency](https://github.com/msitarzewski/agency-agents) — a collection of 140+
+specialist AI agents with deep domain expertise across engineering, design, testing,
+product, and more.
+
+**How it works:**
+
+1. Agency-agent `.md` persona files are installed in the tool-specific directory
+   (e.g., `.github/agents/` for Copilot, `.claude/agents/` for Claude Code).
+2. During each AIDLC phase, the AI assistant reads and consults relevant specialist
+   personas mapped to that phase (e.g., `engineering-backend-architect` during
+   Application Design, `engineering-security-engineer` during NFR Design).
+3. The specialist's domain knowledge supplements (never replaces) AIDLC rules.
+
+**Key distinctions:**
+- Agency-agents are **persona files read by the AI assistant** — NOT executed scripts.
+- AIDLC subagents (`scripts/subagents/`) are **Python scripts run in the terminal**.
+- Both work together: agency-agents provide contextual expertise, subagents produce
+  structured artifacts.
+
+**Full rules:** See `extensions/agency-agents/agency-agents.md` for the complete
+phase-to-agent mapping, consultation protocol, and enforcement details.
+
 ## MANDATORY: Subagent Execution
 **CRITICAL**: The AI coding assistant MUST always **execute** the subagent scripts during ANY phase where an agent's `enforce_in_phases` applies — not simulate their behavior or generate their output artifacts manually. Subagents are **always enabled** (no opt-in required). If `scripts/subagents/` exists in the workspace, subagent execution is mandatory.
 

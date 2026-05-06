@@ -141,3 +141,62 @@ pipelines:
       - group:
           - code-reviewer
           - construction-reviewer
+
+# Agency-Agents persona mapping: maps AIDLC phases to specialist personas
+# from https://github.com/msitarzewski/agency-agents.
+# These are NOT subagents (not executed via manager.py). They are .md persona files
+# that the AI assistant reads from the tool-specific agents directory for context.
+# This mapping is used when the agency-agents extension is enabled.
+agency_agents_mapping:
+  reverse-engineering:
+    - engineering-codebase-onboarding-engineer
+    - engineering-software-architect
+  requirements-analysis:
+    - product-product-manager
+    - design-ux-researcher
+  user-stories:
+    - product-product-manager
+    - design-ux-researcher
+  workflow-planning:
+    - project-management-senior-project-manager
+    - engineering-devops-automator
+  application-design:
+    - engineering-backend-architect
+    - engineering-software-architect
+    - engineering-frontend-developer
+  units-generation:
+    - project-management-senior-project-manager
+  functional-design:
+    - engineering-backend-architect
+    - engineering-software-architect
+  nfr-requirements:
+    - engineering-backend-architect
+    - testing-performance-benchmarker
+  nfr-design:
+    - engineering-backend-architect
+    - engineering-security-engineer
+  infrastructure-design:
+    - engineering-devops-automator
+    - engineering-backend-architect
+  code-generation:
+    - engineering-frontend-developer
+    - engineering-backend-architect
+    - engineering-mobile-app-builder
+    - engineering-ai-engineer
+  build-and-test:
+    - engineering-devops-automator
+    - testing-performance-benchmarker
+    - engineering-code-reviewer
+  # Cross-cutting concerns (consulted when applicable regardless of phase)
+  security:
+    - engineering-security-engineer
+  accessibility:
+    - testing-accessibility-auditor
+  code-review:
+    - engineering-code-reviewer
+  database:
+    - engineering-database-optimizer
+  git:
+    - engineering-git-workflow-master
+  documentation:
+    - engineering-technical-writer

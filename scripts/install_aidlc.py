@@ -5,10 +5,15 @@ install_aidlc.py
 Simple installer to copy AI-DLC rule files into the chosen agent integration
 location (Kiro, Amazon Q, Cursor, Cline, Claude Code, GitHub Copilot, Other).
 
+Optionally fetches and installs specialist agents from
+https://github.com/msitarzewski/agency-agents (The Agency).
+
 Usage examples:
   python scripts/install_aidlc.py --tool cursor
   python scripts/install_aidlc.py --tool copilot --yes
   python scripts/install_aidlc.py --tool kiro --dry-run
+  python scripts/install_aidlc.py --tool copilot --with-agency-agents
+  python scripts/install_aidlc.py --tool copilot --with-agency-agents --agency-divisions engineering,testing
 """
 from __future__ import annotations
 
@@ -115,6 +120,90 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
         raise RuntimeError(f"Failed to install requirements: {e}")
 
 
+AGENCY_AGENTS_REPO = "https://github.com/msitarzewski/agency-agents.git"
+AGENCY_AGENTS_DIVISIONS = [
+    "academic", "design", "engineering", "finance", "game-development",
+    "marketing", "paid-media", "product", "project-management",
+    "sales", "spatial-computing", "specialized", "strategy", "support", "testing",
+]
+
+
+def clone_agency_agents(dest: Path, dry_run: bool) -> Path:
+    """Clone the agency-agents repo into a temporary or specified location."""
+    if dry_run:
+        print(f"[DRY-RUN] Would clone {AGENCY_AGENTS_REPO} into {dest}")
+        return dest
+    if dest.exists() and (dest / ".git").exists():
+        print(f"Agency-agents repo already exists at {dest}, pulling latest...")
+        subprocess.run(["git", "-C", str(dest), "pull", "--ff-only"], check=False)
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Cloning agency-agents from {AGENCY_AGENTS_REPO}...")
+    subprocess.run(
+        ["git", "clone", "--depth", "1", AGENCY_AGENTS_REPO, str(dest)],
+        check=True,
+    )
+    return dest
+
+
+def install_agency_agents(tool: str, agency_repo: Path, target_root: Path, divisions: list[str] | None, dry_run: bool) -> int:
+    """Install agent .md files from agency-agents repo for the selected tool.
+
+    Returns count of agents installed.
+    """
+    selected_divisions = divisions if divisions else AGENCY_AGENTS_DIVISIONS
+    count = 0
+
+    if tool == "copilot":
+        dest = target_root / ".github" / "agents"
+    elif tool == "claude":
+        dest = target_root / ".claude" / "agents"
+    elif tool == "cursor":
+        dest = target_root / ".cursor" / "rules"
+    elif tool == "cline":
+        dest = target_root / ".clinerules" / "agents"
+    elif tool in ("kiro", "amazonq", "other"):
+        dest = target_root / ".agents"
+    else:
+        dest = target_root / ".agents"
+
+    if dry_run:
+        print(f"[DRY-RUN] Would install agency-agents to {dest}")
+    else:
+        dest.mkdir(parents=True, exist_ok=True)
+
+    for division in selected_divisions:
+        div_path = agency_repo / division
+        if not div_path.exists():
+            continue
+        for md_file in sorted(div_path.rglob("*.md")):
+            # Only install files with YAML frontmatter (real agent files)
+            try:
+                first_line = md_file.read_text(encoding="utf-8").split("\n", 1)[0]
+            except (OSError, UnicodeDecodeError):
+                continue
+            if first_line.strip() != "---":
+                continue
+
+            if tool == "cursor":
+                # Cursor needs .mdc extension
+                target_file = dest / (md_file.stem + ".mdc")
+            else:
+                target_file = dest / md_file.name
+
+            if dry_run:
+                print(f"[DRY-RUN]   {md_file.name} -> {target_file}")
+            else:
+                shutil.copy2(md_file, target_file)
+            count += 1
+
+    if not dry_run:
+        print(f"Installed {count} agency-agents ({', '.join(selected_divisions)}) -> {dest}")
+    else:
+        print(f"[DRY-RUN] Would install {count} agents to {dest}")
+    return count
+
+
 def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path, dry_run: bool, include_scripts: bool = True) -> None:
     core_md = src_rules / "core-workflow.md"
     if not core_md.exists():
@@ -184,6 +273,29 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
     print(f"  rules: {src_rules} -> {target_root}")
     print(f"  details: {src_details} -> {target_root}")
 
+    # Copy the tool-specific adapter file into the destination for reference
+    repo_root_adapters = src_rules.parent.parent
+    adapters_dir = repo_root_adapters / "aidlc-rules" / "adapters"
+    adapter_map = {
+        "copilot": "copilot.md",
+        "cursor": "cursor.md",
+        "claude": "claude-code.md",
+        "cline": "cline.md",
+        "other": "generic.md",
+        "kiro": "generic.md",
+        "amazonq": "generic.md",
+    }
+    adapter_file = adapters_dir / adapter_map.get(tool, "generic.md")
+    if adapter_file.exists():
+        if tool == "kiro":
+            adapter_dest = target_root / ".kiro" / "aws-aidlc-rule-details" / "adapters" / adapter_file.name
+        elif tool == "amazonq":
+            adapter_dest = target_root / ".amazonq" / "aws-aidlc-rule-details" / "adapters" / adapter_file.name
+        else:
+            adapter_dest = target_root / ".aidlc-rule-details" / "adapters" / adapter_file.name
+        print(f"Copying adapter: {adapter_file} -> {adapter_dest}")
+        copy_file(adapter_file, adapter_dest, dry_run)
+
     # Copy helper scripts (subagents, executors, aidlc-evaluator) from this repo
     if include_scripts:
         repo_root = src_rules.parent.parent
@@ -230,6 +342,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
     p.add_argument("--dest", type=str, default=None, help="Destination path to install rules into (defaults to current directory)")
     p.add_argument("--no-scripts", action="store_true", help="Do not copy helper scripts (subagents/executors/aidlc-evaluator) into destination")
+    p.add_argument("--with-agency-agents", action="store_true",
+                   help="Also install specialist agents from github.com/msitarzewski/agency-agents")
+    p.add_argument("--agency-divisions", type=str, default=None,
+                   help="Comma-separated list of agency-agents divisions to install (default: all). "
+                        f"Available: {','.join(AGENCY_AGENTS_DIVISIONS)}")
+    p.add_argument("--agency-agents-path", type=str, default=None,
+                   help="Local path to an existing agency-agents clone (skips git clone)")
     return p.parse_args()
 
 
@@ -294,6 +413,37 @@ def main() -> int:
     except Exception as e:
         print("ERROR during installation:", e)
         return 3
+
+    # --- Agency Agents integration ---
+    if args.with_agency_agents:
+        print("\n--- Installing Agency Agents (The Agency) ---")
+        divisions = None
+        if args.agency_divisions:
+            divisions = [d.strip() for d in args.agency_divisions.split(",") if d.strip()]
+            invalid = [d for d in divisions if d not in AGENCY_AGENTS_DIVISIONS]
+            if invalid:
+                print(f"WARNING: Unknown divisions ignored: {', '.join(invalid)}")
+                divisions = [d for d in divisions if d in AGENCY_AGENTS_DIVISIONS]
+
+        if args.agency_agents_path:
+            agency_repo = Path(args.agency_agents_path).expanduser().resolve()
+            if not agency_repo.exists():
+                print(f"ERROR: Provided agency-agents path does not exist: {agency_repo}")
+                return 4
+        else:
+            agency_repo = target_root / ".agency-agents-repo"
+            try:
+                clone_agency_agents(agency_repo, args.dry_run)
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                print(f"ERROR: Failed to clone agency-agents repo: {e}")
+                print("  Ensure 'git' is installed, or use --agency-agents-path to provide a local clone.")
+                return 4
+
+        try:
+            install_agency_agents(tool, agency_repo, target_root, divisions, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing agency-agents: {e}")
+            return 4
 
     print("Done.")
     return 0

@@ -40,6 +40,26 @@ python scripts/subagents/pipeline.py --list
 python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
 ```
 
+## Agency-Agents Integration
+
+When installed with `--with-agency-agents`, specialist persona files from
+[The Agency](https://github.com/msitarzewski/agency-agents) are placed in
+`.agents/`. These are Markdown persona files that the AI assistant reads
+as additional context during AIDLC phases.
+
+- Files follow the naming pattern: `<division>-<slug>.md`
+  (e.g., `engineering-backend-architect.md`)
+- AIDLC automatically consults relevant personas when the agency-agents
+  extension is enabled (see `extensions/agency-agents/agency-agents.md`).
+- To install:
+  ```bash
+  python scripts/install_aidlc.py --tool other --with-agency-agents --dest .
+  ```
+- To install only specific divisions:
+  ```bash
+  python scripts/install_aidlc.py --tool other --with-agency-agents --agency-divisions engineering,testing --dest .
+  ```
+
 ## Key Paths
 
 | Purpose | Path |
@@ -48,6 +68,7 @@ python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
 | Rule details | `aidlc-rules/aws-aidlc-rule-details/` |
 | Extensions | `aidlc-rules/aws-aidlc-rule-details/extensions/` |
 | Agent definitions | `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml` |
+| Agency-agents personas | `.agents/` |
 | State file | `aidlc-docs/aidlc-state.md` |
 | Run outputs | `aidlc-docs/` |
 | Audit logs | `runs/<run>/subagents-logs/` |

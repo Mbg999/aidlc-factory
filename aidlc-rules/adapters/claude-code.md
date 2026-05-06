@@ -29,6 +29,26 @@ python scripts/subagents/pipeline.py construction-full '{"run_folder":"runs/curr
 Skills installed under `~/.agents/skills/` are automatically injected into
 agent context by `manager.py`.
 
+## Agency-Agents Integration
+
+When installed with `--with-agency-agents`, specialist persona files from
+[The Agency](https://github.com/msitarzewski/agency-agents) are placed in
+`.claude/agents/`. Claude Code reads these as agent personas that the AI
+assistant consults during AIDLC phases.
+
+- Files follow the naming pattern: `<division>-<slug>.md`
+  (e.g., `engineering-backend-architect.md`)
+- AIDLC automatically consults relevant personas when the agency-agents
+  extension is enabled (see `extensions/agency-agents/agency-agents.md`).
+- To install:
+  ```bash
+  python scripts/install_aidlc.py --tool claude --with-agency-agents --dest .
+  ```
+- To install only specific divisions:
+  ```bash
+  python scripts/install_aidlc.py --tool claude --with-agency-agents --agency-divisions engineering,testing --dest .
+  ```
+
 ## Verification
 
 Ask Claude: "What phase are we in according to AI-DLC?" — it should respond

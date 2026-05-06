@@ -39,6 +39,28 @@ Load rule detail files from aidlc-rules/aws-aidlc-rule-details/ as specified.
 - MCP tools available in your VS Code installation are surfaced via
   `mcp_bridge.py list_tools`.
 
+## Agency-Agents Integration
+
+When installed with `--with-agency-agents`, specialist persona files from
+[The Agency](https://github.com/msitarzewski/agency-agents) are placed in
+`.github/agents/`. These are **VS Code Copilot agent-mode personas** that the
+AI assistant reads as additional context during AIDLC phases.
+
+- Files follow the naming pattern: `<division>-<slug>.md`
+  (e.g., `engineering-backend-architect.md`)
+- Copilot can activate them via `@AgentName` or AIDLC consults them automatically
+  when the agency-agents extension is enabled.
+- To install:
+  ```bash
+  python scripts/install_aidlc.py --tool copilot --with-agency-agents --dest .
+  ```
+- To install only specific divisions:
+  ```bash
+  python scripts/install_aidlc.py --tool copilot --with-agency-agents --agency-divisions engineering,testing --dest .
+  ```
+
+See `extensions/agency-agents/agency-agents.md` for the full phase-to-agent mapping.
+
 ## Verification
 
 Ask Copilot: "What phase are we in according to AI-DLC?" — it should respond
