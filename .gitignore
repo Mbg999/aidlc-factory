@@ -12,4 +12,4 @@ codebuild_build.sh
 **/__pycache__/**
 **.out
 **.pyc
-.aidlc-memory/**
+.aidlc-memory/**.agency-agents-repo/

@@ -54,5 +54,9 @@
       "enforce_in_phases": ["construction", "build-and-test"],
       "permissions": {"read": ["workspace/**"], "write": ["aidlc-docs/**"]}
     }
-  ]
+  ],
+  "agency_agents": {
+    "enabled_by_default": true,
+    "agent_directory": ".github/agents"
+  }
 }

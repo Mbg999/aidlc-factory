@@ -142,6 +142,11 @@ pipelines:
           - code-reviewer
           - construction-reviewer
 
+# Agency-Agents extension configuration
+agency_agents:
+  enabled_by_default: true
+  agent_directory: .github/agents  # tool-specific; Copilot uses .github/agents/
+
 # Agency-Agents persona mapping: maps AIDLC phases to specialist personas
 # from https://github.com/msitarzewski/agency-agents.
 # These are NOT subagents (not executed via manager.py). They are .md persona files
