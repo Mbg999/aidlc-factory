@@ -308,7 +308,7 @@ These rules are cross-cutting constraints that apply to every AI-DLC stage. At e
 ## Appendix: OWASP Reference Mapping
 
 For human reviewers, the following maps SECURITY rules to OWASP Top 10 (2021) categories
-(reference: https://owasp.org/www-project-top-ten/):
+(reference: <https://owasp.org/www-project-top-ten/>):
 
 | SECURITY Rule | OWASP 2021 Category |
 |---|---|

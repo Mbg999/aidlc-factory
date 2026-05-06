@@ -33,6 +33,7 @@ python scripts/subagents/manager.py code-reviewer '{"path": "."}'
 ```
 
 **What to expect:**
+
 - All tests pass in ~1 second (29 tests)
 - `--list-skills` shows skills installed in `~/.agents/skills/`
 - `--list` shows `construction-full` and `review-only` pipelines

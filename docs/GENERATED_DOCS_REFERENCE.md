@@ -115,20 +115,19 @@ Example `aidlc-state.yaml` produced by the auto-enable flow:
 
 ```yaml
 subagents:
-	planner: true
-	builder: true
-	construction-reviewer: true
+ planner: true
+ builder: true
+ construction-reviewer: true
 ```
 
 Direct runner CLI example (for debugging):
 
 ```bash
 echo '{"actions":[{"action":"run_script","script":"scripts/test_scripts/echo.py","args":["hi"]}]}' \
-	| python3 scripts/executors/runner.py
+ | python3 scripts/executors/runner.py
 ```
 
 Audit and security notes:
 
 - The manager writes audit logs into the run folder under `runs/<run>/subagents-logs/` (JSON files). Review these logs and any generated `aidlc-docs/` artifacts before approving or applying changes produced by subagents.
 - Do not add untrusted locations to `scripts/executors/allowlist.txt` without review. The executor runs programs without `shell=True` and enforces the allowlist, but adding wide paths (e.g., `/`) defeats its purpose.
-

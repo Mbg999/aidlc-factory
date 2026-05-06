@@ -1,15 +1,13 @@
-para mantener esto privado pero actualizado con respecto al repo original, hay que ejecutar lo siguiente en local y despues pushearlo al origin:
+# AI-DLC (AI-Driven Development Life Cycle)
 
-```
+**Fork maintenance note:** para mantener esto privado pero actualizado con respecto al repo original, hay que ejecutar lo siguiente en local y despues pushearlo al origin:
+
+```bash
 git remote add upstream https://github.com/awslabs/aidlc-workflows
 git fetch upstream
 git merge upstream/main
 git push
 ```
-
-
-
-# AI-DLC (AI-Driven Development Life Cycle)
 
 > [!IMPORTANT]
 > Generative AI can make mistakes. Review all AI-generated output and associated costs before acting on them.
@@ -19,14 +17,14 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
 ## Table of Contents
 
 - [Common](#common)
-- [Platform-Specific Setup](#platform-specific-setup)
+- [Platform-Specific Setup](#kiro)
 - [Usage](#usage)
 - [Advanced Features (This Fork)](#advanced-features-this-fork)
   - [Skills Injection](#skills-injection)
   - [MCP Tool Bridge](#mcp-tool-bridge)
   - [Pipeline Orchestration](#pipeline-orchestration)
   - [Tool Adapters](#tool-adapters)
-  - [Adding Custom Agents](#adding-custom-agents)
+  - [Adding Custom Agents](#adding-custom-agents-english)
 - [Three-Phase Adaptive Workflow](#three-phase-adaptive-workflow)
 - [Key Features](#key-features)
 - [Extensions](#extensions)
@@ -51,20 +49,19 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
    - `aws-aidlc-rule-details/` — detailed rules conditionally referenced by the core rules
 3. Follow the setup instructions for your coding agent and platform below.
 
-
 ## What's in This Fork
 
 This repository extends the upstream AWS AI-DLC with additional capabilities. All extensions are **opt-in** and copy-paste ready — take only what you need.
 
-| Feature | What it is | Requires |
-|---------|-----------|----------|
-| **Skills injection** | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` populated |
-| **MCP tool bridge** | Subagents can request MCP tool calls (with human approval) | VS Code + MCP servers |
-| **Pipeline orchestration** | Chain agents sequentially with parallel groups in a single command | Python 3.11+ |
-| **Tool adapters** | Setup guides for Copilot, Cursor, Claude Code, Cline | None |
-| **Multi-cloud security** | Security rules with AWS + Azure examples | None |
-| **AutoSkills integration** | Automatic skill discovery via `npx autoskills` | Node.js ≥ 22 |
-| **Evaluation framework** | Automated scoring and reporting pipeline | Docker |
+| Feature                    | What it is                                                                         | Requires                      |
+| -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
+| **Skills injection**       | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` populated |
+| **MCP tool bridge**        | Subagents can request MCP tool calls (with human approval)                         | VS Code + MCP servers         |
+| **Pipeline orchestration** | Chain agents sequentially with parallel groups in a single command                 | Python 3.11+                  |
+| **Tool adapters**          | Setup guides for Copilot, Cursor, Claude Code, Cline                               | None                          |
+| **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
+| **AutoSkills integration** | Automatic skill discovery via `npx autoskills`                                     | Node.js ≥ 22                  |
+| **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
 Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/subagents/` and `aidlc-rules/adapters/`.
 
@@ -692,6 +689,7 @@ These features are available when you copy `scripts/subagents/` into your projec
 When a subagent runs, `manager.py` automatically reads the SKILL.md files for skills listed in that agent's `skills` field in `agents.yaml` and injects their content into `context['skills']`. Agents use these as in-context instructions.
 
 **Where skills are resolved** (in order):
+
 1. Custom `skills_root` passed in context
 2. `~/.agents/skills/<skill-name>/SKILL.md`
 3. `<repo-root>/.agents/skills/<skill-name>/SKILL.md`
@@ -796,10 +794,10 @@ pipelines:
 
 **Built-in pipelines:**
 
-| Pipeline | Stages | Description |
-|----------|--------|-------------|
+| Pipeline            | Stages                                                      | Description            |
+| ------------------- | ----------------------------------------------------------- | ---------------------- |
 | `construction-full` | planner → [builder + code-reviewer] → construction-reviewer | Full construction flow |
-| `review-only` | [code-reviewer + construction-reviewer] | Run reviewers only |
+| `review-only`       | [code-reviewer + construction-reviewer]                     | Run reviewers only     |
 
 Pipeline results and per-stage agent outputs are audit-logged to `runs/<run>/subagents-logs/*-pipeline_*.json`.
 
@@ -809,13 +807,13 @@ Pipeline results and per-stage agent outputs are audit-logged to `runs/<run>/sub
 
 Adapter files explain how to wire AI-DLC rules into each agentic coding tool. They live in `aidlc-rules/adapters/` and are informational only — the core rules stay unchanged.
 
-| File | Tool |
-|------|------|
-| [`adapters/copilot.md`](aidlc-rules/adapters/copilot.md) | GitHub Copilot |
-| [`adapters/cursor.md`](aidlc-rules/adapters/cursor.md) | Cursor |
-| [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md) | Claude Code |
-| [`adapters/cline.md`](aidlc-rules/adapters/cline.md) | Cline |
-| [`adapters/generic.md`](aidlc-rules/adapters/generic.md) | Any other agent |
+| File                                                              | Tool            |
+| ----------------------------------------------------------------- | --------------- |
+| [`adapters/copilot.md`](aidlc-rules/adapters/copilot.md)          | GitHub Copilot  |
+| [`adapters/cursor.md`](aidlc-rules/adapters/cursor.md)            | Cursor          |
+| [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md)  | Claude Code     |
+| [`adapters/cline.md`](aidlc-rules/adapters/cline.md)              | Cline           |
+| [`adapters/generic.md`](aidlc-rules/adapters/generic.md)          | Any other agent |
 
 ---
 
@@ -836,7 +834,7 @@ def run(context):
     }
 ```
 
-2. Register the agent in `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`. Minimal fields:
+1. Register the agent in `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`. Minimal fields:
 
 ```yaml
 - id: my-custom-agent
@@ -847,13 +845,13 @@ def run(context):
   mcp_tools: []     # allowlist of MCP tools (empty = none)
 ```
 
-3. Run the agent directly via the manager (injects skills and mcp bridge):
+1. Run the agent directly via the manager (injects skills and mcp bridge):
 
 ```bash
 python scripts/subagents/manager.py my-custom-agent '{"run_folder":"runs/my-run"}'
 ```
 
-4. Or include the agent in a pipeline and run with `pipeline.py`:
+1. Or include the agent in a pipeline and run with `pipeline.py`:
 
 ```bash
 python scripts/subagents/pipeline.py my-pipeline '{"run_folder":"runs/my-run"}'

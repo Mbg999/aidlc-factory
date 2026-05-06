@@ -1,6 +1,6 @@
 # AutoSkills integration
 
-Purpose: integrate AutoSkills (https://github.com/midudev/autoskills) as an optional
+Purpose: integrate AutoSkills (<https://github.com/midudev/autoskills>) as an optional
 extension to automatically detect and propose (or optionally install) curated AI-agent
 skills for this project.
 

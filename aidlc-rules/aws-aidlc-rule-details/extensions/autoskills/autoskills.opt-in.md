@@ -1,6 +1,6 @@
 # AutoSkills — opt-in
 
-Do you want AI-DLC to run AutoSkills (https://github.com/midudev/autoskills) to detect
+Do you want AI-DLC to run AutoSkills (<https://github.com/midudev/autoskills>) to detect
 recommended AI agent *skills* for this repository?
 
 Choose one option:

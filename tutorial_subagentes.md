@@ -21,9 +21,9 @@ Los LLMs (Claude, Copilot, etc.) **NO tienen acceso directo al sistema**.
 
 ---
 
-# 🏗️ Arquitectura correcta
+## 🏗️ Arquitectura correcta
 
-```
+```text
 [Usuario]
    ↓
 [Agente (LLM)]
@@ -37,23 +37,23 @@ Los LLMs (Claude, Copilot, etc.) **NO tienen acceso directo al sistema**.
 
 ---
 
-# 🧩 Patrón de diseño
+## 🧩 Patrón de diseño
 
 ## ❌ Incorrecto
 
-```
+```text
 Agente → ejecuta script directamente
 ```
 
 ## ✅ Correcto
 
-```
+```text
 Agente → devuelve acción → backend ejecuta
 ```
 
 ---
 
-# ⚙️ Implementación básica en Python
+## ⚙️ Implementación básica en Python
 
 ```python
 import subprocess
@@ -87,7 +87,7 @@ def orchestrator(agent_output):
 
 ---
 
-# 🤖 Formato que debe devolver el agente
+## 🤖 Formato que debe devolver el agente
 
 ```json
 {
@@ -99,7 +99,7 @@ def orchestrator(agent_output):
 
 ---
 
-# 🧠 Subagentes recomendados (AI-DLC)
+## 🧠 Subagentes recomendados (AI-DLC)
 
 Divide tu sistema así:
 
@@ -128,15 +128,15 @@ Divide tu sistema así:
 
 ## 4. Loop de mejora
 
-```
+```text
 code → review → fix → repeat
 ```
 
 ---
 
-# 🔄 Ejemplo completo de flujo
+## 🔄 Ejemplo completo de flujo
 
-```
+```text
 User: "Entrena modelo"
 
 ↓
@@ -156,15 +156,15 @@ Orquestador:
 
 ---
 
-# 🔐 Seguridad (MUY IMPORTANTE)
+## 🔐 Seguridad (MUY IMPORTANTE)
 
-## Nunca hagas esto:
+## Nunca hagas esto
 
 ```python
 subprocess.run(agent_output["command"], shell=True)
 ```
 
-## Siempre usa:
+## Siempre usa
 
 * allowlist de scripts
 * validación de argumentos
@@ -172,7 +172,7 @@ subprocess.run(agent_output["command"], shell=True)
 
 ---
 
-# 🚀 Nivel PRO (recomendado)
+## 🚀 Nivel PRO (recomendado)
 
 ## 1. Tool Calling
 
@@ -230,7 +230,7 @@ Cada agente puede tener:
 
 ---
 
-# 🧠 Insight clave
+## 🧠 Insight clave
 
 > Los agentes NO son procesos del sistema
 > Son motores de decisión
@@ -239,9 +239,9 @@ Cada agente puede tener:
 
 ---
 
-# 🧩 Estructura recomendada del proyecto
+## 🧩 Estructura recomendada del proyecto
 
-```
+```text
 ai-dlc/
 │
 ├── agents/
@@ -264,7 +264,7 @@ ai-dlc/
 
 ---
 
-# 🔥 Resumen
+## 🔥 Resumen
 
 * ❌ No dejes al LLM ejecutar código directamente
 * ✅ Usa un orquestador
@@ -273,7 +273,7 @@ ai-dlc/
 
 ---
 
-# 🧠 Siguiente paso
+## 🧠 Siguiente paso
 
 Puedes evolucionar esto a:
 
@@ -282,4 +282,3 @@ Puedes evolucionar esto a:
 * sistemas autónomos controlados
 
 ---
-
