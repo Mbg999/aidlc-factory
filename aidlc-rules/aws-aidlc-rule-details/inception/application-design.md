@@ -17,6 +17,16 @@ Application Design focuses on:
 - User Stories recommended (user stories guide design decisions)
 - Execution plan must indicate Application Design stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`api-and-interface-design/SKILL.md`** — Apply contract-first design, Hyrum's Law awareness, and boundary validation when defining component interfaces. Follow its verification exit criteria.
+- **`context-engineering/SKILL.md`** — Feed the right context at the right time: pack prior artifacts, apply rules files, and verify context quality before design decisions.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Application Design)`
+
 ## Step-by-Step Execution
 
 ### 1. Analyze Context

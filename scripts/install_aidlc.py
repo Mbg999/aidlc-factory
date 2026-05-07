@@ -8,12 +8,17 @@ location (Kiro, Amazon Q, Cursor, Cline, Claude Code, GitHub Copilot, Other).
 Optionally fetches and installs specialist agents from
 https://github.com/msitarzewski/agency-agents (The Agency).
 
+Optionally fetches and installs engineering process skills from
+https://github.com/addyosmani/agent-skills.
+
 Usage examples:
   python scripts/install_aidlc.py --tool cursor
   python scripts/install_aidlc.py --tool copilot --yes
   python scripts/install_aidlc.py --tool kiro --dry-run
   python scripts/install_aidlc.py --tool copilot --with-agency-agents
   python scripts/install_aidlc.py --tool copilot --with-agency-agents --agency-divisions engineering,testing
+  python scripts/install_aidlc.py --tool copilot --with-agent-skills
+  python scripts/install_aidlc.py --tool copilot --with-agent-skills --with-agency-agents
 """
 from __future__ import annotations
 
@@ -127,6 +132,9 @@ AGENCY_AGENTS_DIVISIONS = [
     "sales", "spatial-computing", "specialized", "strategy", "support", "testing",
 ]
 
+AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
+AGENT_SKILLS_DIRS = ["skills", "references", "agents"]
+
 
 def clone_agency_agents(dest: Path, dry_run: bool) -> Path:
     """Clone the agency-agents repo into a temporary or specified location."""
@@ -144,6 +152,78 @@ def clone_agency_agents(dest: Path, dry_run: bool) -> Path:
         check=True,
     )
     return dest
+
+
+def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
+    """Clone the agent-skills repo into a temporary or specified location."""
+    if dry_run:
+        print(f"[DRY-RUN] Would clone {AGENT_SKILLS_REPO} into {dest}")
+        return dest
+    if dest.exists() and (dest / ".git").exists():
+        print(f"Agent-skills repo already exists at {dest}, pulling latest...")
+        subprocess.run(["git", "-C", str(dest), "pull", "--ff-only"], check=False)
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Cloning agent-skills from {AGENT_SKILLS_REPO}...")
+    subprocess.run(
+        ["git", "clone", "--depth", "1", AGENT_SKILLS_REPO, str(dest)],
+        check=True,
+    )
+    return dest
+
+
+def install_agent_skills(skills_repo: Path, target_root: Path, dry_run: bool) -> int:
+    """Install skill directories from agent-skills repo into .agents/skills/.
+
+    Returns count of skills installed.
+    """
+    dest = target_root / ".agents" / "skills"
+    count = 0
+
+    if dry_run:
+        print(f"[DRY-RUN] Would install agent-skills to {dest}")
+    else:
+        dest.mkdir(parents=True, exist_ok=True)
+
+    # Copy skill directories (each contains a SKILL.md)
+    skills_src = skills_repo / "skills"
+    if skills_src.exists():
+        for skill_dir in sorted(skills_src.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
+            target_dir = dest / skill_dir.name
+            if dry_run:
+                print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+            else:
+                copy_tree(skill_dir, target_dir, dry_run=False)
+            count += 1
+
+    # Copy reference checklists
+    refs_src = skills_repo / "references"
+    if refs_src.exists():
+        refs_dest = dest / "_references"
+        if dry_run:
+            print(f"[DRY-RUN]   references/ -> {refs_dest}")
+        else:
+            copy_tree(refs_src, refs_dest, dry_run=False)
+
+    # Copy agent personas
+    agents_src = skills_repo / "agents"
+    if agents_src.exists():
+        agents_dest = dest / "_personas"
+        if dry_run:
+            print(f"[DRY-RUN]   agents/ -> {agents_dest}")
+        else:
+            copy_tree(agents_src, agents_dest, dry_run=False)
+
+    if not dry_run:
+        print(f"Installed {count} agent-skills -> {dest}")
+    else:
+        print(f"[DRY-RUN] Would install {count} skills to {dest}")
+    return count
 
 
 def install_agency_agents(tool: str, agency_repo: Path, target_root: Path, divisions: list[str] | None, dry_run: bool) -> int:
@@ -349,6 +429,10 @@ def parse_args() -> argparse.Namespace:
                         f"Available: {','.join(AGENCY_AGENTS_DIVISIONS)}")
     p.add_argument("--agency-agents-path", type=str, default=None,
                    help="Local path to an existing agency-agents clone (skips git clone)")
+    p.add_argument("--with-agent-skills", action="store_true",
+                   help="Also install engineering process skills from github.com/addyosmani/agent-skills")
+    p.add_argument("--agent-skills-path", type=str, default=None,
+                   help="Local path to an existing agent-skills clone (skips git clone)")
     return p.parse_args()
 
 
@@ -444,6 +528,30 @@ def main() -> int:
         except Exception as e:
             print(f"ERROR installing agency-agents: {e}")
             return 4
+
+    # --- Agent Skills integration ---
+    if args.with_agent_skills:
+        print("\n--- Installing Agent Skills (addyosmani/agent-skills) ---")
+
+        if args.agent_skills_path:
+            skills_repo = Path(args.agent_skills_path).expanduser().resolve()
+            if not skills_repo.exists():
+                print(f"ERROR: Provided agent-skills path does not exist: {skills_repo}")
+                return 5
+        else:
+            skills_repo = target_root / ".agent-skills-repo"
+            try:
+                clone_agent_skills(skills_repo, args.dry_run)
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                print(f"ERROR: Failed to clone agent-skills repo: {e}")
+                print("  Ensure 'git' is installed, or use --agent-skills-path to provide a local clone.")
+                return 5
+
+        try:
+            install_agent_skills(skills_repo, target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing agent-skills: {e}")
+            return 5
 
     print("Done.")
     return 0

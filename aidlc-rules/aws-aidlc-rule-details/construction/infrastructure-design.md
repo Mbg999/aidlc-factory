@@ -5,6 +5,15 @@
 - NFR Design recommended (provides logical components to map)
 - Execution plan must indicate Infrastructure Design stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`ci-cd-and-automation/SKILL.md`** — Apply Shift Left, feature flags, and quality gate pipeline patterns when designing deployment infrastructure.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Infrastructure Design)`
+
 ## Overview
 Map logical software components to actual infrastructure choices for deployment environments.
 

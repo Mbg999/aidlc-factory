@@ -17,6 +17,15 @@ Functional Design focuses on:
 - Application Design recommended (provides high-level component structure)
 - Execution plan must indicate Functional Design stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`api-and-interface-design/SKILL.md`** — Apply contract-first design and boundary validation when defining detailed component interfaces and method contracts.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Functional Design)`
+
 ## Overview
 Design detailed business logic for the unit, technology-agnostic and focused purely on business functions.
 

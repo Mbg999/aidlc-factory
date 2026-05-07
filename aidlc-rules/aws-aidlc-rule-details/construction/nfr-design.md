@@ -5,6 +5,16 @@
 - NFR requirements artifacts must be available
 - Execution plan must indicate NFR Design stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`security-and-hardening/SKILL.md`** — Apply security architecture patterns, auth design, and secrets management when designing NFR implementations.
+- **`performance-optimization/SKILL.md`** — Apply performance budgets, anti-pattern detection, and profiling workflows when designing performance patterns.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (NFR Design)`
+
 ## Overview
 Incorporate NFR requirements into unit design using patterns and logical components.
 

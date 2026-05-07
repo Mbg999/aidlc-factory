@@ -4,6 +4,15 @@
 
 **Always Execute**: This phase always runs after understanding requirements and scope
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`planning-and-task-breakdown/SKILL.md`** — Decompose the execution plan into small, verifiable tasks with acceptance criteria and dependency ordering. Follow its Process steps and check its Rationalizations table.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Workflow Planning)`
+
 ## Step 1: Load All Prior Context
 
 ### 1.1 Load Reverse Engineering Artifacts (if brownfield)

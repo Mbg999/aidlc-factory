@@ -13,6 +13,20 @@ This stage generates code for each unit of work through two integrated parts:
 - All unit design artifacts must be available
 - Unit is ready for code generation
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`incremental-implementation/SKILL.md`** — Implement in thin vertical slices: implement, test, verify, commit. Use feature flags, safe defaults, and rollback-friendly changes. Follow its anti-rationalization table.
+- **`test-driven-development/SKILL.md`** — Apply Red-Green-Refactor cycle, test pyramid (80/15/5), and the Beyonce Rule. Follow its verification exit criteria.
+- **`frontend-ui-engineering/SKILL.md`** *(load only if project has UI)* — Apply component architecture, design systems, state management, and WCAG 2.1 AA accessibility.
+- **`source-driven-development/SKILL.md`** *(load only if using frameworks/libraries)* — Ground every framework decision in official documentation. Verify, cite sources, flag what's unverified.
+- **`git-workflow-and-versioning/SKILL.md`** — Apply trunk-based development, atomic commits (~100 lines), and the commit-as-save-point pattern.
+- **`code-review-and-quality/SKILL.md`** — Apply five-axis review and change sizing norms as self-review before presenting code.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Code Generation)`
+
 ---
 
 # PART 1: PLANNING

@@ -10,6 +10,16 @@
 - Workspace Detection must be complete
 - Reverse Engineering must be complete (if brownfield)
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`idea-refine/SKILL.md`** — Use structured divergent/convergent thinking to explore the problem space before narrowing to requirements. Follow its Process steps and check its Rationalizations table.
+- **`spec-driven-development/SKILL.md`** — Write a spec (PRD) covering objectives, scope, constraints, and boundaries before proceeding. Follow its verification exit criteria.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Requirements Analysis)`
+
 ## Execution Steps
 
 ### Step 1: Load Reverse Engineering Context (if available)

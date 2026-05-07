@@ -5,6 +5,16 @@
 - Unit functional design artifacts must be available
 - Execution plan must indicate NFR Requirements stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`performance-optimization/SKILL.md`** — Apply measure-first approach: define Core Web Vitals targets, profiling workflows, and performance budgets before making NFR decisions.
+- **`security-and-hardening/SKILL.md`** — Apply OWASP Top 10 prevention and three-tier boundary system when defining security NFRs. Follow its threat awareness checklist.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (NFR Requirements)`
+
 ## Overview
 Determine non-functional requirements for the unit and make tech stack choices.
 

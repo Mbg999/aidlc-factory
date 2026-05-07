@@ -15,6 +15,15 @@ User Stories focus on:
 - Requirements Analysis recommended (can reference requirements if available)
 - Workflow Planning must indicate User Stories stage should execute
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`spec-driven-development/SKILL.md`** — Enforce spec-before-code discipline: ensure stories are grounded in a clear spec with objectives, boundaries, and success criteria. Follow its verification exit criteria.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (User Stories)`
+
 ## Intelligent Assessment Guidelines
 
 **WHEN TO EXECUTE USER STORIES**: Use this enhanced assessment before proceeding:

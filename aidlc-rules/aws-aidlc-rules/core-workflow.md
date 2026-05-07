@@ -145,17 +145,14 @@ discovered and injected (auto-discovery mode).
 
 **2. Direct use by the AI coding assistant.**
 The AI assistant running this workflow (Copilot, Cursor, Claude Code, etc.)
-has its own installed skills visible in its system prompt.  During any AIDLC
-phase, the assistant SHOULD proactively consult relevant skills:
+has its own installed skills visible in its system prompt.  Each AIDLC phase
+rule file contains an `## Agent Skills` section that specifies which skills
+to load and follow during that phase.  The assistant MUST follow those
+inline directives — they are the authoritative skill-to-phase mapping.
 
-| Phase / task              | Relevant skills (examples)                    |
-|---------------------------|-----------------------------------------------|
-| Code review               | `caveman-review`, security-related skills     |
-| Commit messages           | `caveman-commit`                              |
-| Infrastructure design     | `azure-observability`, cloud-specific skills  |
-| Discovering new skills    | `find-skills`                                 |
-| PR creation               | `create-pull-request`                         |
-| Addressing PR feedback    | `address-pr-comments`                         |
+For skills not explicitly listed in a phase rule but still relevant to the
+current task, the assistant MAY proactively consult additional skills found
+in `.agents/skills/` or `~/.agents/skills/`.
 
 The assistant does NOT need to wait for a subagent to use a skill.  If a
 skill matches the current task, read it and apply its guidance directly.

@@ -7,6 +7,17 @@
 - All code artifacts must be generated
 - Project is ready for build and testing
 
+## Agent Skills
+
+**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+
+- **`debugging-and-error-recovery/SKILL.md`** — Apply scientific debugging methodology (observe → hypothesize → test → conclude) for all build/test failures. Follow its anti-rationalization table.
+- **`browser-testing-with-devtools/SKILL.md`** *(load only if project has UI)* — Use DevTools-driven testing for visual regression, network, and console error validation.
+- **`test-driven-development/SKILL.md`** — Enforce test pyramid (80/15/5), mutation testing, and coverage thresholds during test execution.
+
+If a skill directory does not exist, skip silently and proceed with standard behavior.
+Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Build and Test)`
+
 ---
 
 ## Step 1: Analyze Testing Requirements
