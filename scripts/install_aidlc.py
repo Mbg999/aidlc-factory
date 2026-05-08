@@ -86,58 +86,6 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     shutil.copy2(src, dst)
 
 
-def create_venv_and_install_requirements(target_root: Path, requirements_path: Path, dry_run: bool) -> None:
-    venv_path = target_root / ".venv"
-    python_cmds = ["python", "python3"]
-    created = False
-    last_err = None
-
-    for cmd in python_cmds:
-        try:
-            if dry_run:
-                print(f"[DRY-RUN] Would run: {cmd} -m venv {venv_path}")
-                created = True
-                break
-            print(f"Creating virtual environment using '{cmd}'...")
-            subprocess.run([cmd, "-m", "venv", str(venv_path)], check=True)
-            created = True
-            break
-        except FileNotFoundError as e:
-            last_err = e
-            continue
-        except subprocess.CalledProcessError as e:
-            last_err = e
-            continue
-
-    if not created:
-        raise EnvironmentError("Could not create virtual environment: 'python' and 'python3' not found or failed. Python is required.")
-    if dry_run:
-        # In dry-run mode we already printed the venv creation step; nothing more to do here.
-        return
-
-    # locate the python executable inside the venv
-    venv_python = venv_path / "bin" / "python"
-    if not venv_python.exists():
-        venv_python = venv_path / "Scripts" / "python.exe"
-    if not venv_python.exists():
-        raise EnvironmentError(f"Could not find python executable in virtualenv at {venv_path}")
-
-    if dry_run:
-        print(f"[DRY-RUN] Would install requirements using {venv_python} -m pip install -r {requirements_path}")
-        return
-
-    try:
-        print("Upgrading pip in virtualenv...")
-        subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    except subprocess.CalledProcessError:
-        print("Warning: Failed to upgrade pip in the virtualenv; continuing to install requirements.")
-
-    try:
-        print(f"Installing requirements from {requirements_path} into virtualenv...")
-        subprocess.run([str(venv_python), "-m", "pip", "install", "-r", str(requirements_path)], check=True)
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to install requirements: {e}")
-
 
 AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
 AGENT_SKILLS_DIRS = ["skills", "references"]
@@ -350,40 +298,7 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         print(f"Copying adapter: {adapter_file} -> {adapter_dest}")
         copy_file(adapter_file, adapter_dest, dry_run)
 
-    # Copy helper scripts (executors, aidlc-evaluator) from this repo
-    repo_root = src_rules.parent.parent
-    scripts_dir = repo_root / "scripts"
-    to_copy = ["executors", "aidlc-evaluator"]
-    printed_any = False
-    for sub in to_copy:
-        ssrc = scripts_dir / sub
-        if ssrc.exists():
-            printed_any = True
-            dest = target_root / "scripts" / sub
-            print(f"Copying scripts: {ssrc} -> {dest}")
-            copy_tree(ssrc, dest, dry_run)
-    if printed_any:
-        print(f"  scripts: {scripts_dir} -> {target_root / 'scripts'}")
 
-    # Copy requirements.txt from the repo and try to create a venv + install
-    repo_root = src_rules.parent.parent
-    req_src = repo_root / "requirements.txt"
-    if req_src.exists():
-        dest_req = target_root / "requirements.txt"
-        print(f"Copying requirements: {req_src} -> {dest_req}")
-        try:
-            copy_file(req_src, dest_req, dry_run)
-        except Exception as e:
-            print(f"Warning: failed to copy requirements.txt: {e}")
-
-        try:
-            create_venv_and_install_requirements(target_root, dest_req, dry_run)
-        except EnvironmentError as e:
-            print("ERROR: Python is required to create a virtual environment and install requirements:", e)
-        except RuntimeError as e:
-            print("ERROR: Failed to install requirements:", e)
-    else:
-        print(f"No requirements.txt found at {req_src}; skipping venv setup and package installation")
 
 
 def parse_args() -> argparse.Namespace:
@@ -394,8 +309,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
     p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
     p.add_argument("--dest", type=str, default=None, help="Destination path to install rules into (defaults to current directory)")
-    p.add_argument("--with-agent-skills", action="store_true",
-                   help="Also install engineering process skills from github.com/addyosmani/agent-skills")
+    p.add_argument("--with-agent-skills", action="store_true", default=True,
+                   help="Always install engineering process skills from github.com/addyosmani/agent-skills (default: install)")
     p.add_argument("--agent-skills-path", type=str, default=None,
                    help="Local path to an existing agent-skills clone (skips git clone)")
     return p.parse_args()
@@ -448,11 +363,12 @@ def main() -> int:
     print(f"Selected tool: {tool}")
     if not args.yes:
         try:
-            resp = input(f"Proceed to install AI-DLC for '{tool}' into {target_root}? [y/N]: ").strip().lower()
+            resp = input(f"Proceed to install AI-DLC for '{tool}' into {target_root}? [Y/n]: ").strip().lower()
         except KeyboardInterrupt:
             print("\nAborted by user")
             return 1
-        if resp not in ("y", "yes"):
+        # Default to yes on empty response; only abort on explicit 'no'
+        if resp in ("n", "no"):
             print("Aborted by user")
             return 1
 
@@ -462,20 +378,7 @@ def main() -> int:
         print("ERROR during installation:", e)
         return 3
 
-    # --- Interactive prompt for skills (when CLI flag not set) ---
-    if not args.yes and not args.with_agent_skills:
-        print(f"\n  The AI-DLC workflow references {len(WORKFLOW_REQUIRED_SKILLS)} MANDATORY skills")
-        print(f"  (from github.com/addyosmani/agent-skills).")
-        print(f"  Without them, the workflow uses inline fallback processes.")
-        print(f"  Installing them enables the full skill-driven guidance.\n")
-        print(f"  Referenced skills: {', '.join(WORKFLOW_REQUIRED_SKILLS[:5])} ... (+{len(WORKFLOW_REQUIRED_SKILLS)-5} more)")
-        try:
-            resp = input("  Install agent skills? [y/N]: ").strip().lower()
-        except KeyboardInterrupt:
-            print("\nAborted by user")
-            return 1
-        if resp in ("y", "yes"):
-            args.with_agent_skills = True
+    # Agent skills will be installed by default (no interactive prompt)
 
     # --- Agent Skills integration ---
     if args.with_agent_skills:
@@ -500,6 +403,13 @@ def main() -> int:
         except Exception as e:
             print(f"ERROR installing agent-skills: {e}")
             return 5
+
+        # Clean up the cloned repo — its contents have been copied into the project
+        if not args.agent_skills_path and skills_repo.exists() and not args.dry_run:
+            print(f"Cleaning up temporary clone: {skills_repo}")
+            shutil.rmtree(skills_repo)
+        elif args.dry_run and not args.agent_skills_path:
+            print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
 
     print("Done.")
     return 0
