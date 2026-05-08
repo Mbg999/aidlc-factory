@@ -1,20 +1,20 @@
 # Workspace Detection
 
-**Purpose**: Determine workspace state and check for existing AI-DLC projects
+**Purpose**: Detect workspace state; find AI-DLC projects
 
 ## Step 1: Check for Existing AI-DLC Project
 
 Check if `aidlc-docs/aidlc-state.md` exists:
-- **If exists**: Resume from last phase (load context from previous phases)
-- **If not exists**: Continue with new project assessment
+- **If exists**: Resume last phase (load context)
+- **If not exists**: Start new assessment
 
 ## Step 2: Scan Workspace for Existing Code
 
 **Determine if workspace has existing code:**
-- Scan workspace for source code files (.java, .py, .js, .ts, .jsx, .tsx, .kt, .kts, .scala, .groovy, .go, .rs, .rb, .php, .c, .h, .cpp, .hpp, .cc, .cs, .fs, etc.)
-- Check for build files (pom.xml, package.json, build.gradle, etc.)
-- Look for project structure indicators
-- Identify workspace root directory (NOT aidlc-docs/)
+- Scan for source files: .java, .py, .js, .ts, .go, .rs, .cpp, .cs, .php
+- Look for build files: pom.xml, package.json, build.gradle
+- Detect project structure
+- Identify workspace root (NOT aidlc-docs/)
 
 **Record findings:**
 ```markdown
@@ -34,13 +34,13 @@ Check if `aidlc-docs/aidlc-state.md` exists:
 
 **IF workspace has existing code**:
 - Set flag: `brownfield = true`
-- Check for existing reverse engineering artifacts in `aidlc-docs/inception/reverse-engineering/`
-- **IF reverse engineering artifacts exist**:
-    - Check if artifacts are stale (compare artifact timestamps against codebase's last significant modification)
-    - **IF artifacts are current**: Load them, skip to Requirements Analysis
-    - **IF artifacts are stale**: Next phase is Reverse Engineering (rerun to refresh artifacts)
-    - **IF user explicitly requests rerun**: Next phase is Reverse Engineering regardless of staleness
-- **IF no reverse engineering artifacts**: Next phase is Reverse Engineering
+- Check for reverse engineering artifacts in `aidlc-docs/inception/reverse-engineering/`
+- **IF artifacts exist**:
+    - Check staleness (artifact timestamps vs code changes)
+    - **IF current**: Load → skip to Requirements Analysis
+    - **IF stale**: Next: Reverse Engineering (refresh)
+    - **IF user requests rerun**: Reverse Engineering
+- **IF no artifacts**: Next: Reverse Engineering
 
 ## Step 4: Create Initial State File
 
@@ -91,7 +91,7 @@ Workspace analysis findings:
 
 ## Step 6: Automatically Proceed
 
-- **No user approval required** - this is informational only
+- **No user approval required** - informational only
 - Automatically proceed to next phase:
   - **Brownfield**: Reverse Engineering (if no existing artifacts) or Requirements Analysis (if artifacts exist)
   - **Greenfield**: Requirements Analysis

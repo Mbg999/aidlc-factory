@@ -19,9 +19,10 @@ The AI model intelligently assesses what stages are needed based on:
 All subsequent rule detail file references (e.g., `common/process-overview.md`, `inception/workspace-detection.md`) are relative to whichever rule details directory was resolved above.
 
 **Common Rules**: ALWAYS load common rules at workflow start:
-- Load `common/process-overview.md` for workflow overview
+- Load `common/process-overview.md` for workflow overview and terminology
+- Load `common/stage-conventions.md` for shared stage patterns (skills, questions, plans, approval)
 - Load `common/session-continuity.md` for session resumption guidance
-- Load `common/content-validation.md` for content validation requirements
+- Load `common/ascii-diagram-standards.md` for content validation and diagram rules
 - Load `common/question-format-guide.md` for question formatting rules
 - Reference these throughout the workflow execution
 
@@ -111,7 +112,7 @@ python3 scripts/subagents/manager.py midudev-autoskills '{"path":"<workspace>","
    must only be used after auditing the installed skill files.
 
 Security note: Always validate any files created by AutoSkills per
-`common/content-validation.md` and record validation results in
+`common/ascii-diagram-standards.md` and record validation results in
 `aidlc-docs/audit.md` before relying on installed skill code.
 
 ## Custom Skills Integration
@@ -123,194 +124,129 @@ live in the user's home directory or the repository.
 ### What are custom skills?
 
 Custom skills are SKILL.md files installed under well-known directories:
-- `~/.agents/skills/<skill-name>/SKILL.md` — user-global skills (persist across workspaces)
-- `<repo>/.agents/skills/<skill-name>/SKILL.md` — repo-local skills (shared with the team)
+## Tool Adapters (Optional)
+# PRIORITY: This workflow OVERRIDES all other built-in workflows
+# When user requests software development, ALWAYS follow this workflow FIRST
 
-Each SKILL.md file contains domain-specific instructions, best practices, or
-specialized behavior that an agent (or the AI assistant itself) can use during
-any phase of the workflow.
+## Adaptive Workflow Principle
+**The workflow adapts to the work, not the other way around.**
 
-### How custom skills are used
+Decide stages by:
+1. User intent clarity
+2. Existing codebase
+3. Complexity & scope
+4. Risk & impact
 
-There are two complementary mechanisms:
+## MANDATORY: Rule Details Loading
+**CRITICAL**: Always read rule-detail files. Check these paths (use first existing):
+- `.aidlc/aidlc-rules/aws-aidlc-rule-details/`
+- `.aidlc-rule-details/`
+- `aidlc-rules/aws-aidlc-rule-details/`
 
-**1. Skill injection into subagents (via `agents.yaml`).**
-Each agent definition in `agents.yaml` has a `skills` list.  Skills named
-there are loaded at execution time: the manager reads the SKILL.md content
-and injects it into `context['skills'][<name>]`.  The subagent script then
-has full access to the skill instructions as in-context guidance.
+Subsequent rule refs (e.g., `common/process-overview.md`) are relative to chosen rules dir.
 
-An agent may also set `skills: ["*"]` to request ALL installed skills be
-discovered and injected (auto-discovery mode).
+**Common Rules** to load at start:
+- `common/process-overview.md`
+- `common/stage-conventions.md`
+- `common/session-continuity.md`
+- `common/ascii-diagram-standards.md`
+- `common/question-format-guide.md`
 
-**2. Direct use by the AI coding assistant.**
-The AI assistant running this workflow (Copilot, Cursor, Claude Code, etc.)
-has its own installed skills visible in its system prompt.  Each AIDLC phase
-rule file contains an `## Agent Skills` section that specifies which skills
-to load and follow during that phase.  The assistant MUST follow those
-inline directives — they are the authoritative skill-to-phase mapping.
+## MANDATORY: Extensions Loading (Context-Optimized)
+**CRITICAL**: Scan `extensions/` but load only `*.opt-in.md` files (defer full rule files until user opts in).
 
-For skills not explicitly listed in a phase rule but still relevant to the
-current task, the assistant MAY proactively consult additional skills found
-in `.agents/skills/` or `~/.agents/skills/`.
+Loading process (short):
+1. List `extensions/*` dirs
+2. In each, load `*.opt-in.md` only; derive full rule file by replacing `.opt-in.md` → `.md`
+3. Do not load full rules yet
 
-The assistant does NOT need to wait for a subagent to use a skill.  If a
-skill matches the current task, read it and apply its guidance directly.
+Deferred loading:
+- Present opt-in prompts during Requirements Analysis
+- If user opts IN, load corresponding rule file
+- If opts OUT, never load full rule file
+- Extensions without an opt-in file are enforced immediately
 
-### Relationship between AutoSkills and Custom Skills
+Enforcement rules:
+- Loaded/enabled extension rules are hard constraints
+- Mark irrelevant rules as N/A in compliance summary
+- Non-compliance = blocking finding; include compliance summary when completing stages
 
-| Aspect        | AutoSkills                           | Custom Skills                         |
-|---------------|--------------------------------------|---------------------------------------|
-| Source        | Discovered per-project               | Pre-installed by user or team         |
-| Location      | `.agents/skills/` (workspace)        | `~/.agents/skills/` or repo-local    |
-| Lock file     | `skills-lock.json`                   | None (filesystem presence is enough) |
-| Installation  | Requires explicit approval           | Already installed                     |
-| Injection     | `context['autoskills']`              | `context['skills']`                   |
-| AI assistant  | Informational (reads lock file)      | Directly actionable (reads SKILL.md) |
+Runner order to decide if extension enabled:
+1. Manifest-level default (`enabled_by_default: true`)
+2. `aidlc-docs/aidlc-state.md` run state
+3. Opt-in prompt answer (if present); otherwise enforced
 
-Both can coexist.  When an agent has both autoskills artifacts AND custom
-skills injected, it should use both — custom skills for domain guidance,
-autoskills for project-specific context.
+Record decisions in `aidlc-docs/audit.md`.
 
-### Discovering installed skills
+## AutoSkills Integration
+If workspace has AutoSkills artifacts, runner adds `context['autoskills']` with:
+- `skills_lock_path`, `skills_lock`, `autoskills_dir`
 
-To list all custom skills currently available:
+Detected files:
+- `skills-lock.json`
+- `.agents/skills/<skill>/`
 
+Behavior summary:
+- Subagents may consult `context['autoskills']`
+- Installation/apply of autoskills requires explicit approval
+- Runner helper and flags: `--auto-install-autoskills`, `--no-auto-install-autoskills`, `--apply-autoskills`
+
+Run helper example:
+```bash
+python3 scripts/subagents/manager.py midudev-autoskills '{"path":"<workspace>","install":true}'
+```
+
+Validate any autoskill-generated files per `common/ascii-diagram-standards.md` before use.
+
+## Custom Skills Integration
+Custom skills live at:
+- `~/.agents/skills/<skill>/SKILL.md` (user-global)
+- `<repo>/.agents/skills/<skill>/SKILL.md` (repo-local)
+
+Usage modes:
+1. Skill injection via `agents.yaml` (`context['skills'][name]`)
+2. Direct read-by-assistant (phase rule files list required skills)
+
+Both AutoSkills and Custom Skills can be used together.
+
+Discover custom skills:
 ```bash
 python3 scripts/subagents/mcp_bridge.py --list-skills
 ```
 
-This scans `~/.agents/skills/` and `<repo>/.agents/skills/` and prints the
-name and first line of each SKILL.md found.
-
 ## Tool Adapters (Optional)
-AIDLC is tool-agnostic. Its rules are pure Markdown and work with any AI coding
-assistant that can read files. Optional adapter files provide tool-specific
-setup guidance (e.g., where to symlink rules, which config file to create).
+Adapter docs in `aidlc-rules/adapters/` (informational only):
+- copilot.md, cursor.md, claude-code.md, cline.md, generic.md
 
-Adapter files live in `aidlc-rules/adapters/`. Available adapters:
-- `copilot.md` — GitHub Copilot (`.github/copilot-instructions.md`)
-- `cursor.md` — Cursor (`.cursor/rules/`)
-- `claude-code.md` — Claude Code (`.claude/CLAUDE.md`)
-- `cline.md` — Cline (`.clinerules/`)
-- `generic.md` — Any other agent (copy rules to agent context manually)
-
-Adapters are informational only — no adapter changes AIDLC rule content.
-
-## Agency-Agents Integration (Optional Extension)
-
-When the **agency-agents** extension is enabled (see `extensions/agency-agents/agency-agents.opt-in.md`),
-the AI assistant gains access to specialist agent personas from
-[The Agency](https://github.com/msitarzewski/agency-agents) — a collection of 140+
-specialist AI agents with deep domain expertise across engineering, design, testing,
-product, and more.
-
-**How it works:**
-
-1. Agency-agent `.md` persona files are installed in the tool-specific directory
-   (e.g., `.github/agents/` for Copilot, `.claude/agents/` for Claude Code).
-2. During each AIDLC phase, the AI assistant reads and consults relevant specialist
-   personas mapped to that phase (e.g., `engineering-backend-architect` during
-   Application Design, `engineering-security-engineer` during NFR Design).
-3. The specialist's domain knowledge supplements (never replaces) AIDLC rules.
-
-**Key distinctions:**
-- Agency-agents are **persona files read by the AI assistant** — NOT executed scripts.
-- AIDLC subagents (`scripts/subagents/`) are **Python scripts run in the terminal**.
-- Both work together: agency-agents provide contextual expertise, subagents produce
-  structured artifacts.
-
-**Full rules:** See `extensions/agency-agents/agency-agents.md` for the complete
-phase-to-agent mapping, consultation protocol, and enforcement details.
+## Agency-Agents Integration (Optional)
+When enabled, assistant can consult persona files (agency agents) for phase-specific expertise.
 
 ## MANDATORY: Subagent Execution
-**CRITICAL**: The AI coding assistant MUST always **execute** the subagent scripts during ANY phase where an agent's `enforce_in_phases` applies — not simulate their behavior or generate their output artifacts manually. Subagents are **always enabled** (no opt-in required). If `scripts/subagents/` exists in the workspace, subagent execution is mandatory.
+**CRITICAL**: If `scripts/subagents/` exists, execute subagent scripts (do not simulate). Use terminal commands.
 
-### How to Execute Subagents
-
-Subagents are executed via terminal commands. The AI assistant MUST run these commands in the user's terminal (shell tool / run_in_terminal / bash / etc.) — never just describe what they would do.
-
-**Single agent execution:**
+Single agent example:
 ```bash
 python scripts/subagents/manager.py <agent-id> '{"run_folder": "<workspace-or-run-path>"}'
 ```
 
-**Full pipeline execution (recommended for construction phase):**
+Full pipeline example:
 ```bash
 python scripts/subagents/pipeline.py construction-full '{"run_folder": "<workspace-or-run-path>"}'
 ```
 
-### When to Execute
+Agent outputs to watch: planner → `aidlc-docs/construction-plan.md`; builder → `aidlc-docs/build-report.md`; code-reviewer → `aidlc-docs/reporting/`; construction-reviewer → `aidlc-docs/construction-review.md`; memory → `.aidlc-memory/` and `aidlc-docs/`.
 
-The execution points are defined by each agent's `enforce_in_phases` field in `agents.yaml`:
-
-| Agent | Phase(s) | Artifacts Produced |
-|-------|----------|-------------------|
-| `midudev-autoskills` | reverse-engineering (conditional) | `aidlc-docs/autoskills-recommendations.md` |
-| `memory` | reverse-engineering, construction, build-and-test | `.aidlc-memory/`, `aidlc-docs/` |
-| `planner` | construction | `aidlc-docs/construction-plan.md` |
-| `builder` | construction, build-and-test | `aidlc-docs/build-report.md` |
-| `code-reviewer` | construction, build-and-test | `aidlc-docs/reporting/` |
-| `construction-reviewer` | construction, build-and-test | `aidlc-docs/construction-review.md` |
-
-**Inception Phase (Reverse Engineering) — recommended execution flow:**
-
-1. **After analysis artifacts are generated** → Run `midudev-autoskills` (if the AutoSkills extension is enabled) to discover recommended skills for the brownfield project.
-
-2. **After Reverse Engineering completes** → Run `memory` to persist discovered architectural facts, decisions, and developer context across sessions.
-
-**Construction Phase — recommended execution flow:**
-
-1. **Before Code Generation starts** → Run the `planner` agent (or the `construction-full` pipeline which runs planner first). The planner reads the workspace, detects manifest files, and writes `construction-plan.md` with concrete install/test/lint/build steps.
-
-2. **After Code Generation completes (per unit or after all units)** → Run `builder` + `code-reviewer` (they run in parallel in the `construction-full` pipeline). Builder produces `build-report.md` with suggested commands. Code reviewer produces lint/security findings.
-
-3. **Before Build and Test completion** → Run `construction-reviewer`. It scans for TODOs, secrets, style issues and writes `construction-review.md`.
-
-4. **At Build and Test completion** → The `construction-full` pipeline runs `memory` as its final stage to consolidate learnings.
-
-**Alternatively**, run the entire construction pipeline at once after Code Generation:
-```bash
-python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
-```
-
-### Execution Rules
-
-- **MUST execute via terminal**: Use the shell/terminal tool available in your coding assistant. Do NOT try to import or call Python functions directly — use `python scripts/subagents/manager.py` or `python scripts/subagents/pipeline.py` as subprocess commands.
-- **MUST pass run_folder**: Always include `run_folder` in the JSON context so audit logs and output artifacts land in the correct location.
-- **MUST read and present results**: After execution, read the output artifacts (e.g., `aidlc-docs/construction-plan.md`) and present key findings to the user.
-- **MUST respect errors**: If an agent returns an error, report it to the user and do NOT proceed as if the stage completed successfully.
-- **MUST NOT simulate**: Do not generate `construction-plan.md`, `build-report.md`, `construction-review.md`, or `autoskills-recommendations.md` manually when the corresponding agent is enabled. The real agent script produces these files.
-- **MCP calls**: If agent output contains `mcp_calls`, present each tool call to the user for approval before proceeding.
-
-### Fallback When Scripts Are Unavailable
-
-If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not exist in the workspace (e.g., the user only copied rules but not scripts), fall back to generating the artifacts manually as the AI assistant — but inform the user that subagent execution was skipped because the scripts are not present. This is the **only** valid reason to skip subagent execution.
+Fallback: If manager/pipeline scripts missing, AI may generate artifacts manually but must inform user and log reason.
 
 ## MANDATORY: Content Validation
-**CRITICAL**: Before creating ANY file, you MUST validate content according to `common/content-validation.md` rules:
-- Validate Mermaid diagram syntax
-- Validate ASCII art diagrams (see `common/ascii-diagram-standards.md`)
-- Escape special characters properly
-- Provide text alternatives for complex visual content
-- Test content parsing compatibility
+Before creating files validate:
+- Mermaid syntax, ASCII diagrams, escape special chars, provide text alternatives, test parsing compatibility
 
 ## MANDATORY: Question File Format
-**CRITICAL**: When asking questions at any phase, you MUST follow question format guidelines.
+Follow `common/question-format-guide.md` for question formatting (MCQ, `[Answer]:` tags, ambiguity rules).
 
-**See `common/question-format-guide.md` for complete question formatting rules including**:
-- Multiple choice format (A, B, C, D, E options)
-- [Answer]: tag usage
-- Answer validation and ambiguity resolution
-
-## MANDATORY: Custom Welcome Message
-**CRITICAL**: When starting ANY software development request, you MUST display the welcome message.
-
-**How to Display Welcome Message**:
-1. Load the welcome message from `common/welcome-message.md` (in the resolved rule details directory)
-2. Display the complete message to the user
-3. This should only be done ONCE at the start of a new workflow
-4. Do NOT load this file in subsequent interactions to save context space
+## MANDATORY: Welcome Message
+Generate a brief welcome message from `common/process-overview.md` once at workflow start (show phases, adaptive principle, team role).
 
 # Adaptive Software Development Workflow
 
@@ -318,492 +254,102 @@ If `scripts/subagents/manager.py` or `scripts/subagents/pipeline.py` does not ex
 
 # INCEPTION PHASE
 
-**Purpose**: Planning, requirements gathering, and architectural decisions
+Purpose: Planning, requirements, architecture
 
-**Focus**: Determine WHAT to build and WHY
+Focus: WHAT to build and WHY
 
-**Stages in INCEPTION PHASE**:
-- Workspace Detection (ALWAYS)
-- Reverse Engineering (CONDITIONAL - Brownfield only)
-- Requirements Analysis (ALWAYS - Adaptive depth)
-- User Stories (CONDITIONAL)
-- Workflow Planning (ALWAYS)
-- Application Design (CONDITIONAL)
-- Units Generation (CONDITIONAL)
-
----
+Stages (inception): Workspace Detection, Reverse Engineering (brownfield), Requirements Analysis, User Stories (optional), Workflow Planning, Application Design (optional), Units Generation (optional)
 
 ## Workspace Detection (ALWAYS EXECUTE)
-
-1. **MANDATORY**: Log initial user request in audit.md with complete raw input
-2. Load all steps from `inception/workspace-detection.md`
-3. Execute workspace detection:
-   - Check for existing aidlc-state.md (resume if found)
-   - Scan workspace for existing code
-   - Determine if brownfield or greenfield
-   - Check for existing reverse engineering artifacts
-4. Determine next phase: Reverse Engineering (if brownfield and no artifacts) OR Requirements Analysis
-5. **MANDATORY**: Log findings in audit.md
-6. Present completion message to user (see workspace-detection.md for message formats)
-7. Automatically proceed to next phase
+1. Log raw user request in `aidlc-docs/audit.md`
+2. Load `inception/workspace-detection.md`
+3. Detect workspace: check `aidlc-state.md`, scan code, decide brownfield vs greenfield, check reverse-engineering artifacts
+4. Choose next phase: Reverse Engineering (brownfield/no artifacts) or Requirements Analysis
+5. Log findings in audit
+6. Present completion message
+7. Proceed automatically
 
 ## Reverse Engineering (CONDITIONAL - Brownfield Only)
+Execute if codebase present and no prior reverse-engineering artifacts.
 
-**Execute IF**:
-- Existing codebase detected
-- No previous reverse engineering artifacts found
-
-**Skip IF**:
-- Greenfield project
-- Previous reverse engineering artifacts exist
-
-**Execution**:
-1. **MANDATORY**: Log start of reverse engineering in audit.md
-2. Load all steps from `inception/reverse-engineering.md`
-3. Execute reverse engineering:
-   - Analyze all packages and components
-   - Generate a business overview of the whole system covering the business transactions
-   - Generate architecture documentation
-   - Generate code structure documentation
-   - Generate API documentation
-   - Generate component inventory
-   - Generate Interaction Diagrams depicting how business transactions are implemented across components
-   - Generate technology stack documentation
-   - Generate dependencies documentation
-
-4. **SUBAGENT — AutoSkills (conditional)**: If the AutoSkills extension is enabled, execute the `midudev-autoskills` subagent to discover recommended skills for this brownfield project:
-   ```bash
-   python scripts/subagents/manager.py midudev-autoskills '{"run_folder": "."}'
-   ```
-   Read and present findings from `aidlc-docs/autoskills-recommendations.md`.
-5. **SUBAGENT — Memory (ALWAYS)**: Execute the `memory` subagent to persist discovered architectural facts, decisions, and context for future sessions:
-   ```bash
-   python scripts/subagents/manager.py memory '{"run_folder": "."}'
-   ```
-   This ensures findings from Reverse Engineering are available across sessions.
-6. **Wait for Explicit Approval**: Present detailed completion message (see reverse-engineering.md for message format) - DO NOT PROCEED until user confirms
-7. **MANDATORY**: Log user's response in audit.md with complete raw input
+Steps (short):
+- Log start in audit
+- Load `inception/reverse-engineering.md`
+- Produce: business overview, architecture docs, code structure, API docs, component inventory, interaction diagrams, tech stack, dependencies
+- If AutoSkills enabled: run `midudev-autoskills` and read `aidlc-docs/autoskills-recommendations.md`
+- Always run `memory` subagent to persist facts
+- Present detailed completion message and wait for user approval
+- Log user response in audit
 
 ## Requirements Analysis (ALWAYS EXECUTE - Adaptive Depth)
+Depth: minimal / standard / comprehensive depending on request clarity/risk.
 
-**Always executes** but depth varies based on request clarity and complexity:
-- **Minimal**: Simple, clear request - just document intent analysis
-- **Standard**: Normal complexity - gather functional and non-functional requirements
-- **Comprehensive**: Complex, high-risk - detailed requirements with traceability
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `inception/requirements-analysis.md`
-3. Execute requirements analysis:
-   - Load reverse engineering artifacts (if brownfield)
-   - Analyze user request (intent analysis)
-   - Determine requirements depth needed
-   - Assess current requirements
-   - Ask clarifying questions (if needed)
-   - Generate requirements document
-4. Execute at appropriate depth (minimal/standard/comprehensive)
-5. **Wait for Explicit Approval**: Follow approval format from requirements-analysis.md detailed steps - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
+Steps:
+- Log inputs in audit
+- Load `inception/requirements-analysis.md`
+- Use reverse-engineering artifacts if brownfield
+- Analyze intent, determine depth, gather functional & non-functional requirements, ask clarifying Qs
+- Generate requirements doc, wait for approval, log response
 
 ## User Stories (CONDITIONAL)
-
-**INTELLIGENT ASSESSMENT**: Use multi-factor analysis to determine if user stories add value:
-
-**ALWAYS Execute IF** (High Priority Indicators):
-- New user-facing features or functionality
-- Changes affecting user workflows or interactions
-- Multiple user types or personas involved
-- Complex business requirements with acceptance criteria needs
-- Cross-functional team collaboration required
-- Customer-facing API or service changes
-- New product capabilities or enhancements
-
-**LIKELY Execute IF** (Medium Priority - Assess Complexity):
-- Modifications to existing user-facing features
-- Backend changes that indirectly affect user experience
-- Integration work that impacts user workflows
-- Performance improvements with user-visible benefits
-- Security enhancements affecting user interactions
-- Data model changes affecting user data or reports
-
-**COMPLEXITY-BASED ASSESSMENT**: For medium priority cases, execute user stories if:
-- Request involves multiple components or services
-- Changes span multiple user touchpoints
-- Business logic is complex or has multiple scenarios
-- Requirements have ambiguity that stories could clarify
-- Implementation affects multiple user journeys
-- Change has significant business impact or risk
-
-**SKIP ONLY IF** (Low Priority - Simple Cases):
-- Pure internal refactoring with zero user impact
-- Simple bug fixes with clear, isolated scope
-- Infrastructure changes with no user-facing effects
-- Technical debt cleanup with no functional changes
-- Developer tooling or build process improvements
-- Documentation-only updates
-
-**ASSESSMENT CRITERIA**: When in doubt, favor inclusion of user stories for:
-- Requests with business stakeholder involvement
-- Changes requiring user acceptance testing
-- Features with multiple implementation approaches
-- Work that benefits from shared team understanding
-- Projects where requirements clarity is valuable
-
-**ASSESSMENT PROCESS**: 
-1. Analyze request complexity and scope
-2. Identify user impact (direct or indirect)
-3. Evaluate business context and stakeholder needs
-4. Consider team collaboration benefits
-5. Default to inclusion for borderline cases
-
-**Note**: If Requirements Analysis executed, Stories can reference and build upon those requirements.
-
-**User Stories has two parts within one stage**:
-1. **Part 1 - Planning**: Create story plan with questions, collect answers, analyze for ambiguities, get approval
-2. **Part 2 - Generation**: Execute approved plan to generate stories and personas
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `inception/user-stories.md`
-3. **MANDATORY**: Perform intelligent assessment (Step 1 in user-stories.md) to validate user stories are needed
-4. Load reverse engineering artifacts (if brownfield)
-5. If Requirements exist, reference them when creating stories
-6. Execute at appropriate depth (minimal/standard/comprehensive)
-7. **PART 1 - Planning**: Create story plan with questions, wait for user answers, analyze for ambiguities, get approval
-8. **PART 2 - Generation**: Execute approved plan to generate stories and personas
-9. **Wait for Explicit Approval**: Follow approval format from user-stories.md detailed steps - DO NOT PROCEED until user confirms
-10. **MANDATORY**: Log user's response in audit.md with complete raw input
+Use when features touch users, workflows, multiple personas, or complexity warrants stories. Plan (questions) → generate (stories/personas) after approval. Log all inputs.
 
 ## Workflow Planning (ALWAYS EXECUTE)
+- Load `inception/workflow-planning.md` and `common/ascii-diagram-standards.md`
+- Use prior context (reverse-engineering, requirements, stories)
+- Decide phases & depth, plan multi-package changes if needed, generate Mermaid visualization (validate syntax)
+- If greenfield + AutoSkills: run `midudev-autoskills` (write results)
+- Validate content, present plan, wait for approval, log response
 
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `inception/workflow-planning.md`
-3. **MANDATORY**: Load content validation rules from `common/content-validation.md`
-4. Load all prior context:
-   - Reverse engineering artifacts (if brownfield)
-   - Intent analysis
-   - Requirements (if executed)
-   - User stories (if executed)
-5. Execute workflow planning:
-   - Determine which phases to execute
-   - Determine depth level for each phase
-   - Create multi-package change sequence (if brownfield)
-   - Generate workflow visualization (VALIDATE Mermaid syntax before writing)
-6. **AutoSkills (conditional — greenfield only)**: If the AutoSkills extension is enabled AND this is a greenfield project (Reverse Engineering was not executed), run the `midudev-autoskills` subagent (see `workflow-planning.md` Step 9). Write results to `aidlc-docs/autoskills-recommendations.md`.
-7. **MANDATORY**: Validate all content before file creation per content-validation.md rules
-8. **Wait for Explicit Approval**: Present recommendations using language from workflow-planning.md Step 10, emphasizing user control to override recommendations - DO NOT PROCEED until user confirms
-9. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-## Application Design (CONDITIONAL)
-
-**Execute IF**:
-- New components or services needed
-- Component methods and business rules need definition
-- Service layer design required
-- Component dependencies need clarification
-
-**Skip IF**:
-- Changes within existing component boundaries
-- No new components or methods
-- Pure implementation changes
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `inception/application-design.md`
-3. Load reverse engineering artifacts (if brownfield)
-4. Execute at appropriate depth (minimal/standard/comprehensive)
-5. **Wait for Explicit Approval**: Present detailed completion message (see application-design.md for message format) - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-## Units Generation (CONDITIONAL)
-
-**Execute IF**:
-- System needs decomposition into multiple units of work
-- Multiple services or modules required
-- Complex system requiring structured breakdown
-
-**Skip IF**:
-- Single simple unit
-- No decomposition needed
-- Straightforward single-component implementation
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `inception/units-generation.md`
-3. Load reverse engineering artifacts (if brownfield)
-4. Execute at appropriate depth (minimal/standard/comprehensive)
-5. **Wait for Explicit Approval**: Present detailed completion message (see units-generation.md for message format) - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
+## Application Design, Units Generation (CONDITIONAL)
+Run only if new components, services, or decomposition required. Log inputs, load respective rule files, present completion messages, wait for approval, log responses.
 
 ---
 
 # 🟢 CONSTRUCTION PHASE
 
-**Purpose**: Detailed design, NFR implementation, and code generation
+Purpose: HOW to build (design, NFRs, code)
 
-**Focus**: Determine HOW to build it
+Per-unit loop: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation (always). Complete each unit fully before next.
 
-**Stages in CONSTRUCTION PHASE**:
-- Per-Unit Loop (executes for each unit):
-  - Functional Design (CONDITIONAL, per-unit)
-  - NFR Requirements (CONDITIONAL, per-unit)
-  - NFR Design (CONDITIONAL, per-unit)
-  - Infrastructure Design (CONDITIONAL, per-unit)
-  - Code Generation (ALWAYS, per-unit)
-- Build and Test (ALWAYS - after all units complete)
+Code Generation (per unit): plan → generate → run `planner` subagent (writes `aidlc-docs/construction-plan.md`) → generate code → run `code-reviewer` → present findings → wait for approval.
 
-**Note**: Each unit is completed fully (design + code) before moving to the next unit.
-
----
-
-## Per-Unit Loop (Executes for Each Unit)
-
-**For each unit of work, execute the following stages in sequence:**
-
-### Functional Design (CONDITIONAL, per-unit)
-
-**Execute IF**:
-- New data models or schemas
-- Complex business logic
-- Business rules need detailed design
-
-**Skip IF**:
-- Simple logic changes
-- No new business logic
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this stage in audit.md
-2. Load all steps from `construction/functional-design.md`
-3. Execute functional design for this unit
-4. **MANDATORY**: Present standardized 2-option completion message as defined in functional-design.md - DO NOT use emergent 3-option behavior
-5. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-### NFR Requirements (CONDITIONAL, per-unit)
-
-**Execute IF**:
-- Performance requirements exist
-- Security considerations needed
-- Scalability concerns present
-- Tech stack selection required
-
-**Skip IF**:
-- No NFR requirements
-- Tech stack already determined
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this stage in audit.md
-2. Load all steps from `construction/nfr-requirements.md`
-3. Execute NFR assessment for this unit
-4. **MANDATORY**: Present standardized 2-option completion message as defined in nfr-requirements.md - DO NOT use emergent behavior
-5. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-### NFR Design (CONDITIONAL, per-unit)
-
-**Execute IF**:
-- NFR Requirements was executed
-- NFR patterns need to be incorporated
-
-**Skip IF**:
-- No NFR requirements
-- NFR Requirements was skipped
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this stage in audit.md
-2. Load all steps from `construction/nfr-design.md`
-3. Execute NFR design for this unit
-4. **MANDATORY**: Present standardized 2-option completion message as defined in nfr-design.md - DO NOT use emergent behavior
-5. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-### Infrastructure Design (CONDITIONAL, per-unit)
-
-**Execute IF**:
-- Infrastructure services need mapping
-- Deployment architecture required
-- Cloud resources need specification
-
-**Skip IF**:
-- No infrastructure changes
-- Infrastructure already defined
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this stage in audit.md
-2. Load all steps from `construction/infrastructure-design.md`
-3. Execute infrastructure design for this unit
-4. **MANDATORY**: Present standardized 2-option completion message as defined in infrastructure-design.md - DO NOT use emergent behavior
-5. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-6. **MANDATORY**: Log user's response in audit.md with complete raw input
-
-### Code Generation (ALWAYS EXECUTE, per-unit)
-
-**Always executes for each unit**
-
-**Code Generation has two parts within one stage**:
-1. **Part 1 - Planning**: Create detailed code generation plan with explicit steps
-2. **Part 2 - Generation**: Execute approved plan to generate code, tests, and artifacts
-
-**Execution**:
-1. **MANDATORY**: Log any user input during this stage in audit.md
-2. Load all steps from `construction/code-generation.md`
-3. **SUBAGENT — Planner (ALWAYS)**: Execute the `planner` subagent BEFORE planning code generation:
-   ```bash
-   python scripts/subagents/manager.py planner '{"run_folder": "."}'
-   ```
-   Read `aidlc-docs/construction-plan.md` and incorporate its install/test/lint/build steps into the code generation plan.
-4. **PART 1 - Planning**: Create code generation plan with checkboxes, get user approval
-5. **PART 2 - Generation**: Execute approved plan to generate code for this unit
-6. **SUBAGENT — Code Review (ALWAYS)**: Execute the `code-reviewer` subagent AFTER code generation completes for this unit:
-   ```bash
-   python scripts/subagents/manager.py code-reviewer '{"run_folder": "."}'
-   ```
-   Present lint/security findings to the user. Blocking findings must be resolved before proceeding.
-7. **MANDATORY**: Present standardized 2-option completion message as defined in code-generation.md - DO NOT use emergent behavior
-8. **Wait for Explicit Approval**: User must choose between "Request Changes" or "Continue to Next Stage" - DO NOT PROCEED until user confirms
-9. **MANDATORY**: Log user's response in audit.md with complete raw input
-
----
-
-## Build and Test (ALWAYS EXECUTE)
-
-1. **MANDATORY**: Log any user input during this phase in audit.md
-2. Load all steps from `construction/build-and-test.md`
-3. **SUBAGENT — Full Pipeline (ALWAYS)**: Execute the full construction pipeline. This runs all agents in the correct order (planner → [builder + code-reviewer] → construction-reviewer → memory):
-   ```bash
-   python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'
-   ```
-   Read the generated artifacts (`aidlc-docs/construction-plan.md`, `aidlc-docs/build-report.md`, `aidlc-docs/construction-review.md`) and present findings to the user.
-   
-   **Alternative — Run agents individually**: If the pipeline fails or you need granular control, run agents one by one:
-   ```bash
-   python scripts/subagents/manager.py builder '{"run_folder": "."}'
-   python scripts/subagents/manager.py construction-reviewer '{"run_folder": "."}'
-   ```
-4. Generate comprehensive build and test instructions:
-   - Build instructions for all units
-   - Unit test execution instructions
-   - Integration test instructions (test interactions between units)
-   - Performance test instructions (if applicable)
-   - Additional test instructions as needed (contract tests, security tests, e2e tests)
-5. Create instruction files in build-and-test/ subdirectory: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, build-and-test-summary.md
-6. **Wait for Explicit Approval**: Ask: "**Build and test instructions complete. Ready to proceed to Operations stage?**" - DO NOT PROCEED until user confirms
-7. **MANDATORY**: Log user's response in audit.md with complete raw input
+Build & Test: run full pipeline `python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'` (or run agents individually), produce build/test instructions and files under `aidlc-docs/build-and-test/`, wait for approval.
 
 ---
 
 # 🟡 OPERATIONS PHASE
 
-**Purpose**: Placeholder for future deployment and monitoring workflows
+Placeholder for deployment, monitoring, incident response, production readiness. Currently handled post-build in Construction.
 
-**Focus**: How to DEPLOY and RUN it (future expansion)
+Key principles (short):
+- Adaptive execution
+- Transparent planning
+- User control
+- Progress tracking in `aidlc-state.md`
+- Full audit trail in `aidlc-docs/audit.md` (log raw user input exactly)
+- Validate content before writing
+- No emergent UI patterns; use standardized 2-option completion messages in construction stages
 
-**Stages in OPERATIONS PHASE**:
-- Operations (PLACEHOLDER)
+Plan-level rules (short):
+1. Always update plan checkboxes when work done
+2. Mark steps [x] in same interaction as completion
+3. Track at plan-level and stage-level
 
----
+Prompts logging (short):
+- Log every user input with ISO8601 timestamp in `aidlc-docs/audit.md` (append, do not overwrite)
+- Use specified audit format
 
-## Operations (PLACEHOLDER)
-
-**Status**: This stage is currently a placeholder for future expansion.
-
-The Operations stage will eventually include:
-- Deployment planning and execution
-- Monitoring and observability setup
-- Incident response procedures
-- Maintenance and support workflows
-- Production readiness checklists
-
-**Current State**: All build and test activities are handled in the CONSTRUCTION phase.
-
-## Key Principles
-
-- **Adaptive Execution**: Only execute stages that add value
-- **Transparent Planning**: Always show execution plan before starting
-- **User Control**: User can request stage inclusion/exclusion
-- **Progress Tracking**: Update aidlc-state.md with executed and skipped stages
-- **Complete Audit Trail**: Log ALL user inputs and AI responses in audit.md with timestamps
-  - **CRITICAL**: Capture user's COMPLETE RAW INPUT exactly as provided
-  - **CRITICAL**: Never summarize or paraphrase user input in audit log
-  - **CRITICAL**: Log every interaction, not just approvals
-- **Quality Focus**: Complex changes get full treatment, simple changes stay efficient
-- **Content Validation**: Always validate content before file creation per content-validation.md rules
-- **NO EMERGENT BEHAVIOR**: Construction phases MUST use standardized 2-option completion messages as defined in their respective rule files. DO NOT create 3-option menus or other emergent navigation patterns.
-
-## MANDATORY: Plan-Level Checkbox Enforcement
-
-### MANDATORY RULES FOR PLAN EXECUTION
-1. **NEVER complete any work without updating plan checkboxes**
-2. **IMMEDIATELY after completing ANY step described in a plan file, mark that step [x]**
-3. **This must happen in the SAME interaction where the work is completed**
-4. **NO EXCEPTIONS**: Every plan step completion MUST be tracked with checkbox updates
-
-### Two-Level Checkbox Tracking System
-- **Plan-Level**: Track detailed execution progress within each stage
-- **Stage-Level**: Track overall workflow progress in aidlc-state.md
-- **Update immediately**: All progress updates in SAME interaction where work is completed
-
-## Prompts Logging Requirements
-- **MANDATORY**: Log EVERY user input (prompts, questions, responses) with timestamp in audit.md
-- **MANDATORY**: Capture user's COMPLETE RAW INPUT exactly as provided (never summarize)
-- **MANDATORY**: Log every approval prompt with timestamp before asking the user
-- **MANDATORY**: Record every user response with timestamp after receiving it
-- **CRITICAL**: ALWAYS append changes to EDIT audit.md file, NEVER use tools and commands that completely overwrite its contents
-- **CRITICAL**: NEVER use file writing tools and commands that overwrite the entire contents of audit.md, as this causes duplication
-- Use ISO 8601 format for timestamps (YYYY-MM-DDTHH:MM:SSZ)
-- Include stage context for each entry
-
-### Audit Log Format:
-```markdown
-## [Stage Name or Interaction Type]
-**Timestamp**: [ISO timestamp]
-**User Input**: "[Complete raw user input - never summarized]"
-**AI Response**: "[AI's response or action taken]"
-**Context**: [Stage, action, or decision made]
-
----
+Directory structure (short):
 ```
-
-### Correct Tool Usage for audit.md
-
-✅ CORRECT:
-
-1. Read the audit.md file
-2. Append/Edit the file to make changes
-
-❌ WRONG:
-
-1. Read the audit.md file
-2. Completely overwrite the audit.md with the contents of what you read, plus the new changes you want to add to it
-
-## Directory Structure
-
-```text
-<WORKSPACE-ROOT>/                   # ⚠️ APPLICATION CODE HERE
-├── [project-specific structure]    # Varies by project (see code-generation.md)
-│
-├── aidlc-docs/                     # 📄 DOCUMENTATION ONLY
-│   ├── inception/                  # 🔵 INCEPTION PHASE
-│   │   ├── plans/
-│   │   ├── reverse-engineering/    # Brownfield only
-│   │   ├── requirements/
-│   │   ├── user-stories/
-│   │   └── application-design/
-│   ├── construction/               # 🟢 CONSTRUCTION PHASE
-│   │   ├── plans/
-│   │   ├── {unit-name}/
-│   │   │   ├── functional-design/
-│   │   │   ├── nfr-requirements/
-│   │   │   ├── nfr-design/
-│   │   │   ├── infrastructure-design/
-│   │   │   └── code/               # Markdown summaries only
-│   │   └── build-and-test/
-│   ├── operations/                 # 🟡 OPERATIONS PHASE (placeholder)
+<WORKSPACE-ROOT>/
+├── aidlc-docs/
+│   ├── inception/
+│   ├── construction/
+│   ├── operations/
 │   ├── aidlc-state.md
 │   └── audit.md
 ```
 
-**CRITICAL RULE**:
-- Application code: Workspace root (NEVER in aidlc-docs/)
-- Documentation: aidlc-docs/ only
-- Project structure: See code-generation.md for patterns by project type
+CRITICAL: Application code stays in workspace root; docs only in `aidlc-docs/`.
+- Existing codebase detected

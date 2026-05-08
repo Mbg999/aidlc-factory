@@ -1,116 +1,40 @@
-# ASCII Diagram Standards
+# Content Validation & Diagram Standards
 
-## MANDATORY: Use Basic ASCII Only
+## MANDATORY: Validate All Content Before File Creation
 
-**CRITICAL**: ALWAYS use basic ASCII characters for diagrams (maximum compatibility).
+## ASCII Diagrams: Basic ASCII Only
 
-### ✅ ALLOWED: `+` `-` `|` `^` `v` `<` `>` and alphanumeric text
+**CRITICAL**: Max compatibility — use only `+` `-` `|` `^` `v` `<` `>` and alphanumeric text.
 
-### ❌ FORBIDDEN: Unicode box-drawing characters
-- NO: `┌` `─` `│` `└` `┐` `┘` `├` `┤` `┬` `┴` `┼` `▼` `▲` `►` `◄`
-- Reason: Inconsistent rendering across fonts/platforms
+**FORBIDDEN**: Unicode box-drawing (`┌` `─` `│` `└` `┐` `┘` `├` `┤` `┬` `┴` `┼` `▼` `▲` `►` `◄`)
 
-## Standard ASCII Diagram Patterns
+### Character Width Rule
+**Every line in a box MUST have EXACTLY same character count (including spaces).**
 
-### CRITICAL: Character Width Rule
-**Every line in a box MUST have EXACTLY the same character count (including spaces)**
+### Patterns
 
-✅ CORRECT (all lines = 67 chars):
-```
-+---------------------------------------------------------------+
-|                      Component Name                           |
-|  Description text here                                        |
-+---------------------------------------------------------------+
-```
+**Box**: `+---+` top/bottom, `|   |` sides, `+` at corners
+**Nested**: Indent inner boxes with consistent spacing
+**Arrows**: `|` vertical, `-->` horizontal, `v` `^` direction markers
+**Flow**: Chain boxes with arrows and optional labels
 
-❌ WRONG (inconsistent widths):
-```
-+---------------------------------------------------------------+
-|                      Component Name                           |
-|  Description text here                                   |
-+---------------------------------------------------------------+
-```
-
-### Box Pattern
-```
-+-----------------------------------------------------+
-|                                                     |
-|              Calculator Application                 |
-|                                                     |
-|  Provides basic arithmetic operations for users     |
-|  through a web-based interface                      |
-|                                                     |
-+-----------------------------------------------------+
-```
-
-### Nested Boxes
-```
-+-------------------------------------------------------+
-|              Web Server (PHP Runtime)                 |
-|  +-------------------------------------------------+  |
-|  |  index.php (Monolithic Application)             |  |
-|  |  +-------------------------------------------+  |  |
-|  |  |  HTML Template (View Layer)               |  |  |
-|  |  |  - Form rendering                         |  |  |
-|  |  |  - Result display                         |  |  |
-|  |  +-------------------------------------------+  |  |
-|  +-------------------------------------------------+  |
-+-------------------------------------------------------+
-```
-
-### Arrows and Connections
-```
-+----------+
-|  Source  |
-+----------+
-     |
-     | HTTP POST
-     v
-+----------+
-|  Target  |
-+----------+
-```
-
-### Horizontal Flow
-```
-+-------+     +-------+     +-------+
-| Step1 | --> | Step2 | --> | Step3 |
-+-------+     +-------+     +-------+
-```
-
-### Vertical Flow with Labels
-```
-User Action Flow:
-    |
-    v
-+----------+
-|  Input   |
-+----------+
-    |
-    | validates
-    v
-+----------+
-| Process  |
-+----------+
-    |
-    | returns
-    v
-+----------+
-|  Output  |
-+----------+
-```
-
-## Validation
-
-Before creating diagrams:
-- [ ] Basic ASCII only: `+` `-` `|` `^` `v` `<` `>`
+### Validation Checklist
+- [ ] Basic ASCII only (`+` `-` `|` `^` `v` `<` `>`)
 - [ ] No Unicode box-drawing
 - [ ] Spaces (not tabs) for alignment
-- [ ] Corners use `+`
-- [ ] **ALL box lines same character width** (count characters including spaces)
-- [ ] Test: Verify corners align vertically in monospace font
+- [ ] ALL box lines same character width
+- [ ] Corners align vertically in monospace font
 
-## Alternative
+## Mermaid Diagrams
+1. Node IDs: alphanumeric + underscore only
+2. Escape special chars in labels
+3. Validate flowchart syntax
+4. FALLBACK: If validation fails, use text-based representation
+5. Always include text alternative alongside Mermaid
 
-For complex diagrams, use Mermaid (see `content-validation.md`)
-
+## General Content Validation
+- Validate embedded code blocks (Mermaid, JSON, YAML)
+- Check special character escaping
+- Verify markdown syntax correctness
+- Include fallback for complex elements
+- If validation fails: log error, use fallback, don't block workflow, inform user

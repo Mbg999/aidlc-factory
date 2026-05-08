@@ -27,7 +27,7 @@ Security & Verification:
   AutoSkills registry manifest. Do not fetch or run arbitrary third-party code without
   verification.
 - Before writing any skill files to the workspace, run content validation per
-  `common/content-validation.md` and record results in `aidlc-docs/audit.md`.
+  `common/ascii-diagram-standards.md` and record results in `aidlc-docs/audit.md`.
 
 Subagent invocation (example):
 
