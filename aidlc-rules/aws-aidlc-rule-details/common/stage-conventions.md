@@ -76,11 +76,31 @@ Every stage ends with:
 2. If changes requested → update artifacts, repeat approval
 3. Log approval + timestamp in `aidlc-docs/audit.md`
 4. Mark stage complete in `aidlc-docs/aidlc-state.md`
-5. **Auto-commit**: After updating state, run `git add -A && git commit -m "<type>(<scope>): <description>"` where:
+5. **Update `Current Stage`**: Set `Current Stage` in `aidlc-state.md` to the stage just completed. NEVER leave it pointing at a previous stage.
+6. **Auto-commit**: After updating state, run `git add -A && git commit -m "<type>(<scope>): <description>"` where:
    - `<type>` = `docs` for plans/questions, `feat` for code generation, `build` for build & test artifacts
    - `<scope>` = stage name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
    - `<description>` = concise summary of what was approved (e.g., "complete requirements analysis", "approve unit-auth code generation plan")
    - If the commit fails (nothing to commit, git not initialized), log warning in `audit.md` and continue — do NOT block workflow
+
+## Phase Transition Checkpoint (MANDATORY)
+
+**Before starting the first stage of a new phase** (e.g., Inception → Construction, Construction → Operations):
+
+1. **Audit verification**: Review `aidlc-docs/audit.md` — confirm EVERY completed stage from the previous phase has a logged entry with timestamp, skill compliance, and user approval. If any stage is missing, add the entry NOW before proceeding.
+2. **State verification**: Confirm `aidlc-state.md` `Current Stage` matches the last completed stage. Confirm ALL completed stages are marked `[x]` in the Stage Progress list.
+3. **Artifact verification**: Confirm all expected artifacts from the previous phase exist (e.g., after Inception: requirements, execution plan, application design if executed).
+4. **Plan checkbox verification**: Confirm execution plan checkboxes reflect completed work.
+
+**This checkpoint is a blocking gate.** Do NOT proceed to the next phase with incomplete tracking from the previous phase.
+
+## Audit Timestamp Rules
+
+- All `audit.md` entries MUST use ISO 8601 timestamps (e.g., `2026-05-08T10:30:00Z`)
+- Entries MUST be in **strictly chronological order** — each timestamp >= the previous entry's timestamp
+- **Workspace Detection** is ALWAYS the first entry in the audit log
+- If you realize an entry was added out of order, re-order the entries to restore chronological sequence
+- Timestamps should reflect the actual sequence of work, not be fabricated or identical
 
 ## Auto-Commit Triggers
 

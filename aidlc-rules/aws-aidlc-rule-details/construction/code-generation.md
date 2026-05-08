@@ -60,10 +60,23 @@ Generate code per unit in two parts:
    - Brownfield: check if file exists → modify in-place (NEVER create `*_modified.*`)
    - Greenfield: create new file
    - Write locations: app code → workspace root; docs → `aidlc-docs/construction/{unit-name}/code/`
+   - **`data-testid` (MANDATORY for UI)**: Add `data-testid` to ALL interactive elements (buttons, links, inputs, form controls). Naming: `{component}-{element-role}` (e.g., `pagination-prev-button`, `pokemon-card-link`). Stable across renders. This is NOT optional — omitting `data-testid` is a generation defect.
 8. **Update Progress**: Mark `[x]` in plan; mark stories `[x]` when done; update state
 9. **Loop**: More steps → go to 6. All done → present completion.
+10. **Log in audit.md (MANDATORY per unit)**:
+    - `## [timestamp] CONSTRUCTION - Code Generation COMPLETE (Unit: {unit-name})`
+    - List all files created/modified
+    - Skill compliance entries: `- [Skill] Executed: {skill-name} (Code Generation) — PASS|FAIL`
+    - Log user approval prompt and response
+    - **If this step is skipped, it is a workflow violation.**
 
 ## Completion (Per stage-conventions.md protocol, emoji: 💻)
+
+**Pre-completion verification (BLOCKING)**:
+- Confirm `aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md` exists and all checkboxes are `[x]`
+- Confirm `aidlc-docs/audit.md` has Construction entries for this unit
+- Confirm all interactive UI elements have `data-testid` attributes
+- Confirm execution plan in `aidlc-docs/inception/plans/` has updated checkboxes for completed tasks
 
 Include in summary:
 - Brownfield: distinguish modified vs created files
@@ -95,6 +108,7 @@ Next stage options: Request Changes / Continue to Next Unit or Build & Test
 - **RESPECT DEPENDENCIES**: Only implement when dependencies satisfied
 
 ### Automation-Friendly UI Code
-- Add `data-testid` to interactive elements
-- Naming: `{component}-{element-role}` (e.g., `login-form-submit-button`)
+- Add `data-testid` to ALL interactive elements — this is a **mandatory generation requirement**, not a suggestion
+- Naming: `{component}-{element-role}` (e.g., `login-form-submit-button`, `pagination-next-button`)
 - Stable IDs across renders; only change when element purpose changes
+- **Verification**: Before presenting unit completion, grep generated files for interactive elements (buttons, links, inputs, selects) and confirm each has a `data-testid`

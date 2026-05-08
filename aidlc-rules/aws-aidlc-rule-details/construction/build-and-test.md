@@ -6,6 +6,15 @@
 - Code generation complete for all units
 - Project ready for build & testing
 
+## Pre-Step Verification (MANDATORY — BLOCKING)
+Before proceeding to Step 1, verify:
+1. **Code gen plans exist**: `aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md` for EACH unit, with all checkboxes `[x]`
+2. **Audit completeness**: `aidlc-docs/audit.md` has entries for every completed Code Generation unit (plan approval + completion + skill compliance)
+3. **Execution plan updated**: `aidlc-docs/inception/plans/` execution plan has `[x]` on all code-gen tasks
+4. **State file current**: `aidlc-state.md` `Current Stage` reflects the last completed Code Generation unit
+
+**If ANY verification fails, fix it before proceeding. Do NOT start Build & Test with incomplete tracking.**
+
 ## Agent Skills (MANDATORY — per stage-conventions.md protocol)
 **You MUST load and follow these skills. Skipping is a workflow violation.**
 
@@ -67,8 +76,24 @@ Create `aidlc-docs/construction/build-and-test/build-and-test-summary.md`:
 Mark Build and Test complete in `aidlc-state.md`.
 
 ### Step 9: Present Completion (Per stage-conventions.md protocol, emoji: 🔨)
+
+**Pre-completion verification (BLOCKING)**:
+- Confirm `aidlc-docs/construction/build-and-test/` directory contains at minimum: `build-instructions.md`, `build-and-test-summary.md`
+- Confirm `aidlc-docs/audit.md` has a Build and Test entry with build status, test status, and skill compliance
+- Confirm `aidlc-state.md` `Current Stage` is updated to `CONSTRUCTION - Build and Test`
+
 Summary includes: build status, test results by category, generated instruction files.
 Next stage options: Request Changes / Approve & Continue to Operations
 
-### Step 10: Log in audit.md
-Build status, test status, files generated.
+### Step 10: Log in audit.md (MANDATORY)
+Format:
+```markdown
+## [timestamp] CONSTRUCTION - Build and Test COMPLETE
+- Build status: PASS|FAIL
+- Test status: {results by category}
+- Files generated: {list}
+- [Skill] Executed: debugging-and-error-recovery (Build & Test) — PASS|FAIL
+- [Skill] Executed: test-driven-development (Build & Test) — PASS|FAIL
+- [Skill] Executed: browser-testing-with-devtools (Build & Test) — PASS|FAIL|N/A
+```
+**If this step is skipped, it is a workflow violation.**

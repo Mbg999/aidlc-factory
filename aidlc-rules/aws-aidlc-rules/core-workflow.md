@@ -222,17 +222,64 @@ Run only if new components, services, or decomposition required. Log inputs, loa
 
 Purpose: HOW to build (design, NFRs, code)
 
+## MANDATORY: Construction Phase Entry Checkpoint
+**CRITICAL — execute this checkpoint BEFORE any Construction stage.**
+
+Before starting the first Construction stage, verify:
+1. **Audit completeness**: Every completed Inception stage has an entry in `aidlc-docs/audit.md` (Workspace Detection, Requirements Analysis, Workflow Planning, and any conditional stages like Application Design, Units Generation). If any are missing, add them NOW.
+2. **State correctness**: `aidlc-state.md` `Current Stage` reflects the last completed stage, NOT an old value. Update it.
+3. **Directory readiness**: `aidlc-docs/construction/plans/` directory exists (create if not).
+4. **Plan reference**: The execution plan from `aidlc-docs/inception/plans/` is loaded and its task checkboxes will be updated as work proceeds.
+
+**If this checkpoint reveals gaps, fix them before proceeding. Do NOT start Code Generation with incomplete tracking.**
+
+## MANDATORY: Construction Audit Logging
+**Every Construction stage MUST log to `aidlc-docs/audit.md`. This is NOT optional.**
+
+For each unit's Code Generation:
+- Log plan approval: `## [timestamp] CONSTRUCTION - Code Generation Plan Approved (Unit: {name})`
+- Log completion: `## [timestamp] CONSTRUCTION - Code Generation COMPLETE (Unit: {name})`
+- Log ALL skill executions: `- [Skill] Executed: {skill-name} (Code Generation) — PASS|FAIL`
+- Log user approval/response
+
+For Build & Test:
+- Log start: `## [timestamp] CONSTRUCTION - Build and Test START`
+- Log completion: `## [timestamp] CONSTRUCTION - Build and Test COMPLETE`
+- Include: build status, test results, files generated
+- Log ALL skill executions: `- [Skill] Executed: {skill-name} (Build & Test) — PASS|FAIL`
+
+**Anti-skip rule**: If you reach a Construction completion message and audit.md has no Construction entries, STOP. Go back and add them before presenting completion.
+
+## MANDATORY: Construction Artifact Generation
+**Code Generation MUST produce plan files. Build & Test MUST produce instruction files.**
+
+Required artifacts:
+- `aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md` — one per unit, with `[x]` checkboxes updated as steps complete
+- `aidlc-docs/construction/build-and-test/build-instructions.md`
+- `aidlc-docs/construction/build-and-test/build-and-test-summary.md`
+
+**If `aidlc-docs/construction/` is empty at Build & Test completion, this is a blocking failure. Fix before presenting completion.**
+
 Per-unit loop: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation (always). Complete each unit fully before next.
 
 Code Generation (per unit): plan → generate code following `incremental-implementation` skill (thin vertical slices: implement → test → verify → commit) → apply `code-review-and-quality` skill (five-axis self-review) → present findings → wait for approval.
 
-Build & Test: execute `test-driven-development` skill (Red-Green-Refactor), apply `debugging-and-error-recovery` if failures, produce build/test instructions and files under `aidlc-docs/build-and-test/`, wait for approval.
+Build & Test: execute `test-driven-development` skill (Red-Green-Refactor), apply `debugging-and-error-recovery` if failures, produce build/test instructions and files under `aidlc-docs/construction/build-and-test/`, wait for approval.
 
 ---
 
 # 🟡 OPERATIONS PHASE
 
 Placeholder for deployment, monitoring, incident response, production readiness. Currently handled post-build in Construction.
+
+## MANDATORY: State Tracking
+**`aidlc-state.md` MUST be kept accurate at ALL times.**
+
+Rules:
+1. **`Current Stage`**: Update after EVERY stage completion to reflect the stage just finished (e.g., after Code Gen Unit 2 completes → `Current Stage: CONSTRUCTION - Code Generation (Unit 2)`). NEVER leave it pointing to an earlier stage.
+2. **Stage Progress list**: Mark `[x]` with date in the same interaction as stage completion. The list MUST match `audit.md` entries — if audit.md shows a stage complete, the state file must too, and vice versa.
+3. **Execution plan checkboxes**: When a task from `aidlc-docs/inception/plans/` is completed during Construction, mark it `[x]` in the plan file in the SAME interaction. Do NOT defer checkbox updates.
+4. **Final state**: When the last Construction stage completes, set `Current Stage` to `CONSTRUCTION - Complete` (or `OPERATIONS` if proceeding).
 
 Key principles (short):
 - Adaptive execution
@@ -251,6 +298,7 @@ Plan-level rules (short):
 Prompts logging (short):
 - Log every user input with ISO8601 timestamp in `aidlc-docs/audit.md` (append, do not overwrite)
 - Use specified audit format
+- **Timestamps MUST be chronological** — each new entry's timestamp must be >= the previous entry's timestamp. Workspace Detection is always the first entry.
 
 Directory structure (short):
 ```
