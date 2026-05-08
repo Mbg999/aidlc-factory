@@ -77,7 +77,8 @@ Every stage ends with:
 3. Log approval + timestamp in `aidlc-docs/audit.md`
 4. Mark stage complete in `aidlc-docs/aidlc-state.md`
 5. **Update `Current Stage`**: Set `Current Stage` in `aidlc-state.md` to the stage just completed. NEVER leave it pointing at a previous stage.
-6. **Auto-commit**: After updating state, run `git add -A && git commit -m "<type>(<scope>): <description>"` where:
+6. **Execution plan checkbox audit (BLOCKING)**: Before proceeding to the next stage, open `aidlc-docs/inception/plans/` execution plan. Every task that belongs to the stage just completed MUST be marked `[x]`. If any task is still `[ ]`, mark it now. Do NOT proceed to the next stage with open checkboxes.
+7. **Auto-commit**: After updating state, run `git add -A && git commit -m "<type>(<scope>): <description>"` where:
    - `<type>` = `docs` for plans/questions, `feat` for code generation, `build` for build & test artifacts
    - `<scope>` = stage name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
    - `<description>` = concise summary of what was approved (e.g., "complete requirements analysis", "approve unit-auth code generation plan")

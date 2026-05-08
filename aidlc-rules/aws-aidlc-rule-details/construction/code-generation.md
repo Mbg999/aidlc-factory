@@ -104,8 +104,9 @@ Next stage options: Request Changes / Continue to Next Unit or Build & Test
 ### Generation Rules
 - **NO HARDCODED LOGIC**: Only execute what's in the plan
 - **FOLLOW PLAN EXACTLY**: No deviations from step sequence
-- **UPDATE CHECKBOXES**: Mark `[x]` immediately after each step
+- **UPDATE CHECKBOXES (BLOCKING)**: Mark `[x]` in the plan file in the SAME response that completes the step. Do NOT move to the next step with any unchecked `[ ]` behind you. If you realize checkboxes were not updated, stop and update them before continuing.
 - **RESPECT DEPENDENCIES**: Only implement when dependencies satisfied
+- **END-OF-UNIT CHECKBOX AUDIT**: Before presenting the unit completion message, scan the plan file for any remaining `[ ]` items in this unit. If any are found, mark them `[x]` or explain why they were skipped. A completion message MUST NOT be presented with open `[ ]` items.
 
 ### Automation-Friendly UI Code
 - Add `data-testid` to ALL interactive elements — this is a **mandatory generation requirement**, not a suggestion
