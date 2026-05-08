@@ -8,7 +8,17 @@ When user returns to existing project, present:
 ## MANDATORY: Session Resumption Rules
 
 1. **Always read `aidlc-state.md` first** on resume
-2. **Load artifacts by stage** before resuming:
+2. **Detect resumption mode** before loading artifacts:
+
+| `aidlc-state.md` state | User message type | Mode |
+|---|---|---|
+| Stages in progress (not all `[x]`) | Any | **In-Progress Resume** → standard resume below |
+| All stages `[x]` (complete) | New dev request (feature/fix/refactor) | **New Iteration** → return to `workspace-detection.md` Branch B — do NOT resume, do NOT skip workflow |
+| All stages `[x]` (complete) | Question / review / no-dev request | **Review Mode** → present summary, offer options |
+
+**CRITICAL**: A completed project receiving a new development request MUST go through the full workflow again (Requirements Analysis → ... → Build & Test). Silently skipping stages, skipping skill execution, or skipping artifact generation for a new request is a workflow violation.
+
+3. **Load artifacts by stage** before resuming (In-Progress Resume only):
 
 | Current Stage | Load |
 |--------------|------|
@@ -17,8 +27,8 @@ When user returns to existing project, present:
 | Design stages | Requirements + stories + architecture + design |
 | Code stages | ALL artifacts + existing code |
 
-3. **Validate state matches artifacts** — if mismatch, see [error-handling.md](error-handling.md)
-4. Show specific next steps (not generic descriptions)
-5. After loading, provide brief context summary to user
-6. Log continuity prompt in audit.md
-7. Questions go in `.md` files — never inline in chat
+4. **Validate state matches artifacts** — if mismatch, see [error-handling.md](error-handling.md)
+5. Show specific next steps (not generic descriptions)
+6. After loading, provide brief context summary to user
+7. Log continuity prompt in audit.md
+8. Questions go in `.md` files — never inline in chat

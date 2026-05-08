@@ -5,8 +5,32 @@
 ## Step 1: Check for Existing AI-DLC Project
 
 Check if `aidlc-docs/aidlc-state.md` exists:
-- **If exists**: Resume last phase (load context)
-- **If not exists**: Start new assessment
+- **If not exists**: Start new assessment (greenfield or brownfield scan)
+- **If exists**: Read `Current Stage` and `Stage Progress` — then branch:
+
+### Branch A — Project In-Progress
+`Current Stage` is NOT `CONSTRUCTION - Complete` and NOT `OPERATIONS`:
+→ Load context and proceed to **Session Continuity** (`common/session-continuity.md`).
+
+### Branch B — Project Complete + New Request Detected
+ALL Construction/Operations stages are marked `[x]` in Stage Progress AND the user's current message contains a new development request (new feature, change, bug fix, refactor):
+→ **This is a new iteration on a completed project.** Do NOT enter session-continuity.
+→ Treat as **brownfield** — source code exists and was produced by a prior AI-DLC run.
+→ Set `brownfield = true`; skip Reverse Engineering (prior artifacts exist in `aidlc-docs/`).
+→ Proceed directly to **Requirements Analysis** with full brownfield context loaded.
+→ Log in `aidlc-docs/audit.md`:
+```
+## [timestamp] WORKSPACE DETECTION - New Iteration
+- Prior project complete. New request detected.
+- Treating as brownfield. Skipping Reverse Engineering (prior artifacts current).
+- Proceeding to Requirements Analysis.
+```
+→ Update `aidlc-state.md`: append a new Stage Progress block for this iteration; reset `Current Stage` to `INCEPTION - Requirements Analysis`.
+
+### Branch C — Project Complete, No New Request
+ALL stages complete AND the user is asking a question, requesting a review, or navigating previous artifacts (not new development work):
+→ Enter **Session Continuity** (`common/session-continuity.md`) in read-only/review mode.
+→ Present the project summary and offer: A) Start new iteration, B) Review artifacts.
 
 ## Step 2: Scan Workspace for Existing Code
 
