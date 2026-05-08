@@ -8,8 +8,8 @@
 .env
 buildspec.yml
 codebuild_build.sh
-**/subagents-logs/**
 **/__pycache__/**
 **.out
 **.pyc
-.aidlc-memory/**.agency-agents-repo/
+.aidlc-memory/
+.agent-skills-repo/

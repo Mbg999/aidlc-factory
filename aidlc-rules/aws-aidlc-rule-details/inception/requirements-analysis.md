@@ -8,9 +8,17 @@ Always executes. Depth adapts to complexity (see [depth-levels.md](../common/dep
 - Workspace Detection complete
 - Reverse Engineering complete (if brownfield)
 
-## Agent Skills
-- `idea-refine/SKILL.md` — Divergent→convergent thinking to explore problem space; follow Process steps; check Rationalizations table.
-- `spec-driven-development/SKILL.md` — Write spec (PRD): objectives, scope, constraints, boundaries; follow verification exit criteria.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `idea-refine/SKILL.md` — Divergent→convergent thinking to explore problem space. **Key process**: explore multiple approaches before converging on one; follow Process steps; check Rationalizations table.
+- `spec-driven-development/SKILL.md` — Write spec (PRD): objectives, scope, constraints, boundaries. **Key process**: produce structured spec covering all areas; follow verification exit criteria.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Explore the problem space: list ≥3 possible approaches before choosing one
+2. Write a structured spec: objectives, core features, constraints, boundaries, testing strategy
+3. Verify: spec covers all areas identified in completeness analysis
+4. Do NOT proceed to next stage without a written, reviewable spec artifact
 
 ## Steps
 

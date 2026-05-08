@@ -7,9 +7,17 @@ Define non-functional requirements and tech-stack decisions per unit.
 - Functional design complete for unit
 - Execution plan indicates this stage
 
-## Agent Skills
-- `performance-optimization/SKILL.md` — Measure-first: Core Web Vitals targets, profiling, performance budgets.
-- `security-and-hardening/SKILL.md` — OWASP Top 10 prevention, three-tier boundary system, threat checklist.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `performance-optimization/SKILL.md` — Measure-first: Core Web Vitals targets, profiling, performance budgets. **Key process**: define measurable targets before designing solutions.
+- `security-and-hardening/SKILL.md` — OWASP Top 10 prevention, three-tier boundary system, threat checklist. **Key process**: identify threat surfaces, apply boundary rules.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Define measurable NFR targets (response times, throughput, error rates)
+2. Identify security threat surfaces (OWASP Top 10 checklist)
+3. Specify boundary validation rules for each interface
+4. Document performance budgets with specific metrics
 
 ## Steps
 

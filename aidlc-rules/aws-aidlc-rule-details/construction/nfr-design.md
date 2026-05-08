@@ -7,9 +7,17 @@ Incorporate NFRs into unit design via patterns and logical components.
 - NFR requirements complete for unit
 - Execution plan indicates this stage
 
-## Agent Skills
-- `security-and-hardening/SKILL.md` — Security patterns, auth design, secrets management.
-- `performance-optimization/SKILL.md` — Perf budgets, anti-pattern detection, profiling.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `security-and-hardening/SKILL.md` — Security patterns, auth design, secrets management. **Key process**: design auth/authz, secrets handling, input validation at all boundaries.
+- `performance-optimization/SKILL.md` — Perf budgets, anti-pattern detection, profiling. **Key process**: identify hot paths, set budgets, verify no anti-patterns.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Design authentication & authorization flows with least-privilege
+2. Specify secrets management approach (no hardcoded secrets)
+3. Define input validation at every boundary
+4. Identify performance-critical paths and set measurable budgets
 
 ## Steps
 

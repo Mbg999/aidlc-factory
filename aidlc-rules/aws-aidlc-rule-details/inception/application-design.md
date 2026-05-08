@@ -11,9 +11,17 @@ High-level components + service-layer design. Identifies components, defines int
 - User stories recommended
 - Execution plan must mark this stage
 
-## Agent Skills
-- `api-and-interface-design/SKILL.md` — Contract-first design, Hyrum's Law, boundary validation.
-- `context-engineering/SKILL.md` — Pack prior artifacts, verify context quality before decisions.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `api-and-interface-design/SKILL.md` — Contract-first design, Hyrum's Law, boundary validation. **Key process**: define contracts first, document what's guaranteed vs. incidental behavior.
+- `context-engineering/SKILL.md` — Pack prior artifacts, verify context quality before decisions. **Key process**: ensure all relevant prior artifacts are loaded before making design decisions.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Define component interfaces as contracts before internal design
+2. Load all prior artifacts (requirements, stories, reverse-engineering) before deciding architecture
+3. Document boundary validation rules for each interface
+4. Apply Hyrum's Law: any observable behavior will be depended upon
 
 ## Steps
 

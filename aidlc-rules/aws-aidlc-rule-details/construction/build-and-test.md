@@ -6,11 +6,18 @@
 - Code generation complete for all units
 - Project ready for build & testing
 
-## Agent Skills
-(Per stage-conventions.md protocol)
-- `debugging-and-error-recovery/SKILL.md` — Scientific debugging for build/test failures
-- `browser-testing-with-devtools/SKILL.md` *(UI projects only)* — DevTools visual/network/console testing
-- `test-driven-development/SKILL.md` — Test pyramid 80/15/5, mutation testing, coverage thresholds
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `debugging-and-error-recovery/SKILL.md` — Scientific debugging for build/test failures. **Key process**: reproduce → localize → reduce → fix → guard. Stop-the-line rule.
+- `browser-testing-with-devtools/SKILL.md` *(UI projects only)* — DevTools visual/network/console testing. **Key process**: verify with live runtime data, not assumptions.
+- `test-driven-development/SKILL.md` — Test pyramid 80/15/5, mutation testing, coverage thresholds. **Key process**: verify tests actually catch bugs (mutation), not just pass.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Run build — if fails, use 5-step triage: reproduce, localize, reduce, fix, guard
+2. Run tests — coverage must meet thresholds (80% unit, 15% integration, 5% e2e)
+3. For UI: verify in browser with DevTools (DOM, console, network)
+4. Every fix must include a regression test that would have caught the bug
 
 ---
 

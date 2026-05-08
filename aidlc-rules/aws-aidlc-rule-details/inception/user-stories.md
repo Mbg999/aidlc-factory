@@ -8,8 +8,15 @@ Convert requirements into user-centered stories with acceptance criteria and per
 - Requirements Analysis recommended
 - Workflow Planning shows this stage
 
-## Agent Skills
-- `spec-driven-development/SKILL.md` — Enforce spec-before-code; ensure stories have objectives, boundaries, success criteria.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `spec-driven-development/SKILL.md` — Enforce spec-before-code; ensure stories have objectives, boundaries, success criteria. **Key process**: structured spec covering objectives, scope, constraints.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Each story must have: objective, acceptance criteria, boundaries (what NOT to do)
+2. Apply INVEST criteria (Independent, Negotiable, Valuable, Estimable, Small, Testable)
+3. Verify stories are testable — if you can't write a test for it, rewrite the story
 
 ## Assessment: When to Execute
 

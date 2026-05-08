@@ -56,187 +56,78 @@ Runner resolution order for whether an extension is enabled (preference order):
 3. Opt-in prompt: If neither manifest nor run state indicates a decision and an opt-in prompt file (`*.opt-in.md`) exists, present it and honor the user's answer. If no opt-in prompt exists, default to enforced (load the full rule file).
 
 Always record the decision (enabled/disabled/auto-enabled) in `aidlc-docs/audit.md` and log any skips. 
-## AutoSkills Integration
+## MANDATORY: Skills Integration
 
-**RECOMMENDED**: When a run workspace contains AutoSkills artifacts, the
-evaluation runner will detect them and include details in the subagent
-`context` under the `autoskills` key so subagents can consult the data and
-adapt behavior.
+**CRITICAL**: Skills are the primary enforcement mechanism for quality, process, and best practices. Each stage declares required skills that MUST be loaded and followed. Skills are NOT optional guidance — they are structured workflows with verification gates.
 
-What is detected (check these locations under the run `workspace`):
-- `skills-lock.json` — canonical lock file produced by AutoSkills
-- `.agents/skills/<skill-directory>/` — per-skill directories containing installed/generated skill files (e.g., `.agents/skills/<skill_name>/`)
+### Skill Locations (search order, first-found wins)
+- `<repo>/.agents/skills/<skill-name>/SKILL.md` (repo-local)
+- `~/.agents/skills/<skill-name>/SKILL.md` (user-global)
 
-What is added to subagent context:
+### Skill Anatomy (from addyosmani/agent-skills)
+Every skill follows this structure:
+- **Overview** — What the skill does
+- **When to Use** — Triggering conditions
+- **Process** — Step-by-step workflow (MUST be followed)
+- **Common Rationalizations** — Excuses + rebuttals (MUST be checked)
+- **Red Flags** — Signs something is wrong
+- **Verification** — Evidence requirements (MUST be satisfied)
 
-- `context['autoskills']` — mapping with:
-   - `skills_lock_path`: path to `skills-lock.json` or `null`
-   - `skills_lock`: parsed JSON content of the lock file or `null`
-   - `autoskills_dir`: path to `.agents/skills/` (contains per-skill subdirectories) or `null`
+### Skill Execution Protocol (MANDATORY)
+When a stage lists required skills:
+1. **LOAD**: Read each `.agents/skills/<name>/SKILL.md`
+2. **FOLLOW**: Execute the skill's Process steps in order
+3. **CHECK**: Apply the skill's anti-rationalization table — if you're tempted to skip a step, the answer is NO
+4. **VERIFY**: Produce evidence per the skill's Verification section
+5. **LOG**: Record in `aidlc-docs/audit.md`: `[Skill] Executed: <skill-name> (<Stage>) — PASS|FAIL`
+6. **BLOCK**: If verification fails → stage cannot complete. Fix first.
 
-Behavior and safety:
+**If a skill file is missing**: The stage rule file embeds the critical process steps inline. Follow those. Log a warning: `[Skill] MISSING: <skill-name> — using inline process`
 
-- Subagents MAY consult `context['autoskills']` and optionally alter
-   recommendations or behavior based on installed skills.
-- By default the workflow does NOT automatically install or enable skills.
-   Installation is an explicit step and must be approved by the user or CI
-   policy.
-- To attempt installation manually run the recommended command written in
-   `aidlc-docs/autoskills-recommendations.md` (or use the helper below):
+**Anti-bypass rule**: You MUST NOT skip skill steps. "I'll do it later", "it's obvious", "not needed for this change" are rationalizations. If a skill defines verification, you MUST produce evidence. No exceptions.
 
-```bash
-python3 scripts/subagents/manager.py midudev-autoskills '{"path":"<workspace>","install":true}'
+### Skills by Phase
+
+| Phase | Skills (always active for that phase) |
+|-------|------|
+| **Define** (Inception: Requirements) | `idea-refine`, `spec-driven-development` |
+| **Plan** (Inception: Workflow Planning) | `planning-and-task-breakdown` |
+| **Build** (Construction: Code Gen) | `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`*, `api-and-interface-design`* |
+| **Verify** (Construction: Build & Test) | `test-driven-development`, `browser-testing-with-devtools`*, `debugging-and-error-recovery` |
+| **Review** (Construction: post-gen gate) | `code-review-and-quality`, `security-and-hardening`, `performance-optimization`, `code-simplification` |
+| **Ship** (Operations / end of Construction) | `shipping-and-launch`, `git-workflow-and-versioning`, `ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration`* |
+
+\* = conditional on project type (UI, API, legacy migration)
+
+### Skill Commands (Entry Points)
+
+These commands activate the right stage + skills combination:
+
+| Command | Maps to | Skills Activated |
+|---------|---------|------------------|
+| `/spec` | INCEPTION → Requirements Analysis | `spec-driven-development`, `idea-refine` |
+| `/plan` | INCEPTION → Workflow Planning + Units | `planning-and-task-breakdown` |
+| `/build` | CONSTRUCTION → Code Generation | `incremental-implementation`, `test-driven-development`, `source-driven-development` |
+| `/test` | CONSTRUCTION → Build & Test | `test-driven-development`, `debugging-and-error-recovery` |
+| `/review` | Post-generation quality gate | `code-review-and-quality`, `security-and-hardening`, `performance-optimization` |
+| `/code-simplify` | Refactor pass | `code-simplification` |
+| `/ship` | Pre-launch checklist | `shipping-and-launch`, `git-workflow-and-versioning`, `ci-cd-and-automation` |
+
+When a command is invoked, the workflow activates the corresponding stage AND loads all mapped skills. The skills' Process steps become the execution plan for that stage.
+
+### Completion Message: Skill Compliance
+Every stage completion message MUST include a skill compliance summary:
+```markdown
+### Skill Compliance
+| Skill | Status | Evidence |
+|-------|--------|----------|
+| incremental-implementation | ✅ PASS | Tests green, atomic commits |
+| test-driven-development | ✅ PASS | Red→Green→Refactor followed |
+| code-review-and-quality | ⚠️ N/A | No review stage yet |
 ```
-
-- The evaluation runner exposes a helper `auto_install_autoskills(run_folder)`
-   (in `scripts/aidlc-evaluator/scripts/run_evaluation.py`) which programmatically
-   invokes the `midudev-autoskills` subagent with `install=true` and writes an
-   installation report to `aidlc-docs/autoskills-installation.md`.
-
-- The evaluation runner can optionally perform automatic installation of
-   recommended AutoSkills during evaluation. Control this behavior with the CLI
-   flags:
-   - `--auto-install-autoskills` (enabled by default)
-   - `--no-auto-install-autoskills` (disable automatic installation)
-   Use this option in CI only after auditing the recommended skills.
-
-- The evaluation runner can also optionally *apply* installed skills by
-   executing a well-known apply script inside each skill directory under
-   `.agents/skills/<skill>/`. Supported entrypoints (checked in order) are:
-   `apply.py`, `install.py`, `entrypoint.py`, `run.py`, `main.py`, `apply.sh`,
-   `install.sh`. Control this behavior with the CLI flag `--apply-autoskills`.
-
-   When `--apply-autoskills` is enabled the runner will attempt to execute
-   these scripts (one per skill) and record per-skill results under the run
-   folder (e.g. `autoskills-apply-results.yaml`). This is an opt-in action and
-   must only be used after auditing the installed skill files.
-
-Security note: Always validate any files created by AutoSkills per
-`common/ascii-diagram-standards.md` and record validation results in
-`aidlc-docs/audit.md` before relying on installed skill code.
-
-## Custom Skills Integration
-
-In addition to AutoSkills (which are discovered and installed per-project),
-the workflow supports **custom skills** — pre-installed skill packages that
-live in the user's home directory or the repository.
-
-### What are custom skills?
-
-Custom skills are SKILL.md files installed under well-known directories:
-## Tool Adapters (Optional)
-# PRIORITY: This workflow OVERRIDES all other built-in workflows
-# When user requests software development, ALWAYS follow this workflow FIRST
-
-## Adaptive Workflow Principle
-**The workflow adapts to the work, not the other way around.**
-
-Decide stages by:
-1. User intent clarity
-2. Existing codebase
-3. Complexity & scope
-4. Risk & impact
-
-## MANDATORY: Rule Details Loading
-**CRITICAL**: Always read rule-detail files. Check these paths (use first existing):
-- `.aidlc/aidlc-rules/aws-aidlc-rule-details/`
-- `.aidlc-rule-details/`
-- `aidlc-rules/aws-aidlc-rule-details/`
-
-Subsequent rule refs (e.g., `common/process-overview.md`) are relative to chosen rules dir.
-
-**Common Rules** to load at start:
-- `common/process-overview.md`
-- `common/stage-conventions.md`
-- `common/session-continuity.md`
-- `common/ascii-diagram-standards.md`
-- `common/question-format-guide.md`
-
-## MANDATORY: Extensions Loading (Context-Optimized)
-**CRITICAL**: Scan `extensions/` but load only `*.opt-in.md` files (defer full rule files until user opts in).
-
-Loading process (short):
-1. List `extensions/*` dirs
-2. In each, load `*.opt-in.md` only; derive full rule file by replacing `.opt-in.md` → `.md`
-3. Do not load full rules yet
-
-Deferred loading:
-- Present opt-in prompts during Requirements Analysis
-- If user opts IN, load corresponding rule file
-- If opts OUT, never load full rule file
-- Extensions without an opt-in file are enforced immediately
-
-Enforcement rules:
-- Loaded/enabled extension rules are hard constraints
-- Mark irrelevant rules as N/A in compliance summary
-- Non-compliance = blocking finding; include compliance summary when completing stages
-
-Runner order to decide if extension enabled:
-1. Manifest-level default (`enabled_by_default: true`)
-2. `aidlc-docs/aidlc-state.md` run state
-3. Opt-in prompt answer (if present); otherwise enforced
-
-Record decisions in `aidlc-docs/audit.md`.
-
-## AutoSkills Integration
-If workspace has AutoSkills artifacts, runner adds `context['autoskills']` with:
-- `skills_lock_path`, `skills_lock`, `autoskills_dir`
-
-Detected files:
-- `skills-lock.json`
-- `.agents/skills/<skill>/`
-
-Behavior summary:
-- Subagents may consult `context['autoskills']`
-- Installation/apply of autoskills requires explicit approval
-- Runner helper and flags: `--auto-install-autoskills`, `--no-auto-install-autoskills`, `--apply-autoskills`
-
-Run helper example:
-```bash
-python3 scripts/subagents/manager.py midudev-autoskills '{"path":"<workspace>","install":true}'
-```
-
-Validate any autoskill-generated files per `common/ascii-diagram-standards.md` before use.
-
-## Custom Skills Integration
-Custom skills live at:
-- `~/.agents/skills/<skill>/SKILL.md` (user-global)
-- `<repo>/.agents/skills/<skill>/SKILL.md` (repo-local)
-
-Usage modes:
-1. Skill injection via `agents.yaml` (`context['skills'][name]`)
-2. Direct read-by-assistant (phase rule files list required skills)
-
-Both AutoSkills and Custom Skills can be used together.
-
-Discover custom skills:
-```bash
-python3 scripts/subagents/mcp_bridge.py --list-skills
-```
-
 ## Tool Adapters (Optional)
 Adapter docs in `aidlc-rules/adapters/` (informational only):
 - copilot.md, cursor.md, claude-code.md, cline.md, generic.md
-
-## Agency-Agents Integration (Optional)
-When enabled, assistant can consult persona files (agency agents) for phase-specific expertise.
-
-## MANDATORY: Subagent Execution
-**CRITICAL**: If `scripts/subagents/` exists, execute subagent scripts (do not simulate). Use terminal commands.
-
-Single agent example:
-```bash
-python scripts/subagents/manager.py <agent-id> '{"run_folder": "<workspace-or-run-path>"}'
-```
-
-Full pipeline example:
-```bash
-python scripts/subagents/pipeline.py construction-full '{"run_folder": "<workspace-or-run-path>"}'
-```
-
-Agent outputs to watch: planner → `aidlc-docs/construction-plan.md`; builder → `aidlc-docs/build-report.md`; code-reviewer → `aidlc-docs/reporting/`; construction-reviewer → `aidlc-docs/construction-review.md`; memory → `.aidlc-memory/` and `aidlc-docs/`.
-
-Fallback: If manager/pipeline scripts missing, AI may generate artifacts manually but must inform user and log reason.
 
 ## MANDATORY: Content Validation
 Before creating files validate:
@@ -299,8 +190,6 @@ Steps (short):
 - Log start in audit
 - Load `inception/reverse-engineering.md`
 - Produce: business overview, architecture docs, code structure, API docs, component inventory, interaction diagrams, tech stack, dependencies
-- If AutoSkills enabled: run `midudev-autoskills` and read `aidlc-docs/autoskills-recommendations.md`
-- Always run `memory` subagent to persist facts
 - Present detailed completion message and wait for user approval
 - Log user response in audit
 
@@ -321,7 +210,7 @@ Use when features touch users, workflows, multiple personas, or complexity warra
 - Load `inception/workflow-planning.md` and `common/ascii-diagram-standards.md`
 - Use prior context (reverse-engineering, requirements, stories)
 - Decide phases & depth, plan multi-package changes if needed, generate Mermaid visualization (validate syntax)
-- If greenfield + AutoSkills: run `midudev-autoskills` (write results)
+- Activate `planning-and-task-breakdown` skill: decompose into small, verifiable tasks with acceptance criteria
 - Validate content, present plan, wait for approval, log response
 
 ## Application Design, Units Generation (CONDITIONAL)
@@ -335,9 +224,9 @@ Purpose: HOW to build (design, NFRs, code)
 
 Per-unit loop: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation (always). Complete each unit fully before next.
 
-Code Generation (per unit): plan → generate → run `planner` subagent (writes `aidlc-docs/construction-plan.md`) → generate code → run `code-reviewer` → present findings → wait for approval.
+Code Generation (per unit): plan → generate code following `incremental-implementation` skill (thin vertical slices: implement → test → verify → commit) → apply `code-review-and-quality` skill (five-axis self-review) → present findings → wait for approval.
 
-Build & Test: run full pipeline `python scripts/subagents/pipeline.py construction-full '{"run_folder": "."}'` (or run agents individually), produce build/test instructions and files under `aidlc-docs/build-and-test/`, wait for approval.
+Build & Test: execute `test-driven-development` skill (Red-Green-Refactor), apply `debugging-and-error-recovery` if failures, produce build/test instructions and files under `aidlc-docs/build-and-test/`, wait for approval.
 
 ---
 

@@ -8,8 +8,16 @@ Map logical components to infrastructure services for deployment.
 - NFR Design recommended (maps logical components)
 - Execution plan indicates this stage
 
-## Agent Skills
-- `ci-cd-and-automation/SKILL.md` — Shift Left, feature flags, quality-gate pipeline patterns.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `ci-cd-and-automation/SKILL.md` — Shift Left, feature flags, quality-gate pipeline patterns. **Key process**: design pipeline with quality gates, feature flags for safe rollout.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Design CI pipeline: lint → test → build → deploy
+2. Include quality gates that block deployment on failures
+3. Plan feature flag strategy for safe rollout
+4. Shift security/testing left (run early in pipeline)
 
 ## Steps
 

@@ -2,12 +2,29 @@
 
 **Purpose**: Shared patterns for ALL stages. Each stage file inherits these; do NOT repeat them.
 
-## Agent Skills Protocol
+## Agent Skills Protocol (MANDATORY — NOT OPTIONAL)
 
-When a stage lists skills:
-1. Load each listed `.agents/skills/<name>/SKILL.md` IF the directory exists
-2. If directory missing → skip silently, proceed with standard behavior
-3. Log in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (<Stage-Name>)`
+**Skills are the primary enforcement layer for quality and process.**
+
+When a stage lists required skills:
+1. **LOAD**: Read each `.agents/skills/<name>/SKILL.md` from repo-local or user-global location
+2. **EXECUTE**: Follow the skill's **Process** section step-by-step — these are instructions, not suggestions
+3. **ANTI-RATIONALIZE**: Check the skill's **Common Rationalizations** table — if you're tempted to skip a step, the table tells you why you must not
+4. **VERIFY**: Satisfy the skill's **Verification** section — produce concrete evidence (test output, build logs, metrics)
+5. **LOG**: Record in `aidlc-docs/audit.md`: `[Skill] Executed: <skill-name> (<Stage-Name>) — PASS|FAIL`
+6. **BLOCK on failure**: If verification criteria not met → stage CANNOT complete. Fix first, then re-verify.
+
+**If skill file is missing**:
+- The stage rule file embeds critical process steps inline — follow those
+- Log warning: `[Skill] MISSING: <skill-name> — using inline fallback process`
+- Do NOT skip the process just because the file is absent
+
+**Anti-bypass rules** (HARD CONSTRAINTS):
+- "I'll add tests later" → NO. TDD means tests first.
+- "It's a simple change" → NO. Simple changes still follow the skill process.
+- "Not needed for this project" → NO. If the stage lists the skill, it's needed.
+- "I already know this is correct" → NO. Verification requires evidence, not confidence.
+- Skipping skill steps without explicit user override is a workflow violation.
 
 ## Question Generation Protocol
 
@@ -36,6 +53,11 @@ Every stage ends with:
 # [emoji] [Stage Name] Complete - [unit-name if applicable]
 
 [AI Summary: bullet-point list of what was produced. Factual only — no workflow instructions.]
+
+### Skill Compliance
+| Skill | Status | Evidence |
+|-------|--------|----------|
+| <skill-name> | ✅ PASS / ❌ FAIL / ⚠️ N/A | <brief evidence> |
 
 > **📋 <u>**REVIEW REQUIRED:**</u>**  
 > Please examine artifacts at: `[artifact-path]`

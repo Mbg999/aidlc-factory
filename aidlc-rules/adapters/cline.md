@@ -15,36 +15,16 @@ Follow the AI-DLC workflow defined in aidlc-rules/aws-aidlc-rules/core-workflow.
 Load rule detail files from aidlc-rules/aws-aidlc-rule-details/ as specified.
 ```
 
-## Subagents & Skills
+## Skills
 
-Cline can execute terminal commands. Use the manager/pipeline directly:
+Install skills for full workflow enforcement:
 
 ```bash
-python scripts/subagents/manager.py code-reviewer '{"run_folder":"runs/current"}'
-python scripts/subagents/pipeline.py review-only '{"run_folder":"runs/current"}'
+python scripts/install_aidlc.py --tool cline --with-agent-skills --dest .
 ```
 
-Skills installed under `~/.agents/skills/` are injected automatically.
-
-## Agency-Agents Integration
-
-When installed with `--with-agency-agents`, specialist persona files from
-[The Agency](https://github.com/msitarzewski/agency-agents) are placed in
-`.clinerules/agents/`. Cline reads these as contextual guidance the AI assistant
-consults during AIDLC phases.
-
-- Files follow the naming pattern: `<division>-<slug>.md`
-  (e.g., `engineering-backend-architect.md`)
-- AIDLC automatically consults relevant personas when the agency-agents
-  extension is enabled (see `extensions/agency-agents/agency-agents.md`).
-- To install:
-  ```bash
-  python scripts/install_aidlc.py --tool cline --with-agency-agents --dest .
-  ```
-- To install only specific divisions:
-  ```bash
-  python scripts/install_aidlc.py --tool cline --with-agency-agents --agency-divisions engineering,testing --dest .
-  ```
+Skills installed under `.agents/skills/` are referenced by stage rule files.
+Without them, inline fallback processes are used.
 
 ## Verification
 

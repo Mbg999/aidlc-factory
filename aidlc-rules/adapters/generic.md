@@ -22,43 +22,17 @@ Most agents support one of these mechanisms:
 - **Context file injection**: Include `aidlc-rules/aws-aidlc-rules/core-workflow.md` as a context file at session start
 - **RAG / embedding**: Index `aidlc-rules/` into your agent's retrieval system
 
-## Subagents & Skills
+## Skills
 
-Invoke the pipeline from the terminal (works with any agent that can run shell commands):
+Install engineering process skills for full workflow enforcement:
 
 ```bash
-# Run a single agent
-python scripts/subagents/manager.py planner '{"run_folder":"runs/current"}'
-
-# Run a full pipeline (sequential + parallel)
-python scripts/subagents/pipeline.py construction-full '{"run_folder":"runs/current"}'
-
-# List available pipelines
-python scripts/subagents/pipeline.py --list
-
-# List MCP tools available to an agent
-python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
+python scripts/install_aidlc.py --tool other --with-agent-skills --dest .
 ```
 
-## Agency-Agents Integration
-
-When installed with `--with-agency-agents`, specialist persona files from
-[The Agency](https://github.com/msitarzewski/agency-agents) are placed in
-`.agents/`. These are Markdown persona files that the AI assistant reads
-as additional context during AIDLC phases.
-
-- Files follow the naming pattern: `<division>-<slug>.md`
-  (e.g., `engineering-backend-architect.md`)
-- AIDLC automatically consults relevant personas when the agency-agents
-  extension is enabled (see `extensions/agency-agents/agency-agents.md`).
-- To install:
-  ```bash
-  python scripts/install_aidlc.py --tool other --with-agency-agents --dest .
-  ```
-- To install only specific divisions:
-  ```bash
-  python scripts/install_aidlc.py --tool other --with-agency-agents --agency-divisions engineering,testing --dest .
-  ```
+Skills are installed to `.agents/skills/<name>/SKILL.md`. Each stage rule file
+references mandatory skills and includes inline fallback processes when skills
+are not installed.
 
 ## Key Paths
 
@@ -67,11 +41,9 @@ as additional context during AIDLC phases.
 | Core workflow | `aidlc-rules/aws-aidlc-rules/core-workflow.md` |
 | Rule details | `aidlc-rules/aws-aidlc-rule-details/` |
 | Extensions | `aidlc-rules/aws-aidlc-rule-details/extensions/` |
-| Agent definitions | `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml` |
-| Agency-agents personas | `.agents/` |
+| Skills | `.agents/skills/` |
 | State file | `aidlc-docs/aidlc-state.md` |
 | Run outputs | `aidlc-docs/` |
-| Audit logs | `runs/<run>/subagents-logs/` |
 
 ## Verification
 

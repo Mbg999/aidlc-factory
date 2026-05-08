@@ -55,20 +55,17 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 
 | Feature                    | What it is                                                                         | Requires                      |
 | -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
-| **Skills injection**       | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` (installer writes to `<project>/.agents/skills/`) |
-| **MCP tool bridge**        | Subagents can request MCP tool calls (with human approval)                         | VS Code + MCP servers         |
-| **Pipeline orchestration** | Chain agents sequentially with parallel groups in a single command                 | Python 3.11+                  |
+| **Mandatory Skills**       | Engineering process skills (SKILL.md) are enforced at every stage                  | `.agents/skills/` (installer writes here) |
 | **Tool adapters**          | Setup guides for Copilot, Cursor, Claude Code, Cline                               | None                          |
 | **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
-| **AutoSkills integration** | Automatic skill discovery via `npx autoskills`                                     | Node.js ≥ 22                  |
 | **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
-Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/subagents/` and `aidlc-rules/adapters/`.
+Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/executors/` and `aidlc-rules/adapters/`.
 
 ## Persistent Memory (how it works)
 
-This fork includes a simple, pluggable persistent memory system used by subagents and developer tools. It is designed for cross-session, multi-developer usage with offline resilience and an optional central backend (Engram).
+This fork includes a simple, pluggable persistent memory system used by developer tools. It is designed for cross-session, multi-developer usage with offline resilience and an optional central backend (Engram).
 
 - Default location: repository root `.aidlc-memory/` (per-developer subfolders). The directory is local by default and is added to `.gitignore` to avoid leaking private notes.
 - Local storage layout:
@@ -91,7 +88,7 @@ This fork includes a simple, pluggable persistent memory system used by subagent
 
 - Developer isolation: entries include a `tool_name` like `aidlc-memory:<developer_id>` so observations are scoped per-developer in Engram.
 
-- Subagent actions: `remember`, `recall`, `context`, `forget`, `compact`, `share`, `profile`, `list_devs`.
+- Memory actions: `remember`, `recall`, `context`, `forget`, `compact`, `share`, `profile`, `list_devs`.
 
 Quick usage examples
 
@@ -111,7 +108,7 @@ Enable Engram (optional):
 store = MemoryStore.with_engram('.aidlc-memory', engram_url='http://127.0.0.1:7437', project='aidlc')
 ```
 
-Environment variables (used by `scripts/subagents/memory_agent.py`):
+Environment variables (used by memory integrations):
 
 ```bash
 export AIDLC_MEMORY_BACKEND=engram
@@ -127,54 +124,38 @@ For live sharing across a small team (e.g., 5 people), run a central Engram inst
 - Redis Pub/Sub + WS bridge (recommended for reliability)
 - Polling Engram `/search` (simpler, higher latency)
 
-This repo contains the local primitives and the Engram client at `scripts/subagents/memory/backends/engram.py`. A bridge and client UI/CLI are recommended next steps for realtime updates.
+This repo contains the local primitives and the Engram client. A bridge and client UI/CLI are recommended next steps for realtime updates.
 
 Autonomous Memory Workflow
 
-AI-DLC now wires the persistent memory into the orchestration so agents can both
-consume and produce persistent knowledge without importing the store directly.
+AI-DLC wires the persistent memory into the orchestration so tools can both
+consume and produce persistent knowledge.
 
-- Injection (read): before each agent runs, `manager.py` does a best-effort
-  load from the local memory (`.aidlc-memory/`) and injects a preformatted
-  string into the agent context as `ctx["developer_memory"]`. Agents append
-  that context into their reports for human review.
+- Injection (read): before each stage, a best-effort load from the local memory
+  (`.aidlc-memory/`) provides prior context.
 
-- Emission (write): agents produce a `memory_observations` list in their
-  return value (a list of simple dicts: `{content, tags, memory_type}`). The
-  manager detects `memory_observations` and calls `MemoryStore.remember()` for
-  the active `developer_id` so the knowledge is persisted for future runs.
-
-- Design rationale: agents stay lightweight and sandboxed (no direct
-  dependency on the memory implementation). The manager centralizes access,
-  enforces permissions, and performs best-effort persistence so failures in
-  the memory layer don't break agent runs.
+- Emission (write): observations can be persisted via `MemoryStore.remember()`
+  for the active `developer_id` so the knowledge is available for future sessions.
 
 Pipeline behavior
 
-- The `construction-full` pipeline runs `planner` → (`builder` + `code-reviewer`) →
-  `construction-reviewer` → `memory` (consolidation). The `memory` agent may
-  summarize or re-index entries written by the earlier stages.
+- The workflow uses a skills-only architecture. Each stage references mandatory
+  skills from `.agents/skills/<name>/SKILL.md`. If skill files are not installed,
+  inline fallback processes embedded in stage rule files are used instead.
 
 Privacy and safety
 
 - Local-first: by default the `.aidlc-memory/` folder lives in the repo root and
   is git-ignored. Use Engram only when you intentionally enable a central
   backend (`AIDLC_MEMORY_BACKEND=engram`).
-- The manager sanitizes context and audit-logs all agent runs; sensitive keys
-  (password, token, private, aws, etc.) are redacted from audit records.
+- Sensitive keys (password, token, private, aws, etc.) are redacted from audit records.
 
 Quick run examples
 
-Run a construction pipeline for the current repo (memory read/write enabled):
+Install AI-DLC for your tool and run skills-driven development:
 
 ```bash
-python scripts/subagents/manager.py construction-full '{"run_folder":"runs/my-run","developer_id":"alice"}'
-```
-
-Write an observation manually via the memory agent:
-
-```bash
-python scripts/subagents/manager.py memory '{"developer_id":"alice","action":"remember","content":"API uses FastAPI","tags":["arch"]}'
+python scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
 
 - [Kiro](#kiro)
@@ -494,7 +475,6 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 │   ├── extensions/
 │   └── operations/
 └── scripts/
-    ├── subagents/
     └── executors/
 ```
 
@@ -502,7 +482,7 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 
 ### Install script
 
-You can use the bundled installer script to copy the AI-DLC rules and (optionally) helper scripts into a project. The script lives at `scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
+You can use the bundled installer script to copy the AI-DLC rules and (optionally) agent skills into a project. The script lives at `scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
 
 Examples:
 
@@ -513,8 +493,8 @@ python scripts/install_aidlc.py --tool cursor --dry-run
 # Install into a specific destination non-interactively
 python scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes
 
-# Install but skip copying helper scripts (subagents/executors)
-python scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes --no-scripts
+# Install with agent skills (RECOMMENDED for full workflow enforcement)
+python scripts/install_aidlc.py --tool copilot --dest /path/to/project --yes --with-agent-skills
 ```
 
 Key options:
@@ -523,10 +503,11 @@ Key options:
 - `--dest`: destination path to install rules into (defaults to current directory; interactive prompt if omitted)
 - `--dry-run`: show planned changes without performing them
 - `--yes`: assume yes for confirmation prompts (useful for scripting / CI)
-- `--no-scripts`: do not copy helper `scripts/` folders (`scripts/subagents`, `scripts/executors`, `scripts/aidlc-evaluator`) into the destination
+- `--with-agent-skills`: install SKILL.md files from github.com/addyosmani/agent-skills
+- `--agent-skills-path`: use a local clone instead of fetching from GitHub
 - `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
 
-Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location). This makes skills discoverable by `scripts/subagents/mcp_bridge.py` and the manager; agent persona files are still copied into tool-specific agent directories (for example, `.github/agents/`, `.cursor/rules/`, or `.claude/commands/`).
+Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location used by the workflow). Without skills installed, the workflow uses inline fallback processes embedded in each stage rule file.
 
 After running the installer, verify the created files for your target tool (for example: `.cursor/rules/ai-dlc-workflow.mdc` for Cursor, `.github/copilot-instructions.md` for Copilot, or `.kiro/steering/aws-aidlc-rules/` for Kiro).
 
@@ -685,35 +666,30 @@ See `aidlc-rules/adapters/generic.md` for a template you can adapt to any tool.
 
 ## Advanced Features (This Fork)
 
-These features are available when you copy `scripts/subagents/` into your project. All require **Python 3.11+** and `PyYAML` (`pip install pyyaml`).
+### Skills-Only Architecture
 
-### Skills Injection
-
-When a subagent runs, `manager.py` automatically reads the SKILL.md files for skills listed in that agent's `skills` field in `agents.yaml` and injects their content into `context['skills']`. Agents use these as in-context instructions.
-
-Note: when using `scripts/install_aidlc.py --with-agent-skills`, the installer will place skills into the destination project's `.agents/skills/` directory so they are discoverable by the manager and subagents. Agent persona files (agents/personas) remain installed to tool-specific directories (for example, `.github/agents/`, `.cursor/rules/`, or `.claude/commands/`).
+This fork uses a **skills-only** architecture. There are no scripted subagents or external agent personas. Instead, every workflow stage references mandatory engineering process skills from `.agents/skills/<name>/SKILL.md`.
 
 **Where skills are resolved** (in order):
 
-1. Custom `skills_root` passed in context
-2. `~/.agents/skills/<skill-name>/SKILL.md`
-3. `<repo-root>/.agents/skills/<skill-name>/SKILL.md` (installer writes here when run with `--dest <path>`)
+1. `<project>/.agents/skills/<skill-name>/SKILL.md` (installer writes here)
+2. `~/.agents/skills/<skill-name>/SKILL.md` (user-global fallback)
 
-**Assigning skills to an agent** — edit `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`:
-
-```yaml
-- id: code-reviewer
-  ...
-  skills:
-    - caveman-review   # skill name = directory name under ~/.agents/skills/
-    - find-skills
-```
-
-**Verifying injection:**
+**Installing skills:**
 
 ```bash
-python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
+python scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
+
+If skills are not installed, each stage rule file contains an **inline fallback process** so the workflow is never bypassed — it always enforces the skill's steps.
+
+**Skills by workflow phase:**
+
+| Phase | Skills |
+|-------|--------|
+| Inception | spec-driven-development, planning-and-task-breakdown, idea-refine, source-driven-development |
+| Construction | incremental-implementation, test-driven-development, code-review-and-quality, debugging-and-error-recovery, security-and-hardening, performance-optimization |
+| Operations | ci-cd-and-automation, shipping-and-launch, documentation-and-adrs |
 
 ### Automatic Git Commits on Approvals
 
@@ -724,103 +700,9 @@ When you explicitly approve a plan, a stage completion, a unit construction phas
   - `<type>`: `docs` for plans/questions, `feat` for generated code, `build` for build/test artifacts
   - `<scope>`: stage or unit name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
   - `<description>`: concise summary (e.g., "approve requirements analysis", "complete auth unit codegen")
-- Examples:
-  - `docs(requirements-analysis): complete requirements verification questions`
-  - `feat(auth-unit): generate authentication service handlers`
-- Non-blocking: If `git` is not available, the repository is not initialized, or there is nothing to commit, AI-DLC logs a warning to `aidlc-docs/audit.md` and continues — the commit step will not block the workflow.
+- Non-blocking: If `git` is not available, the repository is not initialized, or there is nothing to commit, AI-DLC logs a warning to `aidlc-docs/audit.md` and continues.
 
-This behavior is controlled by the Approval Protocol in the workflow rule files (see `aidlc-rules/aws-aidlc-rule-details/common/stage-conventions.md`).
-
----
-
-### MCP Tool Bridge
-
-Subagents can request MCP tool calls by returning `mcp_calls` in their output. Each call requires human approval — the manager audit-logs the request and the host agentic tool (Copilot, Cursor, etc.) executes it.
-
-**List tools available to all agents:**
-
-```bash
-python scripts/subagents/mcp_bridge.py --list-tools
-```
-
-**List tools available to a specific agent (filtered by its allowlist):**
-
-```bash
-python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
-```
-
-**Assigning MCP tools to an agent** — edit `agents.yaml`:
-
-```yaml
-- id: code-reviewer
-  ...
-  mcp_tools:
-    - mcp_pylance_mcp_s_pylanceSyntaxErrors
-    - mcp_pylance_mcp_s_pylanceFileSyntaxErrors
-```
-
-**Agent output format** (agents express intent; manager handles approval):
-
-```json
-{
-  "agent_id": "code-reviewer",
-  "status": "ok",
-  "mcp_calls": [
-    {"tool": "mcp_pylance_mcp_s_pylanceSyntaxErrors", "args": {}}
-  ]
-}
-```
-
-Approval requests and results are audit-logged to `runs/<run>/subagents-logs/*-mcp_bridge.json`.
-
----
-
-### Pipeline Orchestration
-
-Run multiple agents as a DAG: stages execute sequentially, agents within a stage run in parallel.
-
-**List available pipelines:**
-
-```bash
-python scripts/subagents/pipeline.py --list
-```
-
-**Run a pipeline:**
-
-```bash
-python scripts/subagents/pipeline.py construction-full '{"run_folder": "runs/my-run"}'
-```
-
-**Run a single agent directly:**
-
-```bash
-python scripts/subagents/manager.py planner '{"run_folder": "runs/my-run"}'
-```
-
-**Define a custom pipeline** in `agents.yaml`:
-
-```yaml
-pipelines:
-  - id: my-pipeline
-    name: My custom pipeline
-    stages:
-      - group:
-          - planner          # runs first (alone)
-      - group:
-          - builder          # these two run
-          - code-reviewer    # in parallel
-      - group:
-          - construction-reviewer  # runs last
-```
-
-**Built-in pipelines:**
-
-| Pipeline            | Stages                                                      | Description            |
-| ------------------- | ----------------------------------------------------------- | ---------------------- |
-| `construction-full` | planner → [builder + code-reviewer] → construction-reviewer | Full construction flow |
-| `review-only`       | [code-reviewer + construction-reviewer]                     | Run reviewers only     |
-
-Pipeline results and per-stage agent outputs are audit-logged to `runs/<run>/subagents-logs/*-pipeline_*.json`.
+This behavior is controlled by the Approval Protocol in `aidlc-rules/aws-aidlc-rule-details/common/stage-conventions.md`.
 
 ---
 
@@ -835,57 +717,6 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 | [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md)  | Claude Code     |
 | [`adapters/cline.md`](aidlc-rules/adapters/cline.md)              | Cline           |
 | [`adapters/generic.md`](aidlc-rules/adapters/generic.md)          | Any other agent |
-
----
-
-### Adding Custom Agents (English)
-
-This fork supports adding custom subagents (Python scripts) that the manager and pipeline can run. Follow these minimal steps to add a custom agent.
-
-1. Create a Python script implementing a `run(context)` function. `context` is a dictionary with keys such as `run_folder`, `workspace`, `aidlc_docs`, `skills`, `autoskills`, and `mcp`. The function must return a JSON-serializable dictionary (for example, a status/result object and optional `mcp_calls`). Example:
-
-```python
-# scripts/subagents/my_custom_agent.py
-def run(context):
-    # context keys: run_folder, workspace, aidlc_docs, skills, autoskills, mcp
-    return {
-        "agent_id": "my-custom-agent",
-        "status": "ok",
-        "result": "Hello from my custom agent"
-    }
-```
-
-1. Register the agent in `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`. Minimal fields:
-
-```yaml
-- id: my-custom-agent
-  name: My Custom Agent
-  entrypoint: scripts/subagents/my_custom_agent.py
-  description: "Example custom agent"
-  skills: []        # list skill names, or "*" to load all discovered skills
-  mcp_tools: []     # allowlist of MCP tools (empty = none)
-```
-
-1. Run the agent directly via the manager (injects skills and mcp bridge):
-
-```bash
-python scripts/subagents/manager.py my-custom-agent '{"run_folder":"runs/my-run"}'
-```
-
-1. Or include the agent in a pipeline and run with `pipeline.py`:
-
-```bash
-python scripts/subagents/pipeline.py my-pipeline '{"run_folder":"runs/my-run"}'
-```
-
-Notes:
-
-- Skills injection: skills listed in `skills` are resolved from `~/.agents/skills/<skill>/SKILL.md` or `./.agents/skills/<skill>/SKILL.md`. Use `"*"` to inject all discovered skills (use with care).
-- MCP calls: agents can return `mcp_calls`; the manager audit-logs the request and requires human approval before executing assigned MCP tools. Configure allowed tools with `mcp_tools` in `agents.yaml`.
-- Executor allowlist: if your agent executes other scripts, ensure required paths are listed in `scripts/executors/allowlist.txt` or configure `EXECUTOR_ALLOW_BASES`.
-- Tests: validate changes locally with `python -m pytest scripts/tests/ -q`.
-
-For implementation details and examples, see `scripts/subagents/manager.py`, `scripts/subagents/mcp_bridge.py`, and `scripts/subagents/pipeline.py`.
 
 ## Usage
 
@@ -1207,24 +1038,21 @@ packages/*/workspace
 export EXECUTOR_ALLOW_BASES="custom_tools:tools/bin"
 ```
 
-The manager writes audit records to `runs/<run>/subagents-logs/`. Review these and
+The manager writes audit records to `runs/<run>/`. Review these and
 `aidlc-docs/` before approving any changes that involve script execution in your workspace.
 
-To auto-enable subagent extensions during evaluation:
+To auto-enable extensions during evaluation:
 
 ```bash
 python3 scripts/aidlc-evaluator/scripts/run_evaluation.py \
     --scenario sci-calc --auto-enable-extensions
 ```
 
-This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`. AutoSkills
-(`midudev-autoskills`) is never auto-enabled — it always requires manual review of
-`aidlc-docs/autoskills-recommendations.md` before install.
+This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`.
 
 ## Roadmap
 
-- [X] Implement agents, orchestration, skills, mcps
-- [ ] Cure agents, orchestration, skills, mcps
+- [X] Implement skills-only architecture with mandatory enforcement
 - [X] Persistent memory across sessions and users
 - [ ] Probably shared memory in real time
 - [ ] Try to reduce tokens usage

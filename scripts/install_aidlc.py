@@ -5,9 +5,6 @@ install_aidlc.py
 Simple installer to copy AI-DLC rule files into the chosen agent integration
 location (Kiro, Amazon Q, Cursor, Cline, Claude Code, GitHub Copilot, Other).
 
-Optionally fetches and installs specialist agents from
-https://github.com/msitarzewski/agency-agents (The Agency).
-
 Optionally fetches and installs engineering process skills from
 https://github.com/addyosmani/agent-skills.
 
@@ -15,10 +12,7 @@ Usage examples:
   python scripts/install_aidlc.py --tool cursor
   python scripts/install_aidlc.py --tool copilot --yes
   python scripts/install_aidlc.py --tool kiro --dry-run
-  python scripts/install_aidlc.py --tool copilot --with-agency-agents
-  python scripts/install_aidlc.py --tool copilot --with-agency-agents --agency-divisions engineering,testing
   python scripts/install_aidlc.py --tool copilot --with-agent-skills
-  python scripts/install_aidlc.py --tool copilot --with-agent-skills --with-agency-agents
 """
 from __future__ import annotations
 
@@ -30,21 +24,41 @@ import textwrap
 import subprocess
 
 
-def copy_tree(src: Path, dst: Path, dry_run: bool) -> None:
+def copy_tree(src: Path, dst: Path, dry_run: bool, exclude: set[str] | None = None) -> None:
+    """Copy a directory tree from `src` to `dst`.
+
+    If `exclude` is provided, file basenames in that set will be skipped.
+    """
     if not src.exists():
         raise FileNotFoundError(f"Source not found: {src}")
+    excl = set(exclude) if exclude else set()
     if dry_run:
-        print(f"[DRY-RUN] Would copy {src} -> {dst}")
+        if excl:
+            print(f"[DRY-RUN] Would copy {src} -> {dst} (excluding: {', '.join(sorted(excl))})")
+        else:
+            print(f"[DRY-RUN] Would copy {src} -> {dst}")
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copytree(src, dst, dirs_exist_ok=True)
+        # Prefer the modern shutil API when available (supports dirs_exist_ok and ignore)
+        if excl:
+            ignore = shutil.ignore_patterns(*sorted(excl))
+            shutil.copytree(src, dst, dirs_exist_ok=True, ignore=ignore)
+        else:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
     except TypeError:
-        # older Python fallback
+        # older Python fallback: try copytree without dirs_exist_ok, then manual copy
         if not dst.exists():
-            shutil.copytree(src, dst)
+            if excl:
+                ignore = shutil.ignore_patterns(*sorted(excl))
+                shutil.copytree(src, dst, ignore=ignore)
+            else:
+                shutil.copytree(src, dst)
         else:
             for p in src.rglob("*"):
+                # skip excluded basenames
+                if p.name in excl:
+                    continue
                 rel = p.relative_to(src)
                 target = dst / rel
                 if p.is_dir():
@@ -125,24 +139,18 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
         raise RuntimeError(f"Failed to install requirements: {e}")
 
 
-AGENCY_AGENTS_REPO = "https://github.com/msitarzewski/agency-agents.git"
-AGENCY_AGENTS_DIVISIONS = [
-    "academic", "design", "engineering", "finance", "game-development",
-    "marketing", "paid-media", "product", "project-management",
-    "sales", "spatial-computing", "specialized", "strategy", "support", "testing",
-]
-
 AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
-AGENT_SKILLS_DIRS = ["skills", "references", "agents"]
+AGENT_SKILLS_DIRS = ["skills", "references"]
 
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
-# The upstream repo has 20 skills total; `code-simplification` and
-# `using-agent-skills` (meta) are not referenced but still installed.
+# These are MANDATORY for full workflow enforcement — without them,
+# the workflow uses inline fallback processes.
 WORKFLOW_REQUIRED_SKILLS = [
     "api-and-interface-design",
     "browser-testing-with-devtools",
     "ci-cd-and-automation",
     "code-review-and-quality",
+    "code-simplification",
     "context-engineering",
     "debugging-and-error-recovery",
     "deprecation-and-migration",
@@ -159,24 +167,6 @@ WORKFLOW_REQUIRED_SKILLS = [
     "spec-driven-development",
     "test-driven-development",
 ]
-
-
-def clone_agency_agents(dest: Path, dry_run: bool) -> Path:
-    """Clone the agency-agents repo into a temporary or specified location."""
-    if dry_run:
-        print(f"[DRY-RUN] Would clone {AGENCY_AGENTS_REPO} into {dest}")
-        return dest
-    if dest.exists() and (dest / ".git").exists():
-        print(f"Agency-agents repo already exists at {dest}, pulling latest...")
-        subprocess.run(["git", "-C", str(dest), "pull", "--ff-only"], check=False)
-        return dest
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Cloning agency-agents from {AGENCY_AGENTS_REPO}...")
-    subprocess.run(
-        ["git", "clone", "--depth", "1", AGENCY_AGENTS_REPO, str(dest)],
-        check=True,
-    )
-    return dest
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
@@ -203,36 +193,12 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
     Skills are always installed to the canonical location:
       .agents/skills/<name>/SKILL.md
 
-    This is the path searched by manager/mcp_bridge so the AI-DLC workflow
-    can inject skill content into subagent context regardless of tool.
-
-    Agent personas go into the tool-specific directory so the host tool
-    can load them natively:
-      - copilot:  .github/agents/*.md
-      - cursor:   .cursor/rules/*.mdc
-      - claude:   .agents/*.md + .claude/commands/
-      - kiro:     .kiro/agents/*.md
-      - amazonq:  .amazonq/agents/*.md
-      - other:    .agents/*.md
+    This is the path the AI-DLC workflow uses to load skill processes.
 
     Returns count of skills installed.
     """
-    # Canonical skill location — always the same so mcp_bridge can find them
+    # Canonical skill location — always the same regardless of tool
     skills_dest = target_root / ".agents" / "skills"
-
-    # Tool-specific directory for agent personas
-    if tool == "copilot":
-        agents_dest = target_root / ".github" / "agents"
-    elif tool == "cursor":
-        agents_dest = target_root / ".cursor" / "rules"
-    elif tool == "claude":
-        agents_dest = target_root / ".agents"
-    elif tool == "kiro":
-        agents_dest = target_root / ".kiro" / "agents"
-    elif tool == "amazonq":
-        agents_dest = target_root / ".amazonq" / "agents"
-    else:  # cline, other
-        agents_dest = target_root / ".agents"
 
     count = 0
 
@@ -266,23 +232,6 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
         else:
             copy_tree(refs_src, refs_dest, dry_run=False)
 
-    # --- Copy agent personas into tool-specific agent directory ---
-    agents_src = skills_repo / "agents"
-    if agents_src.exists():
-        if dry_run:
-            print(f"[DRY-RUN]   agents/ -> {agents_dest}")
-        else:
-            agents_dest.mkdir(parents=True, exist_ok=True)
-        for md_file in sorted(agents_src.glob("*.md")):
-            if tool == "cursor":
-                target_file = agents_dest / f"{md_file.stem}.mdc"
-            else:
-                target_file = agents_dest / md_file.name
-            if dry_run:
-                print(f"[DRY-RUN]     {md_file.name} -> {target_file}")
-            else:
-                shutil.copy2(md_file, target_file)
-
     # --- Copy hooks (session lifecycle) ---
     hooks_src = skills_repo / "hooks"
     if hooks_src.exists():
@@ -291,16 +240,6 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
             print(f"[DRY-RUN]   hooks/ -> {hooks_dest}")
         else:
             copy_tree(hooks_src, hooks_dest, dry_run=False)
-
-    # --- Copy slash commands for Claude Code ---
-    if tool == "claude":
-        commands_src = skills_repo / ".claude" / "commands"
-        if commands_src.exists():
-            commands_dest = target_root / ".claude" / "commands"
-            if dry_run:
-                print(f"[DRY-RUN]   .claude/commands/ -> {commands_dest}")
-            else:
-                copy_tree(commands_src, commands_dest, dry_run=False)
 
     if not dry_run:
         print(f"Installed {count} agent-skills -> {skills_dest}")
@@ -314,70 +253,12 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
         missing = sorted(set(WORKFLOW_REQUIRED_SKILLS) - installed_names)
         print(f"\n  Workflow skills coverage: {len(found)}/{len(WORKFLOW_REQUIRED_SKILLS)}")
         if missing:
-            print(f"  Missing (workflow will skip gracefully): {', '.join(missing)}")
+            print(f"  WARNING — Missing skills (workflow will use inline fallbacks): {', '.join(missing)}")
 
     return count
 
 
-def install_agency_agents(tool: str, agency_repo: Path, target_root: Path, divisions: list[str] | None, dry_run: bool) -> int:
-    """Install agent .md files from agency-agents repo for the selected tool.
-
-    Returns count of agents installed.
-    """
-    selected_divisions = divisions if divisions else AGENCY_AGENTS_DIVISIONS
-    count = 0
-
-    if tool == "copilot":
-        dest = target_root / ".github" / "agents"
-    elif tool == "claude":
-        dest = target_root / ".claude" / "agents"
-    elif tool == "cursor":
-        dest = target_root / ".cursor" / "rules"
-    elif tool == "cline":
-        dest = target_root / ".clinerules" / "agents"
-    elif tool in ("kiro", "amazonq", "other"):
-        dest = target_root / ".agents"
-    else:
-        dest = target_root / ".agents"
-
-    if dry_run:
-        print(f"[DRY-RUN] Would install agency-agents to {dest}")
-    else:
-        dest.mkdir(parents=True, exist_ok=True)
-
-    for division in selected_divisions:
-        div_path = agency_repo / division
-        if not div_path.exists():
-            continue
-        for md_file in sorted(div_path.rglob("*.md")):
-            # Only install files with YAML frontmatter (real agent files)
-            try:
-                first_line = md_file.read_text(encoding="utf-8").split("\n", 1)[0]
-            except (OSError, UnicodeDecodeError):
-                continue
-            if first_line.strip() != "---":
-                continue
-
-            if tool == "cursor":
-                # Cursor needs .mdc extension
-                target_file = dest / (md_file.stem + ".mdc")
-            else:
-                target_file = dest / md_file.name
-
-            if dry_run:
-                print(f"[DRY-RUN]   {md_file.name} -> {target_file}")
-            else:
-                shutil.copy2(md_file, target_file)
-            count += 1
-
-    if not dry_run:
-        print(f"Installed {count} agency-agents ({', '.join(selected_divisions)}) -> {dest}")
-    else:
-        print(f"[DRY-RUN] Would install {count} agents to {dest}")
-    return count
-
-
-def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path, dry_run: bool, include_scripts: bool = True) -> None:
+def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path, dry_run: bool) -> None:
     core_md = src_rules / "core-workflow.md"
     if not core_md.exists():
         core_md = src_rules / "core-workflow.md"
@@ -388,14 +269,14 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         dest_details = target_root / ".kiro" / "aws-aidlc-rule-details"
         print(f"Installing for Kiro: {dest_rules}")
         copy_tree(src_rules, dest_rules, dry_run)
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "amazonq":
         dest_rules = target_root / ".amazonq" / "rules" / "aws-aidlc-rules"
         dest_details = target_root / ".amazonq" / "aws-aidlc-rule-details"
         print(f"Installing for Amazon Q Developer: {dest_rules}")
         copy_tree(src_rules, dest_rules, dry_run)
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "cursor":
         dest_rules_file = target_root / ".cursor" / "rules" / "ai-dlc-workflow.mdc"
@@ -409,28 +290,28 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         print(f"Installing for Cursor: {dest_rules_file}")
         write_file(dest_rules_file, frontmatter + core_content, dry_run)
         dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "cline":
         dest = target_root / ".clinerules" / "core-workflow.md"
         print(f"Installing for Cline: {dest}")
         write_file(dest, core_content, dry_run)
         dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "claude":
         dest = target_root / "CLAUDE.md"
         print(f"Installing for Claude Code: {dest}")
         write_file(dest, core_content, dry_run)
         dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "copilot":
         dest = target_root / ".github" / "copilot-instructions.md"
         print(f"Installing for GitHub Copilot: {dest}")
         write_file(dest, core_content, dry_run)
         dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run)
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
     elif tool == "other":
         dest = target_root / "AGENTS.md"
@@ -469,21 +350,20 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         print(f"Copying adapter: {adapter_file} -> {adapter_dest}")
         copy_file(adapter_file, adapter_dest, dry_run)
 
-    # Copy helper scripts (subagents, executors, aidlc-evaluator) from this repo
-    if include_scripts:
-        repo_root = src_rules.parent.parent
-        scripts_dir = repo_root / "scripts"
-        to_copy = ["subagents", "executors", "aidlc-evaluator"]
-        printed_any = False
-        for sub in to_copy:
-            ssrc = scripts_dir / sub
-            if ssrc.exists():
-                printed_any = True
-                dest = target_root / "scripts" / sub
-                print(f"Copying scripts: {ssrc} -> {dest}")
-                copy_tree(ssrc, dest, dry_run)
-        if printed_any:
-            print(f"  scripts: {scripts_dir} -> {target_root / 'scripts'}")
+    # Copy helper scripts (executors, aidlc-evaluator) from this repo
+    repo_root = src_rules.parent.parent
+    scripts_dir = repo_root / "scripts"
+    to_copy = ["executors", "aidlc-evaluator"]
+    printed_any = False
+    for sub in to_copy:
+        ssrc = scripts_dir / sub
+        if ssrc.exists():
+            printed_any = True
+            dest = target_root / "scripts" / sub
+            print(f"Copying scripts: {ssrc} -> {dest}")
+            copy_tree(ssrc, dest, dry_run)
+    if printed_any:
+        print(f"  scripts: {scripts_dir} -> {target_root / 'scripts'}")
 
     # Copy requirements.txt from the repo and try to create a venv + install
     repo_root = src_rules.parent.parent
@@ -514,14 +394,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
     p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
     p.add_argument("--dest", type=str, default=None, help="Destination path to install rules into (defaults to current directory)")
-    p.add_argument("--no-scripts", action="store_true", help="Do not copy helper scripts (subagents/executors/aidlc-evaluator) into destination")
-    p.add_argument("--with-agency-agents", action="store_true",
-                   help="Also install specialist agents from github.com/msitarzewski/agency-agents")
-    p.add_argument("--agency-divisions", type=str, default=None,
-                   help="Comma-separated list of agency-agents divisions to install (default: all). "
-                        f"Available: {','.join(AGENCY_AGENTS_DIVISIONS)}")
-    p.add_argument("--agency-agents-path", type=str, default=None,
-                   help="Local path to an existing agency-agents clone (skips git clone)")
     p.add_argument("--with-agent-skills", action="store_true",
                    help="Also install engineering process skills from github.com/addyosmani/agent-skills")
     p.add_argument("--agent-skills-path", type=str, default=None,
@@ -585,18 +457,17 @@ def main() -> int:
             return 1
 
     try:
-        include_scripts = not args.no_scripts
-        run_install(tool, src_base, src_details, target_root, args.dry_run, include_scripts=include_scripts)
+        run_install(tool, src_base, src_details, target_root, args.dry_run)
     except Exception as e:
         print("ERROR during installation:", e)
         return 3
 
-    # --- Interactive prompts for optional integrations (when CLI flags not set) ---
+    # --- Interactive prompt for skills (when CLI flag not set) ---
     if not args.yes and not args.with_agent_skills:
-        print(f"\n  The AI-DLC workflow references {len(WORKFLOW_REQUIRED_SKILLS)} agent skills")
+        print(f"\n  The AI-DLC workflow references {len(WORKFLOW_REQUIRED_SKILLS)} MANDATORY skills")
         print(f"  (from github.com/addyosmani/agent-skills).")
-        print(f"  Skills are optional — stages skip gracefully if missing —")
-        print(f"  but installing them enables richer guidance.\n")
+        print(f"  Without them, the workflow uses inline fallback processes.")
+        print(f"  Installing them enables the full skill-driven guidance.\n")
         print(f"  Referenced skills: {', '.join(WORKFLOW_REQUIRED_SKILLS[:5])} ... (+{len(WORKFLOW_REQUIRED_SKILLS)-5} more)")
         try:
             resp = input("  Install agent skills? [y/N]: ").strip().lower()
@@ -605,49 +476,6 @@ def main() -> int:
             return 1
         if resp in ("y", "yes"):
             args.with_agent_skills = True
-
-    if not args.yes and not args.with_agency_agents:
-        print(f"\n  Optionally install specialist agents from")
-        print(f"  github.com/msitarzewski/agency-agents (The Agency).")
-        print(f"  Divisions: {', '.join(AGENCY_AGENTS_DIVISIONS[:5])} ... (+{len(AGENCY_AGENTS_DIVISIONS)-5} more)")
-        try:
-            resp = input("  Install agency agents? [y/N]: ").strip().lower()
-        except KeyboardInterrupt:
-            print("\nAborted by user")
-            return 1
-        if resp in ("y", "yes"):
-            args.with_agency_agents = True
-
-    # --- Agency Agents integration ---
-    if args.with_agency_agents:
-        print("\n--- Installing Agency Agents (The Agency) ---")
-        divisions = None
-        if args.agency_divisions:
-            divisions = [d.strip() for d in args.agency_divisions.split(",") if d.strip()]
-            invalid = [d for d in divisions if d not in AGENCY_AGENTS_DIVISIONS]
-            if invalid:
-                print(f"WARNING: Unknown divisions ignored: {', '.join(invalid)}")
-                divisions = [d for d in divisions if d in AGENCY_AGENTS_DIVISIONS]
-
-        if args.agency_agents_path:
-            agency_repo = Path(args.agency_agents_path).expanduser().resolve()
-            if not agency_repo.exists():
-                print(f"ERROR: Provided agency-agents path does not exist: {agency_repo}")
-                return 4
-        else:
-            agency_repo = target_root / ".agency-agents-repo"
-            try:
-                clone_agency_agents(agency_repo, args.dry_run)
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print(f"ERROR: Failed to clone agency-agents repo: {e}")
-                print("  Ensure 'git' is installed, or use --agency-agents-path to provide a local clone.")
-                return 4
-
-        try:
-            install_agency_agents(tool, agency_repo, target_root, divisions, args.dry_run)
-        except Exception as e:
-            print(f"ERROR installing agency-agents: {e}")
-            return 4
 
     # --- Agent Skills integration ---
     if args.with_agent_skills:

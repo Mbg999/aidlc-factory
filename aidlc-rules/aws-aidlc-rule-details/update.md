@@ -5,7 +5,7 @@
 ## Constraints
 
 - **NEVER** modify `*.original.md` files — these are backups of the uncompressed originals.
-- Preserve all `Agent Skills Protocol` references, `SKILL.md` paths, and `AutoSkills` commands.
+- Preserve all `Agent Skills Protocol` references and `SKILL.md` paths.
 - Preserve all extension opt-in semantics and blocking enforcement behavior.
 - Keep `common/stage-conventions.md` as the single source of truth for shared patterns.
 
@@ -78,7 +78,7 @@ find . -name "*.md" ! -name "*.original*" -exec wc -w {} + | sort -n
 grep -rn "content-validation\|overconfidence-prevention\|welcome-message\|terminology\.md" . --include="*.md" | grep -v ".original"
 
 # 4. Agent Skills presence (must find matches)
-grep -rn "SKILL\.md\|AutoSkills\|Agent.Skill" . --include="*.md" | grep -v ".original"
+grep -rn "SKILL\.md\|Agent.Skill" . --include="*.md" | grep -v ".original"
 
 # 5. Extension opt-in semantics preserved
 grep -rn "opt-in\|ENABLED_EXTENSIONS\|blocking" . --include="*.md" | grep -v ".original"

@@ -4,8 +4,16 @@
 
 **Always Execute**: Runs after requirements (and optionally stories) are understood.
 
-## Agent Skills
-- `planning-and-task-breakdown/SKILL.md` — Decompose execution plan into small, verifiable tasks with acceptance criteria and dependency ordering.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `planning-and-task-breakdown/SKILL.md` — Decompose execution plan into small, verifiable tasks with acceptance criteria and dependency ordering. **Key process**: vertical slices, not horizontal layers; each task independently verifiable.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Slice work vertically (complete path per task, not layer-by-layer)
+2. Each task has: acceptance criteria, verification steps, dependencies
+3. Add checkpoints between phases
+4. Present plan for human review before execution
 
 ## Step 1: Load All Prior Context
 
@@ -85,17 +93,18 @@ Save to `aidlc-docs/inception/plans/execution-plan.md` with:
 
 Update `aidlc-docs/aidlc-state.md` with: project info, execution plan summary, stage progress checklist, current status.
 
-## Step 9: AutoSkills Discovery (Conditional — Greenfield Only)
+## Step 9: Skills Discovery (Conditional — Greenfield Only)
 
-**Execute IF**: AutoSkills extension enabled AND greenfield project.
-**Skip IF**: AutoSkills disabled OR already ran during Reverse Engineering.
+**Execute IF**: Skills are not yet installed AND greenfield project.
+**Skip IF**: Skills already installed in `.agents/skills/`.
 
-```bash
-python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":false}'
-```
-- Write `aidlc-docs/autoskills-recommendations.md`
-- If user chose install: get approval, then run with `install=true`
-- Validate files per `common/ascii-diagram-standards.md`; log in audit.md
+- Check `.agents/skills/` for installed skills
+- If missing, recommend running the installer:
+  ```bash
+  python scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
+  ```
+- Write `aidlc-docs/skills-coverage.md` listing installed vs missing skills
+- Validate per `common/ascii-diagram-standards.md`; log in audit.md
 
 ## Step 10: Present Completion (emoji: 📋)
 

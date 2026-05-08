@@ -11,13 +11,22 @@ Generate code per unit in two parts:
 - Unit Design Generation complete; NFR Implementation (if executed) complete
 - All unit design artifacts available
 
-## Agent Skills
-(Per stage-conventions.md protocol)
-- `incremental-implementation/SKILL.md` — Thin vertical slices: implement → test → verify → commit
-- `test-driven-development/SKILL.md` — Red-Green-Refactor; test pyramid 80/15/5
-- `frontend-ui-engineering/SKILL.md` *(UI projects only)* — Component architecture, WCAG 2.1 AA
-- `source-driven-development/SKILL.md` *(frameworks only)* — Base decisions on official docs
-- `git-workflow-and-versioning/SKILL.md` — Trunk-based, atomic commits ~100 lines
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `incremental-implementation/SKILL.md` — Thin vertical slices: implement → test → verify → commit. **Key process**: one slice at a time, verify before moving to next.
+- `test-driven-development/SKILL.md` — Red-Green-Refactor; test pyramid 80/15/5. **Key process**: write failing test FIRST, then implement, then refactor.
+- `frontend-ui-engineering/SKILL.md` *(UI projects only)* — Component architecture, WCAG 2.1 AA. **Key process**: design system tokens, accessibility from the start.
+- `source-driven-development/SKILL.md` *(frameworks only)* — Base decisions on official docs. **Key process**: cite source for every framework API used, flag unverified patterns.
+- `git-workflow-and-versioning/SKILL.md` — Trunk-based, atomic commits ~100 lines. **Key process**: commit after each slice, meaningful messages.
+- `code-review-and-quality/SKILL.md` — Five-axis self-review, change sizing. **Key process**: before presenting to user, self-review on correctness, readability, architecture, security, performance.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. For each code step: write test → implement → run tests → commit (TDD cycle)
+2. Keep changes under ~100 lines per commit
+3. Verify each slice works before starting next
+4. Self-review before presenting: check correctness, readability, security
+5. Cite official docs for framework patterns used
 - `code-review-and-quality/SKILL.md` — Five-axis self-review, change sizing
 
 ---

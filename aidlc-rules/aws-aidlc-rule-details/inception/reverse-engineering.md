@@ -186,20 +186,16 @@ Create `aidlc-docs/inception/reverse-engineering/reverse-engineering-timestamp.m
 ## Artifacts Generated
 ```
 
-## Step 11: AutoSkills Discovery (Conditional)
+## Step 11: Skills Discovery (Conditional)
 
-**Execute IF**: AutoSkills enabled (user chose A or B)
+**Execute IF**: Skills not yet installed in `.agents/skills/`
 
-**Skip IF**: AutoSkills disabled (user chose C) or not shown
+**Skip IF**: Skills already installed or user declined
 
-When enabled, run the `midudev-autoskills` subagent to discover recommended skills for this brownfield project:
-
-```bash
-python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":false}'
-```
+When needed, recommend installing skills:
 
 ```bash
-python3 scripts/subagents/manager.py midudev-autoskills '{"path":".","install":true}'
+python scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
 ```
 
 ## Step 12: Update State Tracking

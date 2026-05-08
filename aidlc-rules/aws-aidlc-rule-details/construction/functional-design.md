@@ -12,8 +12,15 @@ Focus: business logic & algorithms, domain models, business rules & validation, 
 - Application Design recommended
 - Execution plan must include this stage
 
-## Agent Skills
-- `api-and-interface-design/SKILL.md` — Contract-first design + boundary validation for interfaces.
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
+
+- `api-and-interface-design/SKILL.md` — Contract-first design + boundary validation for interfaces. **Key process**: define contracts before implementation, apply Hyrum's Law, validate at boundaries.
+
+**Inline fallback** (if SKILL.md files not installed):
+1. Define API contracts (request/response schemas) before any implementation
+2. Apply boundary validation rules at every interface
+3. Document assumptions — anything not in the contract is not guaranteed
 
 ## Steps
 
