@@ -248,6 +248,29 @@ Follow `common/question-format-guide.md` for question formatting (MCQ, `[Answer]
 ## MANDATORY: Welcome Message
 Generate a brief welcome message from `common/process-overview.md` once at workflow start (show phases, adaptive principle, team role).
 
+## MANDATORY: Auto-Commit on Approval
+**CRITICAL**: After EVERY user approval, plan approval, stage completion, unit phase completion, or user progression command ("continue", "next", "approve", "go ahead", "looks good", etc.), you MUST immediately run the following terminal command BEFORE proceeding to the next stage:
+
+```bash
+git add -A && git commit -m "<type>(<scope>): <description>"
+```
+
+- `<type>`: `docs` for plans/questions/requirements, `feat` for generated code, `build` for build/test artifacts
+- `<scope>`: stage or unit name in kebab-case (e.g., `workspace-detection`, `requirements-analysis`, `functional-design`, `auth-unit`)
+- `<description>`: concise past-tense summary (e.g., "complete requirements analysis", "approve code generation plan")
+
+**Examples**:
+- `docs(workspace-detection): complete workspace detection`
+- `docs(requirements-analysis): approve requirements verification`
+- `feat(auth-unit): generate authentication service code`
+- `build(build-and-test): complete build and test instructions`
+
+**Rules**:
+- Run `git add -A` first to capture ALL artifact and state changes
+- Do NOT ask the user for permission — this is automatic
+- If git is not initialized or the commit fails, log a warning in `aidlc-docs/audit.md` and continue — do NOT block the workflow
+- This applies to ALL stages in ALL phases (inception, construction, operations)
+
 # Adaptive Software Development Workflow
 
 ---
