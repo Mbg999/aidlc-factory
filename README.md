@@ -55,12 +55,13 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 
 | Feature                    | What it is                                                                         | Requires                      |
 | -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
-| **Skills injection**       | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` populated |
+| **Skills injection**       | Installed agent skills (SKILL.md) are automatically injected into subagent context | `~/.agents/skills/` (installer writes to `<project>/.agents/skills/`) |
 | **MCP tool bridge**        | Subagents can request MCP tool calls (with human approval)                         | VS Code + MCP servers         |
 | **Pipeline orchestration** | Chain agents sequentially with parallel groups in a single command                 | Python 3.11+                  |
 | **Tool adapters**          | Setup guides for Copilot, Cursor, Claude Code, Cline                               | None                          |
 | **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
 | **AutoSkills integration** | Automatic skill discovery via `npx autoskills`                                     | Node.js ≥ 22                  |
+| **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
 Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/subagents/` and `aidlc-rules/adapters/`.
@@ -525,6 +526,8 @@ Key options:
 - `--no-scripts`: do not copy helper `scripts/` folders (`scripts/subagents`, `scripts/executors`, `scripts/aidlc-evaluator`) into the destination
 - `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
 
+Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location). This makes skills discoverable by `scripts/subagents/mcp_bridge.py` and the manager; agent persona files are still copied into tool-specific agent directories (for example, `.github/agents/`, `.cursor/rules/`, or `.claude/commands/`).
+
 After running the installer, verify the created files for your target tool (for example: `.cursor/rules/ai-dlc-workflow.mdc` for Cursor, `.github/copilot-instructions.md` for Copilot, or `.kiro/steering/aws-aidlc-rules/` for Kiro).
 
 ---
@@ -688,11 +691,13 @@ These features are available when you copy `scripts/subagents/` into your projec
 
 When a subagent runs, `manager.py` automatically reads the SKILL.md files for skills listed in that agent's `skills` field in `agents.yaml` and injects their content into `context['skills']`. Agents use these as in-context instructions.
 
+Note: when using `scripts/install_aidlc.py --with-agent-skills`, the installer will place skills into the destination project's `.agents/skills/` directory so they are discoverable by the manager and subagents. Agent persona files (agents/personas) remain installed to tool-specific directories (for example, `.github/agents/`, `.cursor/rules/`, or `.claude/commands/`).
+
 **Where skills are resolved** (in order):
 
 1. Custom `skills_root` passed in context
 2. `~/.agents/skills/<skill-name>/SKILL.md`
-3. `<repo-root>/.agents/skills/<skill-name>/SKILL.md`
+3. `<repo-root>/.agents/skills/<skill-name>/SKILL.md` (installer writes here when run with `--dest <path>`)
 
 **Assigning skills to an agent** — edit `aidlc-rules/aws-aidlc-rule-details/extensions/subagents/agents.yaml`:
 
@@ -709,6 +714,22 @@ When a subagent runs, `manager.py` automatically reads the SKILL.md files for sk
 ```bash
 python scripts/subagents/mcp_bridge.py --list-tools --agent code-reviewer
 ```
+
+### Automatic Git Commits on Approvals
+
+When you explicitly approve a plan, a stage completion, a unit construction phase, or ask the workflow to "continue"/"next"/"approve", AI-DLC will automatically stage changes and create a git commit to record the approved artifacts.
+
+- What it does: runs `git add -A && git commit -m "<type>(<scope>): <description>"` to capture all generated artifacts and state updates.
+- Commit format:
+  - `<type>`: `docs` for plans/questions, `feat` for generated code, `build` for build/test artifacts
+  - `<scope>`: stage or unit name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
+  - `<description>`: concise summary (e.g., "approve requirements analysis", "complete auth unit codegen")
+- Examples:
+  - `docs(requirements-analysis): complete requirements verification questions`
+  - `feat(auth-unit): generate authentication service handlers`
+- Non-blocking: If `git` is not available, the repository is not initialized, or there is nothing to commit, AI-DLC logs a warning to `aidlc-docs/audit.md` and continues — the commit step will not block the workflow.
+
+This behavior is controlled by the Approval Protocol in the workflow rule files (see `aidlc-rules/aws-aidlc-rule-details/common/stage-conventions.md`).
 
 ---
 
