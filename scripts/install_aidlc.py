@@ -135,6 +135,31 @@ AGENCY_AGENTS_DIVISIONS = [
 AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
 AGENT_SKILLS_DIRS = ["skills", "references", "agents"]
 
+# Skills explicitly referenced in workflow rule files (SKILL.md paths).
+# The upstream repo has 20 skills total; `code-simplification` and
+# `using-agent-skills` (meta) are not referenced but still installed.
+WORKFLOW_REQUIRED_SKILLS = [
+    "api-and-interface-design",
+    "browser-testing-with-devtools",
+    "ci-cd-and-automation",
+    "code-review-and-quality",
+    "context-engineering",
+    "debugging-and-error-recovery",
+    "deprecation-and-migration",
+    "documentation-and-adrs",
+    "frontend-ui-engineering",
+    "git-workflow-and-versioning",
+    "idea-refine",
+    "incremental-implementation",
+    "performance-optimization",
+    "planning-and-task-breakdown",
+    "security-and-hardening",
+    "shipping-and-launch",
+    "source-driven-development",
+    "spec-driven-development",
+    "test-driven-development",
+]
+
 
 def clone_agency_agents(dest: Path, dry_run: bool) -> Path:
     """Clone the agency-agents repo into a temporary or specified location."""
@@ -172,20 +197,48 @@ def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
     return dest
 
 
-def install_agent_skills(skills_repo: Path, target_root: Path, dry_run: bool) -> int:
-    """Install skill directories from agent-skills repo into .agents/skills/.
+def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_run: bool) -> int:
+    """Install skill directories from agent-skills repo into tool-specific locations.
+
+    Installation paths per tool (following upstream docs):
+      - copilot:  .github/skills/<name>/SKILL.md  + .github/agents/*.md
+      - cursor:   .cursor/rules/<name>.md          (flattened, no subdirs)
+      - claude:   .agents/skills/<name>/SKILL.md   + .claude/commands/
+      - kiro:     .kiro/skills/<name>/SKILL.md
+      - amazonq:  .amazonq/skills/<name>/SKILL.md
+      - cline:    .agents/skills/<name>/SKILL.md
+      - other:    .agents/skills/<name>/SKILL.md
 
     Returns count of skills installed.
     """
-    dest = target_root / ".agents" / "skills"
+    # Determine destination paths per tool
+    if tool == "copilot":
+        skills_dest = target_root / ".github" / "skills"
+        agents_dest = target_root / ".github" / "agents"
+    elif tool == "cursor":
+        skills_dest = target_root / ".cursor" / "rules"
+        agents_dest = target_root / ".cursor" / "rules"
+    elif tool == "claude":
+        skills_dest = target_root / ".agents" / "skills"
+        agents_dest = target_root / ".agents"
+    elif tool == "kiro":
+        skills_dest = target_root / ".kiro" / "skills"
+        agents_dest = target_root / ".kiro" / "agents"
+    elif tool == "amazonq":
+        skills_dest = target_root / ".amazonq" / "skills"
+        agents_dest = target_root / ".amazonq" / "agents"
+    else:  # cline, other
+        skills_dest = target_root / ".agents" / "skills"
+        agents_dest = target_root / ".agents"
+
     count = 0
 
     if dry_run:
-        print(f"[DRY-RUN] Would install agent-skills to {dest}")
+        print(f"[DRY-RUN] Would install agent-skills to {skills_dest}")
     else:
-        dest.mkdir(parents=True, exist_ok=True)
+        skills_dest.mkdir(parents=True, exist_ok=True)
 
-    # Copy skill directories (each contains a SKILL.md)
+    # --- Copy skill directories ---
     skills_src = skills_repo / "skills"
     if skills_src.exists():
         for skill_dir in sorted(skills_src.iterdir()):
@@ -194,35 +247,85 @@ def install_agent_skills(skills_repo: Path, target_root: Path, dry_run: bool) ->
             skill_md = skill_dir / "SKILL.md"
             if not skill_md.exists():
                 continue
-            target_dir = dest / skill_dir.name
-            if dry_run:
-                print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+
+            if tool == "cursor":
+                # Cursor: flatten to single .md files in .cursor/rules/
+                target_file = skills_dest / f"{skill_dir.name}.md"
+                if dry_run:
+                    print(f"[DRY-RUN]   {skill_dir.name}/SKILL.md -> {target_file}")
+                else:
+                    shutil.copy2(skill_md, target_file)
             else:
-                copy_tree(skill_dir, target_dir, dry_run=False)
+                # All others: keep directory structure with SKILL.md
+                target_dir = skills_dest / skill_dir.name
+                if dry_run:
+                    print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+                else:
+                    copy_tree(skill_dir, target_dir, dry_run=False)
             count += 1
 
-    # Copy reference checklists
+    # --- Copy reference checklists ---
     refs_src = skills_repo / "references"
     if refs_src.exists():
-        refs_dest = dest / "_references"
+        refs_dest = skills_dest / "_references"
         if dry_run:
             print(f"[DRY-RUN]   references/ -> {refs_dest}")
         else:
             copy_tree(refs_src, refs_dest, dry_run=False)
 
-    # Copy agent personas
+    # --- Copy agent personas into tool-specific agent directory ---
     agents_src = skills_repo / "agents"
     if agents_src.exists():
-        agents_dest = dest / "_personas"
         if dry_run:
             print(f"[DRY-RUN]   agents/ -> {agents_dest}")
         else:
-            copy_tree(agents_src, agents_dest, dry_run=False)
+            agents_dest.mkdir(parents=True, exist_ok=True)
+        for md_file in sorted(agents_src.glob("*.md")):
+            if tool == "cursor":
+                target_file = agents_dest / f"{md_file.stem}.mdc"
+            else:
+                target_file = agents_dest / md_file.name
+            if dry_run:
+                print(f"[DRY-RUN]     {md_file.name} -> {target_file}")
+            else:
+                shutil.copy2(md_file, target_file)
+
+    # --- Copy hooks (session lifecycle) ---
+    hooks_src = skills_repo / "hooks"
+    if hooks_src.exists():
+        hooks_dest = skills_dest.parent / "hooks"
+        if dry_run:
+            print(f"[DRY-RUN]   hooks/ -> {hooks_dest}")
+        else:
+            copy_tree(hooks_src, hooks_dest, dry_run=False)
+
+    # --- Copy slash commands for Claude Code ---
+    if tool == "claude":
+        commands_src = skills_repo / ".claude" / "commands"
+        if commands_src.exists():
+            commands_dest = target_root / ".claude" / "commands"
+            if dry_run:
+                print(f"[DRY-RUN]   .claude/commands/ -> {commands_dest}")
+            else:
+                copy_tree(commands_src, commands_dest, dry_run=False)
 
     if not dry_run:
-        print(f"Installed {count} agent-skills -> {dest}")
+        print(f"Installed {count} agent-skills -> {skills_dest}")
     else:
-        print(f"[DRY-RUN] Would install {count} skills to {dest}")
+        print(f"[DRY-RUN] Would install {count} skills to {skills_dest}")
+
+    # Report workflow-required skill coverage
+    if not dry_run and skills_dest.exists():
+        if tool == "cursor":
+            installed_names = {f.stem for f in skills_dest.iterdir() if f.is_file() and f.suffix == ".md"}
+        else:
+            installed_names = {d.name for d in skills_dest.iterdir() if d.is_dir()}
+        found = sorted(set(WORKFLOW_REQUIRED_SKILLS) & installed_names)
+        missing = sorted(set(WORKFLOW_REQUIRED_SKILLS) - installed_names)
+        print(f"\n  Workflow skills coverage: {len(found)}/{len(WORKFLOW_REQUIRED_SKILLS)}")
+        if missing:
+            print(f"  Missing (workflow will skip gracefully): {', '.join(missing)}")
+
     return count
 
 
@@ -498,6 +601,33 @@ def main() -> int:
         print("ERROR during installation:", e)
         return 3
 
+    # --- Interactive prompts for optional integrations (when CLI flags not set) ---
+    if not args.yes and not args.with_agent_skills:
+        print(f"\n  The AI-DLC workflow references {len(WORKFLOW_REQUIRED_SKILLS)} agent skills")
+        print(f"  (from github.com/addyosmani/agent-skills).")
+        print(f"  Skills are optional — stages skip gracefully if missing —")
+        print(f"  but installing them enables richer guidance.\n")
+        print(f"  Referenced skills: {', '.join(WORKFLOW_REQUIRED_SKILLS[:5])} ... (+{len(WORKFLOW_REQUIRED_SKILLS)-5} more)")
+        try:
+            resp = input("  Install agent skills? [y/N]: ").strip().lower()
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            return 1
+        if resp in ("y", "yes"):
+            args.with_agent_skills = True
+
+    if not args.yes and not args.with_agency_agents:
+        print(f"\n  Optionally install specialist agents from")
+        print(f"  github.com/msitarzewski/agency-agents (The Agency).")
+        print(f"  Divisions: {', '.join(AGENCY_AGENTS_DIVISIONS[:5])} ... (+{len(AGENCY_AGENTS_DIVISIONS)-5} more)")
+        try:
+            resp = input("  Install agency agents? [y/N]: ").strip().lower()
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            return 1
+        if resp in ("y", "yes"):
+            args.with_agency_agents = True
+
     # --- Agency Agents integration ---
     if args.with_agency_agents:
         print("\n--- Installing Agency Agents (The Agency) ---")
@@ -548,7 +678,7 @@ def main() -> int:
                 return 5
 
         try:
-            install_agent_skills(skills_repo, target_root, args.dry_run)
+            install_agent_skills(tool, skills_repo, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing agent-skills: {e}")
             return 5
