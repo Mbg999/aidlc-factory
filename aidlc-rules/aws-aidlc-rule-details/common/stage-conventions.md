@@ -54,3 +54,20 @@ Every stage ends with:
 2. If changes requested → update artifacts, repeat approval
 3. Log approval + timestamp in `aidlc-docs/audit.md`
 4. Mark stage complete in `aidlc-docs/aidlc-state.md`
+5. **Auto-commit**: After updating state, run `git add -A && git commit -m "<type>(<scope>): <description>"` where:
+   - `<type>` = `docs` for plans/questions, `feat` for code generation, `build` for build & test artifacts
+   - `<scope>` = stage name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
+   - `<description>` = concise summary of what was approved (e.g., "complete requirements analysis", "approve unit-auth code generation plan")
+   - If the commit fails (nothing to commit, git not initialized), log warning in `audit.md` and continue — do NOT block workflow
+
+## Auto-Commit Triggers
+
+**MANDATORY**: A git commit MUST be created automatically (no user prompt) whenever:
+- A **plan is approved** by the user (commit the plan + any generated questions)
+- A **stage completes** and user approves to continue (commit all stage artifacts)
+- A **unit construction phase** finishes (commit unit artifacts)
+- **Code generation** completes a step or unit (commit generated code + updated plan checkboxes)
+- The user says **"continue"**, **"next"**, **"approve"**, or any equivalent progression
+
+**Commit format**: `<type>(<scope>): <description>`
+**Always stage all changes**: `git add -A` before committing to capture all artifact updates
