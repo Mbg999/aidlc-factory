@@ -198,37 +198,40 @@ def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
 
 
 def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_run: bool) -> int:
-    """Install skill directories from agent-skills repo into tool-specific locations.
+    """Install skill directories from agent-skills repo.
 
-    Installation paths per tool (following upstream docs):
-      - copilot:  .github/skills/<name>/SKILL.md  + .github/agents/*.md
-      - cursor:   .cursor/rules/<name>.md          (flattened, no subdirs)
-      - claude:   .agents/skills/<name>/SKILL.md   + .claude/commands/
-      - kiro:     .kiro/skills/<name>/SKILL.md
-      - amazonq:  .amazonq/skills/<name>/SKILL.md
-      - cline:    .agents/skills/<name>/SKILL.md
-      - other:    .agents/skills/<name>/SKILL.md
+    Skills are always installed to the canonical location:
+      .agents/skills/<name>/SKILL.md
+
+    This is the path searched by manager/mcp_bridge so the AI-DLC workflow
+    can inject skill content into subagent context regardless of tool.
+
+    Agent personas go into the tool-specific directory so the host tool
+    can load them natively:
+      - copilot:  .github/agents/*.md
+      - cursor:   .cursor/rules/*.mdc
+      - claude:   .agents/*.md + .claude/commands/
+      - kiro:     .kiro/agents/*.md
+      - amazonq:  .amazonq/agents/*.md
+      - other:    .agents/*.md
 
     Returns count of skills installed.
     """
-    # Determine destination paths per tool
+    # Canonical skill location — always the same so mcp_bridge can find them
+    skills_dest = target_root / ".agents" / "skills"
+
+    # Tool-specific directory for agent personas
     if tool == "copilot":
-        skills_dest = target_root / ".github" / "skills"
         agents_dest = target_root / ".github" / "agents"
     elif tool == "cursor":
-        skills_dest = target_root / ".cursor" / "rules"
         agents_dest = target_root / ".cursor" / "rules"
     elif tool == "claude":
-        skills_dest = target_root / ".agents" / "skills"
         agents_dest = target_root / ".agents"
     elif tool == "kiro":
-        skills_dest = target_root / ".kiro" / "skills"
         agents_dest = target_root / ".kiro" / "agents"
     elif tool == "amazonq":
-        skills_dest = target_root / ".amazonq" / "skills"
         agents_dest = target_root / ".amazonq" / "agents"
     else:  # cline, other
-        skills_dest = target_root / ".agents" / "skills"
         agents_dest = target_root / ".agents"
 
     count = 0
@@ -238,7 +241,7 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
     else:
         skills_dest.mkdir(parents=True, exist_ok=True)
 
-    # --- Copy skill directories ---
+    # --- Copy skill directories (always structured: .agents/skills/<name>/SKILL.md) ---
     skills_src = skills_repo / "skills"
     if skills_src.exists():
         for skill_dir in sorted(skills_src.iterdir()):
@@ -247,21 +250,11 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
             skill_md = skill_dir / "SKILL.md"
             if not skill_md.exists():
                 continue
-
-            if tool == "cursor":
-                # Cursor: flatten to single .md files in .cursor/rules/
-                target_file = skills_dest / f"{skill_dir.name}.md"
-                if dry_run:
-                    print(f"[DRY-RUN]   {skill_dir.name}/SKILL.md -> {target_file}")
-                else:
-                    shutil.copy2(skill_md, target_file)
+            target_dir = skills_dest / skill_dir.name
+            if dry_run:
+                print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
             else:
-                # All others: keep directory structure with SKILL.md
-                target_dir = skills_dest / skill_dir.name
-                if dry_run:
-                    print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
-                else:
-                    copy_tree(skill_dir, target_dir, dry_run=False)
+                copy_tree(skill_dir, target_dir, dry_run=False)
             count += 1
 
     # --- Copy reference checklists ---
@@ -316,10 +309,7 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
 
     # Report workflow-required skill coverage
     if not dry_run and skills_dest.exists():
-        if tool == "cursor":
-            installed_names = {f.stem for f in skills_dest.iterdir() if f.is_file() and f.suffix == ".md"}
-        else:
-            installed_names = {d.name for d in skills_dest.iterdir() if d.is_dir()}
+        installed_names = {d.name for d in skills_dest.iterdir() if d.is_dir()}
         found = sorted(set(WORKFLOW_REQUIRED_SKILLS) & installed_names)
         missing = sorted(set(WORKFLOW_REQUIRED_SKILLS) - installed_names)
         print(f"\n  Workflow skills coverage: {len(found)}/{len(WORKFLOW_REQUIRED_SKILLS)}")
