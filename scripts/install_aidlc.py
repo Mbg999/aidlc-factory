@@ -114,6 +114,32 @@ ORCHESTRATOR_PYTHON_DEPS = [
     "pyyaml>=6.0",
 ]
 
+# Runtime state that the orchestrator writes per-run. Must be gitignored so
+# manifests (with verbatim user prompts), budget usage, and timeline events
+# don't leak into commits.
+ORCHESTRATOR_GITIGNORE_ENTRIES = [
+    ".aidlc-orchestrator/runs/",
+    ".aidlc-orchestrator/knowledge/",
+]
+ORCHESTRATOR_GITIGNORE_HEADER = "# AIDLC orchestrator runtime state"
+
+ORCHESTRATOR_CLAUDE_POINTER_MARKER = "<!-- AIDLC-ORCHESTRATOR-POINTER -->"
+ORCHESTRATOR_CLAUDE_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. To run the multi-agent factory:\n\n"
+    "- `/factory-spec <feature>` — workspace scout + (reverse-engineer) + requirements + (stories) + plan\n"
+    "- `/factory-plan` — decompose plan into per-unit specs (multi-component features only)\n"
+    "- `/factory-build` — layer-parallel code generation with file-glob locks + AST symbol drift checks\n"
+    "- `/factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `/factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG, migration plan\n"
+    "- `/factory-resume <run-id>` — resume an interrupted run (or adopt a legacy `aidlc-docs/` project)\n"
+    "- `/factory-replay <run-id> --from <stage>` — re-run from a specific stage\n\n"
+    "Roles, contracts, budgets, and parallelism rules: see `.claude/agents/orchestrator.md`,\n"
+    "`.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
 # These are MANDATORY for full workflow enforcement — without them,
 # the workflow uses inline fallback processes.
@@ -180,6 +206,64 @@ def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> No
         print(f"  created {req_path.relative_to(target_root)} with {len(deps)} dep(s)")
 
 
+def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run: bool) -> None:
+    """Append orchestrator runtime-state patterns to target's .gitignore.
+
+    Idempotent: only adds patterns not already present (exact-line match).
+    Creates the file if missing.
+    """
+    gi_path = target_root / ".gitignore"
+
+    if dry_run:
+        print(f"[DRY-RUN] Would update {gi_path} with: {', '.join(entries)}")
+        return
+
+    if gi_path.exists():
+        existing_text = gi_path.read_text()
+        existing_lines = {line.strip() for line in existing_text.splitlines()}
+        new_lines = [e for e in entries if e not in existing_lines]
+        if not new_lines:
+            print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
+            return
+        with gi_path.open("a") as f:
+            if not existing_text.endswith("\n"):
+                f.write("\n")
+            f.write(f"\n{header}\n")
+            for line in new_lines:
+                f.write(f"{line}\n")
+        print(f"  appended {len(new_lines)} pattern(s) to {gi_path.relative_to(target_root)}")
+    else:
+        content = f"{header}\n" + "\n".join(entries) + "\n"
+        gi_path.write_text(content)
+        print(f"  created {gi_path.relative_to(target_root)} with {len(entries)} pattern(s)")
+
+
+def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool) -> None:
+    """Append the orchestrator pointer block to CLAUDE.md once.
+
+    Idempotent: skips if marker already present. Creates the file if missing
+    (which would only happen if rules install was skipped — rare but safe).
+    """
+    if dry_run:
+        print(f"[DRY-RUN] Would append orchestrator pointer to {claude_md_path}")
+        return
+
+    if claude_md_path.exists():
+        existing = claude_md_path.read_text(encoding="utf-8")
+        if marker in existing:
+            print(f"  CLAUDE.md already contains orchestrator pointer — no changes")
+            return
+        with claude_md_path.open("a", encoding="utf-8") as f:
+            if not existing.endswith("\n"):
+                f.write("\n")
+            f.write(block)
+        print(f"  appended orchestrator pointer to {claude_md_path.relative_to(claude_md_path.parent)}")
+    else:
+        claude_md_path.parent.mkdir(parents=True, exist_ok=True)
+        claude_md_path.write_text(block.lstrip(), encoding="utf-8")
+        print(f"  created {claude_md_path.name} with orchestrator pointer")
+
+
 def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run: bool) -> None:
     """Install AIDLC Orchestrator (Phases 0-6) artifacts.
 
@@ -243,6 +327,22 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     # Layer 3: Python deps
     print(f"  Python deps -> requirements.txt")
     update_requirements(target_root, ORCHESTRATOR_PYTHON_DEPS, dry_run)
+
+    # Layer 3: gitignore runtime state (any tool)
+    print(f"  runtime state -> .gitignore")
+    update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
+
+    # Layer 3: workflow doc pointer (Claude Code only — CLAUDE.md is the
+    # canonical workflow doc; other tools have varied shapes — copilot uses
+    # .github/copilot-instructions.md, cursor uses .cursor/rules/*.mdc, etc.)
+    if tool == "claude":
+        print(f"  workflow pointer -> CLAUDE.md")
+        update_workflow_doc_pointer(
+            target_root / "CLAUDE.md",
+            ORCHESTRATOR_CLAUDE_POINTER_MARKER,
+            ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
+            dry_run,
+        )
 
     if not dry_run:
         print(f"\n  Next: pip install -r requirements.txt")

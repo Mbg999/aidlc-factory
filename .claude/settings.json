@@ -5,7 +5,9 @@
   },
   "permissions": {
     "allow": [
-      "Read(//Users/miguel.belmonte/Desktop/custom\\\\ aidlc/.aidlc-orchestrator/contracts/**)"
+      "Read(//Users/miguel.belmonte/Desktop/custom\\\\ aidlc/.aidlc-orchestrator/contracts/**)",
+      "mcp__plugin_engram_engram__mem_session_summary",
+      "mcp__plugin_engram_engram__mem_context"
     ]
   }
 }
