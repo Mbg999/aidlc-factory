@@ -2,6 +2,17 @@
 .amazonq/**
 .claude/**
 !.claude/settings.json
+!.claude/agents/
+!.claude/agents/**
+!.claude/commands/
+!.claude/commands/**
+
+# AIDLC Orchestrator runtime state — ship contracts and default budgets, ignore the rest
+.aidlc-orchestrator/**
+!.aidlc-orchestrator/contracts/
+!.aidlc-orchestrator/contracts/**
+!.aidlc-orchestrator/budgets/
+!.aidlc-orchestrator/budgets/default.yaml
 .codebuild/**
 .worktrees/**
 .vscode/**

@@ -90,6 +90,30 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
 AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
 AGENT_SKILLS_DIRS = ["skills", "references"]
 
+
+# AIDLC Orchestrator (Phases 0-6) artifacts to install.
+# Always-installed (any tool) — the contracts + scripts are useful for
+# validation even when subagent spawning isn't available.
+ORCHESTRATOR_FACTORY_SCRIPTS = [
+    "factory_validate.py",
+    "factory_budget.py",
+    "factory_merge_reviews.py",
+    "factory_conflict.py",
+    "factory_run.py",
+]
+
+# Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning
+# is Claude Code native; other tools fall back to single-agent role-switching.
+ORCHESTRATOR_CLAUDE_TREES = [
+    Path(".claude/agents"),       # orchestrator.md + stage/* + cross-cutting/*
+]
+ORCHESTRATOR_CLAUDE_COMMANDS_GLOB = "factory-*.md"   # under .claude/commands/
+
+ORCHESTRATOR_PYTHON_DEPS = [
+    "jsonschema>=4.0",
+    "pyyaml>=6.0",
+]
+
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
 # These are MANDATORY for full workflow enforcement — without them,
 # the workflow uses inline fallback processes.
@@ -115,6 +139,118 @@ WORKFLOW_REQUIRED_SKILLS = [
     "spec-driven-development",
     "test-driven-development",
 ]
+
+
+def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> None:
+    """Append AIDLC orchestrator deps to target's requirements.txt.
+
+    If the file exists, append only deps that aren't already listed (case-insensitive
+    package-name match). If the file doesn't exist, create a minimal one.
+    Adds a comment header so the addition is attributable.
+    """
+    req_path = target_root / "requirements.txt"
+
+    def pkg_name(spec: str) -> str:
+        for sep in (">=", "==", "<=", ">", "<", "="):
+            if sep in spec:
+                return spec.split(sep, 1)[0].strip().lower()
+        return spec.strip().lower()
+
+    if dry_run:
+        print(f"[DRY-RUN] Would update {req_path} with: {', '.join(deps)}")
+        return
+
+    if req_path.exists():
+        existing_text = req_path.read_text()
+        existing_pkgs = {pkg_name(line) for line in existing_text.splitlines() if line.strip() and not line.strip().startswith("#")}
+        new_lines = [d for d in deps if pkg_name(d) not in existing_pkgs]
+        if not new_lines:
+            print(f"  requirements.txt already lists AIDLC deps — no changes")
+            return
+        with req_path.open("a") as f:
+            if not existing_text.endswith("\n"):
+                f.write("\n")
+            f.write("\n# AIDLC orchestrator (factory scripts)\n")
+            for line in new_lines:
+                f.write(f"{line}\n")
+        print(f"  appended {len(new_lines)} dep(s) to {req_path.relative_to(target_root)}")
+    else:
+        content = "# AIDLC orchestrator (factory scripts)\n" + "\n".join(deps) + "\n"
+        req_path.write_text(content)
+        print(f"  created {req_path.relative_to(target_root)} with {len(deps)} dep(s)")
+
+
+def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run: bool) -> None:
+    """Install AIDLC Orchestrator (Phases 0-6) artifacts.
+
+    Layers:
+      1. Always (any tool): factory scripts, contracts, default budget
+      2. Claude Code only: subagents (.claude/agents/) and slash commands
+      3. Always: append Python deps to target's requirements.txt
+    """
+    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) ---")
+
+    # Layer 1: factory scripts (any tool)
+    src_scripts = repo_root / "scripts"
+    dst_scripts = target_root / "scripts"
+    print(f"  factory scripts -> {dst_scripts.relative_to(target_root)}/")
+    for name in ORCHESTRATOR_FACTORY_SCRIPTS:
+        src = src_scripts / name
+        if not src.exists():
+            print(f"    WARNING: missing source script {src}")
+            continue
+        dst = dst_scripts / name
+        copy_file(src, dst, dry_run)
+        if not dry_run:
+            try:
+                dst.chmod(0o755)
+            except OSError:
+                pass
+
+    # Layer 1: contracts + default budget (any tool)
+    src_contracts = repo_root / ".aidlc-orchestrator" / "contracts"
+    dst_contracts = target_root / ".aidlc-orchestrator" / "contracts"
+    if src_contracts.exists():
+        print(f"  contracts -> {dst_contracts.relative_to(target_root)}/")
+        copy_tree(src_contracts, dst_contracts, dry_run)
+
+    src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+    dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+    if src_budget.exists():
+        print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
+        copy_file(src_budget, dst_budget, dry_run)
+
+    # Layer 2: Claude-Code-only (subagents + slash commands)
+    if tool == "claude":
+        for tree in ORCHESTRATOR_CLAUDE_TREES:
+            src = repo_root / tree
+            if not src.exists():
+                continue
+            dst = target_root / tree
+            print(f"  subagents -> {tree}/")
+            copy_tree(src, dst, dry_run)
+
+        src_cmds = repo_root / ".claude" / "commands"
+        dst_cmds = target_root / ".claude" / "commands"
+        if src_cmds.exists():
+            print(f"  slash commands -> .claude/commands/factory-*.md")
+            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+    else:
+        print(f"  (skipping subagents + slash commands — Claude Code only;")
+        print(f"   {tool} runs in degraded mode per ORCHESTRATOR-PLAN.md §8.4)")
+
+    # Layer 3: Python deps
+    print(f"  Python deps -> requirements.txt")
+    update_requirements(target_root, ORCHESTRATOR_PYTHON_DEPS, dry_run)
+
+    if not dry_run:
+        print(f"\n  Next: pip install -r requirements.txt")
+        if tool == "claude":
+            print(f"  Then: invoke /factory-spec <feature> in Claude Code to start a run.")
+        else:
+            print(f"  Note: factory scripts are usable manually for validation;")
+            print(f"  full multi-agent flow requires Claude Code.")
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
@@ -313,7 +449,32 @@ def parse_args() -> argparse.Namespace:
                    help="Always install engineering process skills from github.com/addyosmani/agent-skills (default: install)")
     p.add_argument("--agent-skills-path", type=str, default=None,
                    help="Local path to an existing agent-skills clone (skips git clone)")
+    p.add_argument("--with-orchestrator", dest="with_orchestrator", action="store_true", default=None,
+                   help="Install the AIDLC orchestrator (factory scripts + subagents + slash commands). "
+                        "If neither --with-orchestrator nor --no-orchestrator is set, prompts interactively (default: yes).")
+    p.add_argument("--no-orchestrator", dest="with_orchestrator", action="store_false",
+                   help="Skip orchestrator installation.")
     return p.parse_args()
+
+
+def ask_orchestrator(tool: str) -> bool:
+    """Prompt user whether to install the AIDLC orchestrator. Default: yes."""
+    if tool == "claude":
+        msg = ("Install the AIDLC orchestrator (factory scripts + subagents + slash commands)?\n"
+               "  Includes: 13 stage subagents, 7 /factory-* slash commands, 5 factory_*.py scripts,\n"
+               "  20 JSON schema contracts, default budget policy.\n"
+               "  [Y/n]: ")
+    else:
+        msg = (f"Install the AIDLC orchestrator infrastructure for {tool}?\n"
+               f"  You'll get the factory_*.py scripts and contracts (usable for manual validation).\n"
+               f"  Subagent spawning is Claude Code only — for {tool} the multi-agent factory\n"
+               f"  runs in degraded mode (single-agent role-switching) per ORCHESTRATOR-PLAN.md §8.4.\n"
+               f"  [Y/n]: ")
+    try:
+        resp = input(msg).strip().lower()
+    except KeyboardInterrupt:
+        return False
+    return resp not in ("n", "no")
 
 
 def interactive_choose() -> str:
@@ -410,6 +571,24 @@ def main() -> int:
             shutil.rmtree(skills_repo)
         elif args.dry_run and not args.agent_skills_path:
             print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
+
+    # --- AIDLC Orchestrator (Phases 0-6) ---
+    install_orch: bool
+    if args.with_orchestrator is not None:
+        install_orch = args.with_orchestrator
+    elif args.yes:
+        install_orch = True   # default yes in non-interactive mode
+    else:
+        install_orch = ask_orchestrator(tool)
+
+    if install_orch:
+        try:
+            install_orchestrator(tool, repo_root, target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing orchestrator: {e}")
+            return 6
+    else:
+        print("\nSkipped AIDLC orchestrator installation.")
 
     print("Done.")
     return 0

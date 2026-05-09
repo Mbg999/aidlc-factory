@@ -1,0 +1,545 @@
+#!/usr/bin/env python3
+"""factory_run.py — Run Manager for AIDLC Orchestrator (Phase 6).
+
+Owns the per-run manifest.yaml (state machine source of truth) and the
+timeline.jsonl (append-only event log). Provides resume/replay/legacy-adopt
+flows so a crashed orchestration run can be picked up at the last completed
+stage.
+
+Subcommands
+-----------
+    init <run-id> --user-request <text> [--project-slug <slug>] [--force]
+        Initialize manifest.yaml and timeline.jsonl for a new run.
+
+    set <run-id> [--field key=value]...
+        Set arbitrary top-level manifest fields. JSON-decoded if possible.
+
+    complete-stage <run-id> <stage> [--next-stage <next>]
+        Mark a stage complete in manifest.completed_stages[]; update
+        last_checkpoint_at; emit a `stage_complete` event. Idempotent.
+
+    fail-stage <run-id> <stage> [--reason <text>]
+        Mark a stage failed. Useful for crash recovery records.
+
+    emit <run-id> --evt <name> [--stage <s>] [--field key=value]...
+        Append a single event to timeline.jsonl. Used by the orchestrator
+        to record arbitrary lifecycle events (spawn_start, spawn_end,
+        cost_govern_skip, etc.).
+
+    status <run-id> [--json]
+        Print the current manifest.
+
+    resume <run-id>
+        Compute the next stage to spawn from manifest.completed_stages[].
+        Print a JSON object with: completed_count, current_stage,
+        next_stage_suggestion, partial_outputs (any stale handoff files).
+        Emit a `resume_requested` event.
+
+    replay <run-id> --from <stage>
+        Roll the manifest back: truncate completed_stages[] before <stage>;
+        archive output handoffs for rolled-back stages with a .replay-<ts>
+        suffix; set current_stage = <stage>. Emit a `replay_requested` event.
+
+    adopt-legacy [--repo-slug <slug>]
+        Scan aidlc-docs/aidlc-state.md for `[x]` Stage Progress markers and
+        synthesize a manifest with completed_stages adopted as-is. Run id is
+        `legacy-<repo-slug>-<ts>`.
+
+    tail <run-id> [--follow] [--json]
+        Print timeline events. With --follow, polls every 0.5s like `tail -f`.
+
+Atomicity
+---------
+manifest.yaml writes use write-tmp-then-rename for atomic updates.
+timeline.jsonl is append-only with a single line written per call (atomic
+for line-sized writes on POSIX local filesystems).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    print("missing dependency: pip install pyyaml", file=sys.stderr)
+    sys.exit(2)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
+AIDLC_DOCS = REPO_ROOT / "aidlc-docs"
+
+PHASE_ORDER = [
+    "workspace-scout",
+    "reverse-engineer",
+    "requirements-analyst",
+    "story-writer",
+    "workflow-planner",
+    "unit-decomposer",
+    "code-generator",
+    "build-test-agent",
+    "reviewer-code",
+    "reviewer-security",
+    "reviewer-performance",
+    "reviewer-simplifier",
+    "ship-agent",
+]
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _die(msg: str, code: int = 2) -> None:
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def run_dir(run_id: str, must_exist: bool = True) -> Path:
+    p = RUNS_ROOT / run_id
+    if must_exist and not p.exists():
+        _die(f"run not found: {p}")
+    return p
+
+
+def manifest_path(run_id: str) -> Path:
+    return RUNS_ROOT / run_id / "manifest.yaml"
+
+
+def timeline_path(run_id: str) -> Path:
+    return RUNS_ROOT / run_id / "timeline.jsonl"
+
+
+def load_manifest(run_id: str) -> dict:
+    p = manifest_path(run_id)
+    if not p.exists():
+        _die(f"manifest not found: {p}")
+    return yaml.safe_load(p.read_text())
+
+
+def save_manifest_atomic(run_id: str, data: dict) -> None:
+    p = manifest_path(run_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".yaml.tmp")
+    tmp.write_text(yaml.safe_dump(data, default_flow_style=False, sort_keys=False))
+    tmp.replace(p)
+
+
+def append_event(run_id: str, event: dict) -> None:
+    p = timeline_path(run_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a") as f:
+        f.write(json.dumps(event) + "\n")
+
+
+def _parse_field(kv: str):
+    k, _, v = kv.partition("=")
+    if not k:
+        _die(f"invalid --field: {kv}")
+    try:
+        return k, json.loads(v)
+    except json.JSONDecodeError:
+        return k, v
+
+
+def cmd_init(args: argparse.Namespace) -> None:
+    rd = run_dir(args.run_id, must_exist=False)
+    rd.mkdir(parents=True, exist_ok=True)
+    (rd / "handoffs").mkdir(exist_ok=True)
+    if manifest_path(args.run_id).exists() and not args.force:
+        _die(f"manifest already exists at {manifest_path(args.run_id)}; use --force")
+
+    manifest = {
+        "run_id": args.run_id,
+        "started_at": now_iso(),
+        "last_checkpoint_at": now_iso(),
+        "user_request": args.user_request,
+        "project_slug": args.project_slug or REPO_ROOT.name.lower().replace(" ", "-"),
+        "current_stage": "workspace-scout",
+        "completed_stages": [],
+        "skipped_stages": [],
+        "failed_stages": [],
+        "project_profile": {"ui": False, "api": False, "has_legacy": False},
+        "units": [],
+        "skill_paths": {},
+    }
+    save_manifest_atomic(args.run_id, manifest)
+    append_event(args.run_id, {
+        "ts": now_iso(),
+        "evt": "run_init",
+        "run_id": args.run_id,
+        "user_request": args.user_request,
+    })
+    print(f"initialized run {args.run_id} at {rd}")
+
+
+def cmd_set(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    for kv in args.field or []:
+        k, v = _parse_field(kv)
+        manifest[k] = v
+    manifest["last_checkpoint_at"] = now_iso()
+    save_manifest_atomic(args.run_id, manifest)
+    print(f"updated {len(args.field or [])} field(s)")
+
+
+def cmd_complete_stage(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    if args.stage in manifest["completed_stages"]:
+        print(f"stage {args.stage} already complete (idempotent)")
+        return
+    manifest["completed_stages"].append(args.stage)
+    manifest["last_checkpoint_at"] = now_iso()
+    if args.next_stage:
+        manifest["current_stage"] = args.next_stage
+    save_manifest_atomic(args.run_id, manifest)
+    append_event(args.run_id, {
+        "ts": now_iso(),
+        "evt": "stage_complete",
+        "run_id": args.run_id,
+        "stage": args.stage,
+        "next_stage": args.next_stage,
+    })
+    print(f"marked {args.stage} complete")
+
+
+def cmd_fail_stage(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    failures = manifest.setdefault("failed_stages", [])
+    failures.append({"stage": args.stage, "reason": args.reason or "unspecified", "at": now_iso()})
+    manifest["last_checkpoint_at"] = now_iso()
+    save_manifest_atomic(args.run_id, manifest)
+    append_event(args.run_id, {
+        "ts": now_iso(),
+        "evt": "stage_failed",
+        "run_id": args.run_id,
+        "stage": args.stage,
+        "reason": args.reason,
+    })
+    print(f"marked {args.stage} failed: {args.reason or 'unspecified'}")
+
+
+def cmd_emit(args: argparse.Namespace) -> None:
+    fields = {}
+    for kv in args.field or []:
+        k, v = _parse_field(kv)
+        fields[k] = v
+    event = {"ts": now_iso(), "evt": args.evt, "run_id": args.run_id, **fields}
+    if args.stage:
+        event["stage"] = args.stage
+    append_event(args.run_id, event)
+    print(json.dumps(event))
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    if args.json:
+        print(json.dumps(manifest, indent=2))
+    else:
+        print(yaml.safe_dump(manifest, default_flow_style=False, sort_keys=False), end="")
+
+
+def _next_stage(manifest: dict) -> str | None:
+    """Compute the next stage to spawn.
+
+    Trust the manifest's current_stage field (set by the orchestrator via
+    complete-stage --next-stage), since only the orchestrator knows the
+    conditional flow (e.g. whether to skip reverse-engineer in greenfield).
+    Fall back to PHASE_ORDER scan only if current_stage is missing or already
+    completed.
+    """
+    completed = set(manifest.get("completed_stages", []))
+    current = manifest.get("current_stage")
+    if current and current not in completed:
+        return current
+    if current and current in PHASE_ORDER:
+        start_idx = PHASE_ORDER.index(current) + 1
+    else:
+        start_idx = 0
+    for stage in PHASE_ORDER[start_idx:]:
+        if stage not in completed:
+            return stage
+    return None
+
+
+def cmd_resume(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    completed = manifest["completed_stages"]
+    nxt = _next_stage(manifest)
+
+    result: dict = {
+        "run_id": args.run_id,
+        "completed_count": len(completed),
+        "completed_stages": completed,
+        "current_stage": manifest.get("current_stage"),
+        "next_stage_suggestion": nxt,
+        "last_checkpoint_at": manifest.get("last_checkpoint_at"),
+    }
+
+    handoffs = run_dir(args.run_id) / "handoffs"
+    if handoffs.exists() and nxt:
+        partial = sorted(handoffs.glob(f"{nxt}*.output.yaml"))
+        if partial:
+            result["partial_outputs"] = [str(p.relative_to(REPO_ROOT)) for p in partial]
+
+    print(json.dumps(result, indent=2))
+    append_event(args.run_id, {
+        "ts": now_iso(),
+        "evt": "resume_requested",
+        "run_id": args.run_id,
+        "next_stage": nxt,
+    })
+
+
+def cmd_replay(args: argparse.Namespace) -> None:
+    manifest = load_manifest(args.run_id)
+    target = args.from_stage
+    if target not in manifest["completed_stages"]:
+        _die(f"cannot replay from {target}: not in completed_stages {manifest['completed_stages']}")
+
+    idx = manifest["completed_stages"].index(target)
+    rolled_back = manifest["completed_stages"][idx:]
+    manifest["completed_stages"] = manifest["completed_stages"][:idx]
+    manifest["current_stage"] = target
+    manifest["last_checkpoint_at"] = now_iso()
+
+    archived: list[str] = []
+    handoffs = run_dir(args.run_id) / "handoffs"
+    if handoffs.exists():
+        ts = int(time.time())
+        for stage in rolled_back:
+            for f in handoffs.glob(f"{stage}*.output.yaml"):
+                archived_path = f.with_name(f"{f.stem}.replay-{ts}.yaml")
+                f.rename(archived_path)
+                archived.append(str(archived_path.relative_to(REPO_ROOT)))
+
+    save_manifest_atomic(args.run_id, manifest)
+    append_event(args.run_id, {
+        "ts": now_iso(),
+        "evt": "replay_requested",
+        "run_id": args.run_id,
+        "from_stage": target,
+        "rolled_back": rolled_back,
+        "archived": archived,
+    })
+    print(json.dumps({
+        "replayed_from": target,
+        "rolled_back": rolled_back,
+        "archived_outputs": archived,
+    }, indent=2))
+
+
+_LEGACY_STATE_RE = re.compile(r"^\s*-?\s*\[x\]\s*(.+)$", re.IGNORECASE)
+
+# Legacy AIDLC uses stage names like "Workspace Detection"; orchestrator uses
+# "workspace-scout". Map legacy phrases (lowercased, normalized) to current stage_id.
+LEGACY_TO_PHASE: dict[str, str] = {
+    "workspace detection": "workspace-scout",
+    "workspace-detection": "workspace-scout",
+    "reverse engineering": "reverse-engineer",
+    "reverse-engineering": "reverse-engineer",
+    "requirements analysis": "requirements-analyst",
+    "requirements-analysis": "requirements-analyst",
+    "user stories": "story-writer",
+    "user-stories": "story-writer",
+    "workflow planning": "workflow-planner",
+    "workflow-planning": "workflow-planner",
+    "units generation": "unit-decomposer",
+    "units-generation": "unit-decomposer",
+    "code generation": "code-generator",
+    "code-generation": "code-generator",
+    "build and test": "build-test-agent",
+    "build & test": "build-test-agent",
+    "build-and-test": "build-test-agent",
+    "review": "reviewer-code",  # ambiguous; treat as "review pass complete"
+    "ship": "ship-agent",
+}
+
+
+def _stages_from_legacy(state_text: str) -> list[str]:
+    completed: list[str] = []
+    for line in state_text.splitlines():
+        m = _LEGACY_STATE_RE.match(line)
+        if not m:
+            continue
+        # Strip trailing "— date" etc. before matching
+        raw = m.group(1).strip().lower()
+        # Normalize: drop everything after "—" or " - " or " (" (timestamps, parens)
+        for sep in (" — ", " - ", " (", "—"):
+            if sep in raw:
+                raw = raw.split(sep, 1)[0].strip()
+        # Try alias map first (handles spaces and hyphens)
+        if raw in LEGACY_TO_PHASE:
+            stage = LEGACY_TO_PHASE[raw]
+            if stage not in completed:
+                completed.append(stage)
+            continue
+        # Fall back: substring match against current PHASE_ORDER ids
+        normalized = raw.replace(" ", "-")
+        for stage in PHASE_ORDER:
+            if stage == normalized or stage in normalized:
+                if stage not in completed:
+                    completed.append(stage)
+                break
+    return completed
+
+
+def cmd_adopt_legacy(args: argparse.Namespace) -> None:
+    if not AIDLC_DOCS.exists():
+        _die(f"no aidlc-docs/ directory at {AIDLC_DOCS}")
+    state_file = AIDLC_DOCS / "aidlc-state.md"
+    if not state_file.exists():
+        _die(f"no aidlc-state.md found at {state_file}")
+
+    completed = _stages_from_legacy(state_file.read_text())
+
+    repo_slug = args.repo_slug or REPO_ROOT.name.lower().replace(" ", "-")
+    ts = now_iso().replace(":", "").replace("-", "").replace("+0000", "")
+    run_id = f"legacy-{repo_slug}-{ts}"
+    rd = run_dir(run_id, must_exist=False)
+    rd.mkdir(parents=True, exist_ok=True)
+    (rd / "handoffs").mkdir(exist_ok=True)
+
+    manifest = {
+        "run_id": run_id,
+        "started_at": now_iso(),
+        "last_checkpoint_at": now_iso(),
+        "user_request": "(adopted from legacy aidlc-docs/)",
+        "project_slug": repo_slug,
+        "current_stage": completed[-1] if completed else "workspace-scout",
+        "completed_stages": completed,
+        "skipped_stages": [],
+        "failed_stages": [],
+        "adoption_status": "complete (adopted)",
+        "adoption_source": str(state_file.relative_to(REPO_ROOT)),
+        "project_profile": {"ui": False, "api": False, "has_legacy": True},
+        "units": [],
+        "skill_paths": {},
+    }
+    save_manifest_atomic(run_id, manifest)
+    append_event(run_id, {
+        "ts": now_iso(),
+        "evt": "legacy_adopted",
+        "run_id": run_id,
+        "from": str(state_file.relative_to(REPO_ROOT)),
+        "stages_adopted": completed,
+    })
+    print(json.dumps({
+        "run_id": run_id,
+        "adopted_stages": completed,
+        "completed_count": len(completed),
+        "manifest_path": str(manifest_path(run_id).relative_to(REPO_ROOT)),
+    }, indent=2))
+
+
+def _print_event(line: str, as_json: bool) -> None:
+    if not line:
+        return
+    if as_json:
+        print(line)
+        return
+    try:
+        e = json.loads(line)
+        ts = e.get("ts", "")
+        evt = e.get("evt", "?")
+        stage = e.get("stage", "")
+        reserved = {"ts", "evt", "stage", "run_id"}
+        details = ", ".join(f"{k}={v}" for k, v in e.items() if k not in reserved)
+        print(f"{ts}  {evt:20s} {stage:30s} {details}")
+    except json.JSONDecodeError:
+        print(f"!malformed: {line}")
+
+
+def cmd_tail(args: argparse.Namespace) -> None:
+    p = timeline_path(args.run_id)
+    if not p.exists():
+        _die(f"no timeline at {p}")
+
+    if not args.follow:
+        for line in p.read_text().splitlines():
+            _print_event(line, args.json)
+        return
+
+    with p.open() as f:
+        for line in f:
+            _print_event(line.rstrip("\n"), args.json)
+        while True:
+            line = f.readline()
+            if not line:
+                time.sleep(0.5)
+                continue
+            _print_event(line.rstrip("\n"), args.json)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="AIDLC Orchestrator Run Manager")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_init = sub.add_parser("init")
+    p_init.add_argument("run_id")
+    p_init.add_argument("--user-request", required=True)
+    p_init.add_argument("--project-slug")
+    p_init.add_argument("--force", action="store_true")
+    p_init.set_defaults(func=cmd_init)
+
+    p_set = sub.add_parser("set")
+    p_set.add_argument("run_id")
+    p_set.add_argument("--field", action="append")
+    p_set.set_defaults(func=cmd_set)
+
+    p_cs = sub.add_parser("complete-stage")
+    p_cs.add_argument("run_id")
+    p_cs.add_argument("stage")
+    p_cs.add_argument("--next-stage")
+    p_cs.set_defaults(func=cmd_complete_stage)
+
+    p_fs = sub.add_parser("fail-stage")
+    p_fs.add_argument("run_id")
+    p_fs.add_argument("stage")
+    p_fs.add_argument("--reason")
+    p_fs.set_defaults(func=cmd_fail_stage)
+
+    p_emit = sub.add_parser("emit")
+    p_emit.add_argument("run_id")
+    p_emit.add_argument("--evt", required=True)
+    p_emit.add_argument("--stage")
+    p_emit.add_argument("--field", action="append")
+    p_emit.set_defaults(func=cmd_emit)
+
+    p_status = sub.add_parser("status")
+    p_status.add_argument("run_id")
+    p_status.add_argument("--json", action="store_true")
+    p_status.set_defaults(func=cmd_status)
+
+    p_resume = sub.add_parser("resume")
+    p_resume.add_argument("run_id")
+    p_resume.set_defaults(func=cmd_resume)
+
+    p_replay = sub.add_parser("replay")
+    p_replay.add_argument("run_id")
+    p_replay.add_argument("--from", dest="from_stage", required=True)
+    p_replay.set_defaults(func=cmd_replay)
+
+    p_adopt = sub.add_parser("adopt-legacy")
+    p_adopt.add_argument("--repo-slug")
+    p_adopt.set_defaults(func=cmd_adopt_legacy)
+
+    p_tail = sub.add_parser("tail")
+    p_tail.add_argument("run_id")
+    p_tail.add_argument("--follow", "-f", action="store_true")
+    p_tail.add_argument("--json", action="store_true")
+    p_tail.set_defaults(func=cmd_tail)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

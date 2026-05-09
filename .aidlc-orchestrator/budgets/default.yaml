@@ -1,0 +1,33 @@
+# AIDLC Orchestrator — Default Budgets
+# Used by the Cost Governor (Phase 2). Phase 0/1 do not enforce these
+# but agents may include them in input contracts as advisory hints.
+
+run:
+  tokens_max: 5_000_000
+  wall_clock_max_min: 240
+  cost_max_usd: 50
+
+concurrency:
+  max_parallel: 4   # locked decision (ORCHESTRATOR-PLAN.md §10 row 4)
+
+per_stage:
+  workspace-scout:        { tokens: 50_000,  wall_min: 5,  retries: 1 }
+  reverse-engineer:       { tokens: 600_000, wall_min: 30, retries: 2 }
+  requirements-analyst:   { tokens: 800_000, wall_min: 30, retries: 2 }
+  story-writer:           { tokens: 300_000, wall_min: 15, retries: 1 }
+  workflow-planner:       { tokens: 600_000, wall_min: 25, retries: 2 }
+  unit-decomposer:        { tokens: 400_000, wall_min: 20, retries: 1 }
+  code-generator:         { tokens: 500_000, wall_min: 30, retries: 2 }
+  build-test-agent:       { tokens: 300_000, wall_min: 20, retries: 3 }
+  reviewer-code:          { tokens: 200_000, wall_min: 15, retries: 1 }
+  reviewer-security:      { tokens: 200_000, wall_min: 15, retries: 1 }
+  reviewer-performance:   { tokens: 200_000, wall_min: 15, retries: 1 }
+  reviewer-simplifier:    { tokens: 200_000, wall_min: 15, retries: 1 }
+  ship-agent:             { tokens: 300_000, wall_min: 20, retries: 1 }
+
+adaptive_depth:
+  threshold_pct_remaining: 30
+  downshift_order:
+    - "comprehensive→standard"
+    - "standard→minimal"
+    - "skip-optional"     # User Stories, Application Design, Units Generation
