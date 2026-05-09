@@ -112,6 +112,12 @@ ORCHESTRATOR_CLAUDE_COMMANDS_GLOB = "factory-*.md"   # under .claude/commands/
 ORCHESTRATOR_PYTHON_DEPS = [
     "jsonschema>=4.0",
     "pyyaml>=6.0",
+    # Phase 5.5: TS/JS AST diff for factory_conflict.py.
+    # Optional at runtime — factory_conflict.py degrades gracefully when
+    # tree-sitter is missing (Python AST diff still works).
+    "tree-sitter>=0.21",
+    "tree-sitter-typescript>=0.21",
+    "tree-sitter-javascript>=0.21",
 ]
 
 # Runtime state that the orchestrator writes per-run. Must be gitignored so

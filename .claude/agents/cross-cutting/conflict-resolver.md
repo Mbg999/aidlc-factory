@@ -131,17 +131,25 @@ For each layer of independent units (computed by topo-sort on `depends_on`):
 5. If any conflict was raised in step 4, surface to user before next layer.
 ```
 
-## Limitations (Phase 5)
+## Limitations (Phase 5 + 5.5)
 
 - **Auto-merge not implemented.** All conflicts escalate to user.
 - **Glob overlap is heuristic, not exhaustive.** Biased toward false
   positives (safe). Some edge cases (e.g. `src/{auth,user}/**` brace
   expansion) aren't handled — agents should declare separate globs instead.
-- **AST diff is Python-only.** TypeScript/JavaScript unsupported. For non-
-  Python files, only path-level locking applies.
+- **AST diff covers Python (stdlib `ast`) and TS/JS (tree-sitter).**
+  Phase 5.5 added `.ts/.tsx/.js/.jsx/.mts/.cts/.mjs/.cjs` support — extracts
+  `export function/class/interface/type/enum` and `export const x = (...) => ...`.
+  Re-exports (`export * from`, `export { x } from`), namespace exports, and
+  ambient declarations are NOT tracked. Tree-sitter is an optional dep — if
+  missing, TS/JS files snapshot as `tree_sitter_unavailable` and only path
+  locking applies.
+- **Deep TS type-system drift is out of scope.** Generics narrowing,
+  conditional types, and inference chains aren't tracked at the signature
+  level. That requires `tsc --noEmit` or LSP integration (Phase 7+).
 - **No queueing.** When a lock is denied, the request fails outright. No
   blocking-wait or background retry. Phase 5 keeps it synchronous and
   surface-on-conflict; queueing is a Phase 6+ feature.
 - **No detection of cross-language interface drift.** If unit A is Python
   and unit B is TS calling A's HTTP API, drift in A's URL routes won't be
-  caught by AST diff. Only intra-Python symbol drift is detected.
+  caught by AST diff. Drift detection is intra-language only.
