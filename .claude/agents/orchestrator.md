@@ -61,6 +61,7 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
       ```
    4. `<PHASE>` is the AIDLC phase the stage belongs to (`INCEPTION`, `CONSTRUCTION`, `OPERATIONS`). `<STAGE LABEL>` is the stage_id uppercased with `-` → space (e.g. `workspace-scout` → `WORKSPACE SCOUT`).
    5. Strip any leading `##` lines or ISO8601 timestamps the agent accidentally left in `audit_entries[]` — agents are instructed to emit plain bullets only, but be defensive.
+   6. **Non-spawn audit blocks** (e.g. `User Answers Received`, `Extension Configuration upsert`, manual decision logs): these have no `spawn_start/spawn_end` pair, so steps 1–4 above do not apply. The orchestrator MUST first emit a dedicated timeline event via `factory_run.py emit` (e.g. `--evt user_answers_received`) and use THAT event's `ts` as the audit-block header timestamp. **Never wall-clock `now` for an audit header** — chronology is enforced against `timeline.jsonl`, not the system clock. See Step 4 Pass 1 instruction 6 for the canonical sequence.
 9. Update `aidlc-docs/aidlc-state.md` `Current Stage` and `Stage Progress`.
 10. Auto-commit per `core-workflow.md` MANDATORY rule.
 11. **Timeline event (spawn_end)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
@@ -420,8 +421,27 @@ clarifying questions.
 4. Append audit entries.
 5. Surface the questions file to the user. Use AskUserQuestion if appropriate,
    or simply present the file path and wait for the user's answers in chat.
-6. When the user provides answers, append them to audit.md with timestamp,
-   AND append them to the questions file in the `[Answer]:` slots.
+6. **When the user provides answers**, execute this exact sequence (order matters
+   for audit-log chronology — see Bug A fix):
+   1. **Emit a timeline event FIRST**, before any other write:
+      ```bash
+      python3 scripts/factory_run.py emit <run-id> --evt user_answers_received \
+          --stage requirements-analyst
+      ```
+      Capture the returned `ts` — call it `ts_user_answers`. This is the
+      authoritative timestamp for the audit block in step 6.3.
+   2. Append the answers to the questions file in the `[Answer]:` slots.
+   3. Append a `## <ts_user_answers> INCEPTION - User Answers Received` block
+      to `audit.md` with one `- [User] Q<N>=<letter> (<gloss>)` bullet per
+      question, plus any `[Orchestrator] Tension flagged for Pass 2: ...`
+      bullets the orchestrator wants to carry forward.
+      **MANDATORY:** the header timestamp MUST equal `ts_user_answers` from
+      step 6.1 — never wall-clock `now`. This guarantees the block is
+      chronologically slotted between Pass 1 COMPLETE and the Pass 2
+      `spawn_start` event that follows it.
+   4. Only AFTER steps 6.1–6.3 is it safe to proceed to Pass 2 (which will
+      emit `spawn_start` and thereby establish the upper bound for
+      `ts_user_answers`).
 
 **Pass 2 — produce requirements doc:**
 1. Write a NEW `requirements-analyst.input.v2pass.yaml` (overwrite is fine
@@ -429,9 +449,33 @@ clarifying questions.
    the answered questions file.
 2. Spawn subagent again. Expected output: `status: complete`,
    artifacts include `requirements.md` (kind: spec).
-3. Validate output → append audit entries → update state file:
-   `Current Stage: INCEPTION - Requirements Analysis (complete)`,
-   `[x] Requirements Analysis — <ISO date>` in Stage Progress.
+3. Validate output → append audit entries → update state file. The state
+   update has THREE required mutations (Bug B fix — never leave a prior
+   iteration's extension table stale):
+   1. **Current Stage**: set to
+      `INCEPTION - Requirements Analysis (complete) — awaiting /factory-plan`.
+   2. **Stage Progress**: mark `[x] Requirements Analysis — <ISO date>`.
+   3. **Extension Configuration table** (upsert per current iteration):
+      - Parse the answered questions file for blocks whose heading matches
+        `^## Question: (.+) Extension$`. The captured group is the extension
+        name (e.g. `Security`, `Property-Based Testing`).
+      - Map answer letter → enabled value using the option text in that
+        question:
+        * `A` → `Yes` (full enforcement)
+        * `B` → `Partial` if the option text contains "Partial"/"only",
+          otherwise `No`
+        * `C` → `Partial` if the option text contains "Partial"/"only",
+          otherwise `No`
+        * Anything else → `Unknown` (and log a warning to audit)
+      - Upsert one row per extension into the `## Extension Configuration`
+        table. The `Decided At` column MUST be
+        `Current iteration: Requirements Analysis (Answer <letter>) — run_id <run-id>`,
+        so prior iterations remain reconstructable from `audit.md` even
+        though the table only stores the latest decision.
+      - If the table does not yet exist in `aidlc-state.md`, create it with
+        the canonical 3-column shape (`| Extension | Enabled | Decided At |`).
+   Log a `[Orchestrator] Extension Configuration upserted: <ext>=<val> ...`
+   bullet to the Pass 2 audit block for each extension touched.
 
 ### Step 5 — Auto-commit
 After EACH stage completes successfully (per core-workflow.md MANDATORY):
