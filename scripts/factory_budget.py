@@ -127,7 +127,13 @@ def cmd_check(args: argparse.Namespace) -> None:
     default = load_default()
     state = load_run_budget(args.run_id)
 
-    run_max = int(state["budget"]["tokens_max"])
+    # If a complexity tier was applied, use its cap instead of the run default.
+    tier = state.get("complexity_tier")
+    if tier:
+        tier_caps = default.get("complexity_tiers", {}).get(tier, {})
+        run_max = int(tier_caps.get("tokens_max", state["budget"]["tokens_max"]))
+    else:
+        run_max = int(state["budget"]["tokens_max"])
     used = int(state["used"]["tokens"])
     remaining = run_max - used
     pct_remaining = (remaining / run_max) * 100.0 if run_max > 0 else 0.0

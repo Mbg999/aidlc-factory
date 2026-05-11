@@ -51,13 +51,23 @@ Follow these rule files in order:
 5. `aidlc-rules/aws-aidlc-rule-details/construction/code-generation.md`
 
 ### Sub-stage 1: Plan
+Check `input.merged_plan_generate`. Two paths:
+
+**Standard path** (`merged_plan_generate: false` or absent):
 Produce `aidlc-docs/construction/plans/<unit-name>-code-generation-plan.md`
 with task checkboxes per the construction rules. Each task is a thin slice.
-Emit `status: needs_human` after the plan is written. **HALT.** The
-orchestrator will surface the plan, get approval, and re-spawn you with
-`context_pointers[]` indicating approval.
+Emit `status: needs_human` with `sub_stage: plan` after the plan is written.
+**HALT.** The orchestrator will surface the plan, get approval, and re-spawn
+you with `context_pointers[]` indicating approval.
 
-### Sub-stage 2: Generate (re-spawned with approved plan)
+**Merged path** (`merged_plan_generate: true` — SMALL tier):
+Produce the same plan file, then **immediately proceed to code generation
+without halting**. Write the plan inline in `audit_entries[]` as a summary
+block before the first task. Emit `status: needs_human` with
+`sub_stage: generated` (not `plan`) when all tasks are done — the plan and
+code are presented together for a single approval gate.
+
+### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
 For each plan task (top to bottom):
 1. **Red** — write a failing test
 2. **Green** — minimum code to pass
@@ -106,7 +116,7 @@ The schema is in `code-generator.output.v1.json`. Full guidance:
 emit. Bad priors poison future runs more than missing priors slow them.
 
 ## What you must NOT do
-- Do not skip the plan sub-stage. Approval gate is mandatory.
+- Do not skip the plan sub-stage unless `merged_plan_generate: true` is set in input. When merged, the plan is still written to disk — it is the gate that is removed, not the plan.
 - Do not implement multiple slices without committing in between.
 - Do not write code without a failing test first (TDD).
 - Do not modify files outside `<unit-name>` boundaries unless the plan declares the cross-cutting need.

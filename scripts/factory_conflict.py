@@ -643,6 +643,84 @@ def cmd_check_symbols(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
+def cmd_check_wave(args: argparse.Namespace) -> None:
+    """Pre-flight check for a parallel wave of code-generator spawns.
+
+    Reads the units in manifest.unit_waves[<wave-idx>], pulls each unit's
+    locks_required[] from its code-generator.<unit>.input.yaml handoff, and
+    reports pairwise glob collisions using patterns_overlap().
+
+    Output (stdout JSON):
+        {
+          "safe": bool,
+          "wave_idx": int,
+          "units": [..unit names..],
+          "collisions": [
+            {"unit_a": str, "unit_b": str,
+             "glob_a": str, "glob_b": str}
+          ]
+        }
+
+    Always exits 0 — informational. The orchestrator decides what to do.
+    """
+    rd = run_dir(args.run_id)
+    manifest_path = rd / "manifest.yaml"
+    if not manifest_path.exists():
+        _die(f"manifest not found: {manifest_path}")
+    manifest = yaml.safe_load(manifest_path.read_text()) or {}
+    waves = manifest.get("unit_waves") or []
+    if args.wave_idx < 0 or args.wave_idx >= len(waves):
+        _die(
+            f"wave-idx {args.wave_idx} out of range; "
+            f"manifest has {len(waves)} wave(s)"
+        )
+    wave_units = list(waves[args.wave_idx])
+
+    unit_locks: dict[str, list[str]] = {}
+    missing: list[str] = []
+    for unit in wave_units:
+        input_path = rd / "handoffs" / f"code-generator.{unit}.input.yaml"
+        if not input_path.exists():
+            missing.append(unit)
+            unit_locks[unit] = []
+            continue
+        doc = yaml.safe_load(input_path.read_text()) or {}
+        unit_locks[unit] = list(doc.get("locks_required") or [])
+
+    collisions: list[dict] = []
+    for i in range(len(wave_units)):
+        for j in range(i + 1, len(wave_units)):
+            a, b = wave_units[i], wave_units[j]
+            for ga in unit_locks[a]:
+                for gb in unit_locks[b]:
+                    if patterns_overlap(ga, gb):
+                        collisions.append({
+                            "unit_a": a, "unit_b": b,
+                            "glob_a": ga, "glob_b": gb,
+                        })
+
+    result = {
+        "safe": not collisions,
+        "wave_idx": args.wave_idx,
+        "units": wave_units,
+        "collisions": collisions,
+    }
+    if missing:
+        result["missing_inputs"] = missing
+    print(json.dumps(result, indent=2))
+    if collisions:
+        print(
+            f"COLLISIONS: wave {args.wave_idx} has {len(collisions)} lock overlap(s); "
+            f"orchestrator should defer at least one unit to a later wave",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"SAFE: wave {args.wave_idx} ({len(wave_units)} unit(s)) has no lock collisions",
+            file=sys.stderr,
+        )
+
+
 def cmd_conflicts(args: argparse.Namespace) -> None:
     rd = run_dir(args.run_id)
     conflicts_dir = rd / "conflicts"
@@ -703,6 +781,15 @@ def main() -> None:
     p_cf.add_argument("run_id")
     p_cf.add_argument("--json", action="store_true")
     p_cf.set_defaults(func=cmd_conflicts)
+
+    p_cw = sub.add_parser(
+        "check-wave",
+        help="pre-flight pairwise lock collision check for a parallel wave",
+    )
+    p_cw.add_argument("run_id")
+    p_cw.add_argument("--wave-idx", type=int, required=True,
+                      help="index into manifest.unit_waves[] to check")
+    p_cw.set_defaults(func=cmd_check_wave)
 
     args = p.parse_args()
     args.func(args)

@@ -30,3 +30,11 @@ adaptive_depth:
     - "comprehensive→standard"
     - "standard→minimal"
     - "skip-optional"     # User Stories, Application Design, Units Generation
+
+# Complexity tier caps — set by factory_complexity.py after requirements-analyst.
+# When manifest.complexity_tier is present, factory_budget.py uses these caps
+# instead of run.tokens_max. LARGE = same as run defaults (no regression).
+complexity_tiers:
+  SMALL:  { tokens_max: 500_000,   wall_clock_max_min: 30  }
+  MEDIUM: { tokens_max: 1_500_000, wall_clock_max_min: 90  }
+  LARGE:  { tokens_max: 5_000_000, wall_clock_max_min: 240 }

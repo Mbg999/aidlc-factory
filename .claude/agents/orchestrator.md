@@ -557,6 +557,72 @@ clarifying questions.
    Log a `[Orchestrator] Extension Configuration upserted: <ext>=<val> ...`
    bullet to the Pass 2 audit block for each extension touched.
 
+### Step 4.5 — Complexity Routing Gate (runs once, immediately after Pass 2)
+
+This gate runs **once per run**, immediately after `requirements-analyst` Pass 2
+completes. It assigns a complexity tier (SMALL / MEDIUM / LARGE) and writes the
+routing decisions into the run manifest and budget. All downstream stage routing
+reads from `manifest.complexity_tier` and `manifest.skip_stages` — never re-derives
+the tier from the requirements output.
+
+```bash
+# 1. Determine tier (reads request_classification from requirements output)
+python3 scripts/factory_complexity.py <run-id> --apply
+# --apply writes tier + token cap into budget.yaml atomically
+```
+
+Capture stdout (JSON). If exit ≠ 0: log `[ComplexityGov] ERROR: factory_complexity.py
+failed — defaulting to LARGE (full path)` to audit and proceed without skipping anything.
+
+```bash
+# 2. Store tier and routing decisions in manifest
+python3 scripts/factory_run.py set <run-id> \
+    --field complexity_tier=<tier> \
+    --field skip_stages='<skip_stages_json_array>' \
+    --field merge_codegen_gate=<true|false> \
+    --field reviewer_pool='<reviewer_pool_json_array>'
+```
+
+```bash
+# 2b. Validate manifest tier fields against the shared schema (non-blocking)
+python3 scripts/factory_validate.py \
+    .aidlc-orchestrator/contracts/shared/complexity-tier.schema.json \
+    .aidlc-orchestrator/runs/<run-id>/manifest.yaml
+```
+If validation fails, log `[ComplexityGov] WARN: manifest schema mismatch — <errors>` to audit and continue.
+
+```bash
+# 3. Emit timeline event
+python3 scripts/factory_run.py emit <run-id> \
+    --evt orchestrator_note \
+    --field summary="[ComplexityGov] tier=<tier>, skip_stages=<list>, merge_codegen_gate=<bool>"
+```
+
+4. Append to `aidlc-docs/audit.md` (use the ts from step 3):
+   ```
+   ## <ts> INCEPTION - COMPLEXITY ROUTING GATE
+   - [ComplexityGov] tier=<tier>: <rationale>
+   - [ComplexityGov] skip_stages=<list>
+   - [ComplexityGov] reviewer_pool=<list>
+   - [ComplexityGov] token_cap=<tokens_max>, wall_clock_max_min=<N>
+   ```
+
+**Skip enforcement** (applies to ALL subsequent `/factory-plan` and `/factory-build` stage spawns):
+For every stage whose `stage_id` is in `manifest.skip_stages[]`:
+1. Emit the canonical `stage_skipped` timeline event:
+   ```bash
+   python3 scripts/factory_run.py emit <run-id> --evt stage_skipped \
+       --stage <s> --field reason="[ComplexityGov] tier=<tier>"
+   ```
+2. Update `manifest.skipped_stages[]` (read-append-write to preserve existing entries).
+3. Append `## <ts> INCEPTION - <STAGE LABEL> SKIPPED (ComplexityGov: tier=<tier>)` to audit.
+4. Continue to the next stage. Do NOT spawn the skipped stage.
+
+**SMALL-tier only — merged code-generator gate:**
+When `manifest.merge_codegen_gate == true`, write `merged_plan_generate: true`
+into every `code-generator.input.yaml`. The code-generator will skip its inner
+plan approval and output `sub_stage: generated` directly.
+
 ### Step 5 — Auto-commit
 After EACH stage completes successfully (per core-workflow.md MANDATORY):
 ```bash
@@ -573,6 +639,7 @@ Show:
 - run_id and run directory path
 - workspace_state summary (1 line)
 - requirements.md path
+- complexity tier + what was skipped (e.g. `Tier: SMALL — story-writer, unit-decomposer skipped`)
 - skill compliance summary table (PASS/FAIL/N/A per skill)
 - Offer next step: `/factory-plan <run-id>` (planning stage; wired in Phase 1).
 
@@ -586,10 +653,12 @@ directory with a valid `manifest.yaml`. If missing, refuse to proceed
 Inception phase, post-requirements. Produces the execution plan and
 (optional) decomposes into units.
 
-1. **Conditional Story Writer** — fire ONLY if `requirements-analyst` output's
-   `request_classification.scope` is `Multiple Components | System-wide | Cross-system`
-   AND the user request involves user-facing flows. Otherwise skip and log
-   `[Skipped] story-writer (scope/user-facing trigger not met)` to audit.
+1. **Conditional Story Writer** — skip if EITHER:
+   - `manifest.skip_stages[]` contains `story-writer` (set by ComplexityGov in Step 4.5), OR
+   - `requirements-analyst` output's `request_classification.scope` is NOT `Multiple Components | System-wide | Cross-system`, OR
+   - The user request does not involve user-facing flows.
+   When skipping, follow the skip enforcement sequence from Step 4.5 (emit `stage_skipped`,
+   update `manifest.skipped_stages[]`, append audit block). Otherwise spawn normally.
    - Input contract: `story-writer.input.v1.json`. Predecessor: requirements-analyst output.
    - Output contract: `story-writer.output.v1.json`. Artifacts: `aidlc-docs/inception/user-stories/stories.md`, `personas.md`.
 2. **Workflow Planner (always)** — `model: opus`. Required.
@@ -600,9 +669,12 @@ Inception phase, post-requirements. Produces the execution plan and
      1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage workflow-planner --field decision=<approve|reject|amend>`. Capture `ts_plan_decision`.
      2. Append a `## <ts_plan_decision> INCEPTION - User Decision (workflow-planner)` block to `audit.md` with `- [User] <Approved|Rejected|Amended> execution-plan.md (<one-line gloss>)` and any free-text note.
      3. Only then proceed to instruction 3 (Conditional Unit Decomposer). Wall-clocking `now` for the audit header is forbidden.
-3. **Conditional Unit Decomposer** — fire ONLY if the approved plan's task
-   tree explicitly enumerates ≥2 units OR the requirements call out distinct
-   services/components. Otherwise skip.
+3. **Conditional Unit Decomposer** — skip if EITHER:
+   - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov in Step 4.5), OR
+   - The approved plan's task tree enumerates fewer than 2 units AND requirements
+     do not call out distinct services/components.
+   When skipping due to ComplexityGov, follow the skip enforcement sequence from
+   Step 4.5. Otherwise spawn normally if ≥2 units or distinct services present.
    - Output: per-unit specs in `aidlc-docs/inception/units/<unit-name>.md`.
 4. Auto-commit `docs(workflow-planning): complete workflow planning` and update state.
 5. Present completion + offer `/factory-build <run-id>`.
@@ -619,12 +691,47 @@ core-workflow.md MANDATORY): verify audit.md has all Inception entries,
 state file `Current Stage` is correct, `aidlc-docs/construction/plans/`
 exists, and the execution plan is loaded.
 
-#### Step A — Topo-sort units into layers
-Read `manifest.units[]` and their `depends_on`. Compute layers:
-- Layer 0: units with no dependencies
-- Layer N: units whose dependencies are all in layers < N
+#### Step A — Compute unit dependency waves
+For runs where `unit-decomposer` ran (MEDIUM/LARGE tier), delegate the topo-sort
+to `factory_graph.py` so waves are deterministic, inspectable, and persisted in
+the manifest:
 
-If no units (monolith), use a single virtual unit `__monolith__` and one layer.
+```bash
+python3 scripts/factory_graph.py compute <run-id> --apply
+```
+
+- Reads `units_decomposed[].dependencies` from the unit-decomposer output handoff
+- Runs Kahn's algorithm; cycle or undefined-dependency → exit 1
+- On success: writes `manifest.unit_waves`, `manifest.unit_wave_count`,
+  `manifest.unit_max_parallelism`
+
+On exit 1 (cycle / bad deps): log `[UnitGraph] ERROR: <message> — falling back
+to single sequential wave` to audit, and synthesize a single wave containing
+all units in declared order. Continue without halting.
+
+After a successful `--apply`, validate the manifest fragment (non-blocking):
+```bash
+python3 scripts/factory_validate.py \
+    .aidlc-orchestrator/contracts/shared/unit-graph.schema.json \
+    .aidlc-orchestrator/runs/<run-id>/manifest.yaml
+```
+If validation fails, log `[UnitGraph] WARN: manifest schema mismatch — <errors>`
+to audit and continue.
+
+If no `unit-decomposer` output exists (SMALL tier, monolith run), synthesize a
+single virtual wave: `unit_waves: [["__monolith__"]]` and proceed.
+
+Emit a wave-plan audit block:
+```
+## <ts> CONSTRUCTION - UNIT GRAPH
+- [UnitGraph] tier=<tier>, waves=<N>, max_parallelism=<M>
+- [UnitGraph] wave 0: <units...>
+- [UnitGraph] wave 1: <units...>
+```
+
+Throughout the rest of this section, "layer" is synonymous with "wave" — the
+terms refer to the same list-of-lists structure now stored at
+`manifest.unit_waves`.
 
 #### Step B — Per-layer execution
 For each layer (in order):
@@ -637,6 +744,24 @@ For each layer (in order):
 5. **Build input handoff** at `<run>/handoffs/code-generator.<unit>.input.yaml`. Validate.
 
 After this loop, the **active set** = units that passed all gates.
+
+**B.1.5 — Wave collision pre-flight** (only when active set has ≥ 2 units):
+```bash
+python3 scripts/factory_conflict.py check-wave <run-id> --wave-idx <N>
+```
+Parse the stdout JSON:
+- `safe: true` → proceed to B.2 with the full active set.
+- `safe: false` → for each collision in `collisions[]`, drop `unit_b` from
+  this wave and inject it into the next wave (read-modify-write of
+  `manifest.unit_waves`). Release any locks already acquired for the deferred
+  units (B.1 step 2 ran before this check). Append to audit:
+  ```
+  ## <ts> CONSTRUCTION - WAVE COLLISION DEFERRED
+  - [UnitGraph] wave <N>: deferred <unit_b> to wave <N+1>
+  - [UnitGraph] cause: glob overlap (<glob_a>) ∩ (<glob_b>) with <unit_a>
+  ```
+  Then proceed to B.2 with the trimmed active set. If trimming empties the
+  wave, halt with `status: blocked` — graph is broken and needs human review.
 
 **B.2 — Three sub-stages, parallel per sub_stage**
 Code-generator runs `plan` → `generated` → `approved`. For each `sub_stage`:
@@ -709,8 +834,17 @@ Reviewer→stage_id mapping:
 
 All four share `reviewer.input.v1.json` and `reviewer.output.v1.json`.
 
+#### Step 0 — Build reviewer active set from ComplexityGov pool
+
+Read `manifest.reviewer_pool[]`. If present and non-empty, use it as the
+candidate set instead of the default `{code, security, performance, simplifier}`.
+Log `[ComplexityGov] reviewer pool constrained to: <list>` to audit.
+
+If `manifest.reviewer_pool` is absent or empty (legacy run or LARGE tier),
+fall back to the full set of 4 reviewers — no behavior change.
+
 #### Step 1 — Sequential pre-flight gates (cheap)
-For each of the 4 reviewers, in sequence (this is fast):
+For each reviewer in the candidate set (from Step 0), in sequence:
 ```bash
 python3 scripts/factory_budget.py check <run-id> reviewer-<x>
 ```
@@ -720,7 +854,7 @@ python3 scripts/factory_budget.py check <run-id> reviewer-<x>
 - exit `0` or `1` → keep in active set (reviewers aren't depth-flexible, so
   exit `1` is treated as `0` here — review depth is binary)
 
-Compute the **active set** (subset of {code, security, performance, simplifier}).
+Compute the **active set** (subset of candidate set).
 
 #### Step 2 — Sequential knowledge queries
 For each reviewer in the active set:

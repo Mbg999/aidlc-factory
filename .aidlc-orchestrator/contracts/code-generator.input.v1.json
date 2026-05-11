@@ -16,7 +16,12 @@
     "budget": { "type": "object" },
     "gates": { "type": "array", "items": { "type": "string" }, "default": ["require_human_approval"] },
     "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
-    "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] }
+    "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "merged_plan_generate": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true (SMALL tier), skip the inner plan approval gate and output sub_stage=generated directly with the plan shown inline."
+    }
   },
   "additionalProperties": false
 }
