@@ -20,11 +20,10 @@ AI-DLC is an intelligent software development workflow that adapts to your needs
 - [Platform-Specific Setup](#kiro)
 - [Usage](#usage)
 - [Advanced Features (This Fork)](#advanced-features-this-fork)
-  - [Skills Injection](#skills-injection)
-  - [MCP Tool Bridge](#mcp-tool-bridge)
-  - [Pipeline Orchestration](#pipeline-orchestration)
+  - [Skills-Only Architecture](#skills-only-architecture)
+  - [Automatic Git Commits on Approvals](#automatic-git-commits-on-approvals)
+  - [Multi-Agent Orchestrator (Claude Code)](#multi-agent-orchestrator-claude-code)
   - [Tool Adapters](#tool-adapters)
-  - [Adding Custom Agents](#adding-custom-agents-english)
 - [Three-Phase Adaptive Workflow](#three-phase-adaptive-workflow)
 - [Key Features](#key-features)
 - [Extensions](#extensions)
@@ -59,9 +58,10 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 | **Tool adapters**          | Setup guides for Copilot, Cursor, Claude Code, Cline                               | None                          |
 | **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
 | **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
+| **Multi-agent orchestrator** | A second workflow that executes the same AI-DLC rules across 13 specialized Claude Code subagents. Adds contract validation, parallel reviewer pool, file-glob locks + AST symbol drift, project-scoped knowledge store, budget enforcement, kill/resume, legacy adoption. | Claude Code (uses `Task()` spawning). Other tools fall back to the legacy single-agent flow automatically. |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
-Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/executors/` and `aidlc-rules/adapters/`.
+Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `scripts/factory_*.py` (runtime).
 
 ## Persistent Memory (how it works)
 
@@ -706,6 +706,64 @@ This behavior is controlled by the Approval Protocol in `aidlc-rules/aws-aidlc-r
 
 ---
 
+### Multi-Agent Orchestrator (Claude Code)
+
+The orchestrator is a **second execution model** for the AI-DLC workflow. It runs the same rule files (`aidlc-rules/aws-aidlc-rule-details/inception/workspace-detection.md`, `requirements-analysis.md`, `code-generation.md`, …) but through 13 specialized Claude Code subagents instead of a single role-switching agent. The two workflows coexist by design — pick whichever fits the task.
+
+| | Legacy single-agent (`/spec`, `/plan`, …) | Multi-agent orchestrator (`/factory-spec`, …) |
+|---|---|---|
+| Driver | `CLAUDE.md` (= `core-workflow.md`) | `.claude/agents/orchestrator.md` + 13 stage subagents |
+| Tooling support | Copilot / Cursor / Cline / Amazon Q / Kiro / Claude Code | Claude Code only (uses `Task()` spawning) |
+| Execution | One agent, role-switches per stage | One subagent per stage, parallel where possible |
+| State | `aidlc-docs/` (committed) | `aidlc-docs/` + `.aidlc-orchestrator/runs/<run-id>/` (gitignored runtime: manifest, budget, timeline, locks, handoffs) |
+| Reviewer pool | Sequential | Parallel fan-out (code / security / performance / simplifier) |
+| Conflict handling | Manual | File-glob lock registry + Python/TS AST symbol-drift detection |
+| Budget enforcement | None | Pre-flight gate (ok / downshift / skip / halt) + post-flight reconciliation |
+| Knowledge persistence | Implicit (rule files) | engram-backed, project-scoped (`aidlc/<project>/<kind>/<slug>`) |
+| Crash recovery | Re-run | `/factory-resume <run-id>` (kill-and-resume preserves work) |
+| Legacy `aidlc-docs/` projects | Continue as-is | `/factory-resume` (no args) adopts them as a synthetic run |
+
+Both workflows read the **same rule files** — the rule corpus is the single source of truth. Each subagent's system prompt explicitly says "Follow the rule file: `aidlc-rules/aws-aidlc-rule-details/inception/<stage>.md`" and executes its declared steps. Skills (`.agents/skills/<name>/SKILL.md`) are mandatory in both paths.
+
+**When to use which:**
+
+- **Legacy** — small features, single-file changes, doc edits, non-Claude tools, or when you want minimum ceremony.
+- **Orchestrator** — multi-component features (parallel code-gen across units), brownfield refactors (where reverse-engineer adds value), runs that need budget caps, runs you want to resume after a crash, or any time you want a stricter audit trail.
+
+**Slash commands** (Claude Code, after install):
+
+| Command | Stage(s) | Notes |
+|---|---|---|
+| `/factory-spec <feature>` | workspace-scout + (reverse-engineer ask) + requirements-analyst | Phase 0 entrypoint |
+| `/factory-plan <run-id>` | workflow-planner + (optional) unit-decomposer + (optional) story-writer | Phase 1 |
+| `/factory-build <run-id>` | code-generator × N + build-test-agent × N (layer-parallel with locks + AST drift checks) | Phase 5 parallel construction |
+| `/factory-review <run-id>` | reviewer-{code, security, performance, simplifier} in parallel | Phase 4 reviewer pool |
+| `/factory-ship <run-id>` | ship-agent | Release notes, ADRs, CHANGELOG, CI/CD wiring |
+| `/factory-resume <run-id>` | resumes from last checkpoint; with no run-id, adopts legacy `aidlc-docs/` | Phase 6 |
+| `/factory-replay <run-id> --from <stage>` | re-runs from a chosen stage; archives prior outputs as `*.replay-<ts>.yaml` | Phase 6 |
+
+**Installation:** the orchestrator artifacts ship with the installer. Use the `--with-orchestrator` flag (default yes when interactive):
+
+```bash
+python scripts/install_aidlc.py --tool claude --with-orchestrator
+```
+
+This copies:
+
+- `.claude/agents/` — orchestrator + 13 stage subagents + 3 cross-cutting agents (knowledge / conflict-resolver / cost-governor)
+- `.claude/commands/factory-*.md` — 7 slash commands
+- `.aidlc-orchestrator/contracts/` — 20 JSON Schema handoff contracts
+- `.aidlc-orchestrator/budgets/default.yaml` — Cost Governor policy
+- `scripts/factory_{validate,budget,merge_reviews,conflict,run}.py` — runtime
+- `.gitignore` entries for `.aidlc-orchestrator/runs/` and `.aidlc-orchestrator/knowledge/`
+- A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
+
+For non-Claude tools, the installer still copies the contracts and scripts (they're useful for manual validation) but skips the subagents — those tools run in degraded single-agent mode per `aidlc-rules/adapters/<tool>.md`.
+
+**Design doc:** [`ORCHESTRATOR-PLAN.md`](ORCHESTRATOR-PLAN.md) — phases 0-6, decisions, file layout, run lifecycle, and acceptance criteria. Live integration test findings: [`ORCHESTRATOR-LIVE-TEST-FINDINGS.md`](ORCHESTRATOR-LIVE-TEST-FINDINGS.md).
+
+---
+
 ### Tool Adapters
 
 Adapter files explain how to wire AI-DLC rules into each agentic coding tool. They live in `aidlc-rules/adapters/` and are informational only — the core rules stay unchanged.
@@ -720,6 +778,10 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 
 ## Usage
 
+There are two entry points; both run the same AI-DLC rules and produce artifacts under `aidlc-docs/`.
+
+### Legacy single-agent workflow (all tools)
+
 1. Start any software development project by stating your intent starting with the phrase **"Using AI-DLC, ..."** in the chat
 2. AI-DLC workflow automatically activates and guides you from there
 3. Answer structured questions that AI-DLC asks you
@@ -727,6 +789,20 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 5. Review the execution plan to see which stages will run
 6. Carefully review the artifacts and approve each stage to maintain control
 7. All the artifacts will be generated in the `aidlc-docs/` directory
+
+### Multi-agent orchestrator (Claude Code only)
+
+Requires installing with `--with-orchestrator` (see [Multi-Agent Orchestrator](#multi-agent-orchestrator-claude-code) above). Then in a Claude Code session at the project root:
+
+1. Invoke `/factory-spec <feature description>` — runs workspace-scout, asks whether to run reverse-engineer (brownfield-with-no-RE-artifacts only), then requirements-analyst (Pass 1 surfaces questions; you answer; Pass 2 writes `requirements.md`).
+2. Invoke `/factory-plan <run-id>` to produce the execution plan and (optionally) decompose into parallel units.
+3. Invoke `/factory-build <run-id>` to run code-generator + build-test-agent layer-parallel under file-glob locks with AST symbol-drift detection.
+4. Invoke `/factory-review <run-id>` to fan out all four reviewers in parallel and merge their findings.
+5. Invoke `/factory-ship <run-id>` for release notes, ADRs, CHANGELOG, optional CI/CD wiring.
+
+If a run crashes mid-flight, `/factory-resume <run-id>` picks up from the last checkpoint. Used without an argument it adopts an existing legacy `aidlc-docs/` project as a synthetic run.
+
+The run-scoped state (manifest, budget, timeline, locks, knowledge-side handoffs) lives in `.aidlc-orchestrator/runs/<run-id>/` and is gitignored. The `aidlc-docs/` artifacts are committed exactly as in the legacy flow.
 
 ---
 
@@ -928,12 +1004,29 @@ AGENTS.md
 .aidlc-rule-details/
 ```
 
+**Commit to repository (orchestrator, if installed):**
+
+```gitignore
+# Orchestrator definitions are committed (source-of-truth)
+.claude/agents/
+.claude/commands/factory-*.md
+.aidlc-orchestrator/contracts/
+.aidlc-orchestrator/budgets/default.yaml
+scripts/factory_*.py
+```
+
 **Optional - Add to `.gitignore` (if needed):**
 
 ```gitignore
 # Local-only settings
 .claude/settings.local.json
+
+# Orchestrator runtime state (per-run; never commit)
+.aidlc-orchestrator/runs/
+.aidlc-orchestrator/knowledge/
 ```
+
+The installer adds the runtime-state lines to your project's `.gitignore` automatically when you use `--with-orchestrator`.
 
 ---
 
@@ -1054,6 +1147,11 @@ This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`.
 
 - [X] Implement skills-only architecture with mandatory enforcement
 - [X] Persistent memory across sessions and users
+- [X] Multi-agent orchestrator (Claude Code): 13 stage subagents + 3 cross-cutting agents, JSON Schema handoff contracts, parallel reviewer pool, file-glob locks + Python/TS AST drift detection, project-scoped engram knowledge store, Cost Governor (ok/downshift/skip/halt), kill-and-resume, legacy `aidlc-docs/` adoption
+- [ ] Live e2e Phases 1-6 (continue beyond Phase 0 spec → plan → build → review → ship)
+- [ ] Deep TS type-system drift (generics narrowing, conditional types) — needs `tsc --noEmit` or LSP integration
+- [ ] Auto-merge conflict resolution (currently escalation-only)
+- [ ] Mid-flight cancellation for budget-overshoot stages (blocked on Claude Code SDK Task() atomicity)
 - [ ] Probably shared memory in real time
 - [ ] Try to reduce tokens usage
 
