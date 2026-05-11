@@ -61,7 +61,24 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
       ```
    4. `<PHASE>` is the AIDLC phase the stage belongs to (`INCEPTION`, `CONSTRUCTION`, `OPERATIONS`). `<STAGE LABEL>` is the stage_id uppercased with `-` → space (e.g. `workspace-scout` → `WORKSPACE SCOUT`).
    5. Strip any leading `##` lines or ISO8601 timestamps the agent accidentally left in `audit_entries[]` — agents are instructed to emit plain bullets only, but be defensive.
-   6. **Non-spawn audit blocks** (e.g. `User Answers Received`, `Extension Configuration upsert`, manual decision logs): these have no `spawn_start/spawn_end` pair, so steps 1–4 above do not apply. The orchestrator MUST first emit a dedicated timeline event via `factory_run.py emit` (e.g. `--evt user_answers_received`) and use THAT event's `ts` as the audit-block header timestamp. **Never wall-clock `now` for an audit header** — chronology is enforced against `timeline.jsonl`, not the system clock. See Step 4 Pass 1 instruction 6 for the canonical sequence.
+   6. **Non-spawn audit blocks** (e.g. `User Answers Received`, `User Decision`, `Extension Configuration upsert`, `Stage Skipped`, manual decision logs): these have no `spawn_start/spawn_end` pair, so steps 1–4 above do not apply. **The orchestrator MUST first emit a dedicated timeline event via `factory_run.py emit` and use THAT event's `ts` as the audit-block header timestamp.** Wall-clocking `now` is forbidden — chronology is enforced against `timeline.jsonl`, not the system clock. This rule applies to EVERY non-spawn audit block, in EVERY phase, without exception.
+
+      **Canonical evt vocabulary (the only allowed names for non-spawn audit blocks):**
+
+      | Trigger | evt | Required fields |
+      |---|---|---|
+      | User answered clarifying questions (e.g. Pass 1 of requirements analysis) | `user_answers_received` | `--stage <s>` |
+      | User approved, rejected, or amended a stage artifact at an approval gate | `user_decision` | `--stage <s>` `--field decision=<approve\|reject\|amend>` (optionally `--field note="<text>"`) |
+      | A stage spawn failed and the orchestrator recovered by skipping rather than halting | `stage_skipped` | `--stage <s>` `--field reason="<text>"` (see Failed→skipped recovery below) |
+      | Orchestrator-side state mutation that doesn't fit the above (rare; prefer one of the above first) | `orchestrator_note` | `--field summary="<text>"` |
+
+      **Canonical sequence at every non-spawn audit point:**
+      1. Emit the matching timeline event FIRST via `factory_run.py emit <run-id> --evt <name> [...fields]`. Capture the returned `ts`.
+      2. Apply any associated artifact mutations (e.g. write `[Answer]:` slots into a questions file; mutate `aidlc-state.md`; record the user's free-text note).
+      3. Append the audit block to `audit.md` with header `## <ts_from_step_1> <PHASE> - <BLOCK LABEL>`. The header ts MUST equal the event's `ts` from step 1.
+      4. Only after steps 1–3 may the orchestrator proceed to the next stage spawn (which will emit `spawn_start` and thereby establish the upper bound for the just-written ts).
+
+      Every approval-gate section in this document inlines this rule explicitly so the agent does not need to follow a cross-reference. If you encounter an approval gate without the inline rule, FOLLOW THIS RULE ANYWAY — it is mandatory regardless of section-level documentation.
 9. Update `aidlc-docs/aidlc-state.md` `Current Stage` and `Stage Progress`.
 10. Auto-commit per `core-workflow.md` MANDATORY rule.
 11. **Timeline event (spawn_end)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
@@ -117,6 +134,55 @@ are trusted as-is — NOT re-validated against contracts.
 
 The full spec lives in `scripts/factory_run.py` docstring. Slash commands:
 `/factory-resume`, `/factory-replay`.
+
+### Failed→skipped recovery (Bug D fix — when a spawn fails but the run continues)
+
+Some stages are non-critical: `unit-decomposer` produces informational per-unit
+specs while `workflow-planner`'s `manifest.units[]` is the load-bearing
+structure; `story-writer` is conditional. When a non-critical stage's spawn
+**fails** (e.g. API rejects the model tier, transient infra error), the
+orchestrator MAY recover by treating the failure as a skip rather than halting.
+Without an explicit record, three sources disagree:
+- `timeline.jsonl` shows `spawn_end status=failed`
+- `manifest.skipped_stages[]` shows the stage as skipped
+- `audit.md` header says SKIPPED
+
+To prevent that drift, the failed→skipped recovery sequence is:
+
+1. Spawn fails (Task() raised, or output validation failed, or stage returned
+   `status: failed`). Standard sequence: emit `spawn_end` with `status=failed`
+   AS USUAL — never suppress the failure record. This preserves the diagnostic
+   trail.
+2. Decide skip-vs-halt by stage criticality. Critical stages
+   (`workspace-scout`, `requirements-analyst`, `workflow-planner`,
+   `code-generator`, `build-test-agent`) MUST halt — skipping silently corrupts
+   the run. Non-critical stages (`reverse-engineer`, `story-writer`,
+   `unit-decomposer`, individual reviewers) MAY skip if the orchestrator can
+   continue producing correct downstream outputs without them.
+3. If skipping: emit the canonical timeline event FIRST (per shared-primitives
+   Step 8 substep 6):
+   ```bash
+   python3 scripts/factory_run.py emit <run-id> --evt stage_skipped \
+       --stage <s> --field reason="<text>"
+   ```
+   Capture `ts_skip`.
+4. `python3 scripts/factory_run.py set <run-id> --field skipped_stages='[...]'`
+   to add the stage to `manifest.skipped_stages[]` (preserve any existing skips
+   by reading first and appending).
+5. Append a `## <ts_skip> <PHASE> - <STAGE LABEL> SKIPPED (<short-reason>)`
+   block to `audit.md` with bullets describing the failure cause, the
+   skip decision rationale, and any fallback the orchestrator will use
+   (e.g. "manifest.units[] from workflow-planner is canonical; per-unit .md
+   specs are informational and will not be generated this run").
+6. Set `current_stage` to the NEXT stage and proceed.
+
+After the failed `spawn_end` and the `stage_skipped` events both exist in
+`timeline.jsonl`, all three views agree: timeline records both the raw
+failure AND the recovery decision; manifest records the skip; audit
+documents the rationale.
+
+If a critical stage fails, do NOT skip — emit `stage_failed` and halt with
+a user-facing error per shared-primitives Step 12 (`factory_run.py fail-stage`).
 
 ## Conflict Resolver (Phase 5 — active)
 
@@ -371,7 +437,23 @@ Run reverse-engineer now? [Y/n]
 
 Use `AskUserQuestion` with options `["Run reverse-engineer first (recommended for big changes)", "Skip and go straight to requirements-analyst (OK for small features)"]`.
 
-**If user says yes:**
+**When the user responds (yes OR no), emit the canonical decision event FIRST**
+per shared-primitives Step 8 substep 6 — never wall-clock:
+
+```bash
+python3 scripts/factory_run.py emit <run-id> --evt user_decision \
+    --stage reverse-engineer \
+    --field decision=<approve|reject>
+```
+
+Capture the returned `ts` as `ts_re_decision`. Use it as the header for the
+audit block this gate writes (see canonical sequence in shared-primitives
+Step 8 substep 6).
+
+**If user says yes (decision=approve):**
+- Append a `## <ts_re_decision> INCEPTION - User Decision (reverse-engineer)`
+  block to `audit.md` with `- [User] Approved reverse-engineer spawn` and any
+  free-text note.
 - Spawn `reverse-engineer` stage following the same shared-primitives sequence
   (budget gate, knowledge query, input write, validate, Task() spawn, validate
   output, deduct, knowledge save, audit append).
@@ -379,11 +461,12 @@ Use `AskUserQuestion` with options `["Run reverse-engineer first (recommended fo
   set `current_stage: requirements-analyst`.
 - Then proceed to Step 4.
 
-**If user says no:**
+**If user says no (decision=reject):**
+- Append a `## <ts_re_decision> INCEPTION - User Decision (reverse-engineer)`
+  block to `audit.md` with `- [User] Skipped reverse-engineer (small-scope request: <truncated user_request>)`.
 - `python3 scripts/factory_run.py set <run-id> --field skipped_stages='["reverse-engineer"]'`
   (preserve any existing skips — if `manifest.skipped_stages[]` is non-empty,
   read it first and append).
-- Audit bullet (for the NEXT stage's block): `[Orchestrator] User opted to skip reverse-engineer (small-scope request: <truncated user_request>)`.
 - Proceed directly to Step 4.
 
 **If `workspace_state.next_phase != "reverse-engineering"`** (greenfield, or
@@ -421,24 +504,21 @@ clarifying questions.
 4. Append audit entries.
 5. Surface the questions file to the user. Use AskUserQuestion if appropriate,
    or simply present the file path and wait for the user's answers in chat.
-6. **When the user provides answers**, execute this exact sequence (order matters
-   for audit-log chronology — see Bug A fix):
-   1. **Emit a timeline event FIRST**, before any other write:
+6. **When the user provides answers**, execute the canonical non-spawn audit
+   sequence from shared-primitives Step 8 substep 6 using evt
+   `user_answers_received`:
+   1. **Emit the timeline event FIRST** — never wall-clock anything:
       ```bash
       python3 scripts/factory_run.py emit <run-id> --evt user_answers_received \
           --stage requirements-analyst
       ```
-      Capture the returned `ts` — call it `ts_user_answers`. This is the
-      authoritative timestamp for the audit block in step 6.3.
-   2. Append the answers to the questions file in the `[Answer]:` slots.
+      Capture the returned `ts` — call it `ts_user_answers`.
+   2. Append the user's letter picks to the questions file in the `[Answer]:`
+      slots.
    3. Append a `## <ts_user_answers> INCEPTION - User Answers Received` block
       to `audit.md` with one `- [User] Q<N>=<letter> (<gloss>)` bullet per
       question, plus any `[Orchestrator] Tension flagged for Pass 2: ...`
-      bullets the orchestrator wants to carry forward.
-      **MANDATORY:** the header timestamp MUST equal `ts_user_answers` from
-      step 6.1 — never wall-clock `now`. This guarantees the block is
-      chronologically slotted between Pass 1 COMPLETE and the Pass 2
-      `spawn_start` event that follows it.
+      carry-forward bullets. **The header ts MUST equal `ts_user_answers`.**
    4. Only AFTER steps 6.1–6.3 is it safe to proceed to Pass 2 (which will
       emit `spawn_start` and thereby establish the upper bound for
       `ts_user_answers`).
@@ -516,6 +596,10 @@ Inception phase, post-requirements. Produces the execution plan and
    - Input: `workflow-planner.input.v1.json`. Predecessors: requirements + (if present) stories.
    - Output: `workflow-planner.output.v1.json`. Artifacts: `aidlc-docs/inception/plans/execution-plan.md` with Mermaid diagram + task tree.
    - **Approval gate:** the planner emits `status: needs_human` after producing the plan; orchestrator surfaces and waits.
+     **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
+     1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage workflow-planner --field decision=<approve|reject|amend>`. Capture `ts_plan_decision`.
+     2. Append a `## <ts_plan_decision> INCEPTION - User Decision (workflow-planner)` block to `audit.md` with `- [User] <Approved|Rejected|Amended> execution-plan.md (<one-line gloss>)` and any free-text note.
+     3. Only then proceed to instruction 3 (Conditional Unit Decomposer). Wall-clocking `now` for the audit header is forbidden.
 3. **Conditional Unit Decomposer** — fire ONLY if the approved plan's task
    tree explicitly enumerates ≥2 units OR the requirements call out distinct
    services/components. Otherwise skip.
@@ -572,12 +656,20 @@ Code-generator runs `plan` → `generated` → `approved`. For each `sub_stage`:
   - Append `audit_entries[]` per shared-primitives step 8 (header-wrapped via timeline timestamps, dedupe-guarded)
 - **Conflict surfacing**: if any drift conflict was written, surface BEFORE the approval gate. User decides per `conflict-resolver.md`.
 - **Approval gate** (only on `plan` and `generated`): surface ALL units' sub-stage outputs together, get one consolidated approval. User can: approve all → next sub_stage; reject specific units → those re-plan with revised `context_pointers[]`; cancel layer → release locks, halt.
+  **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
+  1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage code-generator --field decision=<approve|reject|cancel> --field sub_stage=<plan|generated>` (optionally `--field rejected_units="<csv>"`). Capture `ts_unit_decision`.
+  2. Append a `## <ts_unit_decision> CONSTRUCTION - User Decision (code-generator <sub_stage>)` block to `audit.md` summarizing the decision per unit.
+  3. Only then proceed to the next sub_stage / re-plan / lock release. Wall-clocking is forbidden.
 
 **B.3 — Build & Test parallel per unit** (after all units in the layer reach `sub_stage: approved`):
 1. Build `build-test-agent.input.v1.json` per unit. Validate.
 2. Parallel spawn (single message, N ≤ 4 `Task()` calls).
 3. Sequential post-processing: validate, deduct, knowledge save, audit append.
 4. Approval gate: surface all units' build/test summaries; user approves the layer.
+   **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
+   1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage build-test-agent --field decision=<approve|reject|amend> --field layer=<n>`. Capture `ts_layer_decision`.
+   2. Append a `## <ts_layer_decision> CONSTRUCTION - User Decision (layer <n> build/test)` block to `audit.md`.
+   3. Only then proceed to lock release (B.4) or layer re-run. Wall-clocking is forbidden.
 
 **B.4 — Release locks** (always, regardless of success/failure — leaks block future runs):
 ```bash
@@ -675,10 +767,18 @@ output file).
 
 #### Step 6 — Approval gate + outcome
 Surface `review-report.md` to the user. Wait for response.
+
+**When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
+1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage review --field decision=<approve|request_fixes>` (optionally `--field rejected_units="<csv>"`). Capture `ts_review_decision`.
+2. Append a `## <ts_review_decision> CONSTRUCTION - User Decision (review)` block to `audit.md` summarizing the outcome.
+3. Then proceed to one of:
+
 - **User requests fixes** → route affected units back through
   `/factory-build <run-id>`. After fixes, user can re-run `/factory-review`.
 - **User approves** → auto-commit `docs(review): complete review report`,
   update state, offer `/factory-ship <run-id>`.
+
+Wall-clocking the audit header is forbidden — always ground against `ts_review_decision`.
 
 #### Wall-clock acceptance
 The Phase 4 acceptance criteria target: review stage wall-clock drops to
@@ -706,7 +806,12 @@ Final stage. Produces release artifacts + ADRs.
 - **Sequential only in Phase 0.** Parallelism arrives in Phase 4.
 - **Append-only audit.md.** Never overwrite. Use `>>` redirects from Bash.
 - **Audit timestamps must be ISO8601 and chronological** — each new entry
-  ≥ the previous one.
+  ≥ the previous one. **Every audit-block header ts MUST be grounded against
+  a corresponding `timeline.jsonl` event** (`spawn_start`/`spawn_end` for
+  stage spawns, or `user_answers_received`/`user_decision`/`stage_skipped`/
+  `orchestrator_note` for non-spawn blocks). Wall-clocking `now` for an audit
+  header is forbidden in every phase, at every gate. See shared-primitives
+  Step 8 substep 6 for the canonical evt vocabulary and sequence.
 - **Never invent skill names.** If a path can't be resolved, log
   `[Skill] MISSING: <name>` and rely on the rule file's inline fallback.
 - **Approval gates pause the run.** When a stage returns `status: needs_human`,
