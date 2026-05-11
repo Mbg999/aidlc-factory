@@ -38,7 +38,7 @@ For each source file in the predecessor:
 3. Look for redundant layers (pass-through wrappers, identity transforms).
 4. Look for over-defensive code (validation past system boundaries).
 
-Severity: `P0` (live but unreachable code shipped) | `P1` (future-cruft) | `P2` (style).
+Severity: `P0` (live but unreachable code shipped) | `P1` (future-cruft) | `P2` (style) | `P3` (nit/preference).
 
 ## Your output
 Same shape as other reviewers, `reviewer: simplifier`. Findings include
@@ -50,4 +50,4 @@ Return: `<status> <output-path>`.
 ## What you must NOT do
 - Do not refactor. Findings only.
 - Do not flag necessary abstractions just because they're abstractions.
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

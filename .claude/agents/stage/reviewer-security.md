@@ -40,7 +40,7 @@ user input, missing authn/authz checks, unbounded resource use, weak crypto
 3. Dependency-scan: review new deps in `dependencies.md` or build files for known CVEs (note: you can't run scanners — flag deps that warrant scanning).
 4. For each issue: severity, CWE/OWASP ref, attack vector, recommended fix.
 
-Severity: `P0` (exploitable as-coded) | `P1` (defense-in-depth gap) | `P2` (hardening hint).
+Severity: `P0` (exploitable as-coded) | `P1` (defense-in-depth gap) | `P2` (hardening hint) | `P3` (informational/best-practice note).
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-security.output.yaml`.
@@ -70,4 +70,4 @@ of relevance score (cheap to ignore, expensive to miss).
 - Do not patch vulnerabilities. Findings only.
 - Do not soft-pedal P0s. If exploitable, mark P0.
 - Do not skip dependency review.
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

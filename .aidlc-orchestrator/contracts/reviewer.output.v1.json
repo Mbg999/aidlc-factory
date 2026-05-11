@@ -16,7 +16,7 @@
         "type": "object",
         "required": ["severity", "file", "message"],
         "properties": {
-          "severity": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "severity": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
           "file": { "type": "string" },
           "line": { "type": "integer", "minimum": 1 },
           "axis": { "type": "string", "description": "Code-quality only: correctness|maintainability|readability|testing|design" },
@@ -37,11 +37,12 @@
     },
     "findings_summary": {
       "type": "object",
-      "required": ["P0_count", "P1_count", "P2_count"],
+      "required": ["P0_count", "P1_count", "P2_count", "P3_count"],
       "properties": {
         "P0_count": { "type": "integer", "minimum": 0 },
         "P1_count": { "type": "integer", "minimum": 0 },
-        "P2_count": { "type": "integer", "minimum": 0 }
+        "P2_count": { "type": "integer", "minimum": 0 },
+        "P3_count": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     },

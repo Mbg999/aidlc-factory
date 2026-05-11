@@ -149,6 +149,21 @@ def _parse_field(kv: str):
         return k, v
 
 
+def _set_dotted(obj: dict, dotted_key: str, value) -> None:
+    """Set obj[a][b][c] = value given dotted_key 'a.b.c'.
+
+    Intermediate keys missing or non-dict are replaced with empty dicts.
+    Single-key (no dot) sets obj[key] = value as before.
+    """
+    parts = dotted_key.split(".")
+    cur = obj
+    for p in parts[:-1]:
+        if not isinstance(cur.get(p), dict):
+            cur[p] = {}
+        cur = cur[p]
+    cur[parts[-1]] = value
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     rd = run_dir(args.run_id, must_exist=False)
     rd.mkdir(parents=True, exist_ok=True)
@@ -184,7 +199,7 @@ def cmd_set(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
     for kv in args.field or []:
         k, v = _parse_field(kv)
-        manifest[k] = v
+        _set_dotted(manifest, k, v)
     manifest["last_checkpoint_at"] = now_iso()
     save_manifest_atomic(args.run_id, manifest)
     print(f"updated {len(args.field or [])} field(s)")
@@ -253,18 +268,19 @@ def _next_stage(manifest: dict) -> str | None:
     complete-stage --next-stage), since only the orchestrator knows the
     conditional flow (e.g. whether to skip reverse-engineer in greenfield).
     Fall back to PHASE_ORDER scan only if current_stage is missing or already
-    completed.
+    completed. Stages in `skipped_stages[]` are passed over during the scan.
     """
     completed = set(manifest.get("completed_stages", []))
+    skipped = set(manifest.get("skipped_stages", []))
     current = manifest.get("current_stage")
-    if current and current not in completed:
+    if current and current not in completed and current not in skipped:
         return current
     if current and current in PHASE_ORDER:
         start_idx = PHASE_ORDER.index(current) + 1
     else:
         start_idx = 0
     for stage in PHASE_ORDER[start_idx:]:
-        if stage not in completed:
+        if stage not in completed and stage not in skipped:
             return stage
     return None
 
@@ -337,6 +353,13 @@ def cmd_replay(args: argparse.Namespace) -> None:
 
 
 _LEGACY_STATE_RE = re.compile(r"^\s*-?\s*\[x\]\s*(.+)$", re.IGNORECASE)
+_LEGACY_CURRENT_RE = re.compile(r"^\s*##\s*Current\s+Stage\s*$", re.IGNORECASE)
+
+# Conditional stages — present in PHASE_ORDER but skipped by legacy AIDLC
+# unless the run actually executed them. If adopt-legacy can't prove these
+# ran (no [x] marker), and the legacy current_stage is past them, mark as
+# skipped so resume doesn't suggest re-doing them.
+_CONDITIONAL_STAGES = {"reverse-engineer", "story-writer", "unit-decomposer"}
 
 # Legacy AIDLC uses stage names like "Workspace Detection"; orchestrator uses
 # "workspace-scout". Map legacy phrases (lowercased, normalized) to current stage_id.
@@ -361,6 +384,46 @@ LEGACY_TO_PHASE: dict[str, str] = {
     "review": "reviewer-code",  # ambiguous; treat as "review pass complete"
     "ship": "ship-agent",
 }
+
+
+def _legacy_current_stage(state_text: str) -> str | None:
+    """Parse the `## Current Stage` section and return the mapped stage_id.
+
+    The legacy aidlc-state.md format puts the current stage on the line(s)
+    after `## Current Stage`. Phrases may include phase prefixes like
+    "INCEPTION - Workflow Planning" — strip them before matching.
+    Returns None if no current stage is found or it can't be mapped.
+    """
+    lines = state_text.splitlines()
+    for i, line in enumerate(lines):
+        if not _LEGACY_CURRENT_RE.match(line):
+            continue
+        # Read forward until the next non-blank, non-header line.
+        for body in lines[i + 1:]:
+            stripped = body.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("#"):
+                break
+            # Strip "INCEPTION - " / "CONSTRUCTION - " / "OPERATIONS - " prefixes
+            phrase = stripped
+            for prefix in ("INCEPTION - ", "CONSTRUCTION - ", "OPERATIONS - "):
+                if phrase.upper().startswith(prefix):
+                    phrase = phrase[len(prefix):]
+                    break
+            normalized = phrase.lower().strip()
+            for sep in (" — ", " - ", " (", "—"):
+                if sep in normalized:
+                    normalized = normalized.split(sep, 1)[0].strip()
+            if normalized in LEGACY_TO_PHASE:
+                return LEGACY_TO_PHASE[normalized]
+            # Substring fallback against PHASE_ORDER
+            normalized_dash = normalized.replace(" ", "-")
+            for stage in PHASE_ORDER:
+                if stage == normalized_dash or stage in normalized_dash:
+                    return stage
+            return None
+    return None
 
 
 def _stages_from_legacy(state_text: str) -> list[str]:
@@ -398,7 +461,28 @@ def cmd_adopt_legacy(args: argparse.Namespace) -> None:
     if not state_file.exists():
         _die(f"no aidlc-state.md found at {state_file}")
 
-    completed = _stages_from_legacy(state_file.read_text())
+    state_text = state_file.read_text()
+    completed = _stages_from_legacy(state_text)
+    legacy_current = _legacy_current_stage(state_text)
+
+    # Decide manifest.current_stage and skipped_stages[]:
+    #   - If legacy_current is parseable AND ahead of last completed in
+    #     PHASE_ORDER, honor it (the user was clearly heading there next).
+    #     Mark conditional stages between last-completed and legacy_current
+    #     as skipped — legacy AIDLC doesn't run them unless explicitly chosen.
+    #   - Otherwise fall back to "current = last completed".
+    skipped: list[str] = []
+    current_stage = completed[-1] if completed else "workspace-scout"
+    if legacy_current and legacy_current in PHASE_ORDER:
+        last_completed_idx = (
+            PHASE_ORDER.index(completed[-1]) if completed else -1
+        )
+        legacy_idx = PHASE_ORDER.index(legacy_current)
+        if legacy_idx > last_completed_idx:
+            current_stage = legacy_current
+            for stage in PHASE_ORDER[last_completed_idx + 1:legacy_idx]:
+                if stage in _CONDITIONAL_STAGES:
+                    skipped.append(stage)
 
     repo_slug = args.repo_slug or REPO_ROOT.name.lower().replace(" ", "-")
     ts = now_iso().replace(":", "").replace("-", "").replace("+0000", "")
@@ -413,9 +497,9 @@ def cmd_adopt_legacy(args: argparse.Namespace) -> None:
         "last_checkpoint_at": now_iso(),
         "user_request": "(adopted from legacy aidlc-docs/)",
         "project_slug": repo_slug,
-        "current_stage": completed[-1] if completed else "workspace-scout",
+        "current_stage": current_stage,
         "completed_stages": completed,
-        "skipped_stages": [],
+        "skipped_stages": skipped,
         "failed_stages": [],
         "adoption_status": "complete (adopted)",
         "adoption_source": str(state_file.relative_to(REPO_ROOT)),
@@ -430,10 +514,14 @@ def cmd_adopt_legacy(args: argparse.Namespace) -> None:
         "run_id": run_id,
         "from": str(state_file.relative_to(REPO_ROOT)),
         "stages_adopted": completed,
+        "stages_skipped": skipped,
+        "current_stage": current_stage,
     })
     print(json.dumps({
         "run_id": run_id,
         "adopted_stages": completed,
+        "skipped_stages": skipped,
+        "current_stage": current_stage,
         "completed_count": len(completed),
         "manifest_path": str(manifest_path(run_id).relative_to(REPO_ROOT)),
     }, indent=2))

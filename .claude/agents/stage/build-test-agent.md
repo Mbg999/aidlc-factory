@@ -77,4 +77,4 @@ on green builds — there's nothing to learn from "it worked."
 - Do not edit source code. Failed tests → emit findings; do not patch.
 - Do not skip running tests because they "look fine". Run them.
 - Do not invent coverage numbers. If unmeasured, omit the field.
-- Do not modify state files directly.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

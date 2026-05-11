@@ -40,9 +40,17 @@ except ImportError:
     print("missing dependency: pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None  # type: ignore
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
+REVIEWER_OUTPUT_SCHEMA = (
+    REPO_ROOT / ".aidlc-orchestrator" / "contracts" / "reviewer.output.v1.json"
+)
 
 REVIEWERS = ["code-quality", "security", "performance", "simplifier"]
 STAGE_BY_REVIEWER = {
@@ -51,7 +59,20 @@ STAGE_BY_REVIEWER = {
     "performance": "reviewer-performance",
     "simplifier": "reviewer-simplifier",
 }
-SEVERITY_ORDER = ["P0", "P1", "P2"]
+SEVERITY_ORDER = ["P0", "P1", "P2", "P3"]
+
+
+def _load_validator():
+    """Return a jsonschema Draft7Validator for reviewer.output.v1, or None.
+
+    Returns None if jsonschema isn't installed or the schema file is missing —
+    the caller falls back to .get() defenses without contract enforcement.
+    """
+    if jsonschema is None or not REVIEWER_OUTPUT_SCHEMA.exists():
+        return None
+    import json
+    schema = json.loads(REVIEWER_OUTPUT_SCHEMA.read_text())
+    return jsonschema.Draft7Validator(schema)
 
 
 def render_finding(reviewer: str, f: dict) -> str:
@@ -59,7 +80,7 @@ def render_finding(reviewer: str, f: dict) -> str:
     loc = f.get("file", "?")
     if "line" in f:
         loc = f"{loc}:{f['line']}"
-    parts = [f"### [{sev}] {loc}", "", f["message"]]
+    parts = [f"### [{sev}] {loc}", "", f.get("message", "_(no message provided)_")]
     if "recommendation" in f:
         parts += ["", f"**Recommendation:** {f['recommendation']}"]
     if reviewer == "code-quality" and "axis" in f:
@@ -104,18 +125,43 @@ def main() -> None:
         print(f"run directory not found: {run_dir}", file=sys.stderr)
         sys.exit(1)
 
+    validator = _load_validator()
+
     outputs: dict[str, dict] = {}
     missing: list[str] = []
+    invalid: list[tuple[str, list[str]]] = []
     for reviewer in args.reviewers:
         stage = STAGE_BY_REVIEWER[reviewer]
         path = run_dir / f"{stage}.output.yaml"
         if not path.exists():
             missing.append(reviewer)
             continue
-        outputs[reviewer] = yaml.safe_load(path.read_text())
+        try:
+            data = yaml.safe_load(path.read_text())
+        except yaml.YAMLError as e:
+            invalid.append((reviewer, [f"YAML parse error: {e}"]))
+            continue
+        if not isinstance(data, dict):
+            invalid.append((reviewer, ["top-level YAML is not a mapping"]))
+            continue
+        if validator is not None:
+            errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
+            if errors:
+                msgs = [f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errors]
+                invalid.append((reviewer, msgs))
+                continue
+        outputs[reviewer] = data
 
     if missing:
         print(f"WARNING: missing outputs for: {', '.join(missing)}", file=sys.stderr)
+
+    if invalid:
+        for reviewer, errs in invalid:
+            print(f"WARNING: skipping {reviewer} (schema-invalid output):", file=sys.stderr)
+            for e in errs[:5]:
+                print(f"  - {e}", file=sys.stderr)
+            if len(errs) > 5:
+                print(f"  - ... and {len(errs) - 5} more", file=sys.stderr)
 
     if not outputs:
         print("no reviewer outputs found", file=sys.stderr)
@@ -142,6 +188,9 @@ def main() -> None:
     md += [f"Reviewers: {', '.join(outputs.keys())}"]
     if missing:
         md += [f"_Skipped (no output): {', '.join(missing)}_"]
+    if invalid:
+        invalid_names = ", ".join(r for r, _ in invalid)
+        md += [f"_Skipped (schema-invalid output): {invalid_names}_"]
     md += ["", "## Summary", ""]
 
     cols = list(outputs.keys())

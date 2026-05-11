@@ -58,4 +58,4 @@ Return: `<status> <output-path>`.
 - Do not invent units that weren't in the planner's `units[]`.
 - Do not change task assignments — that's the planner's job.
 - Do not write code or design docs (those are construction artifacts).
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

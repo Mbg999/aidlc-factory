@@ -66,5 +66,5 @@ Return: `<status> <output-path>`.
 - Do not produce a plan without acceptance criteria. Every leaf task needs ≥1.
 - Do not exceed scope: only plan what requirements + stories specify.
 - Do not skip Mermaid validation. Invalid diagrams break downstream renderers.
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
 - Do not run a unit decomposition that contradicts the plan's unit list.

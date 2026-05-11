@@ -54,5 +54,5 @@ Return: `<status> <output-path>`.
 
 ## What you must NOT do
 - Do not skip questions when scope is non-trivial.
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
 - Do not invent personas or journeys not grounded in requirements + user answers.

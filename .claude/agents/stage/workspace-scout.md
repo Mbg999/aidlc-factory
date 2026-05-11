@@ -104,10 +104,11 @@ Required fields:
 - `status`: `complete` (typical), `blocked` (skill verification failed),
   `failed` (input invalid or scan errored), `needs_human` (red flag fired)
 - `artifacts`: include the state file if created/updated
-- `audit_entries`: at MINIMUM
-  - `## <ISO8601> WORKSPACE DETECTION - START`
-  - `## <ISO8601> WORKSPACE DETECTION - COMPLETE`
-  - One bullet line per finding (project type, code presence, languages, structure)
+- `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
+  The orchestrator wraps them in dated `## <ts> WORKSPACE DETECTION - START/COMPLETE`
+  headers (sourced from `timeline.jsonl`) when appending to `audit.md`. Include at
+  minimum: one bullet per finding (project type, code presence, languages, structure),
+  skill execution evidence, and any rationalization-rejected entries.
 - `skill_compliance`: one row for `using-agent-skills` with concrete evidence
 - `workspace_state`: full block per the schema
 

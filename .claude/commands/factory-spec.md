@@ -24,10 +24,21 @@ Execute the Phase 0 sequence end-to-end:
    - Write input handoff → validate via `python3 scripts/factory_validate.py`
    - Spawn `workspace-scout` subagent via Task() with the input path as the prompt
    - Validate the output handoff
-   - Append `audit_entries[]` to `aidlc-docs/audit.md`
+   - Append `audit_entries[]` to `aidlc-docs/audit.md` (per orchestrator.md
+     shared-primitives step 8 — header-wrapped via timeline timestamps,
+     dedupe-guarded)
    - Update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress
    - Auto-commit (`docs(workspace-detection): complete workspace detection`)
    - If status ≠ `complete`, halt and surface
+
+3.5. **Classify `project_profile` + decide reverse-engineer routing** (per
+   orchestrator.md Step 3.5):
+   - Set `project_profile.ui/api/has_legacy` via `factory_run.py set --field` based
+     on heuristics from workspace-scout's output + user_request.
+   - If workspace-scout flagged `next_phase: reverse-engineering` AND no RE
+     artifacts present → surface the approval gate to the user. If yes, spawn
+     `reverse-engineer` stage before requirements-analyst. If no, mark
+     `reverse-engineer` in `manifest.skipped_stages[]` and proceed.
 
 4. **Stage 2 — Requirements Analyst (Pass 1: questions)**:
    - Write input handoff with `predecessor_artifacts` pointing at workspace-scout
@@ -57,6 +68,8 @@ Execute the Phase 0 sequence end-to-end:
 - Validate every input AND every output. No exceptions.
 - Never fabricate stage output fields to satisfy schemas.
 - Sequential only — no parallel Task() calls in Phase 0.
-- audit.md is append-only; ISO8601 chronological timestamps.
+- audit.md is append-only and orchestrator-owned; timestamps come from
+  `timeline.jsonl`, not from agent-supplied strings. Agents emit plain bullet
+  `audit_entries[]`; orchestrator wraps with `## <ts> ... START/COMPLETE` headers.
 - Skill paths missing → log `[Skill] MISSING` and use rule file inline fallback.
-- Approval gates pause; never auto-approve.
+- Approval gates pause; never auto-approve (Step 3.5 RE prompt is an approval gate).

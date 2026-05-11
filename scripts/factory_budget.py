@@ -102,7 +102,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         "run_id": args.run_id,
         "initialized_at": now_iso(),
         "budget": default["run"],
-        "used": {"tokens": 0, "wall_clock_min": 0.0, "cost_usd": 0.0},
+        "used": {"tokens": 0, "wall_clock_min": 0.0},
         "per_stage_used": {},
         "events": [
             {"ts": now_iso(), "action": "init", "source": "factory_budget.py"}

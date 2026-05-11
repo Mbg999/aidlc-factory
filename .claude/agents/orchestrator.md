@@ -40,9 +40,27 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
 3. Validate input handoff against contract.
 4. Spawn subagent via `Task(subagent_type=..., prompt=<input-handoff-path>)`.
 5. Validate output handoff against contract.
-6. **Post-flight reconciliation**: `python3 scripts/factory_budget.py deduct <run-id> <stage> --tokens-in <N> --tokens-out <N> --wall-min <F>` using the `cost.{tokens_in,tokens_out,wall_clock_min}` fields. If `cost` was not populated, deduct a conservative estimate from `budgets/default.yaml.per_stage[<stage>].tokens` and log `[CostGov] Estimated <stage> cost`.
+6. **Post-flight reconciliation**: `python3 scripts/factory_budget.py deduct <run-id> <stage> --tokens-in <N> --tokens-out <N> --wall-min <F>`.
+   - **`tokens_in` / `tokens_out`**: from the agent output's `cost.{tokens_in,tokens_out}` fields. If absent, deduct a conservative estimate from `budgets/default.yaml.per_stage[<stage>].tokens` and log `[CostGov] Estimated <stage> cost`.
+   - **`wall_min` is computed by the orchestrator, NOT taken from the agent output.** Read the matching `spawn_start` and `spawn_end` events for this stage from `runs/<run-id>/timeline.jsonl` and compute `(spawn_end.ts - spawn_start.ts) / 60`, rounded to 1 decimal. This is authoritative because agent-reported wall-clock is unreliable.
 7. **Knowledge save (post-return)**: iterate `output.emitted_knowledge[]`. For each entry, call `mcp__plugin_engram_engram__mem_save` with topic_key `aidlc/<project_slug>/<kind>/<title-slug>`, project scope. If the response includes `judgment_required: true`, follow the judgment heuristic from `knowledge-agent.md` (silent for related/compatible/scoped, surface for low-confidence supersedes/conflicts_with on ADRs). Log each save as `[Knowledge] Saved <kind>: <title>`.
-8. Append `audit_entries[]` to `aidlc-docs/audit.md` (append-only, ISO8601, chronological).
+8. **Append `audit_entries[]` to `aidlc-docs/audit.md`** (append-only). YOU own this file — agents emit content but never write headers or timestamps. Procedure:
+   1. Read `ts_start` and `ts_end` for this stage from `runs/<run-id>/timeline.jsonl` (same source as step 6's wall_min).
+   2. **Dedupe guard:** if the last `## ` section in `audit.md` already has the same `ts_start` AND the same stage label, this is a retry — SKIP the append. (Idempotent on retries.)
+   3. Append in this exact shape:
+      ```
+      ## <ts_start> <PHASE> - <STAGE LABEL> START
+      - [Orchestrator] spawned with tokens_max=<N>, wall_clock_max_min=<M>
+
+      - <agent's first audit_entries[] line>
+      - <agent's second audit_entries[] line>
+      ...
+
+      ## <ts_end> <PHASE> - <STAGE LABEL> COMPLETE
+      - [Orchestrator] tokens used: <N>, wall_min: <F>
+      ```
+   4. `<PHASE>` is the AIDLC phase the stage belongs to (`INCEPTION`, `CONSTRUCTION`, `OPERATIONS`). `<STAGE LABEL>` is the stage_id uppercased with `-` → space (e.g. `workspace-scout` → `WORKSPACE SCOUT`).
+   5. Strip any leading `##` lines or ISO8601 timestamps the agent accidentally left in `audit_entries[]` — agents are instructed to emit plain bullets only, but be defensive.
 9. Update `aidlc-docs/aidlc-state.md` `Current Stage` and `Stage Progress`.
 10. Auto-commit per `core-workflow.md` MANDATORY rule.
 11. **Timeline event (spawn_end)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
@@ -250,10 +268,12 @@ fallback embedded in the AIDLC rule file (every rule file has one).
    ```bash
    python3 scripts/factory_budget.py deduct <run-id> workspace-scout \
        --tokens-in <cost.tokens_in> --tokens-out <cost.tokens_out> \
-       --wall-min <cost.wall_clock_min>
+       --wall-min <computed_wall_min>
    ```
-   If the agent's output didn't populate `cost`, deduct an estimate from
-   `budgets/default.yaml.per_stage.workspace-scout.tokens` and log
+   `<computed_wall_min>` is `(spawn_end.ts - spawn_start.ts) / 60` from `timeline.jsonl`,
+   rounded to 1 decimal — NOT taken from the agent's `cost.wall_clock_min` (unreliable).
+   If the agent's output didn't populate `cost.{tokens_in,tokens_out}`, deduct an
+   estimate from `budgets/default.yaml.per_stage.workspace-scout.tokens` and log
    `[CostGov] Estimated workspace-scout cost (output missing cost block)`.
 6b. **Knowledge save (post-return)** — for each entry in `output.emitted_knowledge[]`
    call `mcp__plugin_engram_engram__mem_save` with `topic_key` =
@@ -263,13 +283,110 @@ fallback embedded in the AIDLC rule file (every rule file has one).
    apply the judgment heuristic from `knowledge-agent.md` (silent for
    related/compatible/scoped/not_conflict; surface for low-confidence
    supersedes/conflicts_with on ADRs). Log each as `[Knowledge] Saved <kind>: <title>`.
-7. Append every entry from `audit_entries[]` to `aidlc-docs/audit.md` (append-only).
+7. Append `audit_entries[]` to `aidlc-docs/audit.md` per the canonical procedure in shared-primitives step 8 (header-wrapped using timeline timestamps, dedupe-guarded). Strip any rogue `##` headers or fabricated timestamps the agent may have included.
 8. Update `aidlc-docs/aidlc-state.md`:
    - `Current Stage`: `INCEPTION - Workspace Detection (complete)`
    - Add `[x] Workspace Detection — <ISO date>` to Stage Progress
 9. Update `manifest.yaml`: append `workspace-scout` to `completed_stages[]`,
    set `current_stage: requirements-analyst`.
 10. If `status != complete`: halt and surface to user. Otherwise continue.
+
+### Step 3.5 — Classify `project_profile` and decide reverse-engineer routing
+
+After workspace-scout completes, before any other stage spawns, the orchestrator
+MUST classify `project_profile` and decide whether to run `reverse-engineer`.
+Both decisions read from workspace-scout's output handoff.
+
+**A. Classify `project_profile`** (Bug #8 fix — controls conditional skill loading):
+
+Read `workspace-scout.output.yaml.workspace_state` and the original `user_request`.
+Apply these heuristics (each independent):
+
+- `ui = true` iff:
+  - `workspace_state.programming_languages` contains TypeScript|JavaScript|TSX|JSX, AND
+  - `workspace_state.project_structure` matches `/SPA|frontend|React|Vue|Svelte|Angular|Next|Nuxt|web/i`,
+    OR the workspace contains `package.json` with a UI framework dep (react/vue/svelte/etc.)
+- `api = true` iff:
+  - The user_request matches `/endpoint|route|REST|GraphQL|API|webhook|\/[a-z][a-z0-9_-]+/i`, OR
+  - The workspace has `express`/`fastify`/`hono`/`nestjs`/`fastapi`/`flask`/`django` in `package.json`/`pyproject.toml`/etc.
+- `has_legacy = true` iff:
+  - `workspace_state.reverse_engineering_artifacts_present == true`, OR
+  - The user_request matches `/migrat|refactor|deprecat|legacy|rewrite|port/i`.
+
+Apply via:
+```bash
+python3 scripts/factory_run.py set <run-id> \
+    --field project_profile.ui=<true|false> \
+    --field project_profile.api=<true|false> \
+    --field project_profile.has_legacy=<true|false>
+```
+
+Log to audit (via the canonical audit-write — append a bullet to the NEXT stage's
+audit block, NOT a standalone header):
+- `[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>`
+
+**Conditional-skill injection** (downstream consumer of these flags). When building
+input handoffs for `code-generator`, `build-test-agent`, and `ship-agent`, read
+`manifest.project_profile` and add to `skills_required[]`:
+
+| project_profile flag | Stages affected | Skill added |
+|---|---|---|
+| `ui: true` | code-generator | `frontend-ui-engineering` |
+| `ui: true` | build-test-agent | `browser-testing-with-devtools` |
+| `api: true` | code-generator | `api-and-interface-design` |
+| `has_legacy: true` | ship-agent | `deprecation-and-migration` |
+
+Resolve the matching SKILL.md path and add it to `skill_paths_resolved[]` of that
+stage's input. If a conditional skill's SKILL.md isn't found, log
+`[Skill] MISSING: <name> (conditional)` and continue — the stage will use the
+rule file's inline fallback.
+
+**B. Decide reverse-engineer routing** (Bug #9 fix):
+
+If `workspace_state.next_phase == "reverse-engineering"` AND
+`workspace_state.reverse_engineering_artifacts_present == false`, surface the
+approval gate to the user (do NOT silently skip):
+
+```
+⏸️  Reverse-Engineer Recommendation
+
+Workspace Scout detected:
+  - project_type: brownfield (existing code present)
+  - reverse_engineering_artifacts_present: false
+
+Running `reverse-engineer` first produces:
+  - aidlc-docs/inception/reverse-engineering/business-overview.md
+  - architecture.md, code-structure.md, api-docs.md, component-inventory.md
+  - interaction-diagrams.md, tech-stack.md, dependencies.md
+
+Recommended for: major refactors, new modules touching existing systems,
+                 or any change where requirements-analyst would benefit from
+                 codebase context.
+
+Skip-OK for: small features (a single endpoint, a config change, doc-only).
+
+Run reverse-engineer now? [Y/n]
+```
+
+Use `AskUserQuestion` with options `["Run reverse-engineer first (recommended for big changes)", "Skip and go straight to requirements-analyst (OK for small features)"]`.
+
+**If user says yes:**
+- Spawn `reverse-engineer` stage following the same shared-primitives sequence
+  (budget gate, knowledge query, input write, validate, Task() spawn, validate
+  output, deduct, knowledge save, audit append).
+- On completion, append `reverse-engineer` to `manifest.completed_stages[]`,
+  set `current_stage: requirements-analyst`.
+- Then proceed to Step 4.
+
+**If user says no:**
+- `python3 scripts/factory_run.py set <run-id> --field skipped_stages='["reverse-engineer"]'`
+  (preserve any existing skips — if `manifest.skipped_stages[]` is non-empty,
+  read it first and append).
+- Audit bullet (for the NEXT stage's block): `[Orchestrator] User opted to skip reverse-engineer (small-scope request: <truncated user_request>)`.
+- Proceed directly to Step 4.
+
+**If `workspace_state.next_phase != "reverse-engineering"`** (greenfield, or
+brownfield-with-RE-artifacts): no prompt; proceed directly to Step 4.
 
 ### Step 4 — Requirements Analyst stage (two-pass)
 This stage runs in two passes because of the human-approval gate on
@@ -294,8 +411,10 @@ clarifying questions.
    ```bash
    python3 scripts/factory_budget.py deduct <run-id> requirements-analyst \
        --tokens-in <cost.tokens_in> --tokens-out <cost.tokens_out> \
-       --wall-min <cost.wall_clock_min>
+       --wall-min <computed_wall_min>
    ```
+   `<computed_wall_min>` = `(spawn_end.ts - spawn_start.ts) / 60` from `timeline.jsonl`,
+   rounded to 1 decimal — NOT taken from the agent output (see shared-primitives step 6).
 3. Expected output: `status: needs_human`, `needs_user_input: true`,
    `questions_artifact_path: aidlc-docs/inception/requirements/requirement-verification-questions.md`.
 4. Append audit entries.
@@ -406,7 +525,7 @@ Code-generator runs `plan` → `generated` → `approved`. For each `sub_stage`:
   - **AST drift check** (Python only): `factory_conflict.py check-symbols <run-id> code-generator:<unit> <files>`. exit 1 = `interface_drift` conflict written.
   - Budget deduct
   - Knowledge save (`mem_save` per `emitted_knowledge[]` entry)
-  - Append `audit_entries[]`
+  - Append `audit_entries[]` per shared-primitives step 8 (header-wrapped via timeline timestamps, dedupe-guarded)
 - **Conflict surfacing**: if any drift conflict was written, surface BEFORE the approval gate. User decides per `conflict-resolver.md`.
 - **Approval gate** (only on `plan` and `generated`): surface ALL units' sub-stage outputs together, get one consolidated approval. User can: approve all → next sub_stage; reject specific units → those re-plan with revised `context_pointers[]`; cancel layer → release locks, halt.
 
@@ -495,7 +614,7 @@ For each reviewer in the active set, in any order:
 1. Validate the output handoff against `reviewer.output.v1.json`.
 2. Post-flight reconciliation: `factory_budget.py deduct ...`
 3. Knowledge save: iterate `output.emitted_knowledge[]`, call `mem_save` per entry.
-4. Append `audit_entries[]` to `aidlc-docs/audit.md`.
+4. Append `audit_entries[]` to `aidlc-docs/audit.md` per shared-primitives step 8 (header-wrapped via timeline timestamps, dedupe-guarded).
 
 #### Step 5 — Merge
 ```bash
@@ -520,8 +639,8 @@ Surface `review-report.md` to the user. Wait for response.
 #### Wall-clock acceptance
 The Phase 4 acceptance criteria target: review stage wall-clock drops to
 ~max(reviewer wall-clocks), not sum. Empirically that's a 3-4× speedup over
-Phase 1 sequential. Track via `manifest.yaml.events[]` timestamps and the
-`cost.wall_clock_min` from each reviewer's output.
+Phase 1 sequential. Track via `timeline.jsonl` spawn_start / spawn_end deltas (authoritative;
+agents' self-reported `cost.wall_clock_min` is informational only).
 
 ### `/factory-ship <run-id>`
 Final stage. Produces release artifacts + ADRs.

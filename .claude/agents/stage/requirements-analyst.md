@@ -81,7 +81,10 @@ Execute Steps 1–6 of the rule file
 - `artifacts`: include the questions file with `kind: questions`
 - `request_classification`: populated
 - `depth`: populated
-- `audit_entries`: include `## <ts> REQUIREMENTS ANALYSIS - QUESTIONS GENERATED` and the depth determination
+- `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
+  Orchestrator wraps them in dated headers when appending to `audit.md`. Include
+  bullets for depth determination, completeness gaps identified, extension opt-in scan
+  results, and skill execution evidence.
 - `skill_compliance`: PASS for `using-agent-skills`, `idea-refine` (verify with the ≥3-approach log), `spec-driven-development` (verify with the question-coverage map)
 
 DO NOT proceed to Step 7. Return to orchestrator.
@@ -105,7 +108,10 @@ Execute Step 7 of the rule file:
 - `status: complete`
 - `needs_user_input: false`
 - `artifacts`: include `requirements.md` (kind: spec) and the answered questions file (kind: questions)
-- `audit_entries`: include `## <ts> REQUIREMENTS ANALYSIS - COMPLETE` and any user-decision summaries
+- `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
+  Orchestrator wraps them in dated headers when appending to `audit.md`. Include
+  bullets for user-decision summaries, any conflicts reconciled (with the chosen
+  rationale), and per-skill verification evidence.
 - `skill_compliance`: PASS for all three skills with updated evidence
   (e.g., requirements.md path + section count)
 

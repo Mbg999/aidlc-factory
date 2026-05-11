@@ -33,7 +33,7 @@ For each source file in the predecessor artifacts (code-generator output):
 - Apply the five-axis review.
 - Produce structured findings.
 
-Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to have).
+Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to have) | `P3` (style/nit/info).
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-code.output.yaml`.
@@ -43,7 +43,7 @@ Required:
 - `status: complete`
 - `reviewer: code-quality`
 - `findings`: array of `{severity, file, line, axis, message, recommendation}`
-- `findings_summary`: `{P0_count, P1_count, P2_count}`
+- `findings_summary`: `{P0_count, P1_count, P2_count, P3_count}`
 - `audit_entries`, `skill_compliance`
 
 Return: `<status> <output-path>`.
@@ -51,4 +51,4 @@ Return: `<status> <output-path>`.
 ## What you must NOT do
 - Do not fix code. Findings only.
 - Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

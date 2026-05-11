@@ -60,7 +60,11 @@ Validate against `.aidlc-orchestrator/contracts/reverse-engineer.output.v1.json`
 Required:
 - `status: complete` (or blocked/failed/needs_human)
 - `artifacts`: all 8 RE files with `kind: doc`
-- `audit_entries`: at minimum START + COMPLETE entries with summary stats
+- `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
+  Orchestrator wraps them in dated `REVERSE ENGINEERING - START/COMPLETE` headers
+  when appending to `audit.md`. Include bullets summarizing artifact-by-artifact
+  counts (e.g. "components inventoried: 23"), dependency-scan stats, and any
+  rationalization-rejected entries.
 - `skill_compliance`: PASS for `using-agent-skills`
 - `tech_stack_summary`: brief object summarizing languages, build_system, runtime
 

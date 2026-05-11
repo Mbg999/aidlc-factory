@@ -38,7 +38,7 @@ I/O on hot paths, allocations inside loops, retry storms without backoff.
 2. For each hot path: complexity analysis (time + space), allocation patterns, I/O patterns.
 3. For each issue: severity, location, expected impact at expected scale, recommendation.
 
-Severity: `P0` (will fail SLO at expected load) | `P1` (degrades at peak) | `P2` (cleanup).
+Severity: `P0` (will fail SLO at expected load) | `P1` (degrades at peak) | `P2` (cleanup) | `P3` (info/micro-opt).
 
 ## Your output
 Same shape as other reviewers, `reviewer: performance`. Findings include
@@ -49,4 +49,4 @@ Return: `<status> <output-path>`.
 ## What you must NOT do
 - Do not optimize. Findings only.
 - Do not flag style as performance.
-- Do not modify state files.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

@@ -82,4 +82,4 @@ Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`.
 - Do not silently overwrite existing CI/CD that works.
 - Do not assume version bump — always propose with rationale.
 - Do not invent ADRs that weren't actual decisions during the run.
-- Do not modify state files directly.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
