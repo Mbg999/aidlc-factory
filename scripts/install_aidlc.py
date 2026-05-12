@@ -17,6 +17,7 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -66,6 +67,19 @@ def copy_tree(src: Path, dst: Path, dry_run: bool, exclude: set[str] | None = No
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(p, target)
+
+
+def _rmtree_force(path: Path) -> None:
+    """Remove a directory tree, handling Windows read-only files (e.g. .git pack files)."""
+    if not path.exists():
+        return
+    for p in path.rglob("*"):
+        if p.is_file():
+            try:
+                p.chmod(0o777)
+            except OSError:
+                pass
+    shutil.rmtree(path, ignore_errors=False)
 
 
 def write_file(path: Path, content: str, dry_run: bool) -> None:
@@ -727,7 +741,7 @@ def main() -> int:
         # Clean up the cloned repo — its contents have been copied into the project
         if not args.agent_skills_path and skills_repo.exists() and not args.dry_run:
             print(f"Cleaning up temporary clone: {skills_repo}")
-            shutil.rmtree(skills_repo)
+            _rmtree_force(skills_repo)
         elif args.dry_run and not args.agent_skills_path:
             print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
 
