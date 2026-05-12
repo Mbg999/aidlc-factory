@@ -82,7 +82,7 @@ Create Mermaid flowchart showing all phases with EXECUTE/SKIP/COMPLETED status.
 
 ## Step 7: Create Execution Plan Document
 
-Save to `aidlc-docs/inception/plans/execution-plan.md` with:
+Save to `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with (where `<run-id>` is the current run identifier, e.g. `2026-05-12-add-pagination-api`):
 - Analysis summary (scope, impact, risk)
 - Workflow Mermaid visualization
 - Phase checklist with EXECUTE/SKIP + rationale per stage
@@ -103,7 +103,7 @@ Update `aidlc-docs/aidlc-state.md` with: project info, execution plan summary, s
   ```bash
   python scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
   ```
-- Write `aidlc-docs/skills-coverage.md` listing installed vs missing skills
+- Write `aidlc-docs/<run-id>-skills-coverage.md` listing installed vs missing skills
 - Validate per `common/ascii-diagram-standards.md`; log in audit.md
 
 ## Step 10: Present Completion (emoji: 📋)

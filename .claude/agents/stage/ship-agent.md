@@ -41,12 +41,12 @@ unit, version-bump without rationale, missing migration plan when
 
 ## Your job
 1. **Release notes** → `RELEASE_NOTES.md` (or append to it). Sections: Added, Changed, Fixed, Deprecated, Removed, Security. Match the diff scope of this run.
-2. **ADRs** → `aidlc-docs/operations/adrs/<NNNN>-<title>.md` per architecturally significant decision made during the run. Use Michael Nygard format.
+2. **ADRs** → `aidlc-docs/operations/adrs/<run-id>-<NNNN>-<title>.md` per architecturally significant decision made during the run. Use Michael Nygard format.
 3. **CHANGELOG** → update `CHANGELOG.md` (Keep-a-Changelog) with the same content summarized.
 4. **CI/CD** → if `.github/workflows/` is empty or missing wiring for the new unit's tests, propose minimal additions in a draft file. Do NOT silently overwrite working CI.
 5. **Versioning** → propose semver bump (patch/minor/major) with rationale based on diff scope.
 6. (Conditional) **Migration plan** → if `has_legacy == true`, produce
-   `aidlc-docs/operations/migration-plan.md` with deprecation timeline.
+   `aidlc-docs/operations/<run-id>-migration-plan.md` with deprecation timeline.
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/ship-agent.output.yaml`.

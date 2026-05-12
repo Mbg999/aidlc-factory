@@ -34,11 +34,11 @@ Follow `aidlc-rules/aws-aidlc-rule-details/inception/user-stories.md`.
 
 Two-pass when needed (mirrors requirements-analyst):
 - **Pass 1**: produce questions about personas, journeys, edge cases →
-  `aidlc-docs/inception/user-stories/user-stories-questions.md`. Set
+  `aidlc-docs/inception/user-stories/<run-id>-user-stories-questions.md`. Set
   `status: needs_human`.
 - **Pass 2** (after answers): produce
-  - `aidlc-docs/inception/user-stories/personas.md`
-  - `aidlc-docs/inception/user-stories/stories.md` (As-a/I-want/So-that with acceptance criteria)
+  - `aidlc-docs/inception/user-stories/<run-id>-personas.md`
+  - `aidlc-docs/inception/user-stories/<run-id>-stories.md` (As-a/I-want/So-that with acceptance criteria)
 
 Trigger Pass 2 when input has `context_pointers[]` referencing the answered
 questions file.

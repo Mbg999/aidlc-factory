@@ -25,12 +25,12 @@ Focus: business logic & algorithms, domain models, business rules & validation, 
 ## Steps
 
 ### Step 1: Analyze Unit Context
-- Read unit definition from `aidlc-docs/inception/application-design/unit-of-work.md`
-- Read assigned stories from `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
+- Read unit definition from `aidlc-docs/inception/application-design/<run-id>-unit-of-work.md`
+- Read assigned stories from `aidlc-docs/inception/application-design/<run-id>-unit-of-work-story-map.md`
 
 ### Step 2: Create Functional Design Plan
 - Focus: business logic, domain models, business rules
-- Save to `aidlc-docs/construction/plans/{unit-name}-functional-design-plan.md`
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-functional-design-plan.md`
 
 ### Step 3: Generate Questions
 
@@ -48,10 +48,10 @@ Focus: business logic & algorithms, domain models, business rules & validation, 
 *(Per stage-conventions.md protocol)*
 
 ### Step 5: Generate Artifacts
-- `aidlc-docs/construction/{unit-name}/functional-design/business-logic-model.md`
-- `aidlc-docs/construction/{unit-name}/functional-design/business-rules.md`
-- `aidlc-docs/construction/{unit-name}/functional-design/domain-entities.md`
-- If UI unit: `aidlc-docs/construction/{unit-name}/functional-design/frontend-components.md`
+- `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-business-logic-model.md`
+- `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-business-rules.md`
+- `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-domain-entities.md`
+- If UI unit: `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-frontend-components.md`
   - Component hierarchy, props/state, interaction flows, form validation, API integration
 
 ### Step 6: Present Completion (emoji: 🔧)

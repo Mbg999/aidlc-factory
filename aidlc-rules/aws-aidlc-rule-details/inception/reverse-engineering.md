@@ -24,7 +24,7 @@
 
 ## Step 2: Generate Business Overview Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/business-overview.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md`:
 
 ```markdown
 # Business Overview
@@ -40,7 +40,7 @@ Create `aidlc-docs/inception/reverse-engineering/business-overview.md`:
 
 ## Step 3: Generate Architecture Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/architecture.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-architecture.md`:
 
 ```markdown
 # System Architecture
@@ -64,7 +64,7 @@ Create `aidlc-docs/inception/reverse-engineering/architecture.md`:
 
 ## Step 4: Generate Code Structure Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/code-structure.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-code-structure.md`:
 
 ```markdown
 # Code Structure
@@ -88,7 +88,7 @@ Create `aidlc-docs/inception/reverse-engineering/code-structure.md`:
 
 ## Step 5: Generate API Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/api-documentation.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-api-documentation.md`:
 
 ```markdown
 # API Documentation
@@ -105,7 +105,7 @@ Create `aidlc-docs/inception/reverse-engineering/api-documentation.md`:
 
 ## Step 6: Generate Component Inventory
 
-Create `aidlc-docs/inception/reverse-engineering/component-inventory.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-component-inventory.md`:
 
 ```markdown
 # Component Inventory
@@ -123,7 +123,7 @@ Create `aidlc-docs/inception/reverse-engineering/component-inventory.md`:
 
 ## Step 7: Generate Technology Stack Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/technology-stack.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-technology-stack.md`:
 
 ```markdown
 # Technology Stack
@@ -141,7 +141,7 @@ Create `aidlc-docs/inception/reverse-engineering/technology-stack.md`:
 
 ## Step 8: Generate Dependencies Documentation
 
-Create `aidlc-docs/inception/reverse-engineering/dependencies.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-dependencies.md`:
 
 ```markdown
 # Dependencies
@@ -157,7 +157,7 @@ Create `aidlc-docs/inception/reverse-engineering/dependencies.md`:
 
 ## Step 9: Generate Code Quality Assessment
 
-Create `aidlc-docs/inception/reverse-engineering/code-quality-assessment.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-code-quality-assessment.md`:
 
 ```markdown
 # Code Quality Assessment
@@ -173,7 +173,7 @@ Create `aidlc-docs/inception/reverse-engineering/code-quality-assessment.md`:
 
 ## Step 10: Create Timestamp File
 
-Create `aidlc-docs/inception/reverse-engineering/reverse-engineering-timestamp.md`:
+Create `aidlc-docs/inception/reverse-engineering/<run-id>-reverse-engineering-timestamp.md`:
 
 ```markdown
 # Reverse Engineering Metadata

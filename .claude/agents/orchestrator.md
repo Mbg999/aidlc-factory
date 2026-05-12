@@ -523,7 +523,7 @@ Workspace Scout detected:
   - reverse_engineering_artifacts_present: false
 
 Running `reverse-engineer` first produces:
-  - aidlc-docs/inception/reverse-engineering/business-overview.md
+  - aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md
   - architecture.md, code-structure.md, api-docs.md, component-inventory.md
   - interaction-diagrams.md, tech-stack.md, dependencies.md
 
@@ -601,7 +601,7 @@ clarifying questions.
    `<computed_wall_min>` = `(spawn_end.ts - spawn_start.ts) / 60` from `timeline.jsonl`,
    rounded to 1 decimal — NOT taken from the agent output (see shared-primitives step 6).
 3. Expected output: `status: needs_human`, `needs_user_input: true`,
-   `questions_artifact_path: aidlc-docs/inception/requirements/requirement-verification-questions.md`.
+   `questions_artifact_path: aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`.
 4. Append audit entries.
 5. Surface the questions file to the user. Use AskUserQuestion if appropriate,
    or simply present the file path and wait for the user's answers in chat.
@@ -761,14 +761,14 @@ Inception phase, post-requirements. Produces the execution plan and
    When skipping, follow the skip enforcement sequence from Step 4.5 (emit `stage_skipped`,
    update `manifest.skipped_stages[]`, append audit block). Otherwise spawn normally.
    - Input contract: `story-writer.input.v1.json`. Predecessor: requirements-analyst output.
-   - Output contract: `story-writer.output.v1.json`. Artifacts: `aidlc-docs/inception/user-stories/stories.md`, `personas.md`.
+   - Output contract: `story-writer.output.v1.json`. Artifacts: `aidlc-docs/inception/user-stories/<run-id>-stories.md`, `personas.md`.
 2. **Workflow Planner (always)** — `model: opus`. Required.
    - Input: `workflow-planner.input.v1.json`. Predecessors: requirements + (if present) stories.
-   - Output: `workflow-planner.output.v1.json`. Artifacts: `aidlc-docs/inception/plans/execution-plan.md` with Mermaid diagram + task tree.
+    - Output: `workflow-planner.output.v1.json`. Artifacts: `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with Mermaid diagram + task tree.
    - **Approval gate:** the planner emits `status: needs_human` after producing the plan; orchestrator surfaces and waits.
      **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
      1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage workflow-planner --field decision=<approve|reject|amend>`. Capture `ts_plan_decision`.
-     2. Append a `## <ts_plan_decision> INCEPTION - User Decision (workflow-planner)` block to `audit.md` with `- [User] <Approved|Rejected|Amended> execution-plan.md (<one-line gloss>)` and any free-text note.
+      2. Append a `## <ts_plan_decision> INCEPTION - User Decision (workflow-planner)` block to `audit.md` with `- [User] <Approved|Rejected|Amended> <run-id>-execution-plan.md (<one-line gloss>)` and any free-text note.
      3. Only then proceed to instruction 3 (Conditional Unit Decomposer). Wall-clocking `now` for the audit header is forbidden.
 3. **Conditional Unit Decomposer** — skip if EITHER:
    - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov in Step 4.5), OR
@@ -776,7 +776,7 @@ Inception phase, post-requirements. Produces the execution plan and
      do not call out distinct services/components.
    When skipping due to ComplexityGov, follow the skip enforcement sequence from
    Step 4.5. Otherwise spawn normally if ≥2 units or distinct services present.
-   - Output: per-unit specs in `aidlc-docs/inception/units/<unit-name>.md`.
+   - Output: per-unit specs in `aidlc-docs/inception/units/<run-id>-<unit-name>.md`.
 4. Auto-commit `docs(workflow-planning): complete workflow planning` and update state.
 5. Present completion + offer `/factory-build <run-id>`.
 
@@ -991,7 +991,7 @@ For each reviewer in the active set, in any order:
 ```bash
 python3 scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
 ```
-Produces `aidlc-docs/operations/review-report.md` with:
+Produces `aidlc-docs/operations/<run-id>-review-report.md` with:
 - Summary table (P0/P1/P2 counts per reviewer + Total)
 - Per-reviewer section with sorted findings
 - "Files with most findings" cross-reviewer index

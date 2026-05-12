@@ -28,7 +28,7 @@ Map logical components to infrastructure services for deployment.
 
 ### Step 2: Create Infrastructure Design Plan
 - Map components to services (AWS, Azure, GCP, on-premise)
-- Save to `aidlc-docs/construction/plans/{unit-name}-infrastructure-design-plan.md`
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-infrastructure-design-plan.md`
 
 ### Step 3: Generate Questions
 
@@ -45,9 +45,9 @@ Map logical components to infrastructure services for deployment.
 *(Per stage-conventions.md protocol)*
 
 ### Step 5: Generate Artifacts
-- `aidlc-docs/construction/{unit-name}/infrastructure-design/infrastructure-design.md`
-- `aidlc-docs/construction/{unit-name}/infrastructure-design/deployment-architecture.md`
-- If shared infra: `aidlc-docs/construction/shared-infrastructure.md`
+- `aidlc-docs/construction/{unit-name}/infrastructure-design/<run-id>-infrastructure-design.md`
+- `aidlc-docs/construction/{unit-name}/infrastructure-design/<run-id>-deployment-architecture.md`
+- If shared infra: `aidlc-docs/construction/<run-id>-shared-infrastructure.md`
 
 ### Step 6: Present Completion (emoji: 🏢)
 Artifact path: `aidlc-docs/construction/{unit-name}/infrastructure-design/`

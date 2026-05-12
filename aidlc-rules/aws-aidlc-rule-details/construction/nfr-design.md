@@ -27,7 +27,7 @@ Incorporate NFRs into unit design via patterns and logical components.
 
 ### Step 2: Create NFR Design Plan
 - Focus: design patterns and logical components
-- Save to `aidlc-docs/construction/plans/{unit-name}-nfr-design-plan.md`
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-nfr-design-plan.md`
 
 ### Step 3: Generate Questions
 
@@ -42,8 +42,8 @@ Incorporate NFRs into unit design via patterns and logical components.
 *(Per stage-conventions.md protocol)*
 
 ### Step 5: Generate Artifacts
-- `aidlc-docs/construction/{unit-name}/nfr-design/nfr-design-patterns.md`
-- `aidlc-docs/construction/{unit-name}/nfr-design/logical-components.md`
+- `aidlc-docs/construction/{unit-name}/nfr-design/<run-id>-nfr-design-patterns.md`
+- `aidlc-docs/construction/{unit-name}/nfr-design/<run-id>-logical-components.md`
 
 ### Step 6: Present Completion (emoji: 🎨)
 Artifact path: `aidlc-docs/construction/{unit-name}/nfr-design/`

@@ -20,7 +20,7 @@ Sequence:
    audit and continue. Two-pass with question gate when used.
 3. **Workflow Planner** (always, `model: opus`):
    - Validate input → spawn → validate output
-   - Output's `status: needs_human` is expected — surface execution-plan.md
+    - Output's `status: needs_human` is expected — surface `<run-id>-execution-plan.md`
      to user, wait for approval, log answer to audit, re-spawn or proceed
      based on user feedback
 4. **Conditional Unit Decomposer** — fire if `units.length >= 2` from the

@@ -41,7 +41,7 @@ Every stage that generates questions MUST follow:
 
 When a stage creates a plan:
 - Generate plan with checkboxes `[ ]` for each step
-- Save to `aidlc-docs/{phase}/plans/{name}-plan.md`
+- Save to `aidlc-docs/{phase}/plans/<run-id>-{name}-plan.md`
 - Include all `[Answer]:` tags for user input
 - Wait for user to fill answers before proceeding
 

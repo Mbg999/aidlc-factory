@@ -28,7 +28,7 @@ Sequence:
    ```bash
    python3 scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
    ```
-   Produces `aidlc-docs/operations/review-report.md`.
+   Produces `aidlc-docs/operations/<run-id>-review-report.md`.
 7. Surface report to user. Approval gate:
    - **Fixes requested** → route units back through `/factory-build <run-id>`
    - **Approved** → auto-commit `docs(review): complete review report`,

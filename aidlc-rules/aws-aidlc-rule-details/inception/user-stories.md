@@ -34,12 +34,12 @@ Convert requirements into user-centered stories with acceptance criteria and per
 ## PART 1: PLANNING
 
 ### Step 1: Validate Need
-- Document assessment in `aidlc-docs/inception/plans/user-stories-assessment.md`
+- Document assessment in `aidlc-docs/inception/plans/<run-id>-user-stories-assessment.md`
 - Reference: request analysis, user impact, complexity, stakeholders, criteria met, decision + reasoning
 
 ### Step 2: Create Story Plan
 - Act as product owner; produce checkboxed plan
-- Save to `aidlc-docs/inception/plans/story-generation-plan.md`
+- Save to `aidlc-docs/inception/plans/<run-id>-story-generation-plan.md`
 
 ### Step 3: Generate Questions
 

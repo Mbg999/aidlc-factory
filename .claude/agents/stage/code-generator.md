@@ -59,7 +59,7 @@ Follow these rule files in order:
 Check `input.merged_plan_generate`. Two paths:
 
 **Standard path** (`merged_plan_generate: false` or absent):
-Produce `aidlc-docs/construction/plans/<unit-name>-code-generation-plan.md`
+Produce `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
 with task checkboxes per the construction rules. Each task is a thin slice.
 Emit `status: needs_human` with `sub_stage: plan` after the plan is written.
 **HALT.** The orchestrator will surface the plan, get approval, and re-spawn

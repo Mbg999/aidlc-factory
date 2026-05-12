@@ -141,7 +141,7 @@ C) Maybe
 
 #### Step 1: Create Question File
 ```markdown
-Create aidlc-docs/{phase-name}-questions.md with all questions
+Create aidlc-docs/<run-id>-{phase-name}-questions.md with all questions
 ```
 
 #### Step 2: Inform User
@@ -156,7 +156,7 @@ Wait for user to say "done", "completed", "finished", or similar.
 
 #### Step 4: Read and Analyze
 ```
-Read aidlc-docs/{phase-name}-questions.md
+Read aidlc-docs/<run-id>-{phase-name}-questions.md
 Extract all answers
 Validate completeness
 Proceed with analysis

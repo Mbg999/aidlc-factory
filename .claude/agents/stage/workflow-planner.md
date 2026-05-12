@@ -46,7 +46,7 @@ Steps:
 4. Generate a **Mermaid diagram** of the workflow. Validate syntax (Mermaid live editor rules — no unescaped special chars, fences ` ```mermaid `).
 5. Decompose into tasks (the `planning-and-task-breakdown` skill governs depth):
    - Each task has: `id`, `title`, `description`, `acceptance_criteria` (≥1), `depends_on[]`, `unit` (which unit it belongs to — used by `/factory-build`).
-6. Write `aidlc-docs/inception/plans/execution-plan.md` with: overview, Mermaid diagram, task tree (Markdown task list with checkboxes), acceptance criteria table.
+6. Write `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with: overview, Mermaid diagram, task tree (Markdown task list with checkboxes), acceptance criteria table.
 7. Emit `status: needs_human` for user approval before construction.
 
 ## Your output
@@ -55,7 +55,7 @@ Validate against `workflow-planner.output.v1.json`.
 
 Required fields:
 - `status: needs_human` (always — user must approve plan before building)
-- `artifacts`: `execution-plan.md` (kind: plan)
+- `artifacts`: `<run-id>-execution-plan.md` (kind: plan)
 - `units`: array of `{name, description, depends_on}` — informs `/factory-build` loop
 - `task_count`, `unit_count`, `depth` (planning depth, not requirements depth)
 - `mermaid_validated`: boolean

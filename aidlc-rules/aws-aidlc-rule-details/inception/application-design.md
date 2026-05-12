@@ -26,12 +26,12 @@ High-level components + service-layer design. Identifies components, defines int
 ## Steps
 
 ### Step 1: Analyze Context
-- Read `aidlc-docs/inception/requirements/requirements.md` and `aidlc-docs/inception/user-stories/stories.md`
+- Read `aidlc-docs/inception/requirements/<run-id>-requirements.md` and `aidlc-docs/inception/user-stories/<run-id>-stories.md`
 - Identify key business capabilities + functional areas
 
 ### Step 2: Create Application Design Plan
 - Cover: components, responsibilities, methods, services, dependencies
-- Save to `aidlc-docs/inception/plans/application-design-plan.md`
+- Save to `aidlc-docs/inception/plans/<run-id>-application-design-plan.md`
 
 ### Step 3: Mandatory Artifacts (include in plan)
 - [ ] `components.md` — component definitions + responsibilities
@@ -53,11 +53,11 @@ High-level components + service-layer design. Identifies components, defines int
 *(Per stage-conventions.md protocol — includes mandatory follow-up for vague answers)*
 
 ### Step 6: Generate Artifacts
-- `aidlc-docs/inception/application-design/components.md`
-- `aidlc-docs/inception/application-design/component-methods.md`
-- `aidlc-docs/inception/application-design/services.md`
-- `aidlc-docs/inception/application-design/component-dependency.md`
-- `aidlc-docs/inception/application-design/application-design.md` (consolidated)
+- `aidlc-docs/inception/application-design/<run-id>-components.md`
+- `aidlc-docs/inception/application-design/<run-id>-component-methods.md`
+- `aidlc-docs/inception/application-design/<run-id>-services.md`
+- `aidlc-docs/inception/application-design/<run-id>-component-dependency.md`
+- `aidlc-docs/inception/application-design/<run-id>-application-design.md` (consolidated)
 
 ### Step 7: Present Completion (emoji: 🏗️)
 Artifact path: `aidlc-docs/inception/application-design/`

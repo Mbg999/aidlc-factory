@@ -22,7 +22,7 @@ Decompose system into manageable units of work (two parts: Planning → Generati
 
 #### Step 1: Create Unit of Work Plan
 - Decompose system into manageable development units
-- Save to `aidlc-docs/inception/plans/unit-of-work-plan.md`
+- Save to `aidlc-docs/inception/plans/<run-id>-unit-of-work-plan.md`
 
 #### Step 2: Mandatory Artifacts (include in plan)
 - [ ] `unit-of-work.md` — unit definitions and responsibilities
@@ -46,7 +46,7 @@ Decompose system into manageable units of work (two parts: Planning → Generati
 *(Per stage-conventions.md protocol)*
 
 #### Step 5: Get Plan Approval
-- Present: "Unit of work plan complete. Review `aidlc-docs/inception/plans/unit-of-work-plan.md`. Ready to proceed?"
+- Present: "Unit of work plan complete. Review `aidlc-docs/inception/plans/<run-id>-unit-of-work-plan.md`. Ready to proceed?"
 - Do NOT proceed to generation without approval
 
 ---

@@ -27,7 +27,7 @@ Define non-functional requirements and tech-stack decisions per unit.
 
 ### Step 2: Create NFR Requirements Plan
 - Focus: scalability, performance, availability, security
-- Save to `aidlc-docs/construction/plans/{unit-name}-nfr-requirements-plan.md`
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-nfr-requirements-plan.md`
 
 ### Step 3: Generate Questions
 
@@ -45,8 +45,8 @@ Define non-functional requirements and tech-stack decisions per unit.
 *(Per stage-conventions.md protocol)*
 
 ### Step 5: Generate Artifacts
-- `aidlc-docs/construction/{unit-name}/nfr-requirements/nfr-requirements.md`
-- `aidlc-docs/construction/{unit-name}/nfr-requirements/tech-stack-decisions.md`
+- `aidlc-docs/construction/{unit-name}/nfr-requirements/<run-id>-nfr-requirements.md`
+- `aidlc-docs/construction/{unit-name}/nfr-requirements/<run-id>-tech-stack-decisions.md`
 
 ### Step 6: Present Completion (emoji: 📊)
 Artifact path: `aidlc-docs/construction/{unit-name}/nfr-requirements/`

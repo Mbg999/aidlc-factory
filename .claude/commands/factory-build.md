@@ -15,7 +15,7 @@ Sequence:
    completed with user approval.
 2. **Construction Phase Entry Checkpoint** (per core-workflow.md MANDATORY):
    audit.md has Inception entries; aidlc-state.md Current Stage correct;
-   `aidlc-docs/construction/plans/` exists; execution-plan.md loaded.
+    `aidlc-docs/construction/plans/` exists; `<run-id>-execution-plan.md` loaded.
 3. **Topo-sort `manifest.units[]`** by `depends_on` into layers. Layer 0 = no
    deps; Layer N = deps all in layers < N. Monolith → single virtual unit.
 4. **For each layer (sequential)**, run the parallel construction protocol:

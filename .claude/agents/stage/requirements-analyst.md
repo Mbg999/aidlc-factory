@@ -72,12 +72,12 @@ Execute Steps 1–6 of the rule file
 4. **Step 4** — Assess current requirements: search workspace for existing requirement docs, intent statements, etc. Convert non-markdown to markdown.
 5. **Step 5** — Completeness analysis across functional / non-functional / user scenarios / business / technical / quality attributes.
    - **5.1** — Extension opt-in prompts: scan `aidlc-rules/aws-aidlc-rules/extensions/**/*.opt-in.md`, append each `## Opt-In Prompt` question to your questions file.
-6. **Step 6** — Generate `aidlc-docs/inception/requirements/requirement-verification-questions.md` per the format in `common/question-format-guide.md`. Use `[Answer]:` tag format. MCQ where appropriate, with `X) Other` always present.
+6. **Step 6** — Generate `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` per the format in `common/question-format-guide.md`. Use `[Answer]:` tag format. MCQ where appropriate, with `X) Other` always present.
 
 **Output for Pass 1:**
 - `status: needs_human`
 - `needs_user_input: true`
-- `questions_artifact_path: aidlc-docs/inception/requirements/requirement-verification-questions.md`
+- `questions_artifact_path: aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`
 - `artifacts`: include the questions file with `kind: questions`
 - `request_classification`: populated
 - `depth`: populated
@@ -97,7 +97,7 @@ Triggered when your input contains either:
 
 Execute Step 7 of the rule file:
 
-7. Generate `aidlc-docs/inception/requirements/requirements.md`. Include:
+7. Generate `aidlc-docs/inception/requirements/<run-id>-requirements.md`. Include:
    - Intent analysis (from Step 2 classification)
    - Functional requirements
    - Non-functional requirements (per quality attributes from Step 5)

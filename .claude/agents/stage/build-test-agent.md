@@ -41,8 +41,8 @@ For the unit specified in input:
 3. Run tests → capture pass/fail counts, coverage if measured.
 4. On failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
 5. Produce:
-   - `aidlc-docs/construction/build-and-test/build-instructions.md` — reproducible command sequence
-   - `aidlc-docs/construction/build-and-test/build-and-test-summary.md` — results + coverage + failures + remediation
+   - `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md` — reproducible command sequence
+   - `aidlc-docs/construction/build-and-test/<run-id>-build-and-test-summary.md` — results + coverage + failures + remediation
 6. Mark approval gate (`status: needs_human`) so user reviews build/test results before next unit.
 
 ## Your output

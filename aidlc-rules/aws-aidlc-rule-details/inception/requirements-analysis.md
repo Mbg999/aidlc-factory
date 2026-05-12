@@ -68,7 +68,7 @@ After answers, record in `aidlc-docs/aidlc-state.md`:
 For opted-IN: load full rules (strip `.opt-in.md` → `.md`). For opted-OUT: never load.
 
 ### Step 6: Generate Clarifying Questions
-- ALWAYS create `aidlc-docs/inception/requirements/requirement-verification-questions.md` unless exceptionally clear
+- ALWAYS create `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` unless exceptionally clear
 - Cover functional, non-functional, user scenarios, business context
 - Use `[Answer]:` tag format; multiple-choice with X) Other
 - Wait for user answers; analyze; follow up if needed
@@ -77,7 +77,7 @@ For opted-IN: load full rules (strip `.opt-in.md` → `.md`). For opted-OUT: nev
 Do NOT proceed until all questions answered and validated.
 
 ### Step 7: Generate Requirements Document
-- Create `aidlc-docs/inception/requirements/requirements.md`
+- Create `aidlc-docs/inception/requirements/<run-id>-requirements.md`
 - Include: intent analysis, functional + non-functional reqs, user answers incorporated
 
 ### Step 8: Update State

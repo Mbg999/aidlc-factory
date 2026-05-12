@@ -33,8 +33,8 @@ python3 scripts/factory_validate.py \
 Follow `aidlc-rules/aws-aidlc-rule-details/inception/units-generation.md`.
 
 For each unit listed in the workflow planner output's `units[]`:
-1. Read tasks from execution-plan.md tagged with that unit.
-2. Generate `aidlc-docs/inception/units/<unit-name>.md` with:
+1. Read tasks from `<run-id>-execution-plan.md` tagged with that unit.
+2. Generate `aidlc-docs/inception/units/<run-id>-<unit-name>.md` with:
    - Unit purpose
    - Responsibilities
    - Public interfaces (HTTP/gRPC/library)

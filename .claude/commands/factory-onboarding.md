@@ -101,7 +101,7 @@ Fans out 4 reviewers in parallel:
 | performance | Big-O, N+1 queries, caching, bottlenecks |
 | simplifier | dead code, over-engineering, unnecessary abstraction |
 
-Results are merged into `aidlc-docs/operations/review-report.md`.
+Results are merged into `aidlc-docs/operations/<run-id>-review-report.md`.
 
 ---
 

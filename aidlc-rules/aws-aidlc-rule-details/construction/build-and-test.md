@@ -8,7 +8,7 @@
 
 ## Pre-Step Verification (MANDATORY — BLOCKING)
 Before proceeding to Step 1, verify:
-1. **Code gen plans exist**: `aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md` for EACH unit, with all checkboxes `[x]`
+1. **Code gen plans exist**: `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` for EACH unit, with all checkboxes `[x]`
 2. **Audit completeness**: `aidlc-docs/audit.md` has entries for every completed Code Generation unit (plan approval + completion + skill compliance)
 3. **Execution plan updated**: `aidlc-docs/inception/plans/` execution plan has `[x]` on all code-gen tasks
 4. **State file current**: `aidlc-state.md` `Current Stage` reflects the last completed Code Generation unit
@@ -42,21 +42,21 @@ Determine strategy per project needs:
 - **E2E tests**: Complete user workflows
 
 ### Step 2: Generate Build Instructions
-Create `aidlc-docs/construction/build-and-test/build-instructions.md`:
+Create `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md`:
 - Prerequisites (tool, deps, env vars, system reqs)
 - Build steps (install deps → configure env → build all → verify success)
 - Troubleshooting (dependency errors, compilation errors)
 
 ### Step 3: Generate Unit Test Instructions
-Create `aidlc-docs/construction/build-and-test/unit-test-instructions.md`:
+Create `aidlc-docs/construction/build-and-test/<run-id>-unit-test-instructions.md`:
 - Run command, expected results, coverage target, fix procedure for failures
 
 ### Step 4: Generate Integration Test Instructions
-Create `aidlc-docs/construction/build-and-test/integration-test-instructions.md`:
+Create `aidlc-docs/construction/build-and-test/<run-id>-integration-test-instructions.md`:
 - Test scenarios (unit interactions), env setup, execution, cleanup
 
 ### Step 5: Generate Performance Test Instructions (If Applicable)
-Create `aidlc-docs/construction/build-and-test/performance-test-instructions.md`:
+Create `aidlc-docs/construction/build-and-test/<run-id>-performance-test-instructions.md`:
 - Requirements (response time, throughput, concurrency, error rate)
 - Load tests, stress tests, analysis, optimization steps
 
@@ -67,7 +67,7 @@ Based on project requirements, generate:
 - E2E tests
 
 ### Step 7: Generate Test Summary
-Create `aidlc-docs/construction/build-and-test/build-and-test-summary.md`:
+Create `aidlc-docs/construction/build-and-test/<run-id>-build-and-test-summary.md`:
 - Build status + artifacts
 - Results per test category (unit, integration, performance, contract, security, e2e)
 - Overall status: ready for Operations?

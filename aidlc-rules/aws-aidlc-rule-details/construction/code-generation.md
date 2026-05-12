@@ -34,7 +34,7 @@ Generate code per unit in two parts:
 # PART 1: PLANNING
 
 1. **Analyze Unit Context**: Read design artifacts, story map, identify dependencies
-2. **Create Code Generation Plan** (`aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md`):
+2. **Create Code Generation Plan** (`aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md`):
    - Read workspace root from `aidlc-state.md`; determine code location per Critical Rules
    - Brownfield: review reverse-engineering notes for target files
    - Numbered steps with `[ ]` checkboxes covering:
@@ -73,7 +73,7 @@ Generate code per unit in two parts:
 ## Completion (Per stage-conventions.md protocol, emoji: 💻)
 
 **Pre-completion verification (BLOCKING)**:
-- Confirm `aidlc-docs/construction/plans/{unit-name}-code-generation-plan.md` exists and all checkboxes are `[x]`
+- Confirm `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` exists and all checkboxes are `[x]`
 - Confirm `aidlc-docs/audit.md` has Construction entries for this unit
 - Confirm all interactive UI elements have `data-testid` attributes
 - Confirm execution plan in `aidlc-docs/inception/plans/` has updated checkboxes for completed tasks
