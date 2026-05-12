@@ -85,6 +85,32 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
 12. **State update**: on `status: complete`, `python3 scripts/factory_run.py complete-stage <run-id> <stage> --next-stage <next>`. On `status: failed`, `factory_run.py fail-stage <run-id> <stage> --reason "<text>"`.
 13. If `status != complete`: halt and surface. If `status == needs_human`: pause, surface, wait, log to audit, then continue.
 
+## Structured Approval Format
+
+When surfacing an approval gate, present the stage output using this
+structured format instead of raw JSON:
+
+```
+⏸️  Approval — <Stage Label>
+
+Unit: <unit-name> (<N> tasks)
+  T1: <task description>     [✓ covers <AC-1>, <AC-2>]
+  T2: <task description>     [✓ covers <AC-3>]
+
+Estimated: <N> tokens, <N> min
+
+<optional context — key findings, risks, or diff highlights>
+
+[Approve] [Request Changes] [Cancel Layer]
+```
+
+The underlying handoff contract is at
+`.aidlc-orchestrator/contracts/approval.input.v1.json` — the structured
+format above maps directly to the contract's `units[]` array.
+
+This format is mandatory for every `needs_human` surfacing. Do NOT present
+raw JSON or YAML to the user.
+
 ## FAST_PATH — TINY tier execution
 
 Runs when the Triage Gate (Step 0) returns TINY (score 0-1). Bypasses ALL

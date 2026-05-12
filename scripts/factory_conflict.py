@@ -63,6 +63,7 @@ import argparse
 import ast
 import fnmatch
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -86,7 +87,7 @@ except ImportError:
     _tsjs = None  # type: ignore
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 
 _RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
@@ -153,6 +154,28 @@ def _list_locks(rd: Path) -> list[dict]:
     return locks
 
 
+def _is_stale(lock: dict, older_than_min: float | None = None) -> bool:
+    """Check if a lock has exceeded its TTL (stale).
+
+    If no ttl_minutes set, lock never expires.
+    If older_than_min provided, check if acquired_at is older than that.
+    """
+    ttl = lock.get("ttl_minutes")
+    if ttl is None:
+        return False
+    acquired = lock.get("acquired_at")
+    if not acquired:
+        return False
+    try:
+        acquired_dt = datetime.fromisoformat(acquired)
+    except (ValueError, TypeError):
+        return False
+    elapsed = (datetime.now(timezone.utc) - acquired_dt).total_seconds() / 60.0
+    if older_than_min is not None:
+        return elapsed > older_than_min
+    return elapsed > ttl
+
+
 def cmd_acquire(args: argparse.Namespace) -> None:
     validate_holder(args.holder)
     rd = run_dir(args.run_id)
@@ -163,6 +186,9 @@ def cmd_acquire(args: argparse.Namespace) -> None:
     conflicts: list[dict] = []
     for lock in existing:
         if lock["holder"] == args.holder:
+            continue
+        # Skip stale locks — treat as auto-released
+        if _is_stale(lock):
             continue
         for new_glob in args.globs:
             for existing_glob in lock["globs"]:
@@ -221,12 +247,15 @@ def cmd_acquire(args: argparse.Namespace) -> None:
             _die(f"{args.holder} already holds lock in mode {existing_mode}, "
                  f"cannot acquire {args.mode} — release first")
         merged_globs = list(dict.fromkeys(existing_globs + merged_globs))
-    lock_file.write_text(yaml.safe_dump({
+    lock_data = {
         "holder": args.holder,
         "acquired_at": now_iso(),
         "globs": merged_globs,
         "mode": args.mode,
-    }, sort_keys=False))
+    }
+    if args.ttl_minutes is not None:
+        lock_data["ttl_minutes"] = args.ttl_minutes
+    lock_file.write_text(yaml.safe_dump(lock_data, sort_keys=False))
     print(json.dumps({
         "granted": True,
         "holder": args.holder,
@@ -239,9 +268,22 @@ def cmd_acquire(args: argparse.Namespace) -> None:
 
 
 def cmd_release(args: argparse.Namespace) -> None:
-    validate_holder(args.holder)
     rd = run_dir(args.run_id)
-    lock_file = rd / "locks" / f"{args.holder}.yaml"
+    locks_dir = rd / "locks"
+    if not locks_dir.exists():
+        print("no locks directory (idempotent)")
+        return
+    if args.stale:
+        cleaned = 0
+        for f in sorted(locks_dir.glob("*.yaml")):
+            lock = yaml.safe_load(f.read_text()) or {}
+            if _is_stale(lock, older_than_min=args.older_than):
+                f.unlink()
+                cleaned += 1
+        print(f"CLEANED {cleaned} stale lock(s) (older than {args.older_than}m)")
+        return
+    validate_holder(args.holder)
+    lock_file = locks_dir / f"{args.holder}.yaml"
     if lock_file.exists():
         lock_file.unlink()
         print(f"RELEASED: {args.holder}")
@@ -259,10 +301,13 @@ def cmd_list(args: argparse.Namespace) -> None:
         print("no active locks")
         return
     for lock in locks:
+        ttl = lock.get("ttl_minutes")
+        ttl_str = f" ttl={ttl}m" if ttl is not None else ""
+        stale = " STALE" if _is_stale(lock) else ""
         print(
             f"{lock['holder']:30s} "
             f"{lock.get('mode','write'):6s} "
-            f"{','.join(lock['globs'])}"
+            f"{','.join(lock['globs'])}{ttl_str}{stale}"
         )
 
 
@@ -780,12 +825,19 @@ def main() -> None:
     p_acq.add_argument("run_id")
     p_acq.add_argument("holder")
     p_acq.add_argument("--mode", choices=["write", "read"], default="write")
+    p_acq.add_argument("--ttl-minutes", type=float, default=None,
+                       help="lock auto-expires after N minutes (default: never)")
     p_acq.add_argument("globs", nargs="+")
     p_acq.set_defaults(func=cmd_acquire)
 
     p_rel = sub.add_parser("release", help="release all locks held by holder")
     p_rel.add_argument("run_id")
-    p_rel.add_argument("holder")
+    p_rel.add_argument("holder", nargs="?", default=None,
+                       help="holder name (ignored if --stale is set)")
+    p_rel.add_argument("--stale", action="store_true",
+                       help="release all stale locks (by TTL expiry)")
+    p_rel.add_argument("--older-than", type=float, default=120.0,
+                       help="minutes since acquired to consider stale (default: 120)")
     p_rel.set_defaults(func=cmd_release)
 
     p_list = sub.add_parser("list", help="list active locks")

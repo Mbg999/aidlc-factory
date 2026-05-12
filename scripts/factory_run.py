@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -72,9 +73,10 @@ except ImportError:
     sys.exit(2)
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 AIDLC_DOCS = REPO_ROOT / "aidlc-docs"
+SCRIPTS_VERSION = REPO_ROOT / "scripts" / "VERSION"
 
 PHASE_ORDER = [
     "workspace-scout",
@@ -182,6 +184,9 @@ def cmd_init(args: argparse.Namespace) -> None:
     if manifest_path(args.run_id).exists() and not args.force:
         _die(f"manifest already exists at {manifest_path(args.run_id)}; use --force")
 
+    orch_version = "unknown"
+    if SCRIPTS_VERSION.exists():
+        orch_version = SCRIPTS_VERSION.read_text().strip()
     manifest = {
         "run_id": args.run_id,
         "started_at": now_iso(),
@@ -192,6 +197,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         "completed_stages": [],
         "skipped_stages": [],
         "failed_stages": [],
+        "orchestrator_version": orch_version,
         "project_profile": {"ui": False, "api": False, "has_legacy": False},
         "units": [],
         "skill_paths": {},
@@ -216,6 +222,65 @@ def cmd_set(args: argparse.Namespace) -> None:
     print(f"updated {len(args.field or [])} field(s)")
 
 
+def _reconcile_state(run_id: str) -> dict:
+    """Check for drift between manifest, timeline, and budget.
+
+    Returns a dict with drift info:
+      completed_not_in_timeline: stages in manifest but no timeline event
+      budget_calls_not_in_timeline: budget deducts with no matching event
+      last_action: last known action from manifest
+    """
+    drift: dict = {"drift": False, "details": []}
+    manifest_p = manifest_path(run_id)
+    if not manifest_p.exists():
+        return drift
+    manifest = yaml.safe_load(manifest_p.read_text()) or {}
+
+    timeline_p = timeline_path(run_id)
+    timeline_stages: set[str] = set()
+    if timeline_p.exists():
+        for line in timeline_p.read_text().splitlines():
+            try:
+                e = json.loads(line)
+                if e.get("evt") == "stage_complete" and e.get("stage"):
+                    timeline_stages.add(e["stage"])
+            except json.JSONDecodeError:
+                continue
+
+    completed = set(manifest.get("completed_stages", []))
+    missing = completed - timeline_stages
+    if missing:
+        drift["drift"] = True
+        drift["details"].append({
+            "kind": "completed_not_in_timeline",
+            "stages": sorted(missing),
+        })
+
+    budget_p = run_budget_path(run_id) if False else None
+    if budget_p and budget_p.exists():
+        try:
+            budget = yaml.safe_load(budget_p.read_text()) or {}
+            events = budget.get("events", [])
+            for evt in events:
+                if evt.get("action") == "deduct":
+                    stage = evt.get("stage")
+                    if stage and stage not in timeline_stages and stage not in completed:
+                        drift["drift"] = True
+                        drift["details"].append({
+                            "kind": "budget_deduct_no_complete",
+                            "stage": stage,
+                            "ts": evt.get("ts"),
+                        })
+        except (ValueError, TypeError):
+            pass
+
+    last_action = manifest.get("last_action_reason")
+    if last_action:
+        drift["last_action"] = last_action
+
+    return drift
+
+
 def cmd_complete_stage(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
     if args.stage in manifest["completed_stages"]:
@@ -223,6 +288,8 @@ def cmd_complete_stage(args: argparse.Namespace) -> None:
         return
     manifest["completed_stages"].append(args.stage)
     manifest["last_checkpoint_at"] = now_iso()
+    if args.reason:
+        manifest["last_action_reason"] = args.reason
     if args.next_stage:
         manifest["current_stage"] = args.next_stage
     save_manifest_atomic(args.run_id, manifest)
@@ -232,6 +299,7 @@ def cmd_complete_stage(args: argparse.Namespace) -> None:
         "run_id": args.run_id,
         "stage": args.stage,
         "next_stage": args.next_stage,
+        "reason": args.reason,
     })
     print(f"marked {args.stage} complete")
 
@@ -264,8 +332,87 @@ def cmd_emit(args: argparse.Namespace) -> None:
     print(json.dumps(event))
 
 
+def _print_latency(run_id: str, manifest: dict) -> None:
+    timeline_p = timeline_path(run_id)
+    if not timeline_p.exists():
+        print("no timeline available")
+        return
+    events: list[dict] = []
+    for line in timeline_p.read_text().splitlines():
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    ne, sp, sd = None, None, None
+    for e in events:
+        if e.get("evt") == "needs_human":
+            ne = e.get("ts")
+        elif e.get("evt") == "spawn_end":
+            sp = e.get("ts")
+        elif e.get("evt") == "user_decision":
+            sd = e.get("ts")
+
+    lines = [f"Approval Gate Latency: {run_id}", "─" * 60]
+    if ne and sd:
+        try:
+            from datetime import datetime as dt
+            dur = (dt.fromisoformat(sd) - dt.fromisoformat(ne)).total_seconds() / 60.0
+            lines.append(f"  needs_human → user_decision:  {dur:.1f}m")
+        except (ValueError, TypeError):
+            lines.append("  needs_human → user_decision:  parse error")
+    elif ne:
+        lines.append("  needs_human → user_decision:  pending (no decision yet)")
+    if sp and sd:
+        try:
+            from datetime import datetime as dt
+            total = (dt.fromisoformat(sd) - dt.fromisoformat(sp)).total_seconds() / 60.0
+            lines.append(f"  spawn_end → user_decision:   {total:.1f}m")
+        except (ValueError, TypeError):
+            lines.append("  spawn_end → user_decision:    parse error")
+
+    # Per-stage latency from timeline
+    stage_events: dict[str, dict] = {}
+    for e in events:
+        stage = e.get("stage")
+        if not stage:
+            continue
+        if stage not in stage_events:
+            stage_events[stage] = {}
+        if e["evt"] in ("spawn_start", "stage_start"):
+            stage_events[stage]["start"] = e["ts"]
+        elif e["evt"] in ("spawn_end", "stage_complete"):
+            stage_events[stage]["end"] = e["ts"]
+        elif e["evt"] in ("needs_human",):
+            stage_events[stage]["needs_human"] = e["ts"]
+        elif e["evt"] in ("user_decision",):
+            stage_events[stage]["decision"] = e["ts"]
+
+    for stage, ts in sorted(stage_events.items()):
+        if ts.get("start") and ts.get("end"):
+            try:
+                from datetime import datetime as dt
+                dur = (dt.fromisoformat(ts["end"]) - dt.fromisoformat(ts["start"])).total_seconds() / 60.0
+                lines.append(f"  {stage:30s}  {dur:.1f}m")
+            except (ValueError, TypeError):
+                pass
+        if ts.get("needs_human") and ts.get("decision"):
+            try:
+                from datetime import datetime as dt
+                gate = (dt.fromisoformat(ts["decision"]) - dt.fromisoformat(ts["needs_human"])).total_seconds() / 60.0
+                lines.append(f"  {stage:30s}  └─ approval gate: {gate:.1f}m")
+            except (ValueError, TypeError):
+                pass
+
+    lines.append("─" * 60)
+    print("\n".join(lines))
+
+
 def cmd_status(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
+    if args.latency:
+        _print_latency(args.run_id, manifest)
+        return
     if args.json:
         print(json.dumps(manifest, indent=2))
     else:
@@ -323,6 +470,19 @@ def cmd_resume(args: argparse.Namespace) -> None:
         partial = sorted(handoffs.glob(f"{nxt}*.output.yaml"))
         if partial:
             result["partial_outputs"] = [str(p.relative_to(REPO_ROOT)) for p in partial]
+
+    # Reconcile state drift
+    result["reconcile"] = _reconcile_state(args.run_id)
+
+    # Version compatibility check
+    if SCRIPTS_VERSION.exists():
+        current_ver = SCRIPTS_VERSION.read_text().strip()
+        manifest_ver = manifest.get("orchestrator_version", "0.0.0")
+        if manifest_ver != current_ver:
+            result["version_warning"] = (
+                f"manifest built with orchestrator v{manifest_ver}, "
+                f"current scripts are v{current_ver}"
+            )
 
     print(json.dumps(result, indent=2))
     append_event(args.run_id, {
@@ -606,6 +766,102 @@ def _print_event(line: str, as_json: bool) -> None:
         print(f"!malformed: {line}")
 
 
+def cmd_graph(args: argparse.Namespace) -> None:
+    """Print a visual timeline bar chart of a completed run."""
+    manifest = load_manifest(args.run_id)
+    timeline_p = timeline_path(args.run_id)
+    if not timeline_p.exists():
+        _die(f"no timeline at {timeline_p}")
+
+    # Parse events
+    events: list[dict] = []
+    for line in timeline_p.read_text().splitlines():
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    # Build per-stage stats
+    stage_stats: dict[str, dict] = {}
+    stage_order: list[str] = []
+    for evt in events:
+        stage = evt.get("stage") or evt.get("evt", "")
+        if stage not in stage_stats:
+            stage_stats[stage] = {"start": None, "end": None, "evt": evt.get("evt")}
+            stage_order.append(stage)
+        if evt["evt"] in ("spawn_start", "run_init", "stage_start"):
+            stage_stats[stage]["start"] = evt["ts"]
+        elif evt["evt"] in ("stage_complete", "spawn_end"):
+            stage_stats[stage]["end"] = evt["ts"]
+            stage_stats[stage]["status"] = "done"
+        elif evt["evt"] == "stage_failed":
+            stage_stats[stage]["status"] = "failed"
+        elif evt["evt"] == "cost_govern_skip":
+            stage_stats[stage]["status"] = "skipped"
+
+    completed = set(manifest.get("completed_stages", []))
+    skipped = set(manifest.get("skipped_stages", []))
+    failed = set(s.get("stage") for s in manifest.get("failed_stages", []))
+
+    budget_p = RUNS_ROOT / args.run_id / "budget.yaml"
+    token_max = 5_000_000
+    wall_max = 240
+    token_used = 0
+    wall_used = 0.0
+    if budget_p and budget_p.exists():
+        try:
+            budget_data = yaml.safe_load(budget_p.read_text()) or {}
+            token_used = int(budget_data.get("used", {}).get("tokens", 0))
+            wall_used = float(budget_data.get("used", {}).get("wall_clock_min", 0.0))
+            token_max = int(budget_data.get("budget", {}).get("tokens_max", token_max))
+            wall_max = float(budget_data.get("budget", {}).get("wall_clock_max_min", wall_max))
+        except (ValueError, TypeError):
+            pass
+
+    # Only show PHASE_ORDER stages
+    bar_width = 12
+    lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "─" * 60]
+    for stage in PHASE_ORDER:
+        stats = stage_stats.get(stage, {})
+        status = "  "
+        prefix = "  "
+        if stage in completed:
+            status = "✅"
+        elif stage in failed:
+            status = "❌"
+        elif stage in skipped:
+            status = "⚠️"
+        elif manifest.get("current_stage") == stage:
+            status = "▶️ "
+
+        duration_str = ""
+        if stats.get("start") and stats.get("end"):
+            try:
+                from datetime import datetime as dt
+                s = dt.fromisoformat(stats["start"])
+                e = dt.fromisoformat(stats["end"])
+                dur = (e - s).total_seconds() / 60.0
+                duration_str = f"{dur:.1f}m"
+                fill = min(int(dur / 5), bar_width)
+                bar = "█" * fill + "░" * (bar_width - fill)
+            except (ValueError, TypeError):
+                bar = "░" * bar_width
+        else:
+            bar = "░" * bar_width
+
+        lines.append(f"  {stage:30s} {bar} {duration_str:8s} {status}")
+
+    token_pct = round((token_used / token_max) * 100, 1) if token_max > 0 else 0
+    wall_pct = round((wall_used / wall_max) * 100, 1) if wall_max > 0 else 0
+    lines.append("─" * 60)
+    lines.append(
+        f"Budget: {token_used:,} / {token_max:,} tokens ({token_pct}%)  "
+        f"{wall_used} / {wall_max} min ({wall_pct}%)"
+    )
+    lines.append("")
+    print("\n".join(lines))
+
+
 def cmd_tail(args: argparse.Namespace) -> None:
     p = timeline_path(args.run_id)
     if not p.exists():
@@ -647,6 +903,7 @@ def main() -> None:
     p_cs.add_argument("run_id")
     p_cs.add_argument("stage")
     p_cs.add_argument("--next-stage")
+    p_cs.add_argument("--reason", help="reason for completion (crash resilience marker)")
     p_cs.set_defaults(func=cmd_complete_stage)
 
     p_fs = sub.add_parser("fail-stage")
@@ -665,6 +922,8 @@ def main() -> None:
     p_status = sub.add_parser("status")
     p_status.add_argument("run_id")
     p_status.add_argument("--json", action="store_true")
+    p_status.add_argument("--latency", action="store_true",
+                          help="print approval gate latency breakdown")
     p_status.set_defaults(func=cmd_status)
 
     p_resume = sub.add_parser("resume")
@@ -679,6 +938,10 @@ def main() -> None:
     p_adopt = sub.add_parser("adopt-legacy")
     p_adopt.add_argument("--repo-slug")
     p_adopt.set_defaults(func=cmd_adopt_legacy)
+
+    p_graph = sub.add_parser("graph", help="visual timeline of a run")
+    p_graph.add_argument("run_id")
+    p_graph.set_defaults(func=cmd_graph)
 
     p_tail = sub.add_parser("tail")
     p_tail.add_argument("run_id")

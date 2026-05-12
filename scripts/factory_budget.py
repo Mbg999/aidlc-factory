@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -56,7 +57,7 @@ except ImportError:
     sys.exit(2)
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 DEFAULT_BUDGET = REPO_ROOT / ".aidlc-orchestrator" / "budgets" / "default.yaml"
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 
@@ -238,6 +239,57 @@ def cmd_deduct(args: argparse.Namespace) -> None:
     print(f"deducted {tokens:,} tokens, {args.wall_min}m for {args.stage}; remaining tokens: {remaining:,}")
 
 
+def cmd_trends(args: argparse.Namespace) -> None:
+    """Aggregate per-stage budget usage across runs matching a prefix."""
+    runs_dir = RUNS_ROOT
+    if not runs_dir.exists():
+        print("no runs directory found", file=sys.stderr)
+        sys.exit(1)
+
+    matching = sorted(runs_dir.glob(f"{args.prefix}*/budget.yaml"))
+    if not matching:
+        print(f"no runs matching prefix {args.prefix!r}", file=sys.stderr)
+        sys.exit(1)
+
+    stage_data: dict[str, list[dict]] = {}
+    for bp in matching:
+        try:
+            state = yaml.safe_load(bp.read_text()) or {}
+        except Exception:
+            continue
+        per_stage = state.get("per_stage_used", {}) or {}
+        for stage, usage in per_stage.items():
+            stage_data.setdefault(stage, []).append(usage)
+
+    if not stage_data:
+        print("no per-stage usage data found in any run", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"{'Stage':30s} {'Avg tokens':>12s} {'Avg wall':>10s} {'Runs':>6s}")
+    print("-" * 60)
+    for stage in sorted(stage_data.keys()):
+        entries = stage_data[stage]
+        avg_tokens = int(sum(e.get("tokens", 0) for e in entries) / len(entries))
+        avg_wall = round(sum(e.get("wall_min", 0.0) for e in entries) / len(entries), 1)
+        print(f"{stage:30s} {avg_tokens:>12,d} {avg_wall:>8.1f}m {len(entries):>6d}")
+
+    # Store aggregate stats
+    stats_dir = REPO_ROOT / ".aidlc-orchestrator" / "stats"
+    if not args.dry_run:
+        stats_dir.mkdir(parents=True, exist_ok=True)
+        agg = {}
+        for stage, entries in stage_data.items():
+            agg[stage] = {
+                "avg_tokens": int(sum(e.get("tokens", 0) for e in entries) / len(entries)),
+                "avg_wall_min": round(sum(e.get("wall_min", 0.0) for e in entries) / len(entries), 1),
+                "runs": len(entries),
+            }
+        (stats_dir / "per-stage.yaml").write_text(
+            yaml.safe_dump(agg, default_flow_style=False, sort_keys=False)
+        )
+        print(f"\n(wrote aggregate to {stats_dir / 'per-stage.yaml'})")
+
+
 def cmd_status(args: argparse.Namespace) -> None:
     state = load_run_budget(args.run_id)
     print(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
@@ -267,6 +319,11 @@ def main() -> None:
     p_status = sub.add_parser("status", help="print current budget state")
     p_status.add_argument("run_id")
     p_status.set_defaults(func=cmd_status)
+
+    p_trends = sub.add_parser("trends", help="aggregate per-stage usage across runs")
+    p_trends.add_argument("prefix", help="run-id prefix to match (e.g. 2026-05)")
+    p_trends.add_argument("--dry-run", action="store_true", help="print trends without writing aggregate")
+    p_trends.set_defaults(func=cmd_trends)
 
     args = p.parse_args()
     args.func(args)

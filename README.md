@@ -499,7 +499,7 @@ python scripts/install_aidlc.py --tool copilot --dest /path/to/project --yes --w
 
 Key options:
 
-- `--tool`: target agent (one of `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `other`)
+- `--tool`: target agent (one of `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `opencode`, `codex`, `windsurf`, `other`)
 - `--dest`: destination path to install rules into (defaults to current directory; interactive prompt if omitted)
 - `--dry-run`: show planned changes without performing them
 - `--yes`: assume yes for confirmation prompts (useful for scripting / CI)
@@ -733,7 +733,9 @@ Both workflows read the **same rule files** — the rule corpus is the single so
 **Slash commands** (Claude Code, after install):
 
 | Command | Stage(s) | Notes |
-|---|---|---|
+|---|---|---|---|
+| `/factory-help [command]` | — | Command reference |
+| `/factory-self <task>` | Full pipeline targeting orchestrator's own codebase | Self-hosting mode |
 | `/factory-spec <feature>` | workspace-scout + (reverse-engineer ask) + requirements-analyst | Phase 0 entrypoint |
 | `/factory-plan <run-id>` | workflow-planner + (optional) unit-decomposer + (optional) story-writer | Phase 1 |
 | `/factory-build <run-id>` | code-generator × N + build-test-agent × N (layer-parallel with locks + AST drift checks) | Phase 5 parallel construction |
@@ -754,7 +756,7 @@ This copies:
 - `.claude/commands/factory-*.md` — 7 slash commands
 - `.aidlc-orchestrator/contracts/` — 20 JSON Schema handoff contracts
 - `.aidlc-orchestrator/budgets/default.yaml` — Cost Governor policy
-- `scripts/factory_{validate,budget,merge_reviews,conflict,run}.py` — runtime
+- `scripts/factory_{validate,budget,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache}.py` — runtime
 - `.gitignore` entries for `.aidlc-orchestrator/runs/` and `.aidlc-orchestrator/knowledge/`
 - A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
 
@@ -774,7 +776,11 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 | [`adapters/cursor.md`](aidlc-rules/adapters/cursor.md)            | Cursor          |
 | [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md)  | Claude Code     |
 | [`adapters/cline.md`](aidlc-rules/adapters/cline.md)              | Cline           |
-| [`adapters/generic.md`](aidlc-rules/adapters/generic.md)          | Any other agent |
+| [`adapters/generic.md`](aidlc-rules/adapters/generic.md)          | Codex CLI, Windsurf, any other agent |
+
+## Environment Variables
+
+- `AIDLC_ROOT` — Optional override for the repo root path used by factory scripts (`scripts/factory_*.py`). Defaults to the parent of the `scripts/` directory. Example: `AIDLC_ROOT=/path/to/repo python scripts/factory_conflict.py ...`
 
 ## Usage
 
@@ -1013,6 +1019,7 @@ AGENTS.md
 .aidlc-orchestrator/contracts/
 .aidlc-orchestrator/budgets/default.yaml
 scripts/factory_*.py
+scripts/VERSION
 ```
 
 **Optional - Add to `.gitignore` (if needed):**
@@ -1024,6 +1031,8 @@ scripts/factory_*.py
 # Orchestrator runtime state (per-run; never commit)
 .aidlc-orchestrator/runs/
 .aidlc-orchestrator/knowledge/
+.aidlc-orchestrator/build-cache/
+.aidlc-orchestrator/stats/
 ```
 
 The installer adds the runtime-state lines to your project's `.gitignore` automatically when you use `--with-orchestrator`.
@@ -1103,8 +1112,10 @@ The agent will download the latest release, create the correct config file for y
 | Cursor Rules Documentation                          | [Docs](https://cursor.com/docs/context/rules)                                                                                 |
 | Claude Code Documentation                           | [GitHub](https://github.com/anthropics/claude-code)                                                                           |
 | GitHub Copilot Documentation                        | [Docs](https://docs.github.com/en/copilot)                                                                                    |
-| Working with AI-DLC (interaction patterns and tips) | [docs/WORKING-WITH-AIDLC.md](docs/WORKING-WITH-AIDLC.md)                                                                      |
-| Contributing Guidelines                             | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                            |
+| Working with AI-DLC (interaction patterns and tips) | [docs/WORKING-WITH-AIDLC.md](docs/WORKING-WITH-AIDLC.md) |
+| Orchestrator Troubleshooting Guide                  | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)        |
+| Contract Schemas Reference                          | [.aidlc-orchestrator/contracts/REFERENCE.md](.aidlc-orchestrator/contracts/REFERENCE.md) |
+| Contributing Guidelines                             | [CONTRIBUTING.md](CONTRIBUTING.md)                        |
 | Code of Conduct                                     | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)                                                                                      |
 
 ---

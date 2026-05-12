@@ -72,3 +72,33 @@ jobs:
           SKILL_COUNT=$(find /tmp/aidlc-copilot/.agents/skills -name "SKILL.md" | wc -l)
           echo "Installed $SKILL_COUNT skill files"
           test "$SKILL_COUNT" -gt 0
+
+  orchestrator-scripts:
+    name: Orchestrator Script Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 #v5.6.0
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install pyyaml jsonschema pytest
+      - name: Run orchestrator script tests
+        run: pytest tests/ --tb=short -v
+      - name: Smoke test triage
+        run: python3 scripts/factory_triage.py "add healthz endpoint" | grep TINY
+      - name: Smoke test triage dry-run
+        run: python3 scripts/factory_triage.py "refactor auth" --dry-run | grep "FULL pipeline"
+      - name: Smoke test triage explain
+        run: python3 scripts/factory_triage.py "add healthz" --explain 2>&1 | grep "TRIAGE"
+      - name: Smoke test secretscan (clean file)
+        run: python3 scripts/factory_secretscan.py .claude/commands/factory-spec.md
+      - name: Smoke test secretscan (with mock secret)
+        run: |
+          echo '{"body": "My API key is sk-abc123def456ghi789jkl"}' > /tmp/test-secret.json
+          python3 scripts/factory_secretscan.py /tmp/test-secret.json --json | grep secrets_found
+          rm /tmp/test-secret.json
+      - name: Smoke test audit writes
+        run: python3 scripts/factory_audit_writes.py test-run unit-a --locks src/** --repo-root . --json | grep '"status": "ok"'

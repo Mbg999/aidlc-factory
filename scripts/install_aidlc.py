@@ -100,6 +100,10 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_merge_reviews.py",
     "factory_conflict.py",
     "factory_run.py",
+    "factory_triage.py",
+    "factory_audit_writes.py",
+    "factory_secretscan.py",
+    "factory_build_cache.py",
 ]
 
 # Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning
@@ -270,15 +274,44 @@ def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, d
         print(f"  created {claude_md_path.name} with orchestrator pointer")
 
 
+def _tool_agent_dir(tool: str) -> str:
+    """Return the agent directory for the given tool."""
+    return {
+        "claude": ".claude/agents",
+        "opencode": ".opencode/agents",
+        "codex": ".codex/agents",
+    }.get(tool, ".aidlc-orchestrator/agents")
+
+
+def _tool_commands_dir(tool: str) -> str:
+    """Return the commands directory for the given tool."""
+    return {
+        "claude": ".claude/commands",
+        "opencode": ".opencode/commands",
+        "codex": ".codex/commands",
+    }.get(tool, ".aidlc-orchestrator/commands")
+
+
+def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
+    """Return the workflow doc path for tools that have one, or None."""
+    mapping = {
+        "claude": target_root / "CLAUDE.md",
+        "opencode": target_root / "AGENTS.md",
+        "copilot": target_root / ".github" / "copilot-instructions.md",
+    }
+    return mapping.get(tool)
+
+
 def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run: bool) -> None:
     """Install AIDLC Orchestrator (Phases 0-6) artifacts.
 
     Layers:
       1. Always (any tool): factory scripts, contracts, default budget
-      2. Claude Code only: subagents (.claude/agents/) and slash commands
-      3. Always: append Python deps to target's requirements.txt
+      2. Tool-specific: subagents + slash commands (Claude Code, OpenCode, Codex CLI)
+      3. Reference copy (Cursor, Cline, Windsurf, other): agents + commands under .aidlc-orchestrator/
+      4. Always: Python deps, gitignore, workflow doc pointer
     """
-    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) ---")
+    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tool} ---")
 
     # Layer 1: factory scripts (any tool)
     src_scripts = repo_root / "scripts"
@@ -310,49 +343,22 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
         print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
         copy_file(src_budget, dst_budget, dry_run)
 
-    # Layer 2: Claude-Code / OpenCode subagents + slash commands
-    if tool == "claude":
-        for tree in ORCHESTRATOR_CLAUDE_TREES:
-            src = repo_root / tree
-            if not src.exists():
-                continue
-            dst = target_root / tree
-            print(f"  subagents -> {tree}/")
-            copy_tree(src, dst, dry_run)
+    # Layer 2: tool-specific subagents + slash commands
+    agent_dir = _tool_agent_dir(tool)
+    cmd_dir = _tool_commands_dir(tool)
 
-        src_cmds = repo_root / ".claude" / "commands"
-        dst_cmds = target_root / ".claude" / "commands"
-        if src_cmds.exists():
-            print(f"  slash commands -> .claude/commands/factory-*.md")
-            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
-    elif tool == "opencode":
-        src_agents = repo_root / ".claude" / "agents"
-        dst_agents = target_root / ".opencode" / "agents"
-        if src_agents.exists():
-            print(f"  subagents -> .opencode/agents/")
-            copy_tree(src_agents, dst_agents, dry_run)
+    src_agents = repo_root / ".claude" / "agents"
+    dst_agents = target_root / agent_dir
+    if src_agents.exists():
+        print(f"  subagents -> {agent_dir}/")
+        copy_tree(src_agents, dst_agents, dry_run)
 
-        src_cmds = repo_root / ".claude" / "commands"
-        dst_cmds = target_root / ".opencode" / "commands"
-        if src_cmds.exists():
-            print(f"  slash commands -> .opencode/commands/factory-*.md")
-            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
-    else:
-        print(f"  (no native subagent/command system — copying to .aidlc-orchestrator/ for reference)")
-        src_agents = repo_root / ".claude" / "agents"
-        dst_agents = target_root / ".aidlc-orchestrator" / "agents"
-        if src_agents.exists():
-            print(f"  subagents -> .aidlc-orchestrator/agents/")
-            copy_tree(src_agents, dst_agents, dry_run)
-
-        src_cmds = repo_root / ".claude" / "commands"
-        dst_cmds = target_root / ".aidlc-orchestrator" / "commands"
-        if src_cmds.exists():
-            print(f"  slash commands -> .aidlc-orchestrator/commands/factory-*.md")
-            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+    src_cmds = repo_root / ".claude" / "commands"
+    dst_cmds = target_root / cmd_dir
+    if src_cmds.exists():
+        print(f"  slash commands -> {cmd_dir}/factory-*.md")
+        for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+            copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
     # Layer 3: Python deps
     print(f"  Python deps -> requirements.txt")
@@ -362,22 +368,12 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     print(f"  runtime state -> .gitignore")
     update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
 
-    # Layer 3: workflow doc pointer (Claude Code and OpenCode — AGENTS.md is
-    # the canonical workflow doc for OpenCode; other tools have varied shapes
-    # — copilot uses .github/copilot-instructions.md, cursor uses
-    # .cursor/rules/*.mdc, etc.)
-    if tool == "claude":
-        print(f"  workflow pointer -> CLAUDE.md")
+    # Layer 3: workflow doc pointer
+    wf_doc = _tool_workflow_doc(tool, target_root)
+    if wf_doc:
+        print(f"  workflow pointer -> {wf_doc.name}")
         update_workflow_doc_pointer(
-            target_root / "CLAUDE.md",
-            ORCHESTRATOR_CLAUDE_POINTER_MARKER,
-            ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
-            dry_run,
-        )
-    elif tool == "opencode":
-        print(f"  workflow pointer -> AGENTS.md")
-        update_workflow_doc_pointer(
-            target_root / "AGENTS.md",
+            wf_doc,
             ORCHESTRATOR_CLAUDE_POINTER_MARKER,
             ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
             dry_run,
@@ -385,13 +381,7 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
 
     if not dry_run:
         print(f"\n  Next: pip install -r requirements.txt")
-        if tool == "claude":
-            print(f"  Then: invoke /factory-spec <feature> in Claude Code to start a run.")
-        elif tool == "opencode":
-            print(f"  Then: invoke /factory-spec <feature> in OpenCode to start a run.")
-        else:
-            print(f"  Note: factory scripts are usable manually for validation;")
-            print(f"  full multi-agent flow requires Claude Code or OpenCode.")
+        print(f"  Then: invoke /factory-spec <feature> in the tool to start a run.")
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
@@ -531,6 +521,20 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         dest_details = target_root / ".aidlc-rule-details"
         copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
+    elif tool == "codex":
+        dest = target_root / "AGENTS.md"
+        print(f"Installing for Codex CLI: {dest}")
+        write_file(dest, core_content, dry_run)
+        dest_details = target_root / ".aidlc-rule-details"
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
+
+    elif tool == "windsurf":
+        dest_rules_file = target_root / ".windsurf" / "rules" / "ai-dlc-workflow.md"
+        print(f"Installing for Windsurf: {dest_rules_file}")
+        write_file(dest_rules_file, core_content, dry_run)
+        dest_details = target_root / ".aidlc-rule-details"
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
+
     elif tool == "copilot":
         dest = target_root / ".github" / "copilot-instructions.md"
         print(f"Installing for GitHub Copilot: {dest}")
@@ -571,6 +575,8 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         "kiro": "generic.md",
         "amazonq": "generic.md",
         "opencode": "generic.md",
+        "codex": "generic.md",
+        "windsurf": "generic.md",
     }
     adapter_file = adapters_dir / adapter_map.get(tool, "generic.md")
     if adapter_file.exists():
@@ -588,7 +594,7 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for a selected agent tool")
-    p.add_argument("--tool", choices=["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "other"], required=False,
+    p.add_argument("--tool", choices=["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "codex", "windsurf", "other"], required=False,
                    help="Target agent/tool to install rules for")
     p.add_argument("--yes", action="store_true", help="Assume yes for confirmations")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
@@ -627,7 +633,7 @@ def ask_orchestrator(tool: str) -> bool:
 
 
 def interactive_choose() -> str:
-    choices = ["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "other"]
+    choices = ["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "codex", "windsurf", "other"]
     print("Select the agentic coding tool to install AI-DLC for:")
     for i, c in enumerate(choices, 1):
         print(f" {i}) {c}")

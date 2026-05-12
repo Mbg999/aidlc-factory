@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -190,10 +191,24 @@ def main() -> None:
     p.add_argument("request", help="User request text")
     p.add_argument("--explain", action="store_true",
                    help="Print human-readable explanation to stderr")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Print human-readable summary instead of JSON (for /factory-spec)")
     args = p.parse_args()
 
     total, factors, explanation = score_request(args.request)
     tier, pipeline, exit_code = tier_from_score(total)
+
+    if args.dry_run:
+        stage_count = 1 if pipeline == "fast" else 7
+        est_tokens = "~50K" if pipeline == "fast" else "~800K"
+        est_time = "~8 min" if pipeline == "fast" else "~40 min"
+        pipeline_label = "FAST_PATH" if pipeline == "fast" else "FULL pipeline"
+        path = f"{'workspace-scout → requirements-analyst → workflow-planner → code-generator → build-test-agent → review → ship' if pipeline == 'full' else 'code-generator'}"
+        print(f"Triage: {tier} (score {total}) → {pipeline_label}")
+        print(f"  {stage_count} spawn(s) via {path}")
+        print(f"  ~{est_tokens} tokens, ~{est_time} wall clock")
+        print(f"  Factors: {', '.join(f'{k}={v}' for k, v in sorted(factors.items()) if v > 0) or 'none'}")
+        sys.exit(exit_code)
 
     result = {
         "score": total,

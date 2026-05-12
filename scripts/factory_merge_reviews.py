@@ -30,6 +30,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -46,7 +47,7 @@ except ImportError:
     jsonschema = None  # type: ignore
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 REVIEWER_OUTPUT_SCHEMA = (
     REPO_ROOT / ".aidlc-orchestrator" / "contracts" / "reviewer.output.v1.json"
