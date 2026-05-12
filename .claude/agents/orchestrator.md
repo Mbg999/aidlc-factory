@@ -37,8 +37,13 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
    - exit `2` → skip this stage; append `[CostGov] Skipped <stage> (under threshold)` to audit; continue to next stage
    - exit `3` → halt the run; append `[CostGov] HALT — <stage> would exceed remaining budget`; surface to user
 2. **Knowledge query (pre-spawn)**: call `mcp__plugin_engram_engram__mem_search` with stage-derived query (see `.claude/agents/cross-cutting/knowledge-agent.md`). Inject top-5 results (after confidence/deprecation filtering, antipattern boosting) into the input handoff's `context_pointers[]` as markdown-formatted strings. Log `[Knowledge] Query <stage>: <N> priors retrieved` to audit. If engram is unavailable, leave `context_pointers[]` empty and log `[Knowledge] DEGRADED: engram unavailable`.
+2.5. **Model resolution**: run `python3 scripts/factory_model.py resolve <stage>` to get the recommended model. If the output is not empty and not the tool default, add `model_override: <model>` to the input handoff. This ensures cheap stages (scout, test, review) run on sonnet while expensive stages (requirements, code-gen, planner) run on opus per `budgets/default.yaml`. If the user passed `--model` on the slash command, use that value instead and skip the script.
 3. Validate input handoff against contract.
 4. Spawn subagent via `Task(subagent_type=..., prompt=<input-handoff-path>)`.
+   If the input handoff has `model_override`, pass it as `model=<model_override>`
+   (e.g. `Task(subagent_type="code-generator", model="opus", prompt=...)`).
+   This ensures cheap stages run on sonnet and expensive ones on opus per the
+   `budgets/default.yaml` config resolved in step 2.5.
 5. Validate output handoff against contract.
 6. **Post-flight reconciliation**: `python3 scripts/factory_budget.py deduct <run-id> <stage> --tokens-in <N> --tokens-out <N> --wall-min <F>`.
    - **`tokens_in` / `tokens_out`**: from the agent output's `cost.{tokens_in,tokens_out}` fields. If absent, deduct a conservative estimate from `budgets/default.yaml.per_stage[<stage>].tokens` and log `[CostGov] Estimated <stage> cost`.

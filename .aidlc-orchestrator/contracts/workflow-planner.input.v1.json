@@ -19,6 +19,11 @@
       "type": "string",
       "enum": ["minimal", "standard", "comprehensive"],
       "description": "Set by Cost Governor when budget is below threshold. Agent must honor this over its own depth selection."
+    },
+    "model_override": {
+      "type": "string",
+      "enum": ["sonnet", "opus", "haiku"],
+      "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
     }
   },
   "additionalProperties": false

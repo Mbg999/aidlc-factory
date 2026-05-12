@@ -20,10 +20,11 @@ def aidlc_root() -> Path:
         "run": {"tokens_max": 5_000_000, "wall_clock_max_min": 240},
         "concurrency": {"max_parallel": 4},
         "per_stage": {
-            "workspace-scout": {"tokens": 50_000, "wall_min": 5, "retries": 1},
-            "code-generator": {"tokens": 500_000, "wall_min": 30, "retries": 2},
-            "build-test-agent": {"tokens": 300_000, "wall_min": 20, "retries": 3},
-            "reviewer-code": {"tokens": 200_000, "wall_min": 15, "retries": 1},
+            "workspace-scout": {"tokens": 50_000, "wall_min": 5, "retries": 1, "model": "sonnet"},
+            "code-generator": {"tokens": 500_000, "wall_min": 30, "retries": 2, "model": "opus"},
+            "requirements-analyst": {"tokens": 800_000, "wall_min": 30, "retries": 2, "model": "opus"},
+            "build-test-agent": {"tokens": 300_000, "wall_min": 20, "retries": 3, "model": "sonnet"},
+            "reviewer-code": {"tokens": 200_000, "wall_min": 15, "retries": 1, "model": "sonnet"},
         },
         "adaptive_depth": {"threshold_pct_remaining": 30, "downshift_order": []},
         "complexity_tiers": {

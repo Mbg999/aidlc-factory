@@ -20,7 +20,12 @@
     "fast_path": { "type": "boolean", "default": false, "description": "FAST_PATH mode — skip plan gate, skip re-spawn, stripped output" },
     "tier": { "type": "string", "enum": ["TINY", "SMALL", "MEDIUM", "LARGE"], "default": "SMALL" },
     "constraints": { "type": "array", "items": { "type": "string" }, "default": [], "description": "FAST_PATH constraints (e.g. TDD required, no architectural decisions)" },
-    "repo_root": { "type": "string", "default": ".", "description": "FAST_PATH working directory" }
+    "repo_root": { "type": "string", "default": ".", "description": "FAST_PATH working directory" },
+    "model_override": {
+      "type": "string",
+      "enum": ["sonnet", "opus", "haiku"],
+      "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
+    }
   },
   "additionalProperties": false,
   "allOf": [

@@ -10,19 +10,19 @@ concurrency:
   max_parallel: 4   # locked decision (ORCHESTRATOR-PLAN.md §10 row 4)
 
 per_stage:
-  workspace-scout:        { tokens: 50_000,  wall_min: 5,  retries: 1 }
-  reverse-engineer:       { tokens: 600_000, wall_min: 30, retries: 2 }
-  requirements-analyst:   { tokens: 800_000, wall_min: 30, retries: 2 }
-  story-writer:           { tokens: 300_000, wall_min: 15, retries: 1 }
-  workflow-planner:       { tokens: 600_000, wall_min: 25, retries: 2 }
-  unit-decomposer:        { tokens: 150_000, wall_min: 20, retries: 1 }   # Bug F.1 — 400K triggered "Extra usage is required for 1M context" on Sonnet standard tier; actual workload <50K
-  code-generator:         { tokens: 500_000, wall_min: 30, retries: 2 }
-  build-test-agent:       { tokens: 300_000, wall_min: 20, retries: 3 }
-  reviewer-code:          { tokens: 200_000, wall_min: 15, retries: 1 }
-  reviewer-security:      { tokens: 200_000, wall_min: 15, retries: 1 }
-  reviewer-performance:   { tokens: 200_000, wall_min: 15, retries: 1 }
-  reviewer-simplifier:    { tokens: 200_000, wall_min: 15, retries: 1 }
-  ship-agent:             { tokens: 300_000, wall_min: 20, retries: 1 }
+  workspace-scout:        { tokens: 50_000,  wall_min: 5,  retries: 1, model: "sonnet" }
+  reverse-engineer:       { tokens: 600_000, wall_min: 30, retries: 2, model: "sonnet" }
+  requirements-analyst:   { tokens: 800_000, wall_min: 30, retries: 2, model: "opus" }
+  story-writer:           { tokens: 300_000, wall_min: 15, retries: 1, model: "sonnet" }
+  workflow-planner:       { tokens: 600_000, wall_min: 25, retries: 2, model: "opus" }
+  unit-decomposer:        { tokens: 150_000, wall_min: 20, retries: 1, model: "sonnet" }
+  code-generator:         { tokens: 500_000, wall_min: 30, retries: 2, model: "opus" }
+  build-test-agent:       { tokens: 300_000, wall_min: 20, retries: 3, model: "sonnet" }
+  reviewer-code:          { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
+  reviewer-security:      { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
+  reviewer-performance:   { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
+  reviewer-simplifier:    { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
+  ship-agent:             { tokens: 300_000, wall_min: 20, retries: 1, model: "sonnet" }
 
 adaptive_depth:
   threshold_pct_remaining: 30
