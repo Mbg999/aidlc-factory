@@ -505,6 +505,9 @@ Key options:
 - `--yes`: assume yes for confirmation prompts (useful for scripting / CI)
 - `--with-agent-skills`: install SKILL.md files from github.com/addyosmani/agent-skills
 - `--agent-skills-path`: use a local clone instead of fetching from GitHub
+- `--custom-skills-path <dir>`: install custom/project-specific skills from a directory.
+  Each subdirectory should contain a `SKILL.md`. Installed to `.agents/skills/`,
+  overriding agent-skills with the same name.
 - `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
 
 Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location used by the workflow). Without skills installed, the workflow uses inline fallback processes embedded in each stage rule file.
@@ -670,16 +673,42 @@ See `aidlc-rules/adapters/generic.md` for a template you can adapt to any tool.
 
 This fork uses a **skills-only** architecture. There are no scripted subagents or external agent personas. Instead, every workflow stage references mandatory engineering process skills from `.agents/skills/<name>/SKILL.md`.
 
-**Where skills are resolved** (in order):
+**Where skills are resolved** (in order, first-found wins):
 
-1. `<project>/.agents/skills/<skill-name>/SKILL.md` (installer writes here)
-2. `~/.agents/skills/<skill-name>/SKILL.md` (user-global fallback)
+1. `<project>/.agents/custom-skills/<skill-name>/SKILL.md` (project-specific, highest priority)
+2. `<project>/.agents/skills/<skill-name>/SKILL.md` (installed by script)
+3. `~/.agents/skills/<skill-name>/SKILL.md` (user-global fallback)
 
-**Installing skills:**
+Custom skills override agent-skills with the same name — useful for adding
+project-specific tooling (linters, build steps, compliance checks) on top of
+the standard skills.
+
+**Installing agent-skills:**
 
 ```bash
 python scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
+
+**Bundled custom skills** live at `.agents/custom-skills/` in this repo and are
+auto-installed when the installer runs. Currently ships:
+
+- `code-review-and-quality` — extends the standard review skill with automated
+  linting, fixing, building, and testing before the five-axis review
+
+**Adding your own custom skills:**
+
+```bash
+# Option 1: Add to this repo under .agents/custom-skills/ (auto-installed)
+mkdir -p .agents/custom-skills/<skill-name>
+# Create .agents/custom-skills/<skill-name>/SKILL.md
+
+# Option 2: Point the installer at an external directory
+python scripts/install_aidlc.py --tool claude --custom-skills-path /path/to/my-skills
+```
+
+Each skill directory needs a `SKILL.md` file with frontmatter (`name`,
+`description`). The directory name becomes the skill name.
+Custom skills override agent-skills with the same name.
 
 If skills are not installed, each stage rule file contains an **inline fallback process** so the workflow is never bypassed — it always enforces the skill's steps.
 
@@ -1010,6 +1039,7 @@ AGENTS.md
 .clinerules/
 .github/copilot-instructions.md
 .aidlc-rule-details/
+.agents/custom-skills/
 ```
 
 **Commit to repository (orchestrator, if installed):**

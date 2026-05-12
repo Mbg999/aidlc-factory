@@ -638,6 +638,9 @@ def parse_args() -> argparse.Namespace:
                    help="Always install engineering process skills from github.com/addyosmani/agent-skills (default: install)")
     p.add_argument("--agent-skills-path", type=str, default=None,
                    help="Local path to an existing agent-skills clone (skips git clone)")
+    p.add_argument("--custom-skills-path", type=str, default=None,
+                   help="Path to custom/project-specific skills. Each subdirectory should contain a SKILL.md. "
+                        "Installed to .agents/skills/ and override agent-skills with the same name.")
     p.add_argument("--with-orchestrator", dest="with_orchestrator", action="store_true", default=None,
                    help="Install the AIDLC orchestrator (factory scripts + subagents + slash commands). "
                         "If neither --with-orchestrator nor --no-orchestrator is set, prompts interactively (default: yes).")
@@ -760,6 +763,56 @@ def main() -> int:
             _rmtree_force(skills_repo)
         elif args.dry_run and not args.agent_skills_path:
             print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
+
+    # --- Custom Skills ---
+    if args.custom_skills_path:
+        custom_src = Path(args.custom_skills_path).expanduser().resolve()
+        if not custom_src.exists():
+            print(f"ERROR: Custom skills path not found: {custom_src}")
+            return 5
+        print(f"\n--- Installing Custom Skills ---")
+        skills_dest = target_root / ".agents" / "skills"
+        skills_dest.mkdir(parents=True, exist_ok=True)
+        count = 0
+        for skill_dir in sorted(custom_src.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
+            target_dir = skills_dest / skill_dir.name
+            if args.dry_run:
+                print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+            else:
+                print(f"  {skill_dir.name}/ -> .agents/skills/{skill_dir.name}/")
+                copy_tree(skill_dir, target_dir, dry_run=False)
+            count += 1
+        if count == 0 and not args.dry_run:
+            print("  (no SKILL.md files found in custom skills path)")
+        print(f"Installed {count} custom skill(s)")
+    else:
+        # Also check for bundled custom skills in the repo itself
+        bundled_custom = repo_root / ".agents" / "custom-skills"
+        if bundled_custom.exists():
+            print(f"\n--- Installing Bundled Custom Skills ---")
+            skills_dest = target_root / ".agents" / "skills"
+            skills_dest.mkdir(parents=True, exist_ok=True)
+            count = 0
+            for skill_dir in sorted(bundled_custom.iterdir()):
+                if not skill_dir.is_dir():
+                    continue
+                skill_md = skill_dir / "SKILL.md"
+                if not skill_md.exists():
+                    continue
+                target_dir = skills_dest / skill_dir.name
+                if args.dry_run:
+                    print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+                else:
+                    print(f"  {skill_dir.name}/ -> .agents/skills/{skill_dir.name}/")
+                    copy_tree(skill_dir, target_dir, dry_run=False)
+                count += 1
+            if count:
+                print(f"Installed {count} bundled custom skill(s)")
 
     # --- AIDLC Orchestrator (Phases 0-6) ---
     install_orch: bool

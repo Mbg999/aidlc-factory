@@ -61,7 +61,8 @@ Always record the decision (enabled/disabled/auto-enabled) in `aidlc-docs/audit.
 **CRITICAL**: Skills are the primary enforcement mechanism for quality, process, and best practices. Each stage declares required skills that MUST be loaded and followed. Skills are NOT optional guidance — they are structured workflows with verification gates.
 
 ### Skill Locations (search order, first-found wins)
-- `<repo>/.agents/skills/<skill-name>/SKILL.md` (repo-local)
+- `<repo>/.agents/custom-skills/<skill-name>/SKILL.md` (project-specific, highest priority)
+- `<repo>/.agents/skills/<skill-name>/SKILL.md` (repo-local, from installer)
 - `~/.agents/skills/<skill-name>/SKILL.md` (user-global)
 
 ### Skill Anatomy (from addyosmani/agent-skills)
