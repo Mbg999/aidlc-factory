@@ -310,7 +310,7 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
         print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
         copy_file(src_budget, dst_budget, dry_run)
 
-    # Layer 2: Claude-Code-only (subagents + slash commands)
+    # Layer 2: Claude-Code / OpenCode subagents + slash commands
     if tool == "claude":
         for tree in ORCHESTRATOR_CLAUDE_TREES:
             src = repo_root / tree
@@ -326,9 +326,33 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
             print(f"  slash commands -> .claude/commands/factory-*.md")
             for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
                 copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+    elif tool == "opencode":
+        src_agents = repo_root / ".claude" / "agents"
+        dst_agents = target_root / ".opencode" / "agents"
+        if src_agents.exists():
+            print(f"  subagents -> .opencode/agents/")
+            copy_tree(src_agents, dst_agents, dry_run)
+
+        src_cmds = repo_root / ".claude" / "commands"
+        dst_cmds = target_root / ".opencode" / "commands"
+        if src_cmds.exists():
+            print(f"  slash commands -> .opencode/commands/factory-*.md")
+            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
     else:
-        print(f"  (skipping subagents + slash commands — Claude Code only;")
-        print(f"   {tool} runs in degraded mode per ORCHESTRATOR-PLAN.md §8.4)")
+        print(f"  (no native subagent/command system — copying to .aidlc-orchestrator/ for reference)")
+        src_agents = repo_root / ".claude" / "agents"
+        dst_agents = target_root / ".aidlc-orchestrator" / "agents"
+        if src_agents.exists():
+            print(f"  subagents -> .aidlc-orchestrator/agents/")
+            copy_tree(src_agents, dst_agents, dry_run)
+
+        src_cmds = repo_root / ".claude" / "commands"
+        dst_cmds = target_root / ".aidlc-orchestrator" / "commands"
+        if src_cmds.exists():
+            print(f"  slash commands -> .aidlc-orchestrator/commands/factory-*.md")
+            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
     # Layer 3: Python deps
     print(f"  Python deps -> requirements.txt")
@@ -338,13 +362,22 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     print(f"  runtime state -> .gitignore")
     update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
 
-    # Layer 3: workflow doc pointer (Claude Code only — CLAUDE.md is the
-    # canonical workflow doc; other tools have varied shapes — copilot uses
-    # .github/copilot-instructions.md, cursor uses .cursor/rules/*.mdc, etc.)
+    # Layer 3: workflow doc pointer (Claude Code and OpenCode — AGENTS.md is
+    # the canonical workflow doc for OpenCode; other tools have varied shapes
+    # — copilot uses .github/copilot-instructions.md, cursor uses
+    # .cursor/rules/*.mdc, etc.)
     if tool == "claude":
         print(f"  workflow pointer -> CLAUDE.md")
         update_workflow_doc_pointer(
             target_root / "CLAUDE.md",
+            ORCHESTRATOR_CLAUDE_POINTER_MARKER,
+            ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
+            dry_run,
+        )
+    elif tool == "opencode":
+        print(f"  workflow pointer -> AGENTS.md")
+        update_workflow_doc_pointer(
+            target_root / "AGENTS.md",
             ORCHESTRATOR_CLAUDE_POINTER_MARKER,
             ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
             dry_run,
@@ -354,9 +387,11 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
         print(f"\n  Next: pip install -r requirements.txt")
         if tool == "claude":
             print(f"  Then: invoke /factory-spec <feature> in Claude Code to start a run.")
+        elif tool == "opencode":
+            print(f"  Then: invoke /factory-spec <feature> in OpenCode to start a run.")
         else:
             print(f"  Note: factory scripts are usable manually for validation;")
-            print(f"  full multi-agent flow requires Claude Code.")
+            print(f"  full multi-agent flow requires Claude Code or OpenCode.")
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
@@ -503,6 +538,13 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         dest_details = target_root / ".aidlc-rule-details"
         copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
 
+    elif tool == "opencode":
+        dest = target_root / "AGENTS.md"
+        print(f"Installing for OpenCode: {dest}")
+        write_file(dest, core_content, dry_run)
+        dest_details = target_root / ".aidlc-rule-details"
+        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
+
     elif tool == "other":
         dest = target_root / "AGENTS.md"
         print(f"Installing generic AGENTS.md: {dest}")
@@ -528,6 +570,7 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
         "other": "generic.md",
         "kiro": "generic.md",
         "amazonq": "generic.md",
+        "opencode": "generic.md",
     }
     adapter_file = adapters_dir / adapter_map.get(tool, "generic.md")
     if adapter_file.exists():
@@ -545,7 +588,7 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for a selected agent tool")
-    p.add_argument("--tool", choices=["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "other"], required=False,
+    p.add_argument("--tool", choices=["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "other"], required=False,
                    help="Target agent/tool to install rules for")
     p.add_argument("--yes", action="store_true", help="Assume yes for confirmations")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
@@ -565,7 +608,7 @@ def parse_args() -> argparse.Namespace:
 
 def ask_orchestrator(tool: str) -> bool:
     """Prompt user whether to install the AIDLC orchestrator. Default: yes."""
-    if tool == "claude":
+    if tool in ("claude", "opencode"):
         msg = ("Install the AIDLC orchestrator (factory scripts + subagents + slash commands)?\n"
                "  Includes: 13 stage subagents, 7 /factory-* slash commands, 5 factory_*.py scripts,\n"
                "  20 JSON schema contracts, default budget policy.\n"
@@ -584,7 +627,7 @@ def ask_orchestrator(tool: str) -> bool:
 
 
 def interactive_choose() -> str:
-    choices = ["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "other"]
+    choices = ["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "other"]
     print("Select the agentic coding tool to install AI-DLC for:")
     for i, c in enumerate(choices, 1):
         print(f" {i}) {c}")
@@ -609,7 +652,7 @@ def main() -> int:
     else:
         # prompt for destination path (default: current directory)
         try:
-            resp = input(f"Destination path (default: {Path.cwd()}): ").strip()
+            resp = input(f"Destination path (default: {Path.cwd()}): ").strip().strip("'\"")
         except KeyboardInterrupt:
             print("\nAborted by user")
             return 1

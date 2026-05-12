@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,14 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BUDGET = REPO_ROOT / ".aidlc-orchestrator" / "budgets" / "default.yaml"
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
+
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
+
+
+def validate_run_id(run_id: str) -> None:
+    if not _RUN_ID_RE.match(run_id):
+        _die(f"invalid run_id: {run_id!r}")
+
 
 OPTIONAL_STAGES = {"story-writer", "unit-decomposer"}
 DEPTH_FLEXIBLE_STAGES = {"requirements-analyst", "workflow-planner"}
@@ -80,6 +89,7 @@ def load_default() -> dict:
 
 
 def run_budget_path(run_id: str) -> Path:
+    validate_run_id(run_id)
     return RUNS_ROOT / run_id / "budget.yaml"
 
 
@@ -141,16 +151,29 @@ def cmd_check(args: argparse.Namespace) -> None:
     threshold_pct = float(default.get("adaptive_depth", {}).get("threshold_pct_remaining", 30))
     estimated = estimate_stage_tokens(default, args.stage)
 
+    remaining_wall = float(state["budget"]["wall_clock_max_min"]) - float(state["used"]["wall_clock_min"])
+
     decision_obj = {
         "run_id": args.run_id,
         "stage": args.stage,
         "remaining_tokens": remaining,
         "remaining_pct": round(pct_remaining, 1),
+        "remaining_wall_min": round(remaining_wall, 1),
         "estimated_tokens": estimated,
         "threshold_pct": threshold_pct,
         "optional": args.stage in OPTIONAL_STAGES,
         "depth_flexible": args.stage in DEPTH_FLEXIBLE_STAGES,
     }
+
+    if remaining_wall <= 0:
+        decision_obj["decision"] = "skip" if args.stage in OPTIONAL_STAGES else "halt"
+        decision_obj["reason"] = "wall_clock_exhausted"
+        print(json.dumps(decision_obj))
+        if args.stage in OPTIONAL_STAGES:
+            print(f"DECISION: skip ({args.stage} optional; wall clock exhausted)", file=sys.stderr)
+            sys.exit(2)
+        print(f"DECISION: halt (required {args.stage} would exceed wall clock budget)", file=sys.stderr)
+        sys.exit(3)
 
     if estimated > remaining:
         decision_obj["decision"] = "skip" if args.stage in OPTIONAL_STAGES else "halt"
@@ -185,15 +208,20 @@ def cmd_check(args: argparse.Namespace) -> None:
 
 def cmd_deduct(args: argparse.Namespace) -> None:
     state = load_run_budget(args.run_id)
+    if args.tokens_in < 0 or args.tokens_out < 0 or args.wall_min < 0:
+        _die(f"negative values not allowed: tokens_in={args.tokens_in}, "
+             f"tokens_out={args.tokens_out}, wall_min={args.wall_min}")
     tokens = int(args.tokens_in) + int(args.tokens_out)
 
     state["used"]["tokens"] = int(state["used"].get("tokens", 0)) + tokens
-    state["used"]["wall_clock_min"] = float(state["used"].get("wall_clock_min", 0.0)) + float(args.wall_min)
+    state["used"]["wall_clock_min"] = round(
+        float(state["used"].get("wall_clock_min", 0.0)) + float(args.wall_min), 1
+    )
 
     per = state.setdefault("per_stage_used", {})
     bucket = per.setdefault(args.stage, {"tokens": 0, "wall_min": 0.0, "calls": 0})
     bucket["tokens"] = int(bucket.get("tokens", 0)) + tokens
-    bucket["wall_min"] = float(bucket.get("wall_min", 0.0)) + float(args.wall_min)
+    bucket["wall_min"] = round(float(bucket.get("wall_min", 0.0)) + float(args.wall_min), 1)
     bucket["calls"] = int(bucket.get("calls", 0)) + 1
 
     state["events"].append({

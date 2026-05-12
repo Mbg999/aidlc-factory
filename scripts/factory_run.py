@@ -93,6 +93,14 @@ PHASE_ORDER = [
 ]
 
 
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
+
+
+def validate_run_id(run_id: str) -> None:
+    if not _RUN_ID_RE.match(run_id):
+        _die(f"invalid run_id: {run_id!r}")
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -103,6 +111,7 @@ def _die(msg: str, code: int = 2) -> None:
 
 
 def run_dir(run_id: str, must_exist: bool = True) -> Path:
+    validate_run_id(run_id)
     p = RUNS_ROOT / run_id
     if must_exist and not p.exists():
         _die(f"run not found: {p}")
@@ -110,10 +119,12 @@ def run_dir(run_id: str, must_exist: bool = True) -> Path:
 
 
 def manifest_path(run_id: str) -> Path:
+    validate_run_id(run_id)
     return RUNS_ROOT / run_id / "manifest.yaml"
 
 
 def timeline_path(run_id: str) -> Path:
+    validate_run_id(run_id)
     return RUNS_ROOT / run_id / "timeline.jsonl"
 
 
@@ -274,11 +285,19 @@ def _next_stage(manifest: dict) -> str | None:
     skipped = set(manifest.get("skipped_stages", []))
     current = manifest.get("current_stage")
     if current and current not in completed and current not in skipped:
-        return current
+        if current in PHASE_ORDER:
+            return current
+    # Compute start index: after current_stage if in PHASE_ORDER,
+    # otherwise after the last completed stage (handles synthetic markers)
     if current and current in PHASE_ORDER:
         start_idx = PHASE_ORDER.index(current) + 1
     else:
-        start_idx = 0
+        last_idx = max(
+            (PHASE_ORDER.index(s) for s in manifest.get("completed_stages", [])
+             if s in PHASE_ORDER),
+            default=-1
+        )
+        start_idx = last_idx + 1
     for stage in PHASE_ORDER[start_idx:]:
         if stage not in completed and stage not in skipped:
             return stage
@@ -353,6 +372,7 @@ def cmd_replay(args: argparse.Namespace) -> None:
 
 
 _LEGACY_STATE_RE = re.compile(r"^\s*-?\s*\[x\]\s*(.+)$", re.IGNORECASE)
+_LEGACY_SKIPPED_RE = re.compile(r"^\s*-?\s*\[-\]\s*(.+)$", re.IGNORECASE)
 _LEGACY_CURRENT_RE = re.compile(r"^\s*##\s*Current\s+Stage\s*$", re.IGNORECASE)
 
 # Conditional stages — present in PHASE_ORDER but skipped by legacy AIDLC
@@ -360,6 +380,7 @@ _LEGACY_CURRENT_RE = re.compile(r"^\s*##\s*Current\s+Stage\s*$", re.IGNORECASE)
 # ran (no [x] marker), and the legacy current_stage is past them, mark as
 # skipped so resume doesn't suggest re-doing them.
 _CONDITIONAL_STAGES = {"reverse-engineer", "story-writer", "unit-decomposer"}
+_REVIEW_STAGES = {"reviewer-security", "reviewer-performance", "reviewer-simplifier"}
 
 # Legacy AIDLC uses stage names like "Workspace Detection"; orchestrator uses
 # "workspace-scout". Map legacy phrases (lowercased, normalized) to current stage_id.
@@ -428,7 +449,21 @@ def _legacy_current_stage(state_text: str) -> str | None:
 
 def _stages_from_legacy(state_text: str) -> list[str]:
     completed: list[str] = []
-    for line in state_text.splitlines():
+    # Only scan "### Current Iteration" section (Bug 8 fix)
+    scan_text = state_text
+    for heading in ("### Current Iteration", "## Stage Progress"):
+        if heading in scan_text:
+            parts = scan_text.split(heading, 1)
+            if len(parts) > 1 and parts[1].strip():
+                scan_text = parts[1]
+                break
+
+    for line in scan_text.splitlines():
+        line_stripped = line.strip()
+        # Skip lines that start with ## (sub-headers within section)
+        if line_stripped.startswith("##"):
+            continue
+
         m = _LEGACY_STATE_RE.match(line)
         if not m:
             continue
@@ -464,6 +499,32 @@ def cmd_adopt_legacy(args: argparse.Namespace) -> None:
     state_text = state_file.read_text()
     completed = _stages_from_legacy(state_text)
     legacy_current = _legacy_current_stage(state_text)
+
+    # Detect [-] skipped markers from current iteration (Bug 8 fix)
+    for heading in ("### Current Iteration", "## Stage Progress"):
+        if heading in state_text:
+            parts = state_text.split(heading, 1)
+            if len(parts) > 1:
+                for line in parts[1].splitlines():
+                    if line.strip().startswith("##"):
+                        break
+                    m = _LEGACY_SKIPPED_RE.match(line)
+                    if not m:
+                        continue
+                    raw = m.group(1).strip().lower()
+                    for sep in (" — ", " - ", " (", "—"):
+                        if sep in raw:
+                            raw = raw.split(sep, 1)[0].strip()
+                    if raw in LEGACY_TO_PHASE:
+                        stage = LEGACY_TO_PHASE[raw]
+                        completed = [s for s in completed if s != stage]
+                break
+
+    # Legacy Review → all 4 reviewers (Bug 3 fix)
+    if "reviewer-code" in completed:
+        for r in _REVIEW_STAGES:
+            if r not in completed:
+                completed.append(r)
 
     # Decide manifest.current_stage and skipped_stages[]:
     #   - If legacy_current is parseable AND ahead of last completed in

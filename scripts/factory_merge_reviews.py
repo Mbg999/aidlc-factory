@@ -181,7 +181,8 @@ def main() -> None:
     )
     for reviewer, data in outputs.items():
         for f in data.get("findings", []):
-            file_findings[f["file"]][reviewer].append(f)
+            file_key = f.get("file", "?")
+            file_findings[file_key][reviewer].append(f)
 
     md = ["# Code Review Report", ""]
     md += [f"Run: `{args.run_id}`"]

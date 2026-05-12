@@ -89,6 +89,19 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
+_HOLDER_RE = re.compile(r"^[a-zA-Z0-9_.:-]+$")
+
+
+def validate_run_id(run_id: str) -> None:
+    if not _RUN_ID_RE.match(run_id):
+        _die(f"invalid run_id: {run_id!r}")
+
+
+def validate_holder(holder: str) -> None:
+    if not _HOLDER_RE.match(holder):
+        _die(f"invalid holder: {holder!r}")
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -100,6 +113,7 @@ def _die(msg: str, code: int = 2) -> None:
 
 
 def run_dir(run_id: str) -> Path:
+    validate_run_id(run_id)
     p = RUNS_ROOT / run_id
     if not p.exists():
         _die(f"run not found: {p}")
@@ -140,6 +154,7 @@ def _list_locks(rd: Path) -> list[dict]:
 
 
 def cmd_acquire(args: argparse.Namespace) -> None:
+    validate_holder(args.holder)
     rd = run_dir(args.run_id)
     locks_dir = rd / "locks"
     locks_dir.mkdir(parents=True, exist_ok=True)
@@ -196,10 +211,20 @@ def cmd_acquire(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     lock_file = locks_dir / f"{args.holder}.yaml"
+    # Merge globs if holder already holds locks (Bug 10 fix)
+    merged_globs = list(args.globs)
+    if lock_file.exists():
+        existing = yaml.safe_load(lock_file.read_text()) or {}
+        existing_globs = existing.get("globs", [])
+        existing_mode = existing.get("mode", "write")
+        if existing_mode != args.mode:
+            _die(f"{args.holder} already holds lock in mode {existing_mode}, "
+                 f"cannot acquire {args.mode} — release first")
+        merged_globs = list(dict.fromkeys(existing_globs + merged_globs))
     lock_file.write_text(yaml.safe_dump({
         "holder": args.holder,
         "acquired_at": now_iso(),
-        "globs": list(args.globs),
+        "globs": merged_globs,
         "mode": args.mode,
     }, sort_keys=False))
     print(json.dumps({
@@ -214,6 +239,7 @@ def cmd_acquire(args: argparse.Namespace) -> None:
 
 
 def cmd_release(args: argparse.Namespace) -> None:
+    validate_holder(args.holder)
     rd = run_dir(args.run_id)
     lock_file = rd / "locks" / f"{args.holder}.yaml"
     if lock_file.exists():
@@ -530,6 +556,7 @@ def _snapshot_one(path: Path) -> dict:
 
 
 def cmd_snapshot(args: argparse.Namespace) -> None:
+    validate_holder(args.holder)
     rd = run_dir(args.run_id)
     snap_dir = rd / "symbol-baseline"
     snap_dir.mkdir(parents=True, exist_ok=True)
@@ -549,6 +576,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
 
 
 def cmd_check_symbols(args: argparse.Namespace) -> None:
+    validate_holder(args.holder)
     rd = run_dir(args.run_id)
     snap_file = rd / "symbol-baseline" / f"{args.holder}.yaml"
     if not snap_file.exists():
