@@ -319,6 +319,10 @@ CRITICAL: Application code stays in workspace root; docs only in `aidlc-docs/`.
 
 This project ships with the AIDLC orchestrator. To run the multi-agent factory:
 
+- `/factory-onboarding` — guided tour of the orchestrator system
+- `/factory-help [command]` — quick command reference
+- `/factory-state <run-id>` — current stage, next step, budget, timeline
+- `/factory-self <task>` — run the orchestrator on its own codebase
 - `/factory-spec <feature>` — workspace scout + (reverse-engineer) + requirements + (stories) + plan
 - `/factory-plan` — decompose plan into per-unit specs (multi-component features only)
 - `/factory-build` — layer-parallel code generation with file-glob locks + AST symbol drift checks

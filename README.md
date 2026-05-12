@@ -735,6 +735,8 @@ Both workflows read the **same rule files** — the rule corpus is the single so
 | Command | Stage(s) | Notes |
 |---|---|---|---|
 | `/factory-help [command]` | — | Command reference |
+| `/factory-state <run-id>` | — | Show run status, budget, next stage, timeline |
+| `/factory-onboarding` | — | Guided tour of the orchestrator system |
 | `/factory-self <task>` | Full pipeline targeting orchestrator's own codebase | Self-hosting mode |
 | `/factory-spec <feature>` | workspace-scout + (reverse-engineer ask) + requirements-analyst | Phase 0 entrypoint |
 | `/factory-plan <run-id>` | workflow-planner + (optional) unit-decomposer + (optional) story-writer | Phase 1 |

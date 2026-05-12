@@ -1,71 +1,71 @@
 ---
-description: AIDLC Orchestrator command reference. Lists all factory slash commands with descriptions and examples.
-argument-hint: [command-name] (optional — filter to a specific command)
+description: Quick reference for all AIDLC orchestrator commands. For a step-by-step guide, use /factory-onboarding.
+argument-hint: [command-name]
 ---
 
 # AIDLC Orchestrator — Command Reference
 
-## Available Commands
+## Commands
 
-| Command | Description | Phase |
-|---------|-------------|-------|
-| `/factory-spec <request>` | Run inception (workspace detection + requirements analysis) | 0 |
-| `/factory-plan <run-id>` | Run workflow planning + unit decomposition | 1 |
-| `/factory-build <run-id>` | Run code generation + build/test in parallel waves | 2-3 |
-| `/factory-review <run-id>` | Run parallel 4-reviewer pool + merge report | 4 |
-| `/factory-ship <run-id>` | Run finalization and knowledge capture | 5-6 |
-| `/factory-resume <run-id>` | Resume a crashed run from last checkpoint | Recovery |
-| `/factory-replay <run-id> --from <stage>` | Roll back completed stages and replay | Recovery |
+| Command | What it does |
+|---------|-------------|
+| `/factory-onboarding` | Walk through the system: how runs work, what to expect |
+| `/factory-state <run-id>` | Show run status: current stage, next step, budget, timeline |
+| `/factory-spec <request>` | **Entrypoint.** Scores your request, spawns the right stages |
+| `/factory-plan <run-id>` | After spec: creates execution plan and design units |
+| `/factory-build <run-id>` | After plan: generates code + runs tests in parallel |
+| `/factory-review <run-id>` | After build: 4 parallel reviewers (code, security, perf, simplifier) |
+| `/factory-ship <run-id>` | After review: release notes, ADRs, changelog, CI/CD |
+| `/factory-resume <run-id>` | Pick up a crashed/interrupted run from last checkpoint |
+| `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage (archives prior outputs) |
+| `/factory-self <task>` | Run the orchestrator on **its own codebase** (self-hosting) |
 
-## Scripts (called by the orchestrator)
-
-```
-scripts/factory_triage.py     — Complexity scorer (TINY/SMALL/MEDIUM/LARGE)
-scripts/factory_budget.py     — Cost Governor (init/check/deduct/status)
-scripts/factory_run.py        — Run Manager (init/complete-stage/resume/replay/graph/status/tail)
-scripts/factory_conflict.py   — Conflict Resolver (acquire/release/snapshot/check-symbols)
-scripts/factory_validate.py   — JSON Schema validator
-scripts/factory_merge_reviews.py — Merge 4 reviewer outputs into review-report.md
-```
-
-## Fast Path (TINY tier)
-
-For trivial requests (score 0), the orchestrator skips the full pipeline and
-spawns `code-generator` directly. The code-generator agent runs in `fast_path: true`
-mode which bypasses the plan gate and re-spawn loop.
+## Quick start
 
 ```
-/factory-spec "fix typo in README"   → triage: TINY → FAST_PATH
-/factory-spec "add healthz endpoint"  → triage: TINY → FAST_PATH
+/factory-spec "add healthz endpoint to the API gateway"
 ```
 
-## Common Workflows
+If the request is trivial (typo, one-file change), the Fast Path kicks in:
+`/factory-spec` → code-generator → commit → done. No multi-agent overhead.
+
+For complex work, the full pipeline runs: spec → plan → build → review → ship.
+Each step is a separate `/factory-*` command so you can inspect before proceeding.
+
+## Monitoring a run
 
 ```bash
-# 1. Score a request without spawning agents
-python3 scripts/factory_triage.py "add healthz endpoint" [--dry-run]
+# Visual timeline of completed stages
+python3 scripts/factory_run.py graph <run-id>
 
-# 2. Initialize a run manually
-python3 scripts/factory_run.py init 2026-05-12-my-feature --user-request "..."
-python3 scripts/factory_budget.py init 2026-05-12-my-feature
+# Budget usage (tokens, wall clock)
+python3 scripts/factory_budget.py status <run-id>
 
-# 3. Check run status
-python3 scripts/factory_run.py status 2026-05-12-my-feature [--latency]
-python3 scripts/factory_run.py graph 2026-05-12-my-feature
-python3 scripts/factory_budget.py status 2026-05-12-my-feature
+# Approval gate latency
+python3 scripts/factory_run.py status <run-id> --latency
 
-# 4. Adopt a legacy AIDLC run
-python3 scripts/factory_run.py adopt-legacy
-
-# 5. Validate a contract
-python3 scripts/factory_validate.py schema.json document.yaml [--strict]
-
-# 6. Manage file locks
-python3 scripts/factory_conflict.py acquire <run-id> <holder> <glob>... [--ttl-minutes 60]
-python3 scripts/factory_conflict.py release <run-id> <holder>
-python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120
+# Live event tail
+python3 scripts/factory_run.py tail <run-id> --follow
 ```
 
-## Troubleshooting
+## Recovery
 
-See `docs/TROUBLESHOOTING.md` for common issues.
+| Situation | What to do |
+|-----------|-----------|
+| Run crashed mid-stage | `/factory-resume <run-id>` |
+| Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
+| Agent crashed, locks stale | `python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Run burned too many tokens | Start over with tighter budget in `.aidlc-orchestrator/budgets/default.yaml` |
+
+## Tools
+
+- **Triage:** `python3 scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning
+- **Validate:** `python3 scripts/factory_validate.py schema.json doc.yaml [--strict]`
+- **Secret scan:** `python3 scripts/factory_secretscan.py handoff.yaml`
+- **Audit writes:** `python3 scripts/factory_audit_writes.py <run-id> <holder> --locks src/**`
+
+## Documentation
+
+- `docs/TROUBLESHOOTING.md` — common failures and fixes
+- `.aidlc-orchestrator/contracts/REFERENCE.md` — all handoff schemas
+- `ORCHESTRATOR-PLAN.md` — full design doc (phases, decisions, ACs)
