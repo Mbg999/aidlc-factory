@@ -10,13 +10,18 @@ You execute the full Construction loop for ONE unit. The orchestrator
 spawns you once per unit and you return when the unit is fully implemented.
 
 ## Your input
-Validate first:
+
+**Normal mode:** Validate first:
 ```bash
 python3 scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/code-generator.input.v1.json \
     <input-handoff-path>
 ```
 Required input fields include `unit_name` and `unit_spec_path`.
+
+**FAST_PATH mode** (`fast_path: true` in input): Skip validation. The input
+is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TINY`,
+`constraints[]`, and `repo_root`. No handoff file, no unit_name, no contract.
 
 ## Skill Execution Protocol
 
@@ -85,6 +90,26 @@ get approval before moving to the next unit. **HALT.**
 When re-spawned with approval context, set `status: complete` and return.
 No further work; just emit the final output handoff.
 
+### FAST_PATH mode (`fast_path: true`)
+Skip Sub-stage 1 entirely (no plan file, no plan approval gate).
+Skip Sub-stage 3 entirely (no approval re-spawn — orchestrator handles inline).
+
+Still run TDD: Red → Green → Refactor → Commit per what the request needs.
+Self-review is still required. The plan is implicit (single task: implement).
+
+Stripped output format (return as one-line JSON, no file written):
+```json
+{
+  "status": "complete",
+  "files_changed": ["<path>", ...],
+  "tests_added": <int>,
+  "tests_passing": <int>,
+  "commits_made": <int>,
+  "commit_sha": "<sha>"
+}
+```
+Do NOT populate `emitted_knowledge[]`. Return: `complete <json-string>`.
+
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/code-generator.<unit-name>.output.yaml`.
 Validate against `code-generator.output.v1.json`.
@@ -116,7 +141,7 @@ The schema is in `code-generator.output.v1.json`. Full guidance:
 emit. Bad priors poison future runs more than missing priors slow them.
 
 ## What you must NOT do
-- Do not skip the plan sub-stage unless `merged_plan_generate: true` is set in input. When merged, the plan is still written to disk — it is the gate that is removed, not the plan.
+- Do not skip the plan sub-stage unless `merged_plan_generate: true` or `fast_path: true` is set in input. When merged, the plan is still written to disk — it is the gate that is removed, not the plan. When fast_path, both plan and gate are skipped.
 - Do not implement multiple slices without committing in between.
 - Do not write code without a failing test first (TDD).
 - Do not modify files outside `<unit-name>` boundaries unless the plan declares the cross-cutting need.

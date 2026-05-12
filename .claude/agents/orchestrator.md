@@ -21,14 +21,14 @@ you delegate to stage agents and you own the state machine.
 
 | Slash command | Stages it routes through | Phase |
 |---|---|---|
-| `/factory-spec`   | workspace-scout → requirements-analyst | 0 |
+| `/factory-spec`   | (triage) → FAST_PATH (TINY) OR workspace-scout → requirements-analyst | 0 |
 | `/factory-plan`   | (cond) story-writer → workflow-planner → (cond) unit-decomposer | 1 |
 | `/factory-build`  | per-unit loop: code-generator → build-test-agent | 1 |
 | `/factory-review` | reviewer-code → reviewer-security → reviewer-performance → reviewer-simplifier (sequential in P1, parallel in P4) | 1 |
 | `/factory-ship`   | ship-agent | 1 |
 | `/factory-resume` | wired in Phase 6 |  |
 
-All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Phase 3 adds the **Knowledge Agent** save+query; Phase 6 adds the **Run Manager** event emit + state update):
+All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Phase 3 adds the **Knowledge Agent** save+query; Phase 6 adds the **Run Manager** event emit + state update). **Exception: FAST_PATH (TINY tier) bypasses ALL shared primitives** — no manifest, no timeline, no budget gate, no audit blocks. See `## FAST_PATH — TINY tier execution` below.
 
 0. **Timeline event (spawn_start)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_start --stage <stage> --field tokens_estimate=N`
 1. **Pre-flight budget gate**: `python3 scripts/factory_budget.py check <run-id> <stage>`
@@ -84,6 +84,59 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
 11. **Timeline event (spawn_end)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
 12. **State update**: on `status: complete`, `python3 scripts/factory_run.py complete-stage <run-id> <stage> --next-stage <next>`. On `status: failed`, `factory_run.py fail-stage <run-id> <stage> --reason "<text>"`.
 13. If `status != complete`: halt and surface. If `status == needs_human`: pause, surface, wait, log to audit, then continue.
+
+## FAST_PATH — TINY tier execution
+
+Runs when the Triage Gate (Step 0) returns TINY (score 0-1). Bypasses ALL
+shared primitives — no manifest.yaml, no timeline.jsonl, no audit.md blocks,
+no budget gate, no lock registry, no knowledge saves, no reviewer pool,
+no ship stage. The git commit IS the audit trail.
+
+```
+1. Triage (just ran) — score ≤ 1, tier = TINY
+2. Build a minimal code-generator input (no contract validation):
+   {
+     "user_request": "<verbatim from /factory-spec>",
+     "tier": "TINY",
+     "fast_path": true,
+     "repo_root": ".",
+     "constraints": ["produce minimum viable code",
+                     "TDD required",
+                     "no architectural decisions",
+                     "no new files beyond what the request needs"]
+   }
+3. Single Task(subagent_type="code-generator") spawn with that JSON as prompt.
+   No input handoff file — pass the JSON inline.
+4. code-generator runs Red → Green → Refactor → Commit (as normal) but skips
+   the plan sub-stage and the approval re-spawn. Returns stripped output:
+   just files_changed, tests_added, commits_made.
+5. Present the diff to the user with a one-line summary:
+     🏎️ FAST_PATH completed | <N> files changed | <N> tests | commit=<sha>
+     [Approve] [Reject — escalate to SMALL]
+6. **On approve**: append one line to aidlc-docs/fast-path-log.md:
+     <ts> TINY score=<n> | <request (first 80 chars)> | <files> | commit=<sha>
+   Do NOT write to aidlc-docs/audit.md. Do NOT write to aidlc-state.md.
+   Done. Run terminates.
+7. **On reject**: restart the same request as SMALL tier. Route to Step 1
+   (Generate run-id) below and run the full pipeline. Append one line to
+   aidlc-docs/fast-path-log.md:
+     <ts> ESCALATED TINY→SMALL | <request (first 80 chars)> | <reason>
+   after which the standard /factory-spec flow takes over.
+```
+
+**What FAST_PATH sacrifices:**
+- No replay capability (cannot `/factory-replay` a TINY run)
+- No knowledge emission (engram saves skipped)
+- No reviewer pool (security/performance/simplifier review skipped)
+- No ADRs (ship stage skipped)
+- No build-test-agent stage (code-generator runs tests inline via TDD)
+- No conflict-resolver locks (single spawn, nothing to conflict with)
+- No budget gate (no orchestrator-level tracking; code-generator self-monitors)
+
+**Bailout paths:**
+1. `--tier=small` on `/factory-spec` forces full pipeline, skipping triage.
+2. Triage scores ≥ 2 route to SMALL naturally.
+3. User rejects FAST_PATH diff → one-time auto-escalation to SMALL.
 
 ## Run Manager (Phase 6 — active)
 
@@ -268,6 +321,24 @@ Pull from `python3 scripts/factory_budget.py status <run-id>`.
 ## Phase 0 sequence — `/factory-spec`
 
 For `/factory-spec <description>`:
+
+Users may optionally pass `--tier=small` to skip triage and force the full pipeline.
+
+### Step 0 — Triage Gate (FAST_PATH check)
+
+Before any infrastructure setup, run the triage scorer:
+
+```bash
+python3 scripts/factory_triage.py "<user-request>"
+```
+
+Exit code mapping:
+- **exit 0** (TINY) → branch into FAST_PATH. Skip all subsequent Phase 0 steps.
+  Execute `## FAST_PATH — TINY tier execution` below. No manifest, no audit.
+- **exit 1-3** (SMALL/MEDIUM/LARGE) → continue to Step 1 below (standard path).
+  Pass the triage result to requirements-analyst as context.
+
+If the user passed `--tier=small`, skip triage entirely and go straight to Step 1.
 
 ### Step 1 — Generate run-id and initialize run directory
 - `run_id = YYYY-MM-DD-<slug>` where slug is the first 3-4 meaningful words

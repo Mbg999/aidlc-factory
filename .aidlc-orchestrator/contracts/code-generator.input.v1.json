@@ -17,11 +17,26 @@
     "gates": { "type": "array", "items": { "type": "string" }, "default": ["require_human_approval"] },
     "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
     "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
-    "merged_plan_generate": {
-      "type": "boolean",
-      "default": false,
-      "description": "When true (SMALL tier), skip the inner plan approval gate and output sub_stage=generated directly with the plan shown inline."
-    }
+    "fast_path": { "type": "boolean", "default": false, "description": "FAST_PATH mode — skip plan gate, skip re-spawn, stripped output" },
+    "tier": { "type": "string", "enum": ["TINY", "SMALL", "MEDIUM", "LARGE"], "default": "SMALL" },
+    "constraints": { "type": "array", "items": { "type": "string" }, "default": [], "description": "FAST_PATH constraints (e.g. TDD required, no architectural decisions)" },
+    "repo_root": { "type": "string", "default": ".", "description": "FAST_PATH working directory" }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "fast_path": { "const": true } } },
+      "then": {
+        "required": ["user_request", "fast_path", "tier"],
+        "properties": {
+          "run_id": { "type": "string", "default": "fast-path" },
+          "stage_id": { "const": "code-generator" },
+          "predecessor_artifacts": { "default": [] },
+          "unit_name": { "default": "_fast_path" },
+          "skills_required": { "default": ["using-agent-skills", "test-driven-development"] },
+          "skill_paths_resolved": { "default": [] }
+        }
+      }
+    }
+  ]
 }
