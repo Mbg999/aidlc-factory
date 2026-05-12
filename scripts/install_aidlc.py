@@ -90,6 +90,20 @@ def write_file(path: Path, content: str, dry_run: bool) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _retry_op(func, path: Path, max_retries: int = 3) -> None:
+    """Retry a file operation with backoff, handling Windows lock races."""
+    import time
+    for attempt in range(max_retries):
+        try:
+            func(path)
+            return
+        except OSError as e:
+            if attempt == max_retries - 1:
+                raise
+            print(f"  (retrying {path.name}: {e})", file=sys.stderr)
+            time.sleep(0.5)
+
+
 def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     if not src.exists():
         raise FileNotFoundError(f"Source not found: {src}")
@@ -98,6 +112,8 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
+    # chmod with retry — Windows Defender sometimes locks new files
+    _retry_op(lambda p: p.chmod(0o755), dst)
 
 
 
