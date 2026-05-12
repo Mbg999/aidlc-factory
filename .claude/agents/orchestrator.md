@@ -139,19 +139,18 @@ no ship stage. The git commit IS the audit trail.
 5. Present the diff to the user with a one-line summary:
      🏎️ FAST_PATH completed | <N> files changed | <N> tests | commit=<sha>
      [Approve] [Reject — escalate to SMALL]
-6. **On approve**: ensure `aidlc-docs/` exists, then append one line to
-   `aidlc-docs/fast-path-log.md`. Create the file with a header row first if it
-   does not exist:
+6. **On approve**: append one line to `aidlc-docs/audit.md` (create file with
+   header if missing). Use a flat format — no stage headers, just a single line:
      ```
-     # Fast Path Log — TINY tier runs
-     <ts> TINY score=<n> | <request (first 80 chars)> | <files> | commit=<sha>
+     <ts> TINY score=<n> FAST_PATH | <request (first 80 chars)> | <N> files | commit=<sha>
      ```
-   Do NOT write to aidlc-docs/audit.md. Do NOT write to aidlc-state.md.
-   Done. Run terminates.
+   Do NOT write to aidlc-state.md. Done. Run terminates.
 7. **On reject**: restart the same request as SMALL tier. Route to Step 1
    (Generate run-id) below and run the full pipeline. Append one line to
-   `aidlc-docs/fast-path-log.md`:
-     <ts> ESCALATED TINY→SMALL | <request (first 80 chars)> | <reason>
+   `aidlc-docs/audit.md`:
+     ```
+     <ts> TINY→SMALL ESCALATED | <request (first 80 chars)> | <reason>
+     ```
    after which the standard /factory-spec flow takes over.
 ```
 
