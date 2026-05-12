@@ -322,6 +322,7 @@ This project ships with the AIDLC orchestrator. To run the multi-agent factory:
 
 - `/factory-onboarding` — guided tour of the orchestrator system
 - `/factory-help [command]` — quick command reference
+- `/factory-budget [status|config|help]` — configure and monitor the Cost Governor
 - `/factory-state <run-id>` — current stage, next step, budget, timeline
 - `/factory-self <task>` — run the orchestrator on its own codebase
 - `/factory-spec <feature>` — workspace scout + (reverse-engineer) + requirements + (stories) + plan

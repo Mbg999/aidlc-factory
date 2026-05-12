@@ -764,6 +764,7 @@ Both workflows read the **same rule files** — the rule corpus is the single so
 | Command | Stage(s) | Notes |
 |---|---|---|---|
 | `/factory-help [command]` | — | Command reference |
+| `/factory-budget [help\|config\|status]` | — | Configure and monitor the Cost Governor |
 | `/factory-state <run-id>` | — | Show run status, budget, next stage, timeline |
 | `/factory-onboarding` | — | Guided tour of the orchestrator system |
 | `/factory-self <task>` | Full pipeline targeting orchestrator's own codebase | Self-hosting mode |
@@ -812,6 +813,7 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 ## Environment Variables
 
 - `AIDLC_ROOT` — Optional override for the repo root path used by factory scripts (`scripts/factory_*.py`). Defaults to the parent of the `scripts/` directory. Example: `AIDLC_ROOT=/path/to/repo python scripts/factory_conflict.py ...`
+- `AIDLC_MODEL_<STAGE>` — Override model for a specific stage. Uppercase stage name with dashes → underscores. Example: `AIDLC_MODEL_CODE_GENERATOR=haiku python scripts/factory_model.py resolve code-generator`
 
 ## Usage
 

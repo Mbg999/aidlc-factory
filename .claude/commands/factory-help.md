@@ -10,6 +10,7 @@ argument-hint: [command-name]
 | Command | What it does |
 |---------|-------------|
 | `/factory-onboarding` | Walk through the system: how runs work, what to expect |
+| `/factory-budget <status\|config\|help>` | Configure and monitor the Cost Governor |
 | `/factory-state <run-id>` | Show run status: current stage, next step, budget, timeline |
 | `/factory-spec <request>` | **Entrypoint.** Scores your request, spawns the right stages |
 | `/factory-plan <run-id>` | After spec: creates execution plan and design units |
