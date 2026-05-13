@@ -1,7 +1,6 @@
 ---
 description: Final stage. Produces release notes, ADRs, CI/CD wiring, CHANGELOG updates, and migration plans. Applies shipping-and-launch + git-workflow + ci-cd + documentation-and-adrs skills, with conditional deprecation-and-migration for legacy work.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

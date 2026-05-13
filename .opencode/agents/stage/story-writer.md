@@ -1,7 +1,6 @@
 ---
 description: Generates user stories and personas. Conditional — runs only when scope is multi-component and the feature touches user-facing workflows.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

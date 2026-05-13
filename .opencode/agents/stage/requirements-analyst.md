@@ -1,7 +1,6 @@
 ---
 description: Analyzes user requirements with adaptive depth, generates clarifying questions, and produces the requirements.md spec. Inception phase, runs after Workspace Scout. Two-pass execution due to the human-approval gate on questions.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

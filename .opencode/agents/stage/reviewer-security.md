@@ -1,7 +1,6 @@
 ---
 description: Security reviewer. Applies security-and-hardening skill. OWASP-aware. Uses Opus because security misses become incidents.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
 permission:
   edit: deny
   bash: allow

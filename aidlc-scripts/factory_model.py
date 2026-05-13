@@ -31,9 +31,9 @@ except ImportError:
 REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 DEFAULT_BUDGET = REPO_ROOT / ".aidlc-orchestrator" / "budgets" / "default.yaml"
 
-# Fallback model per stage tier when budget config is missing or stage not found.
-# "sonnet" is the safe default — capable enough for most work, cheaper than opus.
-DEFAULT_MODEL = "sonnet"
+# Fallback when budget config is missing or stage not found.
+# "default" lets the tool use its configured default model.
+DEFAULT_MODEL = "default"
 
 
 def resolve(stage: str, budget_path: Path | None = None) -> str:
@@ -41,14 +41,19 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
 
     Resolution order:
         1. AIDLC_MODEL_<STAGE> env var (uppercased stage, dashes → underscores)
-        2. Budget file per_stage[<stage>].model
-        3. Budget file per_stage["custom-agent"].model (fallback for unknown stages)
-        4. DEFAULT_MODEL
+        2. AIDLC_DEFAULT_MODEL env var (global override for all stages)
+        3. Budget file per_stage[<stage>].model
+        4. Budget file per_stage["custom-agent"].model (fallback for unknown stages)
+        5. DEFAULT_MODEL
     """
     env_key = f"AIDLC_MODEL_{stage.upper().replace('-', '_')}"
     env_model = os.environ.get(env_key)
     if env_model:
         return env_model
+
+    global_default = os.environ.get("AIDLC_DEFAULT_MODEL")
+    if global_default:
+        return global_default
 
     bp = budget_path or DEFAULT_BUDGET
     if bp.exists() and yaml:

@@ -1,7 +1,6 @@
 ---
 description: Reverse-engineers an existing brownfield codebase. Produces business overview, architecture docs, code structure, API docs, component inventory, interaction diagrams, tech stack, and dependencies. Conditional — runs only when workspace is brownfield and no current RE artifacts exist.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

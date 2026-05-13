@@ -1,7 +1,6 @@
 ---
 description: Detects greenfield vs brownfield workspace state, identifies tech stack, decides next AIDLC phase. First stage of every AIDLC inception run. Spawned by the orchestrator with a path to its input handoff YAML.
 mode: subagent
-model: anthropic/claude-haiku-4-20250514
 permission:
   edit: allow
   bash: allow

@@ -1,7 +1,6 @@
 ---
 description: Per-unit construction agent. Owns the full per-unit loop — Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation. Produces source code + tests + per-unit code-generation plan with [x] checkboxes. Multi-pass with approval gates.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

@@ -1,7 +1,6 @@
 ---
 description: Code review reviewer. Five-axis self-review per code-review-and-quality skill. Emits findings with severity, location, recommendation.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: deny
   bash: allow

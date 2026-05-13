@@ -1,7 +1,6 @@
 ---
 description: Runs linter on the codebase and reports all violations. Use for post-codegen quality checks.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   read: allow
   edit: deny

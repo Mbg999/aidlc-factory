@@ -1,7 +1,6 @@
 ---
 description: Decomposes the approved execution plan into per-unit specs. Conditional — runs only when the plan explicitly enumerates ≥2 units OR requirements call out distinct services/components.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

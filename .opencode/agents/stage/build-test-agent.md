@@ -1,7 +1,6 @@
 ---
 description: Runs build + tests for one unit (or the whole project after final unit). Produces build-instructions.md and build-and-test-summary.md. Applies debugging-and-error-recovery skill on failures.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: allow
   bash: allow

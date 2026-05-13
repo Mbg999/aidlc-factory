@@ -1,7 +1,6 @@
 ---
 description: Performance reviewer. Applies performance-optimization skill. Hot-path analysis, complexity review, allocation hot spots.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: deny
   bash: allow

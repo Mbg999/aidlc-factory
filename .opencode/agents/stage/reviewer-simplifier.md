@@ -1,7 +1,6 @@
 ---
 description: Simplification reviewer. Applies code-simplification skill. Flags premature abstraction, dead code, over-engineering, redundant layers.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 permission:
   edit: deny
   bash: allow

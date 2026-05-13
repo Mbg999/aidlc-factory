@@ -435,6 +435,17 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     if not dry_run:
         print(f"\n  Next: pip install -r requirements.txt")
         print(f"  Then: invoke /factory-spec <feature> in the tool to start a run.")
+        # Non-Claude tools need AIDLC_DEFAULT_MODEL to skip Claude-specific model names
+        if tool not in ("claude",):
+            env_path = target_root / ".aidlc-env"
+            env_path.write_text(
+                "# AIDLC orchestrator — non-Claude tools should use default model\n"
+                "AIDLC_DEFAULT_MODEL=default\n"
+            )
+            print(f"\n  NOTE: Budget default.yaml contains Claude model names (sonnet/opus).")
+            print(f"  To use the orchestrator with other tools, set:")
+            print(f"    export AIDLC_DEFAULT_MODEL=default")
+            print(f"  Or source the env file:  source {env_path.relative_to(target_root)}")
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:

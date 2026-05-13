@@ -17,19 +17,19 @@ spec.loader.exec_module(mod)
 
 
 def test_resolve_workspace_scout(env_setup):
-    """workspace-scout should resolve to sonnet."""
+    """workspace-scout should resolve to sonnet (from budget)."""
     model = mod.resolve("workspace-scout")
     assert model == "sonnet"
 
 
 def test_resolve_code_generator(env_setup):
-    """code-generator should resolve to opus."""
+    """code-generator should resolve to opus (from budget)."""
     model = mod.resolve("code-generator")
     assert model == "opus"
 
 
 def test_resolve_requirements_analyst(env_setup):
-    """requirements-analyst should resolve to opus."""
+    """requirements-analyst should resolve to opus (from budget)."""
     model = mod.resolve("requirements-analyst")
     assert model == "opus"
 
@@ -41,9 +41,9 @@ def test_resolve_reviewer_wildcard(env_setup):
 
 
 def test_resolve_unknown_stage(env_setup):
-    """Unknown stage should return default model."""
+    """Unknown stage falls back to custom-agent budget (sonnet)."""
     model = mod.resolve("nonexistent-stage")
-    assert model == mod.DEFAULT_MODEL  # "sonnet"
+    assert model == "sonnet"
 
 
 def test_resolve_env_override(env_setup):
@@ -54,6 +54,18 @@ def test_resolve_env_override(env_setup):
         assert model == "haiku"
     finally:
         os.environ.pop("AIDLC_MODEL_CODE_GENERATOR", None)
+
+
+def test_resolve_default_model_env(env_setup):
+    """AIDLC_DEFAULT_MODEL=default should override all budget models."""
+    os.environ["AIDLC_DEFAULT_MODEL"] = "default"
+    try:
+        model = mod.resolve("code-generator")
+        assert model == "default"
+        model2 = mod.resolve("requirements-analyst")
+        assert model2 == "default"
+    finally:
+        os.environ.pop("AIDLC_DEFAULT_MODEL", None)
 
 
 def test_cli_resolve(env_setup):
