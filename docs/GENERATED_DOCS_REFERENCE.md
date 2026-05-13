@@ -105,20 +105,20 @@ aidlc-docs/
 
 This repository includes a secure executor used by the evaluation runner. The following files and behaviors are part of that feature set:
 
-- `scripts/executors/runner.py` — a small CLI that reads a JSON payload from stdin and executes allowlisted script actions. The executor returns structured `results` which are attached to the output under the `executor_results` key.
+- `aidlc-scripts/executors/runner.py` — a small CLI that reads a JSON payload from stdin and executes allowlisted script actions. The executor returns structured `results` which are attached to the output under the `executor_results` key.
 
-- `scripts/executors/allowlist.txt` — repository-managed allowlist of permitted base paths (one path per line; relative to repo root or absolute) used by the executor to decide which scripts may be run. The environment variable `EXECUTOR_ALLOW_BASES` may also be used to provide additional colon-separated allowlist entries at runtime.
+- `aidlc-scripts/executors/allowlist.txt` — repository-managed allowlist of permitted base paths (one path per line; relative to repo root or absolute) used by the executor to decide which scripts may be run. The environment variable `EXECUTOR_ALLOW_BASES` may also be used to provide additional colon-separated allowlist entries at runtime.
 
-- `--auto-enable-extensions` — CLI flag added to `scripts/aidlc-evaluator/scripts/run_evaluation.py`. When provided during an evaluation run, the runner writes `aidlc-state.yaml` into the run folder's `aidlc-docs/` directory to configure which skills are active.
+- `--auto-enable-extensions` — CLI flag added to `aidlc-scripts/aidlc-evaluator/scripts/run_evaluation.py`. When provided during an evaluation run, the runner writes `aidlc-state.yaml` into the run folder's `aidlc-docs/` directory to configure which skills are active.
 
 Direct runner CLI example (for debugging):
 
 ```bash
-echo '{"actions":[{"action":"run_script","script":"scripts/test_scripts/echo.py","args":["hi"]}]}' \
- | python3 scripts/executors/runner.py
+echo '{"actions":[{"action":"run_script","script":"aidlc-scripts/test_scripts/echo.py","args":["hi"]}]}' \
+ | python3 aidlc-scripts/executors/runner.py
 ```
 
 Audit and security notes:
 
 - Review generated `aidlc-docs/` artifacts before approving or applying changes.
-- Do not add untrusted locations to `scripts/executors/allowlist.txt` without review. The executor runs programs without `shell=True` and enforces the allowlist, but adding wide paths (e.g., `/`) defeats its purpose.
+- Do not add untrusted locations to `aidlc-scripts/executors/allowlist.txt` without review. The executor runs programs without `shell=True` and enforces the allowlist, but adding wide paths (e.g., `/`) defeats its purpose.

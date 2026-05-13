@@ -25,11 +25,11 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
-- bump cryptography in /scripts/aidlc-evaluator (#179)
-- bump pytest in /scripts/aidlc-evaluator (#184)
-- bump pillow in /scripts/aidlc-evaluator (#183)
+- bump cryptography in /aidlc-scripts/aidlc-evaluator (#179)
+- bump pytest in /aidlc-scripts/aidlc-evaluator (#184)
+- bump pillow in /aidlc-scripts/aidlc-evaluator (#183)
 - Fix CodeQL action versions in workflow (#191)
-- bump python-multipart in /scripts/aidlc-evaluator (#186)
+- bump python-multipart in /aidlc-scripts/aidlc-evaluator (#186)
 
 ## [0.1.7] - 2026-04-02
 
@@ -65,12 +65,12 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
-- bump pyjwt in /scripts/aidlc-evaluator (#129)
-- bump pillow in /scripts/aidlc-evaluator (#130)
-- bump requests in /scripts/aidlc-evaluator (#146)
-- bump cryptography in /scripts/aidlc-evaluator (#148)
-- bump pygments in /scripts/aidlc-evaluator (#151)
-- bump aiohttp in /scripts/aidlc-evaluator (#163)
+- bump pyjwt in /aidlc-scripts/aidlc-evaluator (#129)
+- bump pillow in /aidlc-scripts/aidlc-evaluator (#130)
+- bump requests in /aidlc-scripts/aidlc-evaluator (#146)
+- bump cryptography in /aidlc-scripts/aidlc-evaluator (#148)
+- bump pygments in /aidlc-scripts/aidlc-evaluator (#151)
+- bump aiohttp in /aidlc-scripts/aidlc-evaluator (#163)
 
 ## [0.1.6] - 2026-03-05
 

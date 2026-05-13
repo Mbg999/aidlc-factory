@@ -1,13 +1,13 @@
 ---
 name: cost-governor
-description: AIDLC Orchestrator's budget enforcement layer. Owns the per-run token/wall-clock budget, four-path decision gate (ok/downshift/skip/halt), and adaptive-depth routing. NOT a Task() subagent — orchestrator invokes scripts/factory_budget.py directly.
+description: AIDLC Orchestrator's budget enforcement layer. Owns the per-run token/wall-clock budget, four-path decision gate (ok/downshift/skip/halt), and adaptive-depth routing. NOT a Task() subagent — orchestrator invokes aidlc-scripts/factory_budget.py directly.
 ---
 
 # Cost Governor (Phase 2 — active)
 
 > **Architectural note:** the Cost Governor is **not** a Task()-spawnable
 > subagent. It is a *capability* the orchestrator exercises by calling
-> `scripts/factory_budget.py` (CLI) and parsing its exit codes. This file
+> `aidlc-scripts/factory_budget.py` (CLI) and parsing its exit codes. This file
 > is the canonical spec for HOW the orchestrator integrates budget
 > enforcement into every spawn cycle.
 
@@ -39,7 +39,7 @@ is per-run runtime state and gitignored.
 
 ## Four-path decision
 
-Each `python3 scripts/factory_budget.py check <run-id> <stage>` call returns
+Each `python3 aidlc-scripts/factory_budget.py check <run-id> <stage>` call returns
 one of four exit codes the orchestrator MUST route on:
 
 | Exit | Decision | Orchestrator action |
@@ -76,13 +76,13 @@ In every flow's "All flows share the same primitives" sequence:
 
 - **Step 1 (pre-flight gate)** — run before any `Task()` spawn:
   ```bash
-  python3 scripts/factory_budget.py check <run-id> <stage>
+  python3 aidlc-scripts/factory_budget.py check <run-id> <stage>
   # Read exit code → route per the table above.
   # Read JSON on stdout for decision details (estimated tokens, threshold pct).
   ```
 - **Step 5 (post-flight reconciliation)** — run after every `Task()` returns:
   ```bash
-  python3 scripts/factory_budget.py deduct <run-id> <stage> \
+  python3 aidlc-scripts/factory_budget.py deduct <run-id> <stage> \
     --tokens-in <n> --tokens-out <n> --wall-min <n>
   ```
   If the stage output omits a `cost` block, deduct using the default
@@ -91,7 +91,7 @@ In every flow's "All flows share the same primitives" sequence:
 For run setup (Phase 0 Step 1 / Phase 1 run lookup), the orchestrator
 also runs:
 ```bash
-python3 scripts/factory_budget.py init <run-id>
+python3 aidlc-scripts/factory_budget.py init <run-id>
 ```
 This is idempotent — if `runs/<run-id>/budget.yaml` already exists (legacy
 adoption case), the script leaves it alone.
@@ -104,7 +104,7 @@ Every stage completion message MUST include a one-line budget summary:
 Budget: 3.6M / 5M tokens used (72%) — 1.4M remaining
 ```
 
-The values come from `python3 scripts/factory_budget.py status <run-id>`.
+The values come from `python3 aidlc-scripts/factory_budget.py status <run-id>`.
 
 ## Honor system on stage agents
 

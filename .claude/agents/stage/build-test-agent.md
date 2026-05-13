@@ -12,7 +12,7 @@ you run it, capture results, and produce reproducible build instructions.
 ## Your input
 Validate first:
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/build-test-agent.input.v1.json \
     <input-handoff-path>
 ```

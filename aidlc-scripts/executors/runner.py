@@ -7,7 +7,7 @@ Reads a JSON payload from stdin with shape:
 Supported action types:
   - {"action":"run_script","script": "path/to/script","args": [..]}
 
-The executor enforces a conservative allowlist: only files under `scripts/`
+The executor enforces a conservative allowlist: only files under `aidlc-scripts/`
 or `.venv/bin` or `bin/` in the repo root are allowed. No shell=True is used.
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _allowed_bases() -> list[Path]:
-    bases = [REPO_ROOT / "scripts", REPO_ROOT / "bin", REPO_ROOT / ".venv" / "bin"]
+    bases = [REPO_ROOT / "aidlc-scripts", REPO_ROOT / "bin", REPO_ROOT / ".venv" / "bin"]
 
     # Allow additional paths from environment variable (colon-separated)
     extra = os.environ.get("EXECUTOR_ALLOW_BASES")
@@ -35,7 +35,7 @@ def _allowed_bases() -> list[Path]:
                 bases.append((REPO_ROOT / p) if not p.startswith("/") else Path(p))
 
     # Allow additional entries from an allowlist file
-    allow_file = REPO_ROOT / "scripts" / "executors" / "allowlist.txt"
+    allow_file = REPO_ROOT / "aidlc-scripts" / "executors" / "allowlist.txt"
     try:
         if allow_file.exists():
             for line in allow_file.read_text(encoding="utf-8").splitlines():

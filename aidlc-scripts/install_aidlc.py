@@ -9,10 +9,10 @@ Optionally fetches and installs engineering process skills from
 https://github.com/addyosmani/agent-skills.
 
 Usage examples:
-  python scripts/install_aidlc.py --tool cursor
-  python scripts/install_aidlc.py --tool copilot --yes
-  python scripts/install_aidlc.py --tool kiro --dry-run
-  python scripts/install_aidlc.py --tool copilot --with-agent-skills
+  python aidlc-scripts/install_aidlc.py --tool cursor
+  python aidlc-scripts/install_aidlc.py --tool copilot --yes
+  python aidlc-scripts/install_aidlc.py --tool kiro --dry-run
+  python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 """
 from __future__ import annotations
 
@@ -351,8 +351,8 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tool} ---")
 
     # Layer 1: factory scripts (any tool)
-    src_scripts = repo_root / "scripts"
-    dst_scripts = target_root / "scripts"
+    src_scripts = repo_root / "aidlc-scripts"
+    dst_scripts = target_root / "aidlc-scripts"
     print(f"  factory scripts -> {dst_scripts.relative_to(target_root)}/")
     for name in ORCHESTRATOR_FACTORY_SCRIPTS:
         src = src_scripts / name

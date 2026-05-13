@@ -15,7 +15,7 @@ The orchestrator passes ONE argument: the path to your input handoff YAML.
 
 **First**: validate.
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/reverse-engineer.input.v1.json \
     <input-handoff-path>
 ```
@@ -69,7 +69,7 @@ Required:
 - `tech_stack_summary`: brief object summarizing languages, build_system, runtime
 
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/reverse-engineer.output.v1.json \
     <output-handoff-path>
 ```

@@ -23,7 +23,7 @@ Versioning is semver-compatible:
 ## Validation
 
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/workspace-scout.output.v1.json \
     .aidlc-orchestrator/runs/<run-id>/handoffs/workspace-scout.output.yaml
 ```

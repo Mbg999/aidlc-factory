@@ -1,13 +1,13 @@
 ---
 name: conflict-resolver
-description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT a Task() subagent — orchestrator invokes scripts/factory_conflict.py directly.
+description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT a Task() subagent — orchestrator invokes aidlc-scripts/factory_conflict.py directly.
 ---
 
 # Conflict Resolver (Phase 5 — active)
 
 > **Architectural note:** the Conflict Resolver is **not** a Task()-spawnable
 > subagent. It is a *capability* the orchestrator exercises by calling
-> `scripts/factory_conflict.py` (CLI) and parsing its exit codes. This file
+> `aidlc-scripts/factory_conflict.py` (CLI) and parsing its exit codes. This file
 > is the canonical spec for HOW the orchestrator integrates conflict
 > arbitration into parallel spawn cycles.
 
@@ -56,25 +56,25 @@ detecting overlap is safe; under-detecting would let conflicts slip through.
 ### Pre-spawn (acquire + snapshot)
 ```bash
 # 1. Acquire write locks for the unit's declared paths
-python3 scripts/factory_conflict.py acquire <run-id> code-generator:<unit> \
+python3 aidlc-scripts/factory_conflict.py acquire <run-id> code-generator:<unit> \
     "src/<unit>/**" "tests/<unit>/**"
 # Exit 0 → continue. Exit 1 → conflict record; halt this unit's spawn.
 
 # 2. Snapshot AST baseline of all .py files the agent might modify
-python3 scripts/factory_conflict.py snapshot <run-id> code-generator:<unit> \
+python3 aidlc-scripts/factory_conflict.py snapshot <run-id> code-generator:<unit> \
     src/<unit>/handler.py src/<unit>/jwt.py
 ```
 
 ### Post-spawn (check-symbols + release)
 ```bash
 # 3. Diff modified files against the baseline
-python3 scripts/factory_conflict.py check-symbols <run-id> code-generator:<unit> \
+python3 aidlc-scripts/factory_conflict.py check-symbols <run-id> code-generator:<unit> \
     src/<unit>/handler.py src/<unit>/jwt.py
 # Exit 0 → no drift, OR drift but no other active holders (logged but not a conflict).
 # Exit 1 → drift AND other holders are active → interface_drift conflict written.
 
 # 4. Release the unit's locks
-python3 scripts/factory_conflict.py release <run-id> code-generator:<unit>
+python3 aidlc-scripts/factory_conflict.py release <run-id> code-generator:<unit>
 ```
 
 ## Resolution policies

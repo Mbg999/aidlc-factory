@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 CACHE_PY = SCRIPTS / "factory_build_cache.py"
 
 
@@ -33,7 +33,7 @@ def test_cache_save_and_hit(env_setup, run_id):
 
 
 def test_cache_hash_computation(env_setup):
-    r = _cache(["hash", "--files", "scripts/VERSION"], env_setup)
+    r = _cache(["hash", "--files", "aidlc-scripts/VERSION"], env_setup)
     data = json.loads(r.stdout)
     assert "hash" in data
     assert len(data["hash"]) == 16

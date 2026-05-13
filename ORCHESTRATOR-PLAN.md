@@ -564,7 +564,7 @@ can resume from.
   {"ts":"2026-05-08T10:35:14Z","evt":"stage_end","stage":"code-generator","status":"complete","tokens":187432}
   {"ts":"2026-05-08T10:35:15Z","evt":"conflict_detected","kind":"interface_drift","parties":["auth","user"]}
   ```
-- One-line tail tool (`scripts/factory-tail <run-id>`) for live monitoring.
+- One-line tail tool (`aidlc-scripts/factory-tail <run-id>`) for live monitoring.
 
 ### 7.4 Run isolation
 - Multiple concurrent runs (different features) use different `run-id`.
@@ -626,7 +626,7 @@ half-finished primitive.
 **Status:** ✅ Complete · **Started:** 2026-05-08 · **Completed:** 2026-05-08
 **Goal:** Prove the contract pattern works end-to-end with one stage.
 - [x] Write `orchestrator.md`, `workspace-scout.md`, `requirements-analyst.md`.
-- [x] Write input/output JSON schemas for those two stages (+ shared validator `scripts/factory_validate.py`, smoke-tested against valid+invalid fixtures).
+- [x] Write input/output JSON schemas for those two stages (+ shared validator `aidlc-scripts/factory_validate.py`, smoke-tested against valid+invalid fixtures).
 - [x] Write `/factory-spec` slash command.
 - [x] User-accepted without running the live integration test ("ok, its fine, lets go for next" — 2026-05-08). Live e2e remains the integration test for Phase 1's full inception → ship dry run.
 - **Acceptance:** the existing AIDLC `/spec` flow is reproduced, just split
@@ -642,7 +642,7 @@ half-finished primitive.
 
 ### Phase 2 — Cost Governor (2 days)
 **Status:** ✅ Complete · **Started:** 2026-05-08 · **Completed:** 2026-05-08
-- [x] Implement `scripts/factory_budget.py` (init / check / deduct / status subcommands) — uses `.aidlc-orchestrator/budgets/default.yaml` as policy and `<run>/budget.yaml` as per-run state. **Smoke-tested all four exit-code paths (0/1/2/3) plus init/deduct.**
+- [x] Implement `aidlc-scripts/factory_budget.py` (init / check / deduct / status subcommands) — uses `.aidlc-orchestrator/budgets/default.yaml` as policy and `<run>/budget.yaml` as per-run state. **Smoke-tested all four exit-code paths (0/1/2/3) plus init/deduct.**
 - [x] Wire the orchestrator's pre-flight gate: `factory_budget.py check <run> <stage>` before every spawn. Exit codes drive the routing decision (0=ok, 1=downshift, 2=skip-optional, 3=halt). Added to "All flows share the same primitives" + inline in Phase 0 sequence.
 - [x] Wire the orchestrator's post-flight reconciliation: `factory_budget.py deduct ...` after every spawn using the `cost.{tokens_in,tokens_out,wall_clock_min}` fields from each stage's output. Fallback to default-budget estimate if `cost` block is absent (logged as `[CostGov] Estimated`).
 - [x] Adaptive depth: `depth_override` field added to `requirements-analyst.input.v1.json` and `workflow-planner.input.v1.json` (re-validated with fixture). Both agents updated to honor it and log `[CostGov] Depth overridden ...` to audit. Optional stages (story-writer, unit-decomposer) skip via gate exit code 2.
@@ -667,7 +667,7 @@ half-finished primitive.
 ### Phase 4 — Parallel Reviewer Pool (1–2 days)
 **Status:** ✅ Complete · **Started:** 2026-05-08 · **Completed:** 2026-05-08
 - [x] Refactor `/factory-review` flow in orchestrator.md from sequential to parallel: 6-step procedure (pre-flight gates → knowledge queries → parallel `Task()` fan-out in one message → post-processing → merge → approval).
-- [x] Implement `scripts/factory_merge_reviews.py` — merges 4 reviewer outputs into `aidlc-docs/operations/review-report.md` with summary table, sorted per-reviewer findings (with reviewer-specific fields like `cwe`/`big_o`/`simplification_pattern` rendered), and "files with most findings" cross-reviewer index.
+- [x] Implement `aidlc-scripts/factory_merge_reviews.py` — merges 4 reviewer outputs into `aidlc-docs/operations/review-report.md` with summary table, sorted per-reviewer findings (with reviewer-specific fields like `cwe`/`big_o`/`simplification_pattern` rendered), and "files with most findings" cross-reviewer index.
 - [x] Smoke-tested merge script in 3 scenarios: full set (4), explicit partial set (3), missing output file (warns + completes).
 - [x] Updated `/factory-review` slash command to reflect parallel pattern; documented wall-clock acceptance criteria.
 - [x] Documented the partial-set protocol: when Cost Governor returns exit 2 for any reviewer, drop from active set; merge script accepts `--reviewers` to skip in the output.
@@ -677,21 +677,21 @@ half-finished primitive.
 
 ### Phase 5 — Conflict Resolver + Parallel Code Generation (3–5 days)
 **Status:** ✅ Complete · **Started:** 2026-05-08 · **Completed:** 2026-05-08
-- [x] **File lock registry + glob matcher** — `scripts/factory_conflict.py acquire/release/list`. Heuristic component-wise glob overlap with `**` wildcard support; biased toward false positives. Read/write mode handling (read-read sharing, write-write blocking, write-read blocking). Lock file format: `runs/<run>/locks/<holder>.yaml`. Smoke-tested non-overlapping → granted, overlapping write → conflict record, read-mode sharing → both granted, release → idempotent cleanup.
+- [x] **File lock registry + glob matcher** — `aidlc-scripts/factory_conflict.py acquire/release/list`. Heuristic component-wise glob overlap with `**` wildcard support; biased toward false positives. Read/write mode handling (read-read sharing, write-write blocking, write-read blocking). Lock file format: `runs/<run>/locks/<holder>.yaml`. Smoke-tested non-overlapping → granted, overlapping write → conflict record, read-mode sharing → both granted, release → idempotent cleanup.
 - [x] **Semantic conflict diff (Python AST)** — `factory_conflict.py snapshot/check-symbols`. Captures top-level function and class signatures (args + return annotations) pre-spawn; diffs post-spawn. If drift detected AND other holders are active → `interface_drift` conflict record. Smoke-tested with signature change + added function + removed method — all 3 drift types caught.
 - [x] **Resolution policies (escalation-only for Phase 5)** — orchestrator surfaces conflict record and lets user re-plan / manual-merge / cancel. Auto-merge and priority routing documented as future features in `ORCHESTRATOR-PLAN.md §6.2` (not implemented because generic auto-merge is unsafe).
 - [x] **Enable parallel `Task()` fan-out for code-generator** — orchestrator's `/factory-build` flow refactored to layer-parallel. Topo-sort units → for each layer: per-unit pre-flight (budget+lock+snapshot+knowledge+input) → 3 sub-stages parallel (plan/generated/approved) → parallel build-test-agent → release locks → auto-commits. Concurrency cap 4 enforced; layers > 4 units batch within the layer.
 - [x] **Conflict Resolver reference doc** at `.claude/agents/cross-cutting/conflict-resolver.md`. Orchestrator gets a "Conflict Resolver (Phase 5 — active)" section alongside Cost Governor and Knowledge Agent.
 - [x] **factory-build.md slash command** updated to reflect layer-parallel pattern with conflict-resolver protocol references.
 - [ ] Live integration test: two truly independent units complete in parallel; two units that touch a shared module surface a conflict (path or interface drift). **(Pending live invocation.)**
-- **Phase 5.5 follow-up (✅ Complete · 2026-05-09):** TS/JS AST diff via tree-sitter + tree-sitter-typescript + tree-sitter-javascript. Implemented in `scripts/factory_conflict.py` with extension dispatcher (`.ts/.mts/.cts → typescript`, `.tsx → tsx`, `.js/.mjs/.cjs/.jsx → javascript`). Extracts top-level `export function`, `export class`, `export interface`, `export type`, `export enum`, and `export const x = (...) => ...` (arrow functions). Whitespace-normalized signatures avoid spurious drift on reformat. tree-sitter deps are optional — when missing, TS/JS files mark as `tree_sitter_unavailable` and only path locking applies (graceful degradation). Smoke test caught all 4 mutation types: param rename + return-type change, class method removal, interface member rename, enum addition. Deep type-system drift (generics narrowing, conditional types) stays out of scope; that needs `tsc --noEmit` or LSP integration (Phase 7+).
+- **Phase 5.5 follow-up (✅ Complete · 2026-05-09):** TS/JS AST diff via tree-sitter + tree-sitter-typescript + tree-sitter-javascript. Implemented in `aidlc-scripts/factory_conflict.py` with extension dispatcher (`.ts/.mts/.cts → typescript`, `.tsx → tsx`, `.js/.mjs/.cjs/.jsx → javascript`). Extracts top-level `export function`, `export class`, `export interface`, `export type`, `export enum`, and `export const x = (...) => ...` (arrow functions). Whitespace-normalized signatures avoid spurious drift on reformat. tree-sitter deps are optional — when missing, TS/JS files mark as `tree_sitter_unavailable` and only path locking applies (graceful degradation). Smoke test caught all 4 mutation types: param rename + return-type change, class method removal, interface member rename, enum addition. Deep type-system drift (generics narrowing, conditional types) stays out of scope; that needs `tsc --noEmit` or LSP integration (Phase 7+).
 - **Acceptance:** two units that touch shared module are detected, conflict
   is resolved (auto or escalated); two truly independent units complete in
   parallel.
 
 ### Phase 6 — Run Manager + Telemetry Hardening (2 days)
 **Status:** ✅ Complete · **Started:** 2026-05-08 · **Completed:** 2026-05-08
-- [x] Implement `manifest.yaml` (atomic write-tmp-then-rename) + resume + replay subcommands in `scripts/factory_run.py` (init / set / complete-stage / fail-stage / emit / status / resume / replay / adopt-legacy / tail).
+- [x] Implement `manifest.yaml` (atomic write-tmp-then-rename) + resume + replay subcommands in `aidlc-scripts/factory_run.py` (init / set / complete-stage / fail-stage / emit / status / resume / replay / adopt-legacy / tail).
 - [x] Implement `timeline.jsonl` (append-only, one JSON line per event) + tail subcommand with `--follow` mode.
 - [x] Wire orchestrator's shared primitives to call `factory_run.py emit` (steps 0 + 11) and `complete-stage` / `fail-stage` (step 12).
 - [x] Add `/factory-resume` slash command — resumes by run-id OR adopts legacy `aidlc-docs/` if invoked without args.

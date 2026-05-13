@@ -195,7 +195,7 @@ Create `aidlc-docs/inception/reverse-engineering/<run-id>-reverse-engineering-ti
 When needed, recommend installing skills:
 
 ```bash
-python scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
+python aidlc-scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
 ```
 
 ## Step 12: Update State Tracking

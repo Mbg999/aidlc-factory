@@ -12,7 +12,7 @@ you don't fix.
 
 ## Your input
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/reviewer.input.v1.json \
     <input-handoff-path>
 ```

@@ -37,16 +37,16 @@ Each step is a separate `/factory-*` command so you can inspect before proceedin
 
 ```bash
 # Visual timeline of completed stages
-python3 scripts/factory_run.py graph <run-id>
+python3 aidlc-scripts/factory_run.py graph <run-id>
 
 # Budget usage (tokens, wall clock)
-python3 scripts/factory_budget.py status <run-id>
+python3 aidlc-scripts/factory_budget.py status <run-id>
 
 # Approval gate latency
-python3 scripts/factory_run.py status <run-id> --latency
+python3 aidlc-scripts/factory_run.py status <run-id> --latency
 
 # Live event tail
-python3 scripts/factory_run.py tail <run-id> --follow
+python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 ```
 
 ## Recovery
@@ -55,15 +55,15 @@ python3 scripts/factory_run.py tail <run-id> --follow
 |-----------|-----------|
 | Run crashed mid-stage | `/factory-resume <run-id>` |
 | Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| Agent crashed, locks stale | `python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Agent crashed, locks stale | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
 | Run burned too many tokens | Start over with tighter budget in `.aidlc-orchestrator/budgets/default.yaml` |
 
 ## Tools
 
-- **Triage:** `python3 scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning
-- **Validate:** `python3 scripts/factory_validate.py schema.json doc.yaml [--strict]`
-- **Secret scan:** `python3 scripts/factory_secretscan.py handoff.yaml`
-- **Audit writes:** `python3 scripts/factory_audit_writes.py <run-id> <holder> --locks src/**`
+- **Triage:** `python3 aidlc-scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning
+- **Validate:** `python3 aidlc-scripts/factory_validate.py schema.json doc.yaml [--strict]`
+- **Secret scan:** `python3 aidlc-scripts/factory_secretscan.py handoff.yaml`
+- **Audit writes:** `python3 aidlc-scripts/factory_audit_writes.py <run-id> <holder> --locks src/**`
 
 ## Documentation
 

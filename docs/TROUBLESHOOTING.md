@@ -14,13 +14,13 @@ index from `PHASE_ORDER`.
 
 **Check:**
 ```bash
-python3 scripts/factory_run.py status <run-id> --json | grep current_stage
-python3 scripts/factory_run.py status <run-id> --json | grep completed_stages
+python3 aidlc-scripts/factory_run.py status <run-id> --json | grep current_stage
+python3 aidlc-scripts/factory_run.py status <run-id> --json | grep completed_stages
 ```
 
 **Fix:** Set the correct current_stage:
 ```bash
-python3 scripts/factory_run.py set <run-id> --field current_stage=workspace-scout
+python3 aidlc-scripts/factory_run.py set <run-id> --field current_stage=workspace-scout
 ```
 
 ### Budget shows negative remaining
@@ -34,8 +34,8 @@ possible.
 
 **Check:**
 ```bash
-python3 scripts/factory_budget.py status <run-id> | grep -A5 used
-python3 scripts/factory_budget.py status <run-id> | grep tokens_max
+python3 aidlc-scripts/factory_budget.py status <run-id> | grep -A5 used
+python3 aidlc-scripts/factory_budget.py status <run-id> | grep tokens_max
 ```
 
 **Fix:** None needed for display — negative remaining just indicates overspend.
@@ -53,10 +53,10 @@ validates each output and skips schema-invalid ones.
 **Check:**
 ```bash
 # Validate each reviewer output individually
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
   .aidlc-orchestrator/contracts/reviewer.output.v1.json \
   .aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-code.output.yaml
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
   .aidlc-orchestrator/contracts/reviewer.output.v1.json \
   .aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-security.output.yaml
 # ... repeat for performance, simplifier
@@ -76,8 +76,8 @@ run before the build wave.
 
 **Check:**
 ```bash
-python3 scripts/factory_conflict.py list <run-id>
-python3 scripts/factory_conflict.py conflicts <run-id>
+python3 aidlc-scripts/factory_conflict.py list <run-id>
+python3 aidlc-scripts/factory_conflict.py conflicts <run-id>
 ```
 
 **Likely cause (stale lock):** A prior agent crashed without releasing its locks.
@@ -86,16 +86,16 @@ The lock file still exists but the holder is dead.
 **Check:**
 ```bash
 # List all locks
-python3 scripts/factory_conflict.py list <run-id>
+python3 aidlc-scripts/factory_conflict.py list <run-id>
 # Check if any are stale (based on TTL)
-python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120
+python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120
 ```
 
 **Fix:** Release stale locks or manually remove the holder's lock file:
 ```bash
-python3 scripts/factory_conflict.py release <run-id> <holder>
+python3 aidlc-scripts/factory_conflict.py release <run-id> <holder>
 # Or for all stale locks:
-python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120
+python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120
 ```
 
 ### Triage returns unexpected tier
@@ -108,13 +108,13 @@ complex work in simple terms may score lower than expected.
 
 **Check:**
 ```bash
-python3 scripts/factory_triage.py "<request>" --explain
+python3 aidlc-scripts/factory_triage.py "<request>" --explain
 # Shows which factors fired and at what intensity
 ```
 
 **Fix:** None needed — the orchestrator treats TINY as a threshold (score == 0).
 Any single keyword match pushes to SMALL+. If the score is truly wrong, add
-keywords to `FACTOR_KEYWORDS` in `scripts/factory_triage.py`.
+keywords to `FACTOR_KEYWORDS` in `aidlc-scripts/factory_triage.py`.
 
 ### Timeline events missing after crash
 
@@ -131,7 +131,7 @@ To fix the drift, the `resume` command will note it but proceed normally.
 To manually repair:
 ```bash
 # Re-emit missing events
-python3 scripts/factory_run.py emit <run-id> --evt stage_complete --stage <missing-stage>
+python3 aidlc-scripts/factory_run.py emit <run-id> --evt stage_complete --stage <missing-stage>
 ```
 
 ### `factory_run.py status --latency` shows no data
@@ -144,5 +144,5 @@ to have been triggered.
 
 **Check:**
 ```bash
-python3 scripts/factory_run.py tail <run-id> --json | grep -E "needs_human|user_decision"
+python3 aidlc-scripts/factory_run.py tail <run-id> --json | grep -E "needs_human|user_decision"
 ```

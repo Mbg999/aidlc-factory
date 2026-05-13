@@ -24,7 +24,7 @@ Load rule detail files from aidlc-rules/aws-aidlc-rule-details/ as specified.
 Install skills for full workflow enforcement:
 
 ```bash
-python scripts/install_aidlc.py --tool cursor --with-agent-skills --dest .
+python aidlc-scripts/install_aidlc.py --tool cursor --with-agent-skills --dest .
 ```
 
 Skills installed under `.agents/skills/` are referenced by stage rule files.

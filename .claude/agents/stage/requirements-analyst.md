@@ -16,7 +16,7 @@ YAML file (e.g. `.aidlc-orchestrator/runs/<run-id>/handoffs/requirements-analyst
 
 **First thing you do:** validate the input.
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/requirements-analyst.input.v1.json \
     <input-handoff-path>
 ```
@@ -126,7 +126,7 @@ It MUST validate against:
 
 Then validate:
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/requirements-analyst.output.v1.json \
     <output-handoff-path>
 ```

@@ -10,7 +10,7 @@
 
 ### 1.1 Zero unit tests for orchestrator scripts
 
-**Files:** `scripts/factory_{triage,budget,run,conflict,merge_reviews}.py`
+**Files:** `aidlc-scripts/factory_{triage,budget,run,conflict,merge_reviews}.py`
 — ~1,800 lines, 5 scripts, **0 tests**.
 
 **Risk:** Every bug fixed so far was found by manual inspection or ad-hoc smoke
@@ -139,7 +139,7 @@ but human-hostile. Debugging a failed run requires reading through JSON lines.
 
 **Fix:** Add `factory_run.py graph <run-id>`:
 ```bash
-$ python3 scripts/factory_run.py graph 2026-05-11-healthz-endpoint
+$ python3 aidlc-scripts/factory_run.py graph 2026-05-11-healthz-endpoint
 
 Timeline: 2026-05-11-healthz-endpoint
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -164,7 +164,7 @@ over the last 10 runs?" is unanswerable without manual grep.
 **Fix:**
 - `factory_budget.py trends <run-id-prefix>`:
   ```bash
-  $ python3 scripts/factory_budget.py trends 2026-05
+  $ python3 aidlc-scripts/factory_budget.py trends 2026-05
   Stage                  Avg tokens   Avg wall   Runs
   workspace-scout        48,200       2.8m       12
   requirements-analyst   265,000      8.0m       12
@@ -247,7 +247,7 @@ itself. Add a new agent or modify a script using `/factory-spec`.
 
 **Fix:** Create a `/factory-self <task>` command:
 - `/factory-self "add --stale flag to factory_conflict.py release"` runs the
-  full pipeline but targets `scripts/` as the workspace
+  full pipeline but targets `aidlc-scripts/` as the workspace
 - Validates that the orchestrator's own dev process matches what it demands
 - Serves as the ultimate integration test
 
@@ -257,7 +257,7 @@ itself. Add a new agent or modify a script using `/factory-spec`.
 many tokens it consumes, or how the orchestrator's overhead compares to a
 single-agent AIDLC run.
 
-**Fix:** Add `scripts/benchmark_orchestrator.py`:
+**Fix:** Add `aidlc-scripts/benchmark_orchestrator.py`:
 - Runs a synthetic request through both single-agent and multi-agent paths
 - Compares: tokens used, wall time, approval gates, files produced
 - Outputs a comparison table
@@ -341,9 +341,9 @@ but not for the orchestrator scripts.
     pip install pyyaml jsonschema pytest
     pytest tests/ --tb=short
 - name: Smoke test triage
-  run: python3 scripts/factory_triage.py "add healthz" | grep TINY
+  run: python3 aidlc-scripts/factory_triage.py "add healthz" | grep TINY
 - name: Smoke test validate
-  run: python3 scripts/factory_validate.py \
+  run: python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/code-generator.input.v1.json \
     .aidlc-orchestrator/contracts/code-generator.input.v1.json
 ```
@@ -355,7 +355,7 @@ release PRs via `.github/workflows/release-pr.yml`) but the orchestrator scripts
 have no version tracking.
 
 **Fix:**
-- Add `scripts/VERSION` with semver
+- Add `aidlc-scripts/VERSION` with semver
 - Release orchestrator alongside AIDLC rules
 - `install_aidlc.py` checks version compatibility before installing
 

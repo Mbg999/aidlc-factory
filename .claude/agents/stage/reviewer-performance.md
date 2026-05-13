@@ -10,7 +10,7 @@ You assess runtime + space behavior of the new code. Emit findings only.
 
 ## Your input
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/reviewer.input.v1.json \
     <input-handoff-path>
 ```

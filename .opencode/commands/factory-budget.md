@@ -14,13 +14,13 @@ Three layers: **default policy** → **per-run budget** → **per-stage gate**.
 
 ```bash
 # View current budget state for a run
-python3 scripts/factory_budget.py status <run-id>
+python3 aidlc-scripts/factory_budget.py status <run-id>
 
 # View budget trends across runs
-python3 scripts/factory_budget.py trends <prefix>
+python3 aidlc-scripts/factory_budget.py trends <prefix>
 
 # Re-initialize budget (e.g. after editing default.yaml)
-python3 scripts/factory_budget.py init <run-id>
+python3 aidlc-scripts/factory_budget.py init <run-id>
 ```
 
 ---
@@ -111,13 +111,13 @@ Set after requirements-analyst. SMALL runs get tighter caps automatically.
 
 ```bash
 # Per-run: current usage
-python3 scripts/factory_budget.py status <run-id>
+python3 aidlc-scripts/factory_budget.py status <run-id>
 
 # Per-run: approval gate latency
-python3 scripts/factory_run.py status <run-id> --latency
+python3 aidlc-scripts/factory_run.py status <run-id> --latency
 
 # Across runs: which stages consume the most
-python3 scripts/factory_budget.py trends 2026-05
+python3 aidlc-scripts/factory_budget.py trends 2026-05
 ```
 
 ---

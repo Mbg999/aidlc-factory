@@ -105,7 +105,7 @@ Consequence: conditional skills (`frontend-ui-engineering*`, `api-and-interface-
 
 **Files to change:**
 - `.claude/agents/orchestrator.md` — add classification step.
-- `scripts/factory_run.py` — add `classify-profile` subcommand OR allow `set --field project_profile.X=Y` (already supported? verify).
+- `aidlc-scripts/factory_run.py` — add `classify-profile` subcommand OR allow `set --field project_profile.X=Y` (already supported? verify).
 
 **Concrete changes:**
 
@@ -120,14 +120,14 @@ Consequence: conditional skills (`frontend-ui-engineering*`, `api-and-interface-
      has_legacy = workspace_state.reverse_engineering_artifacts_present == true 
                   OR user_request matches /migrat|refactor|deprecat|legacy|rewrite/i
    Apply via:
-     python3 scripts/factory_run.py set <run-id> --field project_profile.ui=<bool>
-     python3 scripts/factory_run.py set <run-id> --field project_profile.api=<bool>
-     python3 scripts/factory_run.py set <run-id> --field project_profile.has_legacy=<bool>
+     python3 aidlc-scripts/factory_run.py set <run-id> --field project_profile.ui=<bool>
+     python3 aidlc-scripts/factory_run.py set <run-id> --field project_profile.api=<bool>
+     python3 aidlc-scripts/factory_run.py set <run-id> --field project_profile.has_legacy=<bool>
    Append to audit.md (via orchestrator's audit-write step):
      "[Orchestrator] Classified project_profile: ui={ui}, api={api}, has_legacy={has_legacy}"
    ```
 
-2. **`scripts/factory_run.py` `set` subcommand** — verify it accepts dotted-path field updates (e.g. `project_profile.ui`). If not, extend it. The current impl per the live test shows `--field FIELD` exists; need to confirm dotted paths work.
+2. **`aidlc-scripts/factory_run.py` `set` subcommand** — verify it accepts dotted-path field updates (e.g. `project_profile.ui`). If not, extend it. The current impl per the live test shows `--field FIELD` exists; need to confirm dotted paths work.
 
 3. **Stage agent input prep** — when orchestrator computes `skills_required[]` for downstream stages (code-generator, build-test-agent, ship-agent), it MUST consult `manifest.project_profile` and add the conditional skills:
    - `ui: true` → add `frontend-ui-engineering` to code-generator, `browser-testing-with-devtools` to build-test-agent
@@ -227,7 +227,7 @@ Consequence: conditional skills (`frontend-ui-engineering*`, `api-and-interface-
      tokens_in, tokens_out = parse from agent output's cost block 
                               (or estimate from default.yaml if missing)
      
-     python3 scripts/factory_budget.py deduct <run> <stage> \
+     python3 aidlc-scripts/factory_budget.py deduct <run> <stage> \
        --tokens-in {tokens_in} --tokens-out {tokens_out} \
        --wall-min {actual_wall_min}
    ```

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 TRIAGE_PY = SCRIPTS / "factory_triage.py"
 
 

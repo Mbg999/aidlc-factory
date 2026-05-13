@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 MODEL_PY = SCRIPTS / "factory_model.py"
 
 # Import the module for unit tests

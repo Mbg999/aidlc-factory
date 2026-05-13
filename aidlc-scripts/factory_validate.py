@@ -2,7 +2,7 @@
 """Validate a YAML or JSON document against a JSON Schema.
 
 Usage:
-    python3 scripts/factory_validate.py <schema.json> <doc.yaml|doc.json>
+    python3 aidlc-scripts/factory_validate.py <schema.json> <doc.yaml|doc.json>
 
 Exit codes:
     0  document is valid

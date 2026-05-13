@@ -3,7 +3,7 @@
 > **Scope:** Fix all bugs found during Phase 2–6 live integration review
 > (2026-05-12 audit of `pruebaaidlcv2` full workflow run).
 >
-> Fixes target the **canonical scripts** at `<repo-root>/scripts/` and
+> Fixes target the **canonical scripts** at `<repo-root>/aidlc-scripts/` and
 > propagate to consumer projects via `install_aidlc.py`.
 
 ---
@@ -21,7 +21,7 @@
 
 ## 🔴 Bug 1: `_next_stage()` returns garbage stage names
 
-**File:** `scripts/factory_run.py:276-277`
+**File:** `aidlc-scripts/factory_run.py:276-277`
 **Severity:** 🔴 HIGH — **CONFIRMED**
 
 **Observation:** `_next_stage()` returns `current_stage` verbatim if it isn't in
@@ -30,7 +30,7 @@ stage in `PHASE_ORDER`. The existing manifest has `current_stage: review-complet
 (a synthetic orchestrator marker set during the live run). Resume suggests
 spawning stage `review-complete` — which doesn't exist.
 
-**Verified:** `python3 scripts/factory_run.py resume 2026-05-11-healthz-endpoint`
+**Verified:** `python3 aidlc-scripts/factory_run.py resume 2026-05-11-healthz-endpoint`
 returns `"next_stage_suggestion": "review-complete"`.
 
 **Fix:**
@@ -54,7 +54,7 @@ if current and current not in completed and current not in skipped:
 
 ## 🔴 Bug 2: No non-negative constraint on `deduct` params
 
-**File:** `scripts/factory_budget.py:185,228-230`
+**File:** `aidlc-scripts/factory_budget.py:185,228-230`
 **Severity:** 🔴 HIGH — **CONFIRMED**
 
 **Observation:** `--tokens-in -999999` passes argparse and silently inflates
@@ -99,7 +99,7 @@ p_deduct.add_argument("--wall-min", type=non_negative_float, default=0.0)
 
 ## 🔴 Bug 3: `adopt-legacy` maps `[x] Review` to only 1 of 4 reviewers
 
-**File:** `scripts/factory_run.py:384`
+**File:** `aidlc-scripts/factory_run.py:384`
 **Severity:** 🔴 HIGH — **CONFIRMED**
 
 **Observation:** `LEGACY_TO_PHASE` maps `"review" → "reviewer-code"`. Legacy
@@ -134,7 +134,7 @@ stages are accounted for (1 completed + 3 skipped).
 
 ## 🔴 Bug 4: Path traversal via unsanitized `run_id` / `holder`
 
-**File:** `scripts/factory_run.py:105`, `scripts/factory_conflict.py:102`
+**File:** `aidlc-scripts/factory_run.py:105`, `aidlc-scripts/factory_conflict.py:102`
 **Severity:** 🔴 HIGH — **CONFIRMED**
 
 **Observation:** `run_id` is used directly in `Path()` construction without
@@ -166,7 +166,7 @@ def validate_holder(holder: str) -> None:
         raise ValueError(f"invalid holder: {holder!r}")
 ```
 
-Call at the top of every subcommand handler. Share via `scripts/_common.py` or
+Call at the top of every subcommand handler. Share via `aidlc-scripts/_common.py` or
 inline in both files.
 
 **Test:** `factory_run.py init "../../../etc/passwd" --user-request "x"` should
@@ -176,7 +176,7 @@ reject with an error.
 
 ## 🟡 Bug 5: Budget `check` ignores wall clock budget
 
-**File:** `scripts/factory_budget.py:126-177`
+**File:** `aidlc-scripts/factory_budget.py:126-177`
 **Severity:** 🟡 MEDIUM — **DESIGN GAP**
 
 **Assessment:** The budget yaml defines `wall_clock_max_min: 240` and `deduct`
@@ -206,7 +206,7 @@ should exit 3 (halt).
 
 ## 🟡 Bug 6: `adopt-legacy` picks up prior-iteration `[x]` markers
 
-**File:** `scripts/factory_run.py:429-454`
+**File:** `aidlc-scripts/factory_run.py:429-454`
 **Severity:** 🟡 MEDIUM — **CONFIRMED**
 
 **Observation:** `_stages_from_legacy()` scans ALL `[x]` lines in state file
@@ -250,7 +250,7 @@ in completed_stages, and SHOULD include it in skipped_stages.
 
 ## 🟡 Bug 7: KeyError on missing `file` key in review merge
 
-**File:** `scripts/factory_merge_reviews.py:184`
+**File:** `aidlc-scripts/factory_merge_reviews.py:184`
 **Severity:** 🟡 MEDIUM — **CONFIRMED**
 
 **Observation:** `file_findings[f["file"]][reviewer].append(f)` raises KeyError
@@ -276,7 +276,7 @@ merge — should warn and use `"?"` instead of crashing.
 
 ## 🟡 Bug 8: Floating-point accumulation in wall clock tracking
 
-**File:** `scripts/factory_budget.py:185`
+**File:** `aidlc-scripts/factory_budget.py:185`
 **Severity:** 🟡 MEDIUM — **CONFIRMED**
 
 **Observation:** Each `deduct` adds float values. IEEE 754 drift is visible in
@@ -300,7 +300,7 @@ state["used"]["wall_clock_min"] = round(
 
 ## 🟢 Bug 9: TOCTOU race in `complete-stage` and `deduct`
 
-**File:** `scripts/factory_run.py:208-217`, `scripts/factory_budget.py:180-204`
+**File:** `aidlc-scripts/factory_run.py:208-217`, `aidlc-scripts/factory_budget.py:180-204`
 **Severity:** 🟢 LOW — **NO ACTIVE EXPLOIT PATH**
 
 **Assessment:** The read-modify-write pattern lacks file locking, BUT the
@@ -329,7 +329,7 @@ Wrap read-modify-write cycles in try/finally.
 
 ## 🟢 Bug 10: Lock overwrite on second `acquire`
 
-**File:** `scripts/factory_conflict.py:198-204`
+**File:** `aidlc-scripts/factory_conflict.py:198-204`
 **Severity:** 🟢 LOW — **NO ACTIVE EXPLOIT PATH**
 
 **Assessment:** If the same holder calls `acquire` twice, the second call
@@ -398,12 +398,12 @@ not implemented" — a Phase 6.5 enhancement, not a Phase 6 bug.
 
 ## Propagation to Consumer Projects
 
-After fixing canonical scripts at `<repo-root>/scripts/`:
+After fixing canonical scripts at `<repo-root>/aidlc-scripts/`:
 
 ```bash
-python3 scripts/install_aidlc.py --dest ../pruebaaidlcv2
+python3 aidlc-scripts/install_aidlc.py --dest ../pruebaaidlcv2
 
 # Verify fixes:
-python3 ../pruebaaidlcv2/scripts/factory_run.py resume 2026-05-11-healthz-endpoint
-python3 ../pruebaaidlcv2/scripts/factory_budget.py status 2026-05-11-healthz-endpoint
+python3 ../pruebaaidlcv2/aidlc-scripts/factory_run.py resume 2026-05-11-healthz-endpoint
+python3 ../pruebaaidlcv2/aidlc-scripts/factory_budget.py status 2026-05-11-healthz-endpoint
 ```

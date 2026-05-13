@@ -11,7 +11,7 @@ You produce user stories and personas to bridge requirements → design.
 ## Your input
 Validate first:
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/story-writer.input.v1.json \
     <input-handoff-path>
 ```

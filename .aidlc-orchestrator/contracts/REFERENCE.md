@@ -77,4 +77,4 @@
 
 All schemas live in `.aidlc-orchestrator/contracts/`. The orchestrator validates
 every input and output handoff against the corresponding schema using
-`scripts/factory_validate.py` before spawning or consuming.
+`aidlc-scripts/factory_validate.py` before spawning or consuming.

@@ -35,7 +35,7 @@ def aidlc_root() -> Path:
     })
 
     # Minimal VERSION file (orchestrator version-locking)
-    scripts_dir = root / "scripts"
+    scripts_dir = root / "aidlc-scripts"
     scripts_dir.mkdir(parents=True)
     scripts_dir.joinpath("VERSION").write_text("0.2.0\n")
 

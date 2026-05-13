@@ -32,7 +32,7 @@
 
 ### Project Structure
 - **Layout:** Mixed monolith + microservices experimentation
-  - Core framework: `src/aidlc_core/`, `scripts/`, `tests/`
+  - Core framework: `src/aidlc_core/`, `aidlc-scripts/`, `tests/`
   - Experimental sub-project: `pruebaaidlcv2/` (Vite + TypeScript + Tailwind)
   - Framework rules: `aidlc-rules/`
   - Documentation: `aidlc-docs/`, `docs/`
@@ -40,7 +40,7 @@
 
 ### Key Directories
 - `src/aidlc_core/` — Core framework modules
-- `scripts/` — Orchestrator executors, validators, installers
+- `aidlc-scripts/` — Orchestrator executors, validators, installers
 - `tests/` — Test suite (smoke executor, integration)
 - `pruebaaidlcv2/` — Experimental web UI sub-project
 - `aidlc-rules/` — Rule definitions for AIDLC stages
@@ -60,7 +60,7 @@ All source code paths are relative to `/Users/miguel.belmonte/Desktop/custom aid
 | Category | Path | Language |
 |----------|------|----------|
 | Core logic | `src/aidlc_core/` | Python |
-| Orchestration | `scripts/factory_*.py` | Python |
+| Orchestration | `aidlc-scripts/factory_*.py` | Python |
 | Testing | `tests/` | Python |
 | Configuration | `aidlc-rules/`, `.aidlc-orchestrator/` | YAML, JSON |
 | Experimental UI | `pruebaaidlcv2/` | TypeScript, JavaScript |

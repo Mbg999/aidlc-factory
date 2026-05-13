@@ -27,7 +27,7 @@ Most agents support one of these mechanisms:
 Install engineering process skills for full workflow enforcement:
 
 ```bash
-python scripts/install_aidlc.py --tool other --with-agent-skills --dest .
+python aidlc-scripts/install_aidlc.py --tool other --with-agent-skills --dest .
 ```
 
 Skills are installed to `.agents/skills/<name>/SKILL.md`. Each stage rule file

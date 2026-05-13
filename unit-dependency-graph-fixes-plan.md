@@ -79,7 +79,7 @@ specified the `factory_run.py emit` calls that produce them, violating the
 
 For the unit-graph-computed audit in Step A:
 ```bash
-python3 scripts/factory_run.py emit <run-id> --evt unit_graph_computed \
+python3 aidlc-scripts/factory_run.py emit <run-id> --evt unit_graph_computed \
     --field tier=<tier> \
     --field wave_count=<N> \
     --field max_parallelism=<M>
@@ -95,7 +95,7 @@ Then append:
 
 For collision deferrals in B.1b:
 ```bash
-python3 scripts/factory_run.py emit <run-id> --evt wave_collision_deferred \
+python3 aidlc-scripts/factory_run.py emit <run-id> --evt wave_collision_deferred \
     --stage code-generator \
     --field wave_idx=<N> \
     --field deferred_unit=<u> \

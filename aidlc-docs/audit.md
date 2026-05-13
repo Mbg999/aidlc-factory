@@ -4,7 +4,7 @@ Found existing code: YES (13 source files across Python, JavaScript, TypeScript)
 Languages detected: Python (primary), JavaScript, TypeScript (config)
 Build/manifest files: requirements.txt (Python), package.json (Node.js in pruebaaidlcv2/)
 Project structure: Mixed monolith + microservices (core framework + experimental UI sub-project)
-Key components: src/aidlc_core/, scripts/ (orchestration), tests/ (test suite), aidlc-rules/
+Key components: src/aidlc_core/, aidlc-scripts/ (orchestration), tests/ (test suite), aidlc-rules/
 aidlc-state.md: NOT present at start — created fresh as part of Step 4
 Reverse-engineering artifacts: NOT detected in aidlc-docs/inception/reverse-engineering/
 Project classification: BROWNFIELD (existing code, no prior RE artifacts)

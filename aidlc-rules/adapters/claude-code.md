@@ -22,7 +22,7 @@ the core-workflow rule-details loading section.
 Install skills for full workflow enforcement:
 
 ```bash
-python scripts/install_aidlc.py --tool claude --with-agent-skills --dest .
+python aidlc-scripts/install_aidlc.py --tool claude --with-agent-skills --dest .
 ```
 
 Skills installed under `.agents/skills/` are referenced by stage rule files.

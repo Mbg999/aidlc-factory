@@ -15,7 +15,7 @@ YAML file (e.g. `.aidlc-orchestrator/runs/<run-id>/handoffs/workspace-scout.inpu
 
 **First thing you do:** validate the input.
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/workspace-scout.input.v1.json \
     <input-handoff-path>
 ```
@@ -114,7 +114,7 @@ Required fields:
 
 Then validate before returning:
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/workspace-scout.output.v1.json \
     <output-handoff-path>
 ```

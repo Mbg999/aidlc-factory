@@ -20,10 +20,10 @@ source .venv/bin/activate          # macOS/Linux
 pip install -r requirements.txt
 
 # 4. Run all tests
-python -m pytest scripts/tests/ -q
+python -m pytest aidlc-scripts/tests/ -q
 
 # 5. Install skills into a target project
-python scripts/install_aidlc.py --tool copilot --with-agent-skills
+python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
 
 **What to expect:**
@@ -79,7 +79,7 @@ Rules are organized by phase:
 Run the full test suite before submitting:
 
 ```bash
-python -m pytest scripts/tests/ -v
+python -m pytest aidlc-scripts/tests/ -v
 ```
 
 When adding or modifying rule files, verify them against at least one supported coding agent.

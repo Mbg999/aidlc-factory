@@ -154,7 +154,7 @@ Three bailout paths:
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `scripts/factory_triage.py` | **NEW** | Pre-pipeline complexity scorer |
+| `aidlc-scripts/factory_triage.py` | **NEW** | Pre-pipeline complexity scorer |
 | `.claude/agents/orchestrator.md` | MODIFY | Add Step 0 (Triage) before workspace-scout |
 | `aidlc-docs/fast-path-log.md` | NEW (auto-created on first TINY run) | Single-line audit |
 | `.aidlc-orchestrator/contracts/code-generator.input.v1.json` | MODIFY | Add optional `fast_path: bool` field |

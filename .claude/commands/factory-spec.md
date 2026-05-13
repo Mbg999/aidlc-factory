@@ -21,7 +21,7 @@ Execute the Phase 0 sequence end-to-end:
    Log any missing skills to audit.md.
 
 3. **Stage 1 — Workspace Scout**:
-   - Write input handoff → validate via `python3 scripts/factory_validate.py`
+   - Write input handoff → validate via `python3 aidlc-scripts/factory_validate.py`
    - Spawn `workspace-scout` subagent via Task() with the input path as the prompt
    - Validate the output handoff
    - Append `audit_entries[]` to `aidlc-docs/audit.md` (per orchestrator.md

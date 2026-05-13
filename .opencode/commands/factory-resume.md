@@ -11,7 +11,7 @@ Adopt the role from @.claude/agents/orchestrator.md.
 
 If `$ARGUMENTS` is empty: this is a **legacy adoption** request. Run:
 ```bash
-python3 scripts/factory_run.py adopt-legacy
+python3 aidlc-scripts/factory_run.py adopt-legacy
 ```
 The script scans `aidlc-docs/aidlc-state.md` for `[x]` Stage Progress markers,
 maps legacy stage names to current stage_ids (e.g. "Workspace Detection" →
@@ -25,11 +25,11 @@ If `$ARGUMENTS` is a run-id: this is a **resume** request.
 
 1. Read run state:
    ```bash
-   python3 scripts/factory_run.py status <run-id>
+   python3 aidlc-scripts/factory_run.py status <run-id>
    ```
 2. Compute the next stage to spawn:
    ```bash
-   python3 scripts/factory_run.py resume <run-id>
+   python3 aidlc-scripts/factory_run.py resume <run-id>
    ```
    The output JSON includes `next_stage_suggestion` (the manifest's
    `current_stage` if not already in `completed_stages[]`, or the next

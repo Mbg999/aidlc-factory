@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 MERGE_PY = SCRIPTS / "factory_merge_reviews.py"
 
 

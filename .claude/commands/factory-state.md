@@ -10,28 +10,28 @@ You are the AIDLC orchestrator. The user wants to know the state of run
 
 1. Read the manifest:
    ```bash
-   python3 scripts/factory_run.py status $ARGUMENTS --json
+   python3 aidlc-scripts/factory_run.py status $ARGUMENTS --json
    ```
 
 2. Show the visual timeline:
    ```bash
-   python3 scripts/factory_run.py graph $ARGUMENTS
+   python3 aidlc-scripts/factory_run.py graph $ARGUMENTS
    ```
 
 3. Check budget:
    ```bash
-   python3 scripts/factory_budget.py status $ARGUMENTS
+   python3 aidlc-scripts/factory_budget.py status $ARGUMENTS
    ```
 
 4. Compute next steps:
    ```bash
-   python3 scripts/factory_run.py resume $ARGUMENTS
+   python3 aidlc-scripts/factory_run.py resume $ARGUMENTS
    ```
 
 5. Check for stale locks:
    ```bash
-   python3 scripts/factory_conflict.py list $ARGUMENTS
-   python3 scripts/factory_conflict.py conflicts $ARGUMENTS
+   python3 aidlc-scripts/factory_conflict.py list $ARGUMENTS
+   python3 aidlc-scripts/factory_conflict.py conflicts $ARGUMENTS
    ```
 
 6. Summarize in plain language:

@@ -48,15 +48,15 @@ Default `depends_on: []` (independent — runs in wave 0).
 - Data model ordering (entity definitions before services)
 - Explicit ordering hints in the execution plan
 
-### 2. Graph computation (`scripts/factory_graph.py`)
+### 2. Graph computation (`aidlc-scripts/factory_graph.py`)
 New script. Subcommands:
 
 ```bash
 # Compute waves from unit specs, write to manifest
-python3 scripts/factory_graph.py compute <run-id>
+python3 aidlc-scripts/factory_graph.py compute <run-id>
 
 # Print current waves (debug)
-python3 scripts/factory_graph.py show <run-id>
+python3 aidlc-scripts/factory_graph.py show <run-id>
 ```
 
 Algorithm: Kahn's topological sort.
@@ -131,12 +131,12 @@ On rejection: orchestrator halts. User can re-approve individual units or roll
 back via `factory_run.py rollback`.
 
 ### 5. Conflict-resolver safety net
-Existing `scripts/factory_conflict.py` already handles file-glob locks and AST
+Existing `aidlc-scripts/factory_conflict.py` already handles file-glob locks and AST
 symbol-drift. New integration point: **pre-flight wave validation.**
 
 Before spawning a wave of N>1 units, call:
 ```bash
-python3 scripts/factory_conflict.py check-wave <run-id> --wave-idx <N>
+python3 aidlc-scripts/factory_conflict.py check-wave <run-id> --wave-idx <N>
 ```
 
 Returns JSON:
@@ -167,8 +167,8 @@ This protects against bad `depends_on` data without trusting it blindly.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `scripts/factory_graph.py` | **NEW** | Wave computation (Kahn topo-sort) |
-| `scripts/factory_conflict.py` | MODIFY | Add `check-wave` subcommand |
+| `aidlc-scripts/factory_graph.py` | **NEW** | Wave computation (Kahn topo-sort) |
+| `aidlc-scripts/factory_conflict.py` | MODIFY | Add `check-wave` subcommand |
 | `.aidlc-orchestrator/contracts/unit-decomposer.output.v1.json` | MODIFY | Add `depends_on` per unit |
 | `.aidlc-orchestrator/contracts/shared/unit-graph.schema.json` | **NEW** | Validate `manifest.unit_waves` |
 | `aidlc-rules/aws-aidlc-rule-details/inception/unit-decomposition.md` | MODIFY | Document `depends_on` inference |

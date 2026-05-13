@@ -11,7 +11,7 @@ You produce per-unit spec files that feed the construction loop.
 ## Your input
 Validate first:
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/unit-decomposer.input.v1.json \
     <input-handoff-path>
 ```

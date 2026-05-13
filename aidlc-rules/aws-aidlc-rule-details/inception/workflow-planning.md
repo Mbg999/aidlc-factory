@@ -101,7 +101,7 @@ Update `aidlc-docs/aidlc-state.md` with: project info, execution plan summary, s
 - Check `.agents/skills/` for installed skills
 - If missing, recommend running the installer:
   ```bash
-  python scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
+  python aidlc-scripts/install_aidlc.py --tool <tool> --with-agent-skills --dest .
   ```
 - Write `aidlc-docs/<run-id>-skills-coverage.md` listing installed vs missing skills
 - Validate per `common/ascii-diagram-standards.md`; log in audit.md

@@ -29,7 +29,7 @@
 ### Bug #2 — `cost_max_usd` is policy-only (LOW, design choice) — ✅ FIXED 2026-05-09 (Option B)
 **Symptom:** `budgets/default.yaml` declared `cost_max_usd: 50` but `factory_budget.py` never populated `used.cost_usd` because there was no token-rate table.
 **Impact:** USD accounting was silently broken.
-**Fix shipped (Option B — drop):** Removed `cost_max_usd: 50` from `budgets/default.yaml`. Removed `cost_usd: 0.0` from the initial `used` block in `scripts/factory_budget.py`. Updated `cost-governor.md` Limitations to note the deliberate drop and document the revival path (add `pricing` block keyed by model). Token budget remains the sole hard constraint.
+**Fix shipped (Option B — drop):** Removed `cost_max_usd: 50` from `budgets/default.yaml`. Removed `cost_usd: 0.0` from the initial `used` block in `aidlc-scripts/factory_budget.py`. Updated `cost-governor.md` Limitations to note the deliberate drop and document the revival path (add `pricing` block keyed by model). Token budget remains the sole hard constraint.
 **Verified:** `init` + `status` + `deduct` cycle on a fresh run still works after the field removal.
 
 ### Bug #3 — `factory_merge_reviews.py` crashes on malformed reviewer output (MEDIUM, robustness) — ✅ FIXED 2026-05-09

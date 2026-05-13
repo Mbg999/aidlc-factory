@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 AUDIT_PY = SCRIPTS / "factory_audit_writes.py"
 
 

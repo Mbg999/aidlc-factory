@@ -76,7 +76,7 @@ except ImportError:
 REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 AIDLC_DOCS = REPO_ROOT / "aidlc-docs"
-SCRIPTS_VERSION = REPO_ROOT / "scripts" / "VERSION"
+SCRIPTS_VERSION = REPO_ROOT / "aidlc-scripts" / "VERSION"
 
 PHASE_ORDER = [
     "workspace-scout",

@@ -14,7 +14,7 @@ Sequence:
 1. Read `manifest.yaml`. Refuse if construction isn't complete.
 2. **Sequential pre-flight gates** for each of [reviewer-code, reviewer-security,
    reviewer-performance, reviewer-simplifier]:
-   `python3 scripts/factory_budget.py check <run-id> reviewer-<x>`. Compute
+   `python3 aidlc-scripts/factory_budget.py check <run-id> reviewer-<x>`. Compute
    the active set; halt if any returns exit 3, drop from set if any returns 2.
 3. **Sequential knowledge queries** per active reviewer; build per-reviewer
    input handoff under `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-<x>.input.yaml`
@@ -26,7 +26,7 @@ Sequence:
    knowledge save → audit append.
 6. **Merge**:
    ```bash
-   python3 scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
+   python3 aidlc-scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
    ```
    Produces `aidlc-docs/operations/<run-id>-review-report.md`.
 7. Surface report to user. Approval gate:

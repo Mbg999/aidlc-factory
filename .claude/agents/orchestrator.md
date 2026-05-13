@@ -30,14 +30,14 @@ you delegate to stage agents and you own the state machine.
 
 All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Phase 3 adds the **Knowledge Agent** save+query; Phase 6 adds the **Run Manager** event emit + state update). **Exception: FAST_PATH (TINY tier) bypasses ALL shared primitives** — no manifest, no timeline, no budget gate, no audit blocks. See `## FAST_PATH — TINY tier execution` below.
 
-0. **Timeline event (spawn_start)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_start --stage <stage> --field tokens_estimate=N`
-1. **Pre-flight budget gate**: `python3 scripts/factory_budget.py check <run-id> <stage>`
+0. **Timeline event (spawn_start)**: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt spawn_start --stage <stage> --field tokens_estimate=N`
+1. **Pre-flight budget gate**: `python3 aidlc-scripts/factory_budget.py check <run-id> <stage>`
    - exit `0` → spawn at full depth
    - exit `1` → set `depth: minimal` in input handoff; spawn (depth-flexible stages only)
    - exit `2` → skip this stage; append `[CostGov] Skipped <stage> (under threshold)` to audit; continue to next stage
    - exit `3` → halt the run; append `[CostGov] HALT — <stage> would exceed remaining budget`; surface to user
 2. **Knowledge query (pre-spawn)**: call `mcp__plugin_engram_engram__mem_search` with stage-derived query (see `.claude/agents/cross-cutting/knowledge-agent.md`). Inject top-5 results (after confidence/deprecation filtering, antipattern boosting) into the input handoff's `context_pointers[]` as markdown-formatted strings. Log `[Knowledge] Query <stage>: <N> priors retrieved` to audit. If engram is unavailable, leave `context_pointers[]` empty and log `[Knowledge] DEGRADED: engram unavailable`.
-2.5. **Model resolution**: run `python3 scripts/factory_model.py resolve <stage>` to get the recommended model. If the output is not empty and not the tool default, add `model_override: <model>` to the input handoff. This ensures cheap stages (scout, test, review) run on sonnet while expensive stages (requirements, code-gen, planner) run on opus per `budgets/default.yaml`. If the user passed `--model` on the slash command, use that value instead and skip the script.
+2.5. **Model resolution**: run `python3 aidlc-scripts/factory_model.py resolve <stage>` to get the recommended model. If the output is not empty and not the tool default, add `model_override: <model>` to the input handoff. This ensures cheap stages (scout, test, review) run on sonnet while expensive stages (requirements, code-gen, planner) run on opus per `budgets/default.yaml`. If the user passed `--model` on the slash command, use that value instead and skip the script.
 3. Validate input handoff against contract.
 4. Spawn subagent via `Task(subagent_type=..., prompt=<input-handoff-path>)`.
    If the input handoff has `model_override`, pass it as `model=<model_override>`
@@ -45,7 +45,7 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
    This ensures cheap stages run on sonnet and expensive ones on opus per the
    `budgets/default.yaml` config resolved in step 2.5.
 5. Validate output handoff against contract.
-6. **Post-flight reconciliation**: `python3 scripts/factory_budget.py deduct <run-id> <stage> --tokens-in <N> --tokens-out <N> --wall-min <F>`.
+6. **Post-flight reconciliation**: `python3 aidlc-scripts/factory_budget.py deduct <run-id> <stage> --tokens-in <N> --tokens-out <N> --wall-min <F>`.
    - **`tokens_in` / `tokens_out`**: from the agent output's `cost.{tokens_in,tokens_out}` fields. If absent, deduct a conservative estimate from `budgets/default.yaml.per_stage[<stage>].tokens` and log `[CostGov] Estimated <stage> cost`.
    - **`wall_min` is computed by the orchestrator, NOT taken from the agent output.** Read the matching `spawn_start` and `spawn_end` events for this stage from `runs/<run-id>/timeline.jsonl` and compute `(spawn_end.ts - spawn_start.ts) / 60`, rounded to 1 decimal. This is authoritative because agent-reported wall-clock is unreliable.
 7. **Knowledge save (post-return)**: iterate `output.emitted_knowledge[]`. For each entry, call `mcp__plugin_engram_engram__mem_save` with topic_key `aidlc/<project_slug>/<kind>/<title-slug>`, project scope. If the response includes `judgment_required: true`, follow the judgment heuristic from `knowledge-agent.md` (silent for related/compatible/scoped, surface for low-confidence supersedes/conflicts_with on ADRs). Log each save as `[Knowledge] Saved <kind>: <title>`.
@@ -86,8 +86,8 @@ All flows share the same primitives (Phase 2 adds the **Cost Governor** gate; Ph
       Every approval-gate section in this document inlines this rule explicitly so the agent does not need to follow a cross-reference. If you encounter an approval gate without the inline rule, FOLLOW THIS RULE ANYWAY — it is mandatory regardless of section-level documentation.
 9. Update `aidlc-docs/aidlc-state.md` `Current Stage` and `Stage Progress`.
 10. Auto-commit per `core-workflow.md` MANDATORY rule.
-11. **Timeline event (spawn_end)**: `python3 scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
-12. **State update**: on `status: complete`, `python3 scripts/factory_run.py complete-stage <run-id> <stage> --next-stage <next>`. On `status: failed`, `factory_run.py fail-stage <run-id> <stage> --reason "<text>"`.
+11. **Timeline event (spawn_end)**: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
+12. **State update**: on `status: complete`, `python3 aidlc-scripts/factory_run.py complete-stage <run-id> <stage> --next-stage <next>`. On `status: failed`, `factory_run.py fail-stage <run-id> <stage> --reason "<text>"`.
 13. If `status != complete`: halt and surface. If `status == needs_human`: pause, surface, wait, log to audit, then continue.
 
 ## Structured Approval Format
@@ -175,7 +175,7 @@ no ship stage. The git commit IS the audit trail.
 
 ## Run Manager (Phase 6 — active)
 
-The Run Manager is `scripts/factory_run.py`. It owns:
+The Run Manager is `aidlc-scripts/factory_run.py`. It owns:
 - **`runs/<run-id>/manifest.yaml`** — state machine source of truth.
   Atomic writes (write-tmp-then-rename).
 - **`runs/<run-id>/timeline.jsonl`** — append-only event log; one JSON line
@@ -220,7 +220,7 @@ are trusted as-is — NOT re-validated against contracts.
 - `timeline.jsonl` is append-only; single-line writes are atomic for line-
   sized payloads. No locking needed for one-writer use.
 
-The full spec lives in `scripts/factory_run.py` docstring. Slash commands:
+The full spec lives in `aidlc-scripts/factory_run.py` docstring. Slash commands:
 `/factory-resume`, `/factory-replay`.
 
 ### Failed→skipped recovery (Bug D fix — when a spawn fails but the run continues)
@@ -250,11 +250,11 @@ To prevent that drift, the failed→skipped recovery sequence is:
 3. If skipping: emit the canonical timeline event FIRST (per shared-primitives
    Step 8 substep 6):
    ```bash
-   python3 scripts/factory_run.py emit <run-id> --evt stage_skipped \
+   python3 aidlc-scripts/factory_run.py emit <run-id> --evt stage_skipped \
        --stage <s> --field reason="<text>"
    ```
    Capture `ts_skip`.
-4. `python3 scripts/factory_run.py set <run-id> --field skipped_stages='[...]'`
+4. `python3 aidlc-scripts/factory_run.py set <run-id> --field skipped_stages='[...]'`
    to add the stage to `manifest.skipped_stages[]` (preserve any existing skips
    by reading first and appending).
 5. Append a `## <ts_skip> <PHASE> - <STAGE LABEL> SKIPPED (<short-reason>)`
@@ -274,7 +274,7 @@ a user-facing error per shared-primitives Step 12 (`factory_run.py fail-stage`).
 
 ## Conflict Resolver (Phase 5 — active)
 
-The Conflict Resolver is `scripts/factory_conflict.py`. It owns:
+The Conflict Resolver is `aidlc-scripts/factory_conflict.py`. It owns:
 - **File-glob lock registry**: `.aidlc-orchestrator/runs/<run-id>/locks/<holder>.yaml`
 - **AST symbol baselines**: `.aidlc-orchestrator/runs/<run-id>/symbol-baseline/<holder>.yaml`
 - **Conflict records**: `.aidlc-orchestrator/runs/<run-id>/conflicts/<id>.yaml`
@@ -323,7 +323,7 @@ run init (Phase 0 Step 1) by slugifying the repo name.
 
 ## Cost Governor (Phase 2 — active)
 
-The Cost Governor is `scripts/factory_budget.py`. It owns:
+The Cost Governor is `aidlc-scripts/factory_budget.py`. It owns:
 - **Per-run budget state**: `.aidlc-orchestrator/runs/<run-id>/budget.yaml` (initialized from `budgets/default.yaml`).
 - **Pre-flight gate** (step 1 above) and **post-flight reconciliation** (step 5).
 - **Adaptive depth**: when `remaining_pct < threshold_pct_remaining` (default 30%):
@@ -332,7 +332,7 @@ The Cost Governor is `scripts/factory_budget.py`. It owns:
 - **Halt** when a required stage's estimated cost exceeds remaining tokens.
 
 **Initialization** (added to run setup): in Phase 0 Step 1 / Phase 1 run lookup,
-also run `python3 scripts/factory_budget.py init <run-id>` if no `budget.yaml`
+also run `python3 aidlc-scripts/factory_budget.py init <run-id>` if no `budget.yaml`
 exists for the run yet. This is idempotent for legacy adoptions — if the
 run already has a budget.yaml, leave it alone.
 
@@ -351,7 +351,7 @@ atomic and cannot be cancelled mid-flight (see *Limitations* below).
 
 **Surfacing budget state**: every completion message MUST include a one-line
 budget summary (e.g. `Budget: 3.6M / 5M tokens used (72%) — 1.4M remaining`).
-Pull from `python3 scripts/factory_budget.py status <run-id>`.
+Pull from `python3 aidlc-scripts/factory_budget.py status <run-id>`.
 
 ## Phase 0 sequence — `/factory-spec`
 
@@ -364,7 +364,7 @@ Users may optionally pass `--tier=small` to skip triage and force the full pipel
 Before any infrastructure setup, run the triage scorer:
 
 ```bash
-python3 scripts/factory_triage.py "<user-request>"
+python3 aidlc-scripts/factory_triage.py "<user-request>"
 ```
 
 Exit code mapping:
@@ -383,7 +383,7 @@ If the user passed `--tier=small`, skip triage entirely and go straight to Step 
   user_request (verbatim), current_stage: `workspace-scout`, completed_stages: [].
 - **Initialize the per-run budget** (Phase 2):
   ```bash
-  python3 scripts/factory_budget.py init <run-id>
+  python3 aidlc-scripts/factory_budget.py init <run-id>
   ```
   This creates `.aidlc-orchestrator/runs/<run-id>/budget.yaml` from the
   default policy. Skip silently if the file already exists (legacy adoption).
@@ -400,7 +400,7 @@ fallback embedded in the AIDLC rule file (every rule file has one).
 ### Step 3 — Workspace Scout stage
 0a. **Pre-flight budget gate:**
    ```bash
-   python3 scripts/factory_budget.py check <run-id> workspace-scout
+   python3 aidlc-scripts/factory_budget.py check <run-id> workspace-scout
    ```
    Read exit code: `0`=ok, `1`=set `depth: minimal` (N/A here — workspace-scout
    isn't depth-flexible), `2`=skip (N/A — workspace-scout isn't optional),
@@ -419,7 +419,7 @@ fallback embedded in the AIDLC rule file (every rule file has one).
    paths from Step 2). Optional: budget, gates, locks_required.
 2. Validate the input:
    ```bash
-   python3 scripts/factory_validate.py \
+   python3 aidlc-scripts/factory_validate.py \
        .aidlc-orchestrator/contracts/workspace-scout.input.v1.json \
        .aidlc-orchestrator/runs/<run-id>/handoffs/workspace-scout.input.yaml
    ```
@@ -432,14 +432,14 @@ fallback embedded in the AIDLC rule file (every rule file has one).
 4. The subagent writes its output handoff and returns a one-line status.
 5. Validate the output:
    ```bash
-   python3 scripts/factory_validate.py \
+   python3 aidlc-scripts/factory_validate.py \
        .aidlc-orchestrator/contracts/workspace-scout.output.v1.json \
        .aidlc-orchestrator/runs/<run-id>/handoffs/workspace-scout.output.yaml
    ```
    If exit ≠ 0: mark stage `failed` in manifest, surface to user, halt.
 6a. **Post-flight reconciliation:**
    ```bash
-   python3 scripts/factory_budget.py deduct <run-id> workspace-scout \
+   python3 aidlc-scripts/factory_budget.py deduct <run-id> workspace-scout \
        --tokens-in <cost.tokens_in> --tokens-out <cost.tokens_out> \
        --wall-min <computed_wall_min>
    ```
@@ -488,7 +488,7 @@ Apply these heuristics (each independent):
 
 Apply via:
 ```bash
-python3 scripts/factory_run.py set <run-id> \
+python3 aidlc-scripts/factory_run.py set <run-id> \
     --field project_profile.ui=<true|false> \
     --field project_profile.api=<true|false> \
     --field project_profile.has_legacy=<true|false>
@@ -547,7 +547,7 @@ Use `AskUserQuestion` with options `["Run reverse-engineer first (recommended fo
 per shared-primitives Step 8 substep 6 — never wall-clock:
 
 ```bash
-python3 scripts/factory_run.py emit <run-id> --evt user_decision \
+python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_decision \
     --stage reverse-engineer \
     --field decision=<approve|reject>
 ```
@@ -570,7 +570,7 @@ Step 8 substep 6).
 **If user says no (decision=reject):**
 - Append a `## <ts_re_decision> INCEPTION - User Decision (reverse-engineer)`
   block to `audit.md` with `- [User] Skipped reverse-engineer (small-scope request: <truncated user_request>)`.
-- `python3 scripts/factory_run.py set <run-id> --field skipped_stages='["reverse-engineer"]'`
+- `python3 aidlc-scripts/factory_run.py set <run-id> --field skipped_stages='["reverse-engineer"]'`
   (preserve any existing skips — if `manifest.skipped_stages[]` is non-empty,
   read it first and append).
 - Proceed directly to Step 4.
@@ -585,7 +585,7 @@ clarifying questions.
 **Pass 1 — produce questions:**
 0. **Pre-flight budget gate:**
    ```bash
-   python3 scripts/factory_budget.py check <run-id> requirements-analyst
+   python3 aidlc-scripts/factory_budget.py check <run-id> requirements-analyst
    ```
    - exit `1` (downshift) → set `depth_override: minimal` in input handoff
      (the agent reads it and forces minimal depth regardless of what its
@@ -599,7 +599,7 @@ clarifying questions.
 2. Validate input → spawn subagent → validate output (same shape as Step 3).
    After validate-output, **post-flight reconciliation:**
    ```bash
-   python3 scripts/factory_budget.py deduct <run-id> requirements-analyst \
+   python3 aidlc-scripts/factory_budget.py deduct <run-id> requirements-analyst \
        --tokens-in <cost.tokens_in> --tokens-out <cost.tokens_out> \
        --wall-min <computed_wall_min>
    ```
@@ -615,7 +615,7 @@ clarifying questions.
    `user_answers_received`:
    1. **Emit the timeline event FIRST** — never wall-clock anything:
       ```bash
-      python3 scripts/factory_run.py emit <run-id> --evt user_answers_received \
+      python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_answers_received \
           --stage requirements-analyst
       ```
       Capture the returned `ts` — call it `ts_user_answers`.
@@ -673,7 +673,7 @@ the tier from the requirements output.
 
 ```bash
 # 1. Determine tier (reads request_classification from requirements output)
-python3 scripts/factory_complexity.py <run-id> --apply
+python3 aidlc-scripts/factory_complexity.py <run-id> --apply
 # --apply writes tier + token cap into budget.yaml atomically
 ```
 
@@ -682,7 +682,7 @@ failed — defaulting to LARGE (full path)` to audit and proceed without skippin
 
 ```bash
 # 2. Store tier and routing decisions in manifest
-python3 scripts/factory_run.py set <run-id> \
+python3 aidlc-scripts/factory_run.py set <run-id> \
     --field complexity_tier=<tier> \
     --field skip_stages='<skip_stages_json_array>' \
     --field merge_codegen_gate=<true|false> \
@@ -691,7 +691,7 @@ python3 scripts/factory_run.py set <run-id> \
 
 ```bash
 # 2b. Validate manifest tier fields against the shared schema (non-blocking)
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/shared/complexity-tier.schema.json \
     .aidlc-orchestrator/runs/<run-id>/manifest.yaml
 ```
@@ -699,7 +699,7 @@ If validation fails, log `[ComplexityGov] WARN: manifest schema mismatch — <er
 
 ```bash
 # 3. Emit timeline event
-python3 scripts/factory_run.py emit <run-id> \
+python3 aidlc-scripts/factory_run.py emit <run-id> \
     --evt orchestrator_note \
     --field summary="[ComplexityGov] tier=<tier>, skip_stages=<list>, merge_codegen_gate=<bool>"
 ```
@@ -717,7 +717,7 @@ python3 scripts/factory_run.py emit <run-id> \
 For every stage whose `stage_id` is in `manifest.skip_stages[]`:
 1. Emit the canonical `stage_skipped` timeline event:
    ```bash
-   python3 scripts/factory_run.py emit <run-id> --evt stage_skipped \
+   python3 aidlc-scripts/factory_run.py emit <run-id> --evt stage_skipped \
        --stage <s> --field reason="[ComplexityGov] tier=<tier>"
    ```
 2. Update `manifest.skipped_stages[]` (read-append-write to preserve existing entries).
@@ -772,7 +772,7 @@ Inception phase, post-requirements. Produces the execution plan and
     - Output: `workflow-planner.output.v1.json`. Artifacts: `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with Mermaid diagram + task tree.
    - **Approval gate:** the planner emits `status: needs_human` after producing the plan; orchestrator surfaces and waits.
      **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
-     1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage workflow-planner --field decision=<approve|reject|amend>`. Capture `ts_plan_decision`.
+     1. Emit FIRST: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_decision --stage workflow-planner --field decision=<approve|reject|amend>`. Capture `ts_plan_decision`.
       2. Append a `## <ts_plan_decision> INCEPTION - User Decision (workflow-planner)` block to `audit.md` with `- [User] <Approved|Rejected|Amended> <run-id>-execution-plan.md (<one-line gloss>)` and any free-text note.
      3. Only then proceed to instruction 3 (Conditional Unit Decomposer). Wall-clocking `now` for the audit header is forbidden.
 3. **Conditional Unit Decomposer** — skip if EITHER:
@@ -803,7 +803,7 @@ to `factory_graph.py` so waves are deterministic, inspectable, and persisted in
 the manifest:
 
 ```bash
-python3 scripts/factory_graph.py compute <run-id> --apply
+python3 aidlc-scripts/factory_graph.py compute <run-id> --apply
 ```
 
 - Reads `units_decomposed[].dependencies` from the unit-decomposer output handoff
@@ -817,7 +817,7 @@ all units in declared order. Continue without halting.
 
 After a successful `--apply`, validate the manifest fragment (non-blocking):
 ```bash
-python3 scripts/factory_validate.py \
+python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/shared/unit-graph.schema.json \
     .aidlc-orchestrator/runs/<run-id>/manifest.yaml
 ```
@@ -853,7 +853,7 @@ After this loop, the **active set** = units that passed all gates.
 
 **B.1.5 — Wave collision pre-flight** (only when active set has ≥ 2 units):
 ```bash
-python3 scripts/factory_conflict.py check-wave <run-id> --wave-idx <N>
+python3 aidlc-scripts/factory_conflict.py check-wave <run-id> --wave-idx <N>
 ```
 Parse the stdout JSON:
 - `safe: true` → proceed to B.2 with the full active set.
@@ -888,7 +888,7 @@ Code-generator runs `plan` → `generated` → `approved`. For each `sub_stage`:
 - **Conflict surfacing**: if any drift conflict was written, surface BEFORE the approval gate. User decides per `conflict-resolver.md`.
 - **Approval gate** (only on `plan` and `generated`): surface ALL units' sub-stage outputs together, get one consolidated approval. User can: approve all → next sub_stage; reject specific units → those re-plan with revised `context_pointers[]`; cancel layer → release locks, halt.
   **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
-  1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage code-generator --field decision=<approve|reject|cancel> --field sub_stage=<plan|generated>` (optionally `--field rejected_units="<csv>"`). Capture `ts_unit_decision`.
+  1. Emit FIRST: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_decision --stage code-generator --field decision=<approve|reject|cancel> --field sub_stage=<plan|generated>` (optionally `--field rejected_units="<csv>"`). Capture `ts_unit_decision`.
   2. Append a `## <ts_unit_decision> CONSTRUCTION - User Decision (code-generator <sub_stage>)` block to `audit.md` summarizing the decision per unit.
   3. Only then proceed to the next sub_stage / re-plan / lock release. Wall-clocking is forbidden.
 
@@ -898,13 +898,13 @@ Code-generator runs `plan` → `generated` → `approved`. For each `sub_stage`:
 3. Sequential post-processing: validate, deduct, knowledge save, audit append.
 4. Approval gate: surface all units' build/test summaries; user approves the layer.
    **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
-   1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage build-test-agent --field decision=<approve|reject|amend> --field layer=<n>`. Capture `ts_layer_decision`.
+   1. Emit FIRST: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_decision --stage build-test-agent --field decision=<approve|reject|amend> --field layer=<n>`. Capture `ts_layer_decision`.
    2. Append a `## <ts_layer_decision> CONSTRUCTION - User Decision (layer <n> build/test)` block to `audit.md`.
    3. Only then proceed to lock release (B.4) or layer re-run. Wall-clocking is forbidden.
 
 **B.4 — Release locks** (always, regardless of success/failure — leaks block future runs):
 ```bash
-python3 scripts/factory_conflict.py release <run-id> code-generator:<unit>
+python3 aidlc-scripts/factory_conflict.py release <run-id> code-generator:<unit>
 ```
 
 **B.5 — Per-unit auto-commits**:
@@ -952,7 +952,7 @@ fall back to the full set of 4 reviewers — no behavior change.
 #### Step 1 — Sequential pre-flight gates (cheap)
 For each reviewer in the candidate set (from Step 0), in sequence:
 ```bash
-python3 scripts/factory_budget.py check <run-id> reviewer-<x>
+python3 aidlc-scripts/factory_budget.py check <run-id> reviewer-<x>
 ```
 - exit `3` (halt) → abort the entire review stage; surface to user
 - exit `2` (skip) → drop that reviewer from the active set; log
@@ -994,7 +994,7 @@ For each reviewer in the active set, in any order:
 
 #### Step 5 — Merge
 ```bash
-python3 scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
+python3 aidlc-scripts/factory_merge_reviews.py <run-id> [--reviewers <active-set>]
 ```
 Produces `aidlc-docs/operations/<run-id>-review-report.md` with:
 - Summary table (P0/P1/P2 counts per reviewer + Total)
@@ -1009,7 +1009,7 @@ output file).
 Surface `review-report.md` to the user. Wait for response.
 
 **When the user responds**, follow the canonical non-spawn audit sequence from shared-primitives Step 8 substep 6:
-1. Emit FIRST: `python3 scripts/factory_run.py emit <run-id> --evt user_decision --stage review --field decision=<approve|request_fixes>` (optionally `--field rejected_units="<csv>"`). Capture `ts_review_decision`.
+1. Emit FIRST: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt user_decision --stage review --field decision=<approve|request_fixes>` (optionally `--field rejected_units="<csv>"`). Capture `ts_review_decision`.
 2. Append a `## <ts_review_decision> CONSTRUCTION - User Decision (review)` block to `audit.md` summarizing the outcome.
 3. Then proceed to one of:
 

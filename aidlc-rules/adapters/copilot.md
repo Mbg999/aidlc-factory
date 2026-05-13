@@ -36,7 +36,7 @@ Load rule detail files from aidlc-rules/aws-aidlc-rule-details/ as specified.
   workflow enforcement. Each stage rule file references mandatory skills.
 - Install skills with:
   ```bash
-  python scripts/install_aidlc.py --tool copilot --with-agent-skills --dest .
+  python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills --dest .
   ```
 - Without installed skills, inline fallback processes in stage rules are used.
 

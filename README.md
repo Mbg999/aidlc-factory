@@ -61,7 +61,7 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 | **Multi-agent orchestrator** | A second workflow that executes the same AI-DLC rules across 13 specialized Claude Code subagents. Adds contract validation, parallel reviewer pool, file-glob locks + AST symbol drift, project-scoped knowledge store, budget enforcement, kill/resume, legacy adoption. | Claude Code (uses `Task()` spawning). Other tools fall back to the legacy single-agent flow automatically. |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
-Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `scripts/factory_*.py` (runtime).
+Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `aidlc-scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `aidlc-scripts/factory_*.py` (runtime).
 
 ## Persistent Memory (how it works)
 
@@ -155,7 +155,7 @@ Quick run examples
 Install AI-DLC for your tool and run skills-driven development:
 
 ```bash
-python scripts/install_aidlc.py --tool copilot --with-agent-skills
+python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
 
 - [Kiro](#kiro)
@@ -474,7 +474,7 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 │   ├── construction/
 │   ├── extensions/
 │   └── operations/
-└── scripts/
+└── aidlc-scripts/
     └── executors/
 ```
 
@@ -482,19 +482,19 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 
 ### Install script
 
-You can use the bundled installer script to copy the AI-DLC rules and (optionally) agent skills into a project. The script lives at `scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
+You can use the bundled installer script to copy the AI-DLC rules and (optionally) agent skills into a project. The script lives at `aidlc-scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
 
 Examples:
 
 ```bash
 # Dry-run (shows planned actions, no files written)
-python scripts/install_aidlc.py --tool cursor --dry-run
+python aidlc-scripts/install_aidlc.py --tool cursor --dry-run
 
 # Install into a specific destination non-interactively
-python scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes
+python aidlc-scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes
 
 # Install with agent skills (RECOMMENDED for full workflow enforcement)
-python scripts/install_aidlc.py --tool copilot --dest /path/to/project --yes --with-agent-skills
+python aidlc-scripts/install_aidlc.py --tool copilot --dest /path/to/project --yes --with-agent-skills
 ```
 
 Key options:
@@ -686,7 +686,7 @@ the standard skills.
 **Installing agent-skills:**
 
 ```bash
-python scripts/install_aidlc.py --tool copilot --with-agent-skills
+python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
 
 **Bundled custom skills** live at `.agents/custom-skills/` in this repo and are
@@ -703,7 +703,7 @@ mkdir -p .agents/custom-skills/<skill-name>
 # Create .agents/custom-skills/<skill-name>/SKILL.md
 
 # Option 2: Point the installer at an external directory
-python scripts/install_aidlc.py --tool claude --custom-skills-path /path/to/my-skills
+python aidlc-scripts/install_aidlc.py --tool claude --custom-skills-path /path/to/my-skills
 ```
 
 Each skill directory needs a `SKILL.md` file with frontmatter (`name`,
@@ -779,7 +779,7 @@ Both workflows read the **same rule files** — the rule corpus is the single so
 **Installation:** the orchestrator artifacts ship with the installer. Use the `--with-orchestrator` flag (default yes when interactive):
 
 ```bash
-python scripts/install_aidlc.py --tool claude --with-orchestrator
+python aidlc-scripts/install_aidlc.py --tool claude --with-orchestrator
 ```
 
 This copies:
@@ -788,7 +788,7 @@ This copies:
 - `.claude/commands/factory-*.md` — 7 slash commands
 - `.aidlc-orchestrator/contracts/` — 20 JSON Schema handoff contracts
 - `.aidlc-orchestrator/budgets/default.yaml` — Cost Governor policy
-- `scripts/factory_{validate,budget,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache}.py` — runtime
+- `aidlc-scripts/factory_{validate,budget,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache}.py` — runtime
 - `.gitignore` entries for `.aidlc-orchestrator/runs/` and `.aidlc-orchestrator/knowledge/`
 - A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
 
@@ -812,8 +812,8 @@ Adapter files explain how to wire AI-DLC rules into each agentic coding tool. Th
 
 ## Environment Variables
 
-- `AIDLC_ROOT` — Optional override for the repo root path used by factory scripts (`scripts/factory_*.py`). Defaults to the parent of the `scripts/` directory. Example: `AIDLC_ROOT=/path/to/repo python scripts/factory_conflict.py ...`
-- `AIDLC_MODEL_<STAGE>` — Override model for a specific stage. Uppercase stage name with dashes → underscores. Example: `AIDLC_MODEL_CODE_GENERATOR=haiku python scripts/factory_model.py resolve code-generator`
+- `AIDLC_ROOT` — Optional override for the repo root path used by factory scripts (`aidlc-scripts/factory_*.py`). Defaults to the parent of the `aidlc-scripts/` directory. Example: `AIDLC_ROOT=/path/to/repo python aidlc-scripts/factory_conflict.py ...`
+- `AIDLC_MODEL_<STAGE>` — Override model for a specific stage. Uppercase stage name with dashes → underscores. Example: `AIDLC_MODEL_CODE_GENERATOR=haiku python aidlc-scripts/factory_model.py resolve code-generator`
 
 ## Usage
 
@@ -1052,8 +1052,8 @@ AGENTS.md
 .claude/commands/factory-*.md
 .aidlc-orchestrator/contracts/
 .aidlc-orchestrator/budgets/default.yaml
-scripts/factory_*.py
-scripts/VERSION
+aidlc-scripts/factory_*.py
+aidlc-scripts/VERSION
 ```
 
 **Optional - Add to `.gitignore` (if needed):**
@@ -1160,9 +1160,9 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 
 ## Secure Executor & Allowlist (Advanced)
 
-The manager delegates script execution to `scripts/executors/runner.py`. By default it
-allows paths under `scripts/`, `bin/`, and `.venv/bin/`. To allow additional base paths,
-edit `scripts/executors/allowlist.txt` (one path per line, relative to repo root) or
+The manager delegates script execution to `aidlc-scripts/executors/runner.py`. By default it
+allows paths under `aidlc-scripts/`, `bin/`, and `.venv/bin/`. To allow additional base paths,
+edit `aidlc-scripts/executors/allowlist.txt` (one path per line, relative to repo root) or
 export `EXECUTOR_ALLOW_BASES` as a colon-separated list.
 
 ```text
@@ -1182,7 +1182,7 @@ The manager writes audit records to `runs/<run>/`. Review these and
 To auto-enable extensions during evaluation:
 
 ```bash
-python3 scripts/aidlc-evaluator/scripts/run_evaluation.py \
+python3 aidlc-scripts/aidlc-evaluator/scripts/run_evaluation.py \
     --scenario sci-calc --auto-enable-extensions
 ```
 

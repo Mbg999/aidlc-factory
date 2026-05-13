@@ -66,7 +66,7 @@ awslabs/aidlc-workflows/
 ├── docs/
 │   ├── ADMINISTRATIVE_GUIDE.md   # This file
 │   └── DEVELOPERS_GUIDE.md       # Local build instructions
-└── scripts/
+└── aidlc-scripts/
     └── aidlc-evaluator/          # Evaluation framework (in development)
 ```
 
@@ -579,7 +579,7 @@ Defined in `.github/CODEOWNERS`:
 | `.github/CODEOWNERS`                          | `@awslabs/aidlc-admins`                                                       |
 | `aidlc-rules/`                                | `@awslabs/aidlc-admins` `@awslabs/aidlc-maintainers` `@awslabs/aidlc-writers` |
 | `assets/`                                     | `@awslabs/aidlc-admins` `@awslabs/aidlc-maintainers` `@awslabs/aidlc-writers` |
-| `scripts/`                                    | `@awslabs/aidlc-admins` `@awslabs/aidlc-maintainers`                          |
+| `aidlc-scripts/`                                    | `@awslabs/aidlc-admins` `@awslabs/aidlc-maintainers`                          |
 | `CHANGELOG.md`, `cliff.toml`, `LICENSE`, etc. | `@awslabs/aidlc-admins`                                                       |
 
 **Key implication:** Only `@awslabs/aidlc-admins` can approve changes to `.github/` (workflows, CODEOWNERS, issue templates).

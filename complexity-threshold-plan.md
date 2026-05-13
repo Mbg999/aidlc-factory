@@ -54,7 +54,7 @@ output block (one `needs_human` instead of two).
 
 ## Files to Create / Modify
 
-### 1. `scripts/factory_complexity.py` *(new)*
+### 1. `aidlc-scripts/factory_complexity.py` *(new)*
 
 Reads the requirements-analyst output YAML, maps `scope` + `complexity` to a tier,
 prints a JSON routing decision, exits 0 on success / 1 on missing input.
@@ -83,7 +83,7 @@ Add **"Complexity Routing Gate"** section immediately after the
 `requirements-analyst` stage completes:
 
 ```
-1. python3 scripts/factory_complexity.py <run-id>         # determine tier
+1. python3 aidlc-scripts/factory_complexity.py <run-id>         # determine tier
 2. factory_run.py set <run-id>                            # store in manifest
        --field complexity_tier=<TIER>
        --field skip_stages=["story-writer","unit-decomposer"]
@@ -133,7 +133,7 @@ Add optional field:
 
 ## Implementation Tasks
 
-### T1 — `scripts/factory_complexity.py`
+### T1 — `aidlc-scripts/factory_complexity.py`
 - [ ] Parse `requirements-analyst.output.yaml`, read `request_classification`
 - [ ] Apply tier table (tie-break: take higher tier)
 - [ ] Emit reviewer pool based on tier

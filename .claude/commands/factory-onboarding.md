@@ -121,9 +121,9 @@ Final stage: release notes, ADRs, CHANGELOG update, CI/CD wiring suggestions.
 |-----------|---------|
 | Run crashed mid-stage | `/factory-resume <run-id>` |
 | Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| Stale locks from dead agent | `python3 scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Need to see what happened | `python3 scripts/factory_run.py graph <run-id>` |
-| Budget was too tight | Edit `.aidlc-orchestrator/budgets/default.yaml` and re-init: `python3 scripts/factory_budget.py init <run-id>` |
+| Stale locks from dead agent | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Need to see what happened | `python3 aidlc-scripts/factory_run.py graph <run-id>` |
+| Budget was too tight | Edit `.aidlc-orchestrator/budgets/default.yaml` and re-init: `python3 aidlc-scripts/factory_budget.py init <run-id>` |
 
 If a stage returns `needs_human`, the orchestrator pauses and presents a
 structured approval prompt:
@@ -145,7 +145,7 @@ Want to improve the orchestrator itself? Use:
 /factory-self "add --stale flag to factory_conflict.py release"
 ```
 
-This runs the full pipeline against `scripts/`, `.claude/agents/`, and
+This runs the full pipeline against `aidlc-scripts/`, `.claude/agents/`, and
 `tests/` — the orchestrator building itself.
 
 ---
