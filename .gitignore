@@ -17,6 +17,7 @@
 .worktrees/**
 .vscode/**
 .env
+.venv/
 buildspec.yml
 codebuild_build.sh
 **/__pycache__/**

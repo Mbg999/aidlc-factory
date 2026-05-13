@@ -19,4 +19,26 @@ fail-on-severity: high
 #       name: "package-name"
 #       version: "1.2.3"
 #     reason: "only affects feature X which we don't use"
-ignore: []
+ignore:
+  # Transitive deps inside .venv/ — not shipped to consumers.
+  # Fix these by running: pip install --upgrade urllib3 python-multipart
+  - vulnerability: GHSA-mf9v-mfxr-j63j
+    package:
+      name: urllib3
+      version: "2.6.3"
+    reason: "transitive dep in .venv/ only — not a shipped dependency. Fix by upgrading to >=2.7.0 in requirements.txt"
+  - vulnerability: GHSA-qccp-gfcp-xxvc
+    package:
+      name: urllib3
+      version: "2.6.3"
+    reason: "transitive dep in .venv/ only — not a shipped dependency. Fix by upgrading to >=2.7.0 in requirements.txt"
+  - vulnerability: GHSA-pp6c-gr5w-3c5g
+    package:
+      name: python-multipart
+      version: "0.0.26"
+    reason: "transitive dep in .venv/ only — not a shipped dependency. Fix by upgrading to >=0.0.27"
+  - vulnerability: GHSA-82j2-j2ch-gfr8
+    package:
+      name: rustls-webpki
+      version: "0.103.12"
+    reason: "Rust crate pulled in by cryptography build — only in .venv/, not shipped to consumers"
