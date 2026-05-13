@@ -95,13 +95,16 @@ Every stage ends with:
 
 **This checkpoint is a blocking gate.** Do NOT proceed to the next phase with incomplete tracking from the previous phase.
 
-## Audit Timestamp Rules
+## Audit Log Lifecycle (Applies to ALL entries)
 
 - All `audit.md` entries MUST use ISO 8601 timestamps (e.g., `2026-05-08T10:30:00Z`)
 - Entries MUST be in **strictly chronological order** — each timestamp >= the previous entry's timestamp
 - **Workspace Detection** is ALWAYS the first entry in the audit log
 - If you realize an entry was added out of order, re-order the entries to restore chronological sequence
 - Timestamps should reflect the actual sequence of work, not be fabricated or identical
+- **Archive policy**: When entries exceed 30, follow the **Audit Log Lifecycle** (`core-workflow.md` §Audit Log Lifecycle) — archive completed phases, keep tail. This is MANDATORY — do NOT let audit.md grow unbounded.
+- **On phase transition**: Archive the completed phase's entries per the lifecycle protocol
+- **Archived entries are still read for phase transition checkpoints** — load archive files listed in the Summary header when verifying prior phase completeness
 
 ## Auto-Commit Triggers
 

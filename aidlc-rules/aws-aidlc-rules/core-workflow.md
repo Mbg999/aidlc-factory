@@ -163,6 +163,44 @@ git add -A && git commit -m "<type>(<scope>): <description>"
 - If git is not initialized or the commit fails, log a warning in `aidlc-docs/audit.md` and continue — do NOT block the workflow
 - This applies to ALL stages in ALL phases (inception, construction, operations)
 
+## MANDATORY: Audit Log Lifecycle
+
+`aidlc-docs/audit.md` is the append-only event log. To prevent unbounded growth, follow a **tail + archive** policy.
+
+### Audit Log Structure
+```
+# Audit Log
+
+## Summary
+- Current Phase: <phase>
+- Stages Completed: <summary>
+- Entry Count: <N> current (+ <M> archived)
+- Archives: aidlc-docs/archive/audit-<phase-1>.md, aidlc-docs/archive/audit-<phase-2>.md
+
+## Entries
+<last N entries in chronological order>
+```
+
+### Entry Definition
+An entry starts with `## <ISO8601> ...` heading. Everything between that heading and the next `##` heading is part of the same entry.
+
+### Archive Trigger
+Archive when either condition is met:
+1. **Entry count exceeds 30** — after appending a new entry, if total entries > 30
+2. **Phase transition** — when entering a new phase (Inception→Construction, Construction→Operations), archive the completed phase's entries
+
+### Archive Procedure
+1. Create `aidlc-docs/archive/` if it doesn't exist
+2. Move the oldest entries (entire phases that are fully completed) to `aidlc-docs/archive/audit-<phase-name>.md`
+3. Remove those entries from `audit.md`
+4. Update the Summary header: add archive reference, recalculate entry count
+5. Archive files preserve their original format and ISO 8601 timestamps
+
+### Archive Usage
+- **Session continuity**: Read `aidlc-state.md` first; if full timeline context is needed, load archive files listed in the Summary
+- **Phase transition checkpoint**: Read archive files to verify prior phase completeness
+- **Archives are read-only** — new entries always go in `aidlc-docs/audit.md`
+
 # Adaptive Software Development Workflow
 
 ---

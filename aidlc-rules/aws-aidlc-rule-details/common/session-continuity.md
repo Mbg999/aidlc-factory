@@ -18,7 +18,8 @@ When user returns to existing project, present:
 
 **CRITICAL**: A completed project receiving a new development request MUST go through the full workflow again (Requirements Analysis → ... → Build & Test). Silently skipping stages, skipping skill execution, or skipping artifact generation for a new request is a workflow violation.
 
-3. **Load artifacts by stage** before resuming (In-Progress Resume only):
+3. **Load audit trail**: Read `aidlc-docs/audit.md`. If the Summary header lists archive files, load them when full timeline context is needed (phase transition verification, troubleshooting).
+4. **Load artifacts by stage** before resuming (In-Progress Resume only):
 
 | Current Stage | Load |
 |--------------|------|
@@ -27,8 +28,8 @@ When user returns to existing project, present:
 | Design stages | Requirements + stories + architecture + design |
 | Code stages | ALL artifacts + existing code |
 
-4. **Validate state matches artifacts** — if mismatch, see [error-handling.md](error-handling.md)
-5. Show specific next steps (not generic descriptions)
-6. After loading, provide brief context summary to user
-7. Log continuity prompt in audit.md
-8. Questions go in `.md` files — never inline in chat
+5. **Validate state matches artifacts** — if mismatch, see [error-handling.md](error-handling.md)
+6. Show specific next steps (not generic descriptions)
+7. After loading, provide brief context summary to user
+8. Log continuity prompt in audit.md
+9. Questions go in `.md` files — never inline in chat
