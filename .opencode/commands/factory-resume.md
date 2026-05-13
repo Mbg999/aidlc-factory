@@ -5,7 +5,7 @@ argument-hint: <run-id>  (omit to adopt legacy aidlc-docs/)
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md.
+Adopt the role from @.opencode/agents/orchestrator.md.
 
 **Argument:** $ARGUMENTS
 
@@ -48,4 +48,4 @@ If `$ARGUMENTS` is a run-id: this is a **resume** request.
    invoke `/factory-spec` continuation in this same session, or you can
    spawn the agent directly per the orchestrator protocol).
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.opencode/agents/orchestrator.md apply.

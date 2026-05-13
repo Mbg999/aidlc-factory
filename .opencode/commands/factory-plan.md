@@ -5,7 +5,7 @@ argument-hint: <run-id>
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.opencode/agents/orchestrator.md and execute the
 `/factory-plan <run-id>` sequence (see "Phase 1 sequences" in the orchestrator
 spec).
 
@@ -29,4 +29,4 @@ Sequence:
    `docs(workflow-planning): complete workflow planning`.
 6. Present completion + offer `/factory-build <run-id>`.
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.opencode/agents/orchestrator.md apply.

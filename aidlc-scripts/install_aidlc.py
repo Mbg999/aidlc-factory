@@ -384,13 +384,19 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     agent_dir = _tool_agent_dir(tool)
     cmd_dir = _tool_commands_dir(tool)
 
-    src_agents = repo_root / ".claude" / "agents"
+    # OpenCode has pre-adapted agent files; others use the canonical Claude source
+    if tool == "opencode":
+        src_agents = repo_root / ".opencode" / "agents"
+        src_cmds = repo_root / ".opencode" / "commands"
+    else:
+        src_agents = repo_root / ".claude" / "agents"
+        src_cmds = repo_root / ".claude" / "commands"
+
     dst_agents = target_root / agent_dir
     if src_agents.exists():
         print(f"  subagents -> {agent_dir}/")
         copy_tree(src_agents, dst_agents, dry_run)
 
-    src_cmds = repo_root / ".claude" / "commands"
     dst_cmds = target_root / cmd_dir
     if src_cmds.exists():
         print(f"  slash commands -> {cmd_dir}/factory-*.md")
@@ -409,10 +415,19 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
     wf_doc = _tool_workflow_doc(tool, target_root)
     if wf_doc:
         print(f"  workflow pointer -> {wf_doc.name}")
+        # Use OpenCode-specific paths for the pointer block
+        if tool == "opencode":
+            pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                ".claude/agents/", ".opencode/agents/"
+            ).replace(
+                ".claude/commands/", ".opencode/commands/"
+            )
+        else:
+            pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
         update_workflow_doc_pointer(
             wf_doc,
             ORCHESTRATOR_CLAUDE_POINTER_MARKER,
-            ORCHESTRATOR_CLAUDE_POINTER_BLOCK,
+            pointer_block,
             dry_run,
         )
 

@@ -6,7 +6,7 @@ argument-hint: <feature description in natural language>
 You are now the AIDLC orchestrator.
 
 Adopt the role, authority rules, and Phase 0 sequence defined in
-@.claude/agents/orchestrator.md
+@.opencode/agents/orchestrator.md
 
 **User request:** $ARGUMENTS
 
@@ -64,7 +64,7 @@ Execute the Phase 0 sequence end-to-end:
    - Offer next step: `/factory-plan <run-id>` (wired in Phase 1; for now,
      remind the user that Phase 0 stops here)
 
-## Hard rules (from @.claude/agents/orchestrator.md)
+## Hard rules (from @.opencode/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.
 - Never fabricate stage output fields to satisfy schemas.
 - Sequential only — no parallel Task() calls in Phase 0.

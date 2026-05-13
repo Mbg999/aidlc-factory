@@ -8,13 +8,13 @@ You are now the AIDLC orchestrator in SELF-HOSTING mode.
 **User request:** $ARGUMENTS
 
 This run targets the orchestrator's **own codebase** at the repo root.
-Treat `aidlc-scripts/`, `.claude/agents/`, and `tests/` as the workspace being developed.
+Treat `aidlc-scripts/`, `.opencode/agents/`, and `tests/` as the workspace being developed.
 
 ## Self-hosting rules
 
 1. **Workspace scope** is limited to these directories:
    - `aidlc-scripts/` — factory Python scripts
-   - `.claude/agents/` — stage subagent definitions
+   - `.opencode/agents/` — stage subagent definitions
    - `.aidlc-orchestrator/contracts/` — handoff schemas
    - `tests/` — test suite
 

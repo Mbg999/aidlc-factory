@@ -5,7 +5,7 @@ argument-hint: <run-id>
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.opencode/agents/orchestrator.md and execute the
 `/factory-review <run-id>` sequence (now **parallel fan-out** per Phase 4).
 
 **Run id:** $ARGUMENTS
@@ -34,7 +34,7 @@ Sequence:
    - **Approved** → auto-commit `docs(review): complete review report`,
      update state, offer `/factory-ship <run-id>`
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.opencode/agents/orchestrator.md apply.
 
 **Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`,
 not sum. Track via `manifest.events[]` timestamps and reviewer `cost.wall_clock_min`.

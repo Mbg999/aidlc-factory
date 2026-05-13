@@ -145,7 +145,7 @@ Want to improve the orchestrator itself? Use:
 /factory-self "add --stale flag to factory_conflict.py release"
 ```
 
-This runs the full pipeline against `aidlc-scripts/`, `.claude/agents/`, and
+This runs the full pipeline against `aidlc-scripts/`, `.opencode/agents/`, and
 `tests/` — the orchestrator building itself.
 
 ---

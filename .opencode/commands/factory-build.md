@@ -5,7 +5,7 @@ argument-hint: <run-id>
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.opencode/agents/orchestrator.md and execute the
 `/factory-build <run-id>` sequence (now **layer-parallel** per Phase 5).
 
 **Run id:** $ARGUMENTS
@@ -42,11 +42,11 @@ Sequence:
 5. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
 6. Present + offer `/factory-review <run-id>`.
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.opencode/agents/orchestrator.md apply.
 
 **Concurrency cap: 4.** If a layer has > 4 units, batch them (4 at a time)
 within the layer.
 
 **Conflict resolution (Phase 5)**: escalation-only. On path collision or
 interface drift, surface to user; user re-plans, manually merges, or cancels.
-Full protocol: `.claude/agents/cross-cutting/conflict-resolver.md`.
+Full protocol: `.opencode/agents/cross-cutting/conflict-resolver.md`.

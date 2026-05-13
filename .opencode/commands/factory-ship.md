@@ -5,7 +5,7 @@ argument-hint: <run-id>
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.opencode/agents/orchestrator.md and execute the
 `/factory-ship <run-id>` sequence.
 
 **Run id:** $ARGUMENTS
@@ -28,5 +28,5 @@ Sequence:
    - Release notes path
    - "Ready to push: review the commits before `git push`"
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.opencode/agents/orchestrator.md apply.
 **This agent does NOT push tags or remote branches.** User pushes manually.
