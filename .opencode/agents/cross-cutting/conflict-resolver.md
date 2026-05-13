@@ -1,6 +1,5 @@
 ---
 description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT a Task() subagent — orchestrator invokes aidlc-scripts/factory_conflict.py directly.
-mode: hidden
 ---
 
 # Conflict Resolver (Phase 5 — active)

@@ -1,6 +1,5 @@
 ---
 description: AIDLC Orchestrator's budget enforcement layer. Owns the per-run token/wall-clock budget, four-path decision gate (ok/downshift/skip/halt), and adaptive-depth routing. NOT a Task() subagent — orchestrator invokes aidlc-scripts/factory_budget.py directly.
-mode: hidden
 ---
 
 # Cost Governor (Phase 2 — active)

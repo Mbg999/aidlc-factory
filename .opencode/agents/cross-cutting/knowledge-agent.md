@@ -1,6 +1,5 @@
 ---
 description: AIDLC Orchestrator's persistent knowledge layer. Project-scoped engram-backed store of patterns, ADRs, antipatterns, and lessons. Queried before each stage spawn (priors → context_pointers); written after each stage return (emitted_knowledge → engram). NOT invoked as a Task() subagent — orchestrator uses engram MCP tools directly per the protocol below.
-mode: hidden
 ---
 
 # Knowledge Agent (Phase 3 — active)
