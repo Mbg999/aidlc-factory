@@ -1,0 +1,199 @@
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = REPO_ROOT / "aidlc-scripts"
+INSTALL_PY = SCRIPTS / "install_aidlc.py"
+
+# Import install_aidlc as a module for pure-function unit tests.
+sys.path.insert(0, str(SCRIPTS))
+import install_aidlc  # noqa: E402
+sys.path.pop(0)
+
+
+# ---------- parse_tools_string ----------
+
+class TestParseToolsString:
+    def test_single(self):
+        assert install_aidlc.parse_tools_string("claude") == ["claude"]
+
+    def test_multi(self):
+        assert install_aidlc.parse_tools_string("claude,opencode") == ["claude", "opencode"]
+
+    def test_whitespace_stripped(self):
+        assert install_aidlc.parse_tools_string(" claude , opencode ") == ["claude", "opencode"]
+
+    def test_dedup_preserves_order(self):
+        assert install_aidlc.parse_tools_string("opencode,claude,opencode") == ["opencode", "claude"]
+
+    def test_lowercased(self):
+        assert install_aidlc.parse_tools_string("CLAUDE,OpenCode") == ["claude", "opencode"]
+
+    def test_invalid_raises(self):
+        with pytest.raises(ValueError, match="bogus"):
+            install_aidlc.parse_tools_string("claude,bogus")
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError, match="No tools"):
+            install_aidlc.parse_tools_string("")
+
+    def test_only_commas_raises(self):
+        with pytest.raises(ValueError, match="No tools"):
+            install_aidlc.parse_tools_string(",,,")
+
+
+# ---------- check_workflow_doc_conflicts ----------
+
+class TestCheckWorkflowDocConflicts:
+    def test_single_tool_ok(self):
+        install_aidlc.check_workflow_doc_conflicts(["claude"])
+
+    def test_claude_plus_opencode_ok(self):
+        # Different docs (CLAUDE.md vs AGENTS.md)
+        install_aidlc.check_workflow_doc_conflicts(["claude", "opencode"])
+
+    def test_tool_scoped_combo_ok(self):
+        # None of these write to a shared top-level doc
+        install_aidlc.check_workflow_doc_conflicts(
+            ["kiro", "amazonq", "cursor", "cline", "windsurf"]
+        )
+
+    def test_opencode_codex_clashes(self):
+        with pytest.raises(ValueError, match="AGENTS.md"):
+            install_aidlc.check_workflow_doc_conflicts(["opencode", "codex"])
+
+    def test_opencode_other_clashes(self):
+        with pytest.raises(ValueError, match="AGENTS.md"):
+            install_aidlc.check_workflow_doc_conflicts(["opencode", "other"])
+
+    def test_codex_other_clashes(self):
+        with pytest.raises(ValueError, match="AGENTS.md"):
+            install_aidlc.check_workflow_doc_conflicts(["codex", "other"])
+
+
+# ---------- detect_installed_tools ----------
+
+class TestDetectInstalledTools:
+    def test_empty_dir(self, tmp_path: Path):
+        assert install_aidlc.detect_installed_tools(tmp_path) == set()
+
+    def test_claude_marker(self, tmp_path: Path):
+        (tmp_path / "CLAUDE.md").write_text("x")
+        assert install_aidlc.detect_installed_tools(tmp_path) == {"claude"}
+
+    def test_opencode_marker(self, tmp_path: Path):
+        (tmp_path / ".opencode" / "agents").mkdir(parents=True)
+        assert install_aidlc.detect_installed_tools(tmp_path) == {"opencode"}
+
+    def test_codex_marker(self, tmp_path: Path):
+        (tmp_path / ".codex" / "agents").mkdir(parents=True)
+        assert install_aidlc.detect_installed_tools(tmp_path) == {"codex"}
+
+    def test_copilot_marker(self, tmp_path: Path):
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "copilot-instructions.md").write_text("x")
+        assert install_aidlc.detect_installed_tools(tmp_path) == {"copilot"}
+
+    def test_agents_md_alone_is_ambiguous(self, tmp_path: Path):
+        # AGENTS.md is shared by opencode/codex/other; without a tool-specific
+        # dir we cannot disambiguate, so no tool is detected.
+        (tmp_path / "AGENTS.md").write_text("x")
+        assert install_aidlc.detect_installed_tools(tmp_path) == set()
+
+    def test_other_never_auto_detected(self, tmp_path: Path):
+        # 'other' has no unique marker — should never appear in the set
+        (tmp_path / "AGENTS.md").write_text("x")
+        (tmp_path / ".aidlc-rule-details").mkdir()
+        assert "other" not in install_aidlc.detect_installed_tools(tmp_path)
+
+    def test_multiple_tools(self, tmp_path: Path):
+        (tmp_path / "CLAUDE.md").write_text("x")
+        (tmp_path / ".opencode" / "agents").mkdir(parents=True)
+        (tmp_path / ".kiro" / "steering" / "aws-aidlc-rules").mkdir(parents=True)
+        assert install_aidlc.detect_installed_tools(tmp_path) == {"claude", "opencode", "kiro"}
+
+
+# ---------- CLI integration (subprocess) ----------
+
+def _stub_skills(target: Path) -> None:
+    """Pre-populate .agents/skills/ so the script skips the network clone."""
+    stub = target / ".agents" / "skills" / "_stub"
+    stub.mkdir(parents=True, exist_ok=True)
+    (stub / "SKILL.md").write_text("# stub\n")
+
+
+def _run_cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(INSTALL_PY), *args],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+
+class TestCli:
+    def test_invalid_tool_exits_2(self, tmp_path: Path):
+        r = _run_cli("--tool", "bogus", "--yes", "--dry-run", "--dest", str(tmp_path))
+        assert r.returncode == 2
+        assert "Unknown tool" in r.stdout
+
+    def test_clash_opencode_codex_exits_2(self, tmp_path: Path):
+        r = _run_cli("--tool", "opencode,codex", "--yes", "--dry-run", "--dest", str(tmp_path))
+        assert r.returncode == 2
+        assert "Incompatible" in r.stdout
+        assert "AGENTS.md" in r.stdout
+
+    def test_fresh_install_claude(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert (tmp_path / "CLAUDE.md").exists()
+        assert (tmp_path / ".aidlc-rule-details").exists()
+
+    def test_rerun_skips_existing(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r1 = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--dest", str(tmp_path),
+        )
+        assert r1.returncode == 0
+        r2 = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--dest", str(tmp_path),
+        )
+        assert r2.returncode == 0
+        assert "Detected existing install for: claude" in r2.stdout
+        assert "nothing to do" in r2.stdout
+
+    def test_add_second_tool_merges(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--dest", str(tmp_path))
+        assert (tmp_path / "CLAUDE.md").exists()
+        r = _run_cli(
+            "--tool", "claude,opencode", "--yes", "--no-orchestrator",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        assert "Detected existing install for: claude" in r.stdout
+        assert (tmp_path / "AGENTS.md").exists()
+        # Both workflow docs now coexist
+        assert (tmp_path / "CLAUDE.md").exists()
+
+    def test_force_reinstalls(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--dest", str(tmp_path))
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--force",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        assert "Detected existing install" not in r.stdout
+        assert "Installing for Claude Code" in r.stdout

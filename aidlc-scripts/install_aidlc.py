@@ -121,6 +121,98 @@ AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
 AGENT_SKILLS_DIRS = ["skills", "references"]
 
 
+VALID_TOOLS = (
+    "kiro", "amazonq", "cursor", "cline", "claude",
+    "copilot", "opencode", "codex", "windsurf", "other",
+)
+
+
+def parse_tools_string(s: str) -> list[str]:
+    """Parse a comma-separated tool list (e.g. 'claude,opencode') into a deduped list.
+
+    Raises ValueError if any tool is not in VALID_TOOLS.
+    """
+    tools = [t.strip().lower() for t in s.split(",") if t.strip()]
+    if not tools:
+        raise ValueError("No tools specified")
+    invalid = [t for t in tools if t not in VALID_TOOLS]
+    if invalid:
+        raise ValueError(
+            f"Unknown tool(s): {', '.join(invalid)}. "
+            f"Valid: {', '.join(VALID_TOOLS)}"
+        )
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in tools:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+# Tools that write to a top-level shared workflow doc. Tools using their own
+# tool-scoped directory (.kiro, .amazonq, .cursor, .clinerules, .windsurf) are
+# absent — they never collide with anything.
+_TOOL_WORKFLOW_DOC_REL = {
+    "claude": "CLAUDE.md",
+    "opencode": "AGENTS.md",
+    "codex": "AGENTS.md",
+    "other": "AGENTS.md",
+    "copilot": ".github/copilot-instructions.md",
+}
+
+
+# Per-tool install markers — files/dirs that uniquely indicate a tool's install.
+# Used to detect already-installed tools and skip re-installing them. Tools that
+# share AGENTS.md (opencode/codex/other) cannot be distinguished by the root
+# doc alone, so their orchestrator dir is used as a more specific marker.
+# 'other' has no unique marker and is never auto-detected.
+TOOL_INSTALL_MARKERS: dict[str, list[Path]] = {
+    "claude": [Path("CLAUDE.md")],
+    "opencode": [Path(".opencode/agents")],
+    "codex": [Path(".codex/agents")],
+    "copilot": [Path(".github/copilot-instructions.md")],
+    "kiro": [Path(".kiro/steering/aws-aidlc-rules")],
+    "amazonq": [Path(".amazonq/rules/aws-aidlc-rules")],
+    "cursor": [Path(".cursor/rules/ai-dlc-workflow.mdc")],
+    "cline": [Path(".clinerules/core-workflow.md")],
+    "windsurf": [Path(".windsurf/rules/ai-dlc-workflow.md")],
+    "other": [],
+}
+
+
+def detect_installed_tools(target_root: Path) -> set[str]:
+    """Return the set of tools that appear to be already installed in target_root."""
+    installed: set[str] = set()
+    for tool, markers in TOOL_INSTALL_MARKERS.items():
+        if markers and any((target_root / m).exists() for m in markers):
+            installed.add(tool)
+    return installed
+
+
+def check_workflow_doc_conflicts(tools: list[str]) -> None:
+    """Raise ValueError if two selected tools would write to the same workflow doc.
+
+    The orchestrator pointer block differs between e.g. opencode (.opencode/agents/)
+    and codex/other (.claude/agents/), so installing them together produces a
+    broken AGENTS.md (second tool's pointer is silently dropped by the marker
+    idempotency check).
+    """
+    by_doc: dict[str, list[str]] = {}
+    for t in tools:
+        doc = _TOOL_WORKFLOW_DOC_REL.get(t)
+        if doc:
+            by_doc.setdefault(doc, []).append(t)
+    conflicts = {doc: ts for doc, ts in by_doc.items() if len(ts) > 1}
+    if conflicts:
+        lines = [f"  {doc}: {', '.join(ts)}" for doc, ts in conflicts.items()]
+        raise ValueError(
+            "Incompatible tool combination — these tools share workflow doc(s):\n"
+            + "\n".join(lines)
+            + "\nPick one tool per shared doc, or run install_aidlc.py separately for each."
+        )
+
+
 # AIDLC Orchestrator (Phases 0-6) artifacts to install.
 # Always-installed (any tool) — the contracts + scripts are useful for
 # validation even when subagent spawning isn't available.
@@ -340,18 +432,18 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
     return mapping.get(tool)
 
 
-def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run: bool) -> None:
-    """Install AIDLC Orchestrator (Phases 0-6) artifacts.
+def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool) -> None:
+    """Install AIDLC Orchestrator (Phases 0-6) artifacts for one or more tools.
 
     Layers:
-      1. Always (any tool): factory scripts, contracts, default budget
-      2. Tool-specific: subagents + slash commands (Claude Code, OpenCode, Codex CLI)
-      3. Reference copy (Cursor, Cline, Windsurf, other): agents + commands under .aidlc-orchestrator/
-      4. Always: Python deps, gitignore, workflow doc pointer
+      1. Shared (runs once regardless of tool count): factory scripts, contracts, default budget
+      2. Per-tool: subagents + slash commands + workflow doc pointer
+      3. Shared: Python deps, gitignore runtime state, optional .aidlc-env (non-Claude tools)
     """
-    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tool} ---")
+    tools_label = ", ".join(tools)
+    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tools_label} ---")
 
-    # Layer 1: factory scripts (any tool)
+    # Shared Layer 1: factory scripts (any tool)
     src_scripts = repo_root / "aidlc-scripts"
     dst_scripts = target_root / "aidlc-scripts"
     print(f"  factory scripts -> {dst_scripts.relative_to(target_root)}/")
@@ -368,7 +460,7 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
             except OSError:
                 pass
 
-    # Layer 1: contracts + default budget (any tool)
+    # Shared Layer 1: contracts + default budget (any tool)
     src_contracts = repo_root / ".aidlc-orchestrator" / "contracts"
     dst_contracts = target_root / ".aidlc-orchestrator" / "contracts"
     if src_contracts.exists():
@@ -381,69 +473,71 @@ def install_orchestrator(tool: str, repo_root: Path, target_root: Path, dry_run:
         print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
         copy_file(src_budget, dst_budget, dry_run)
 
-    # Layer 2: tool-specific subagents + slash commands
-    agent_dir = _tool_agent_dir(tool)
-    cmd_dir = _tool_commands_dir(tool)
+    # Per-tool Layer 2: subagents + slash commands + workflow doc pointer
+    for tool in tools:
+        print(f"\n  -- {tool} --")
+        agent_dir = _tool_agent_dir(tool)
+        cmd_dir = _tool_commands_dir(tool)
 
-    # OpenCode has pre-adapted agent files; others use the canonical Claude source
-    if tool == "opencode":
-        src_agents = repo_root / ".opencode" / "agents"
-        src_cmds = repo_root / ".opencode" / "commands"
-    else:
-        src_agents = repo_root / ".claude" / "agents"
-        src_cmds = repo_root / ".claude" / "commands"
+        # OpenCode has pre-adapted agent files; others use the canonical Claude source
+        if tool == "opencode":
+            src_agents = repo_root / ".opencode" / "agents"
+            src_cmds = repo_root / ".opencode" / "commands"
+        else:
+            src_agents = repo_root / ".claude" / "agents"
+            src_cmds = repo_root / ".claude" / "commands"
 
-    dst_agents = target_root / agent_dir
-    if src_agents.exists():
-        print(f"  subagents -> {agent_dir}/")
-        copy_tree(src_agents, dst_agents, dry_run)
+        dst_agents = target_root / agent_dir
+        if src_agents.exists():
+            print(f"  subagents -> {agent_dir}/")
+            copy_tree(src_agents, dst_agents, dry_run)
 
-    dst_cmds = target_root / cmd_dir
-    if src_cmds.exists():
-        print(f"  slash commands -> {cmd_dir}/factory-*.md")
-        for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-            copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+        dst_cmds = target_root / cmd_dir
+        if src_cmds.exists():
+            print(f"  slash commands -> {cmd_dir}/factory-*.md")
+            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
-    # Layer 3: Python deps
-    print(f"  Python deps -> requirements.txt")
+        wf_doc = _tool_workflow_doc(tool, target_root)
+        if wf_doc:
+            print(f"  workflow pointer -> {wf_doc.name}")
+            if tool == "opencode":
+                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                    ".claude/agents/", ".opencode/agents/"
+                ).replace(
+                    ".claude/commands/", ".opencode/commands/"
+                )
+            else:
+                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
+            update_workflow_doc_pointer(
+                wf_doc,
+                ORCHESTRATOR_CLAUDE_POINTER_MARKER,
+                pointer_block,
+                dry_run,
+            )
+
+    # Shared Layer 3: Python deps
+    print(f"\n  Python deps -> requirements.txt")
     update_requirements(target_root, ORCHESTRATOR_PYTHON_DEPS, dry_run)
 
-    # Layer 3: gitignore runtime state (any tool)
+    # Shared Layer 3: gitignore runtime state (any tool)
     print(f"  runtime state -> .gitignore")
     update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
-
-    # Layer 3: workflow doc pointer
-    wf_doc = _tool_workflow_doc(tool, target_root)
-    if wf_doc:
-        print(f"  workflow pointer -> {wf_doc.name}")
-        # Use OpenCode-specific paths for the pointer block
-        if tool == "opencode":
-            pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                ".claude/agents/", ".opencode/agents/"
-            ).replace(
-                ".claude/commands/", ".opencode/commands/"
-            )
-        else:
-            pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
-        update_workflow_doc_pointer(
-            wf_doc,
-            ORCHESTRATOR_CLAUDE_POINTER_MARKER,
-            pointer_block,
-            dry_run,
-        )
 
     if not dry_run:
         print(f"\n  Next: pip install -r requirements.txt")
         print(f"  Then: invoke /factory-spec <feature> in the tool to start a run.")
         # Non-Claude tools need AIDLC_DEFAULT_MODEL to skip Claude-specific model names
-        if tool not in ("claude",):
+        non_claude = [t for t in tools if t != "claude"]
+        if non_claude:
             env_path = target_root / ".aidlc-env"
-            env_path.write_text(
-                "# AIDLC orchestrator — non-Claude tools should use default model\n"
-                "AIDLC_DEFAULT_MODEL=default\n"
-            )
+            if not env_path.exists():
+                env_path.write_text(
+                    "# AIDLC orchestrator — non-Claude tools should use default model\n"
+                    "AIDLC_DEFAULT_MODEL=default\n"
+                )
             print(f"\n  NOTE: Budget default.yaml contains Claude model names (sonnet/opus).")
-            print(f"  To use the orchestrator with other tools, set:")
+            print(f"  Non-Claude tool(s) selected ({', '.join(non_claude)}) should set:")
             print(f"    export AIDLC_DEFAULT_MODEL=default")
             print(f"  Or source the env file:  source {env_path.relative_to(target_root)}")
 
@@ -657,9 +751,10 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for a selected agent tool")
-    p.add_argument("--tool", choices=["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "codex", "windsurf", "other"], required=False,
-                   help="Target agent/tool to install rules for")
+    p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
+    p.add_argument("--tool", required=False,
+                   help="Target agent/tool(s) to install rules for. Comma-separated for multiple "
+                        "(e.g., --tool claude,opencode). Valid: " + ", ".join(VALID_TOOLS))
     p.add_argument("--yes", action="store_true", help="Assume yes for confirmations")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
     p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
@@ -676,20 +771,27 @@ def parse_args() -> argparse.Namespace:
                         "If neither --with-orchestrator nor --no-orchestrator is set, prompts interactively (default: yes).")
     p.add_argument("--no-orchestrator", dest="with_orchestrator", action="store_false",
                    help="Skip orchestrator installation.")
+    p.add_argument("--force", action="store_true",
+                   help="Re-install over an existing installation. Without this flag, "
+                        "tools detected as already installed are skipped (merge mode).")
     return p.parse_args()
 
 
-def ask_orchestrator(tool: str) -> bool:
+def ask_orchestrator(tools: list[str]) -> bool:
     """Prompt user whether to install the AIDLC orchestrator. Default: yes."""
-    if tool in ("claude", "opencode"):
-        msg = ("Install the AIDLC orchestrator (factory scripts + subagents + slash commands)?\n"
-               "  Includes: 13 stage subagents, 11 /factory-* slash commands, 9 factory_*.py scripts,\n"
-               "  20+ JSON schema contracts, default budget policy.\n"
-               "  [Y/n]: ")
+    tools_label = ", ".join(tools)
+    native = [t for t in tools if t in ("claude", "opencode")]
+    degraded = [t for t in tools if t not in ("claude", "opencode")]
+    if native and not degraded:
+        msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
+               f"  Includes: 13 stage subagents, 11 /factory-* slash commands, 9 factory_*.py scripts,\n"
+               f"  20+ JSON schema contracts, default budget policy.\n"
+               f"  [Y/n]: ")
     else:
-        msg = (f"Install the AIDLC orchestrator infrastructure for {tool}?\n"
+        deg_label = ", ".join(degraded)
+        msg = (f"Install the AIDLC orchestrator infrastructure for {tools_label}?\n"
                f"  You'll get the factory_*.py scripts and contracts (usable for manual validation).\n"
-               f"  Subagent spawning is Claude Code only — for {tool} the multi-agent factory\n"
+               f"  Subagent spawning is Claude Code only — for {deg_label} the multi-agent factory\n"
                f"  runs in degraded mode (single-agent role-switching) per ORCHESTRATOR-PLAN.md §8.4.\n"
                f"  [Y/n]: ")
     try:
@@ -699,19 +801,28 @@ def ask_orchestrator(tool: str) -> bool:
     return resp not in ("n", "no")
 
 
-def interactive_choose() -> str:
-    choices = ["kiro", "amazonq", "cursor", "cline", "claude", "copilot", "opencode", "codex", "windsurf", "other"]
-    print("Select the agentic coding tool to install AI-DLC for:")
+def interactive_choose_tools() -> list[str]:
+    """Prompt user to select one or more tools (comma-separated indices)."""
+    choices = list(VALID_TOOLS)
+    print("Select the agentic coding tool(s) to install AI-DLC for:")
+    print("(One number, or comma-separated for multiple — e.g. '5,7')")
     for i, c in enumerate(choices, 1):
         print(f" {i}) {c}")
     while True:
-        v = input("Enter number: ").strip()
+        v = input("Enter number(s): ").strip()
         if not v:
             continue
         try:
-            idx = int(v) - 1
-            if 0 <= idx < len(choices):
-                return choices[idx]
+            indices = [int(x.strip()) - 1 for x in v.split(",") if x.strip()]
+            if indices and all(0 <= idx < len(choices) for idx in indices):
+                seen: set[str] = set()
+                out: list[str] = []
+                for idx in indices:
+                    name = choices[idx]
+                    if name not in seen:
+                        seen.add(name)
+                        out.append(name)
+                return out
         except Exception:
             pass
         print("Invalid selection, try again")
@@ -742,11 +853,40 @@ def main() -> int:
         print(f"Expected rule dir: {repo_root / 'aidlc-rules' / 'aws-aidlc-rules'}")
         return 2
 
-    tool = args.tool or interactive_choose()
-    print(f"Selected tool: {tool}")
+    if args.tool:
+        try:
+            tools = parse_tools_string(args.tool)
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            return 2
+    else:
+        tools = interactive_choose_tools()
+
+    try:
+        check_workflow_doc_conflicts(tools)
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        return 2
+
+    # Merge mode: skip tools that are already installed, unless --force.
+    if args.force:
+        installed_tools: set[str] = set()
+    else:
+        installed_tools = detect_installed_tools(target_root)
+    already = [t for t in tools if t in installed_tools]
+    pending = [t for t in tools if t not in installed_tools]
+    if already:
+        print(f"Detected existing install for: {', '.join(already)} — skipping (use --force to re-install)")
+    if not pending:
+        print("All selected tools already installed — nothing to do.")
+        return 0
+    tools = pending
+
+    tools_label = ", ".join(f"'{t}'" for t in tools)
+    print(f"Selected tool(s): {tools_label}")
     if not args.yes:
         try:
-            resp = input(f"Proceed to install AI-DLC for '{tool}' into {target_root}? [Y/n]: ").strip().lower()
+            resp = input(f"Proceed to install AI-DLC for {tools_label} into {target_root}? [Y/n]: ").strip().lower()
         except KeyboardInterrupt:
             print("\nAborted by user")
             return 1
@@ -755,16 +895,21 @@ def main() -> int:
             print("Aborted by user")
             return 1
 
-    try:
-        run_install(tool, src_base, src_details, target_root, args.dry_run)
-    except Exception as e:
-        print("ERROR during installation:", e)
-        return 3
+    for tool in tools:
+        try:
+            run_install(tool, src_base, src_details, target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR during installation for '{tool}':", e)
+            return 3
 
     # Agent skills will be installed by default (no interactive prompt)
 
     # --- Agent Skills integration ---
-    if args.with_agent_skills:
+    skills_dir = target_root / ".agents" / "skills"
+    skills_already = skills_dir.exists() and any(skills_dir.iterdir()) if skills_dir.exists() else False
+    if args.with_agent_skills and skills_already and not args.force:
+        print(f"\nAgent skills already installed at {skills_dir.relative_to(target_root)} — skipping (use --force to re-install).")
+    elif args.with_agent_skills:
         print("\n--- Installing Agent Skills (addyosmani/agent-skills) ---")
 
         if args.agent_skills_path:
@@ -851,11 +996,11 @@ def main() -> int:
     elif args.yes:
         install_orch = True   # default yes in non-interactive mode
     else:
-        install_orch = ask_orchestrator(tool)
+        install_orch = ask_orchestrator(tools)
 
     if install_orch:
         try:
-            install_orchestrator(tool, repo_root, target_root, args.dry_run)
+            install_orchestrator(tools, repo_root, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing orchestrator: {e}")
             return 6
