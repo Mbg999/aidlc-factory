@@ -151,7 +151,7 @@ class TestCli:
     def test_fresh_install_claude(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stdout + r.stderr
@@ -161,12 +161,12 @@ class TestCli:
     def test_rerun_skips_existing(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r1 = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r1.returncode == 0
         r2 = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator",
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r2.returncode == 0
@@ -175,10 +175,10 @@ class TestCli:
 
     def test_add_second_tool_merges(self, tmp_path: Path):
         _stub_skills(tmp_path)
-        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--dest", str(tmp_path))
+        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--no-venv", "--dest", str(tmp_path))
         assert (tmp_path / "CLAUDE.md").exists()
         r = _run_cli(
-            "--tool", "claude,opencode", "--yes", "--no-orchestrator",
+            "--tool", "claude,opencode", "--yes", "--no-orchestrator", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
@@ -189,11 +189,78 @@ class TestCli:
 
     def test_force_reinstalls(self, tmp_path: Path):
         _stub_skills(tmp_path)
-        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--dest", str(tmp_path))
+        _run_cli("--tool", "claude", "--yes", "--no-orchestrator", "--no-venv", "--dest", str(tmp_path))
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--force",
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv", "--force",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
         assert "Detected existing install" not in r.stdout
         assert "Installing for Claude Code" in r.stdout
+
+
+# ---------- ensure_target_requirements ----------
+
+class TestEnsureTargetRequirements:
+    def test_seeds_from_source_when_target_missing(self, tmp_path: Path):
+        repo = tmp_path / "repo"
+        target = tmp_path / "target"
+        repo.mkdir()
+        target.mkdir()
+        (repo / "requirements.txt").write_text("pyyaml>=6.0\n")
+        out = install_aidlc.ensure_target_requirements(repo, target, dry_run=False)
+        assert out == target / "requirements.txt"
+        assert (target / "requirements.txt").read_text() == "pyyaml>=6.0\n"
+
+    def test_preserves_existing_target(self, tmp_path: Path):
+        repo = tmp_path / "repo"
+        target = tmp_path / "target"
+        repo.mkdir()
+        target.mkdir()
+        (repo / "requirements.txt").write_text("pyyaml>=6.0\n")
+        (target / "requirements.txt").write_text("custom-dep==1.0\n")
+        install_aidlc.ensure_target_requirements(repo, target, dry_run=False)
+        # Existing target file untouched
+        assert (target / "requirements.txt").read_text() == "custom-dep==1.0\n"
+
+    def test_returns_none_when_neither_exists(self, tmp_path: Path):
+        repo = tmp_path / "repo"
+        target = tmp_path / "target"
+        repo.mkdir()
+        target.mkdir()
+        assert install_aidlc.ensure_target_requirements(repo, target, dry_run=False) is None
+
+    def test_dry_run_does_not_create(self, tmp_path: Path):
+        repo = tmp_path / "repo"
+        target = tmp_path / "target"
+        repo.mkdir()
+        target.mkdir()
+        (repo / "requirements.txt").write_text("pyyaml>=6.0\n")
+        out = install_aidlc.ensure_target_requirements(repo, target, dry_run=True)
+        assert out == target / "requirements.txt"
+        assert not (target / "requirements.txt").exists()
+
+
+# ---------- venv CLI behavior ----------
+
+class TestVenvCli:
+    def test_no_venv_flag_skips_creation(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        assert "Skipped Python venv setup" in r.stdout
+        assert not (tmp_path / ".venv").exists()
+
+    def test_dry_run_announces_venv_creation(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--dry-run",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        # dry-run should mention the venv path without actually creating it
+        assert "Would create venv" in r.stdout or "[DRY-RUN] Would create venv" in r.stdout
+        assert not (tmp_path / ".venv").exists()

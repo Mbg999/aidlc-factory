@@ -116,6 +116,90 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     _retry_op(lambda p: p.chmod(0o755), dst)
 
 
+def ensure_target_requirements(repo_root: Path, target_root: Path, dry_run: bool) -> Path | None:
+    """Ensure target_root has a requirements.txt, seeding from the source repo if missing.
+
+    Returns the path to the target requirements.txt, or None if neither target nor
+    source has one. Existing target files are never overwritten — update_requirements()
+    handles appending orchestrator-specific deps later.
+    """
+    target_req = target_root / "requirements.txt"
+    if target_req.exists():
+        return target_req
+    src_req = repo_root / "requirements.txt"
+    if not src_req.exists():
+        return None
+    if dry_run:
+        print(f"[DRY-RUN] Would seed {target_req} from {src_req}")
+        return target_req
+    target_req.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src_req, target_req)
+    print(f"  base deps -> {target_req.relative_to(target_root)}")
+    return target_req
+
+
+def create_venv_and_install_requirements(target_root: Path, requirements_path: Path, dry_run: bool) -> None:
+    """Create .venv in target_root and pip install -r requirements_path inside it.
+
+    Idempotent: `python -m venv` is a no-op when the venv exists; pip only installs
+    missing/outdated deps. Raises EnvironmentError if python isn't available, or
+    RuntimeError if pip install fails.
+    """
+    venv_path = target_root / ".venv"
+
+    if dry_run:
+        print(f"[DRY-RUN] Would create venv at {venv_path}")
+        print(f"[DRY-RUN] Would install requirements from {requirements_path}")
+        return
+
+    python_cmds = ["python3", "python"]
+    created = False
+    last_err: Exception | None = None
+    for cmd in python_cmds:
+        try:
+            print(f"Creating virtual environment using '{cmd}' at .venv/...")
+            subprocess.run([cmd, "-m", "venv", str(venv_path)], check=True)
+            created = True
+            break
+        except FileNotFoundError as e:
+            last_err = e
+            continue
+        except subprocess.CalledProcessError as e:
+            last_err = e
+            continue
+
+    if not created:
+        raise EnvironmentError(
+            f"Could not create virtual environment ('python3'/'python' not found or failed): {last_err}"
+        )
+
+    # Locate python executable inside the venv (Unix vs Windows)
+    venv_python = venv_path / "bin" / "python"
+    if not venv_python.exists():
+        venv_python = venv_path / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        raise EnvironmentError(f"Could not find python executable in virtualenv at {venv_path}")
+
+    try:
+        print("Upgrading pip in virtualenv...")
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "--upgrade", "pip"],
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        print("Warning: Failed to upgrade pip in the virtualenv; continuing.")
+
+    try:
+        rel = requirements_path.relative_to(target_root) if target_root in requirements_path.parents else requirements_path
+        print(f"Installing requirements from {rel} into virtualenv...")
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "-r", str(requirements_path)],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to install requirements: {e}")
+
+
 
 AGENT_SKILLS_REPO = "https://github.com/addyosmani/agent-skills.git"
 AGENT_SKILLS_DIRS = ["skills", "references"]
@@ -525,8 +609,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
     update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
 
     if not dry_run:
-        print(f"\n  Next: pip install -r requirements.txt")
-        print(f"  Then: invoke /factory-spec <feature> in the tool to start a run.")
+        print(f"\n  Then: invoke /factory-spec <feature> in the tool to start a run.")
         # Non-Claude tools need AIDLC_DEFAULT_MODEL to skip Claude-specific model names
         non_claude = [t for t in tools if t != "claude"]
         if non_claude:
@@ -774,6 +857,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--force", action="store_true",
                    help="Re-install over an existing installation. Without this flag, "
                         "tools detected as already installed are skipped (merge mode).")
+    p.add_argument("--no-venv", dest="no_venv", action="store_true",
+                   help="Skip creating .venv and pip-installing requirements.txt. "
+                        "Default: a virtualenv is created at <dest>/.venv and the "
+                        "target's requirements.txt is installed into it.")
     return p.parse_args()
 
 
@@ -1006,6 +1093,24 @@ def main() -> int:
             return 6
     else:
         print("\nSkipped AIDLC orchestrator installation.")
+
+    # --- Python venv + dependencies ---
+    if args.no_venv:
+        print("\nSkipped Python venv setup (--no-venv).")
+    else:
+        req_path = ensure_target_requirements(repo_root, target_root, args.dry_run)
+        if req_path is None:
+            print("\nNo requirements.txt found in target or source — skipping venv setup.")
+        else:
+            print("\n--- Setting up Python venv + dependencies ---")
+            try:
+                create_venv_and_install_requirements(target_root, req_path, args.dry_run)
+            except EnvironmentError as e:
+                print(f"WARNING: Could not create venv: {e}")
+                print("  You can install deps manually:  pip install -r requirements.txt")
+            except RuntimeError as e:
+                print(f"WARNING: {e}")
+                print("  You can retry manually:  .venv/bin/pip install -r requirements.txt")
 
     print("Done.")
     return 0
