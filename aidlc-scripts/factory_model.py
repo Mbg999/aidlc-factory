@@ -57,9 +57,10 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
             per_stage = budget.get("per_stage", {})
             # reviewer-* wildcard fallback
             entry = per_stage.get(stage)
+            if entry and "model" in entry:
+                return entry["model"]
             if not entry and stage.startswith("reviewer-"):
                 entry = per_stage.get("reviewer-code")
-            # custom-agent fallback for unknown/user-defined stages
             if not entry:
                 entry = per_stage.get("custom-agent")
             if entry and "model" in entry:

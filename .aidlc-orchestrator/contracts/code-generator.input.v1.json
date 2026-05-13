@@ -10,7 +10,7 @@
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Includes execution-plan and (if decomposed) the unit spec" },
     "unit_name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "unit_spec_path": { "type": "string" },
+    "unit_spec_path": { "type": "string", "description": "Path to unit spec YAML. Required for non-fast-path code generation." },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 4, "default": ["using-agent-skills", "incremental-implementation", "test-driven-development", "source-driven-development"] },
     "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "budget": { "type": "object" },
@@ -32,7 +32,7 @@
     {
       "if": { "properties": { "fast_path": { "const": true } } },
       "then": {
-        "required": ["user_request", "fast_path", "tier"],
+        "required": ["user_request", "fast_path"],
         "properties": {
           "run_id": { "type": "string", "default": "fast-path" },
           "stage_id": { "const": "code-generator" },

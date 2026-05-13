@@ -46,11 +46,11 @@ def _strict_check(doc: dict, doc_path: Path) -> list[str]:
 
     # tests_added > 0 requires at least 1 test file in artifacts
     tests_added = doc.get("tests_added", 0)
-    if isinstance(tests_added, (int, float)) and tests_added > 0:
+    if isinstance(tests_added, int) and tests_added > 0:
         has_test_artifact = False
         for a in artifacts:
             path = a.get("path", "") if isinstance(a, dict) else ""
-            if "/test" in path or path.startswith("test"):
+            if "test" in Path(path).parts or path.startswith("test"):
                 has_test_artifact = True
                 break
         if not has_test_artifact:

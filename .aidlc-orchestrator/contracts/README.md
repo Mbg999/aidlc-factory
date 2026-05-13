@@ -42,8 +42,10 @@ Exit 0 = valid. Exit 1 = invalid (with path to failing field on stderr).
 | unit-decomposer | v1 | v1 | Phase 1 — conditional |
 | code-generator | v1 | v1 | Phase 1 — per unit, three sub-stages (plan/generated/approved) |
 | build-test-agent | v1 | v1 | Phase 1 — per unit |
-| reviewer (shared) | v1 | v1 | Phase 1 — used by reviewer-code, reviewer-security (Opus), reviewer-performance, reviewer-simplifier |
+| reviewer (shared) | v1 | v1 | Phase 1 — shared across 4 reviewer types. `stage_id` (e.g. `reviewer-code`) maps to `reviewer` (e.g. `code-quality`) |
 | ship-agent | v1 | v1 | Phase 1 |
+| custom-agent | v1 | v1 | Generic contract for user-defined subagents (see `.claude/agents/custom/` or `.opencode/agents/custom/`) |
+| approval | v1 | — | Structured approval gate presentation (input only, no output contract) |
 
 Phase 4+ refinements (parallelism, knowledge, conflict resolution) layer on
 top of these contracts without breaking them.

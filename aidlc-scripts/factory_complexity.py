@@ -116,6 +116,10 @@ def _resolve_tier(scope: str | None, complexity: str | None) -> tuple[str, str]:
     """Return (tier, rationale). Tie-break: take the higher tier."""
     scope_tier = _SCOPE_TIER.get(scope or "", "MEDIUM")
     complexity_tier = _COMPLEXITY_TIER.get(complexity or "", "MEDIUM")
+    if scope and scope not in _SCOPE_TIER:
+        print(f"WARNING: unrecognized scope {scope!r}, falling back to MEDIUM", file=sys.stderr)
+    if complexity and complexity not in _COMPLEXITY_TIER:
+        print(f"WARNING: unrecognized complexity {complexity!r}, falling back to MEDIUM", file=sys.stderr)
 
     if _TIER_RANK[scope_tier] >= _TIER_RANK[complexity_tier]:
         winner = scope_tier

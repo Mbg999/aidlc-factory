@@ -104,7 +104,9 @@ def load_run_budget(run_id: str) -> dict:
 def save_run_budget(run_id: str, state: dict) -> None:
     p = run_budget_path(run_id)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
+    tmp = p.with_suffix(".yaml.tmp")
+    tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
+    tmp.replace(p)
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -125,12 +127,13 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 def estimate_stage_tokens(default: dict, stage: str) -> int:
     per = default.get("per_stage", {})
-    # reviewer-* all share `reviewer-*` style budget under per_stage
-    for key in (stage, stage.replace("-code", "-*").replace("-security", "-*")
-                .replace("-performance", "-*").replace("-simplifier", "-*"),
-                "reviewer-*", "custom-agent"):
-        if key in per:
-            return int(per[key]["tokens"])
+    if stage in per:
+        return int(per[stage]["tokens"])
+    # reviewer-* wildcard — any reviewer stage falls back to reviewer-*
+    if stage.startswith("reviewer-") and "reviewer-*" in per:
+        return int(per["reviewer-*"]["tokens"])
+    if "custom-agent" in per:
+        return int(per["custom-agent"]["tokens"])
     return FALLBACK_STAGE_TOKENS
 
 

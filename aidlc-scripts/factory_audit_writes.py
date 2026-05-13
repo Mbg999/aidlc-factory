@@ -31,20 +31,30 @@ def _die(msg: str, code: int = 2) -> None:
 
 
 def get_new_files(repo_root: Path) -> list[str]:
-    """Return list of newly created files (git Added) relative to repo_root."""
+    """Return list of newly created files (git Added or untracked) relative to repo_root."""
+    new_files: set[str] = set()
     try:
+        # Tracked files that were added (new or re-created)
         result = subprocess.run(
             ["git", "diff", "--name-only", "--diff-filter=A", "--relative"],
             capture_output=True, text=True, cwd=str(repo_root),
             timeout=30,
         )
+        if result.returncode == 0:
+            new_files.update(f for f in result.stdout.splitlines() if f.strip())
+        # Untracked files (completely new, never tracked)
+        result2 = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            capture_output=True, text=True, cwd=str(repo_root),
+            timeout=30,
+        )
+        if result2.returncode == 0:
+            new_files.update(f for f in result2.stdout.splitlines() if f.strip())
     except subprocess.TimeoutExpired:
-        _die("git diff timed out")
+        _die("git command timed out")
     except FileNotFoundError:
         _die("git not found in PATH")
-    if result.returncode != 0:
-        _die(f"git diff failed: {result.stderr.strip()}")
-    return [f for f in result.stdout.splitlines() if f.strip()]
+    return sorted(new_files)
 
 
 def path_matches_any_glob(path: str, globs: list[str]) -> bool:

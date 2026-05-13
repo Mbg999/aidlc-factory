@@ -9,7 +9,17 @@
     "stage_id": { "const": "reverse-engineer" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-    "workspace_state": { "type": "object" },
+    "workspace_state": {
+      "type": "object",
+      "properties": {
+        "project_type": { "type": "string", "description": "Type of project (greenfield, legacy, monorepo, etc.)" },
+        "existing_code": { "type": "string", "description": "Description of existing codebase" },
+        "next_phase": { "type": "string", "description": "Next phase recommendation from workspace-scout" },
+        "tech_stack_summary": { "type": "string", "description": "Detected technology stack summary" },
+        "legacy_patterns": { "type": "array", "items": { "type": "string" }, "description": "Patterns detected in legacy code" }
+      },
+      "description": "Workspace state snapshot, sourced from workspace-scout output"
+    },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 1, "default": ["using-agent-skills"] },
     "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "budget": { "type": "object" },

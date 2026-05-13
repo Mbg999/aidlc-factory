@@ -220,7 +220,7 @@ def main() -> None:
                 if f.get("severity") in SEVERITY_ORDER
                 else len(SEVERITY_ORDER),
                 f.get("file", ""),
-                f.get("line", 0),
+                f.get("line") or 0,
             )
         )
         for f in findings:

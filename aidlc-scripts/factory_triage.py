@@ -60,7 +60,7 @@ FACTOR_KEYWORDS: dict[str, list[tuple[int, list[str]]]] = {
         (1, [
             "microservice", "new module", "service boundary",
             "extract module", "split service", "new service",
-            "api gateway", "api gateway",
+            "api gateway",
         ]),
     ],
     "concurrency_signal": [
@@ -154,7 +154,7 @@ def score_request(text: str) -> tuple[int, dict[str, int], str]:
         score = 0
         for value, keywords in rules:
             for kw in keywords:
-                if kw in lower:
+                if re.search(rf'(?<!\w){re.escape(kw)}(?!\w)', lower):
                     score = max(score, value)
         factors[factor] = score
         if score == 0:

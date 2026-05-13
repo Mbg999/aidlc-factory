@@ -36,7 +36,7 @@ except ImportError:
 # Keys are descriptive labels, values are compiled regexes.
 SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("AWS Access Key", re.compile(r"(?<![a-zA-Z0-9/+\-=])AKIA[0-9A-Z]{16}(?![a-zA-Z0-9/+\-=])")),
-    ("AWS Secret Key", re.compile(r"(?<![a-zA-Z0-9/+\-=])[a-zA-Z0-9/+=]{40}(?![a-zA-Z0-9/+\-=])")),
+    ("AWS Secret Key", re.compile(r"(?<![a-zA-Z0-9/+\-=])(?:aws_secret|secret_access|aws_secret_key|secret_key)[:=]\s*['\"]?[a-zA-Z0-9/+=]{40}['\"]?", re.IGNORECASE)),
     ("GitHub Token", re.compile(r"(?<![a-zA-Z0-9])gh[pousr]_[A-Za-z0-9_]{36,}(?![a-zA-Z0-9])")),
     ("GitLab Token", re.compile(r"(?<![a-zA-Z0-9])glpat-[A-Za-z0-9\-_]{20,}(?![a-zA-Z0-9])")),
     ("Slack Token", re.compile(r"(?<![a-zA-Z0-9])xox[baprs]-[0-9a-zA-Z\-]{10,}(?![a-zA-Z0-9])")),
@@ -125,8 +125,13 @@ def main() -> None:
         text = path.read_text()
         stripped = strip_secrets(text)
         backup = path.with_suffix(f"{suffix}.original")
-        path.rename(backup)
-        path.write_text(stripped)
+        if backup.exists():
+            import time
+            backup = backup.with_suffix(f"{suffix}.original.{int(time.time())}")
+        tmp = path.with_suffix(f"{suffix}.stripped.tmp")
+        tmp.write_text(stripped)
+        tmp.replace(path)
+        backup.unlink(missing_ok=True)
         print(f"stripped {len(findings)} secret(s) from {path.name} (backup: {backup.name})")
 
     if args.json:

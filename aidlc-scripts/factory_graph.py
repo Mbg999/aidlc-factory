@@ -82,6 +82,10 @@ def compute_waves(units: list[dict]) -> list[list[str]]:
     deps: dict[str, set[str]] = {}
     for u in units:
         unit_deps = u.get("dependencies") or []
+        if u["name"] in unit_deps:
+            raise ValueError(
+                f"unit {u['name']!r} declares dependency on itself (self-loop)"
+            )
         unknown = [d for d in unit_deps if d not in name_set]
         if unknown:
             raise ValueError(

@@ -12,9 +12,11 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": ["path", "kind"],
         "properties": {
-          "path": { "type": "string" },
-          "description": { "type": "string" }
+          "path": { "type": "string", "description": "Path to the artifact file" },
+          "kind": { "type": "string", "enum": ["doc", "source", "test", "config", "plan", "report"], "description": "Type of artifact" },
+          "hash": { "type": "string", "description": "Optional content hash" }
         }
       },
       "description": "Files the agent created or modified"

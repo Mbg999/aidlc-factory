@@ -34,6 +34,12 @@ def _parse_frontmatter(text: str) -> dict:
     m = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
     if not m:
         return {}
+    try:
+        import yaml as _yaml
+        parsed = _yaml.safe_load(m.group(1))
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        pass
     result = {}
     for line in m.group(1).splitlines():
         if ":" in line:

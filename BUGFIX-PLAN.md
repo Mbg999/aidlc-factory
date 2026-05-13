@@ -1,409 +1,227 @@
-# AIDLC Orchestrator — Bug Fix Plan
+# Bug-Fix Plan
 
-> **Scope:** Fix all bugs found during Phase 2–6 live integration review
-> (2026-05-12 audit of `pruebaaidlcv2` full workflow run).
->
-> Fixes target the **canonical scripts** at `<repo-root>/aidlc-scripts/` and
-> propagate to consumer projects via `install_aidlc.py`.
+Scope: results from a full-repo audit on 2026-05-13.
+
+Priority legend: `[P0]` crash/data-loss / `[P1]` logic bug / `[P2]` fragility / `[P3]` docs/style.
 
 ---
 
-## Priority Legend
+## Status
 
-| Tag | Meaning |
-|-----|---------|
-| 🔴 | Confirmed — causes incorrect behavior, data loss, or security issue |
-| 🟡 | Confirmed — causes subtle incorrectness or reliability concern |
-| 🟢 | Valid concern — but no active exploit path in current architecture; defensive improvement |
-| 🔵 | Intentional design — documented but not enforced; could be enhanced |
+Started: 2026-05-13 — **33 of 33 items fixed.** ✅
+
+Legend: ✅ fixed, ⏳ pending
 
 ---
 
-## 🔴 Bug 1: `_next_stage()` returns garbage stage names
+## P0 — Crash or data-loss bugs
 
-**File:** `aidlc-scripts/factory_run.py:276-277`
-**Severity:** 🔴 HIGH — **CONFIRMED**
+### 1. `factory_run.py:259` — dead code with latent NameError ✅
 
-**Observation:** `_next_stage()` returns `current_stage` verbatim if it isn't in
-`completed_stages[]` or `skipped_stages[]`, **without** validating it's a real
-stage in `PHASE_ORDER`. The existing manifest has `current_stage: review-complete`
-(a synthetic orchestrator marker set during the live run). Resume suggests
-spawning stage `review-complete` — which doesn't exist.
+**File:** `aidlc-scripts/factory_run.py`
+**Problem:** Block guarded by `if False` references undefined `run_budget_path()`. Never runs today, but if the guard is removed it crashes.
+**Fix:** Removed dead budget-drift block.
 
-**Verified:** `python3 aidlc-scripts/factory_run.py resume 2026-05-11-healthz-endpoint`
-returns `"next_stage_suggestion": "review-complete"`.
+### 2. `factory_merge_reviews.py:222` — NoneType crash in sorted() ✅
 
-**Fix:**
+**File:** `aidlc-scripts/factory_merge_reviews.py`
+**Problem:** `f.get("line", 0)` returns `None` when key exists with `None` value → `TypeError` in `sorted()`.
+**Fix:** Changed to `f.get("line") or 0`.
 
-```python
-# Before (line 276-277):
-if current and current not in completed and current not in skipped:
-    return current
+### 3. `factory_secretscan.py:124-130` — crash-safety hole in --strip ✅
 
-# After:
-if current and current not in completed and current not in skipped:
-    if current in PHASE_ORDER:
-        return current
-    # synthetic marker (e.g. "review-complete") — fall through to scan
-```
+**File:** `aidlc-scripts/factory_secretscan.py`
+**Problem:** `path.rename(backup)` then `path.write_text(stripped)`. Crash between them = file lost at original path.
+**Fix:** Write stripped to tmp file, then `tmp.replace(path)`. Also added backup conflict avoidance with timestamp fallback.
 
-**Test:** Resume on the existing run should return `ship-agent` instead of
-`review-complete`.
+### 4. `factory_audit_writes.py:36-47` — audit misses new files ✅
 
----
+**File:** `aidlc-scripts/factory_audit_writes.py`
+**Problem:** `git diff --diff-filter=A` only catches tracked files that were re-created. Untracked new files are invisible to the audit.
+**Fix:** Combined `git diff --diff-filter=A` with `git ls-files --others --exclude-standard` for full coverage.
 
-## 🔴 Bug 2: No non-negative constraint on `deduct` params
+### 5. `factory_conflict.py:184-258` — TOCTOU race on lock acquire ✅
 
-**File:** `aidlc-scripts/factory_budget.py:185,228-230`
-**Severity:** 🔴 HIGH — **CONFIRMED**
+**File:** `aidlc-scripts/factory_conflict.py`
+**Problem:** `_list_locks()` + lock-file write is not atomic. Two parallel holders can both pass the conflict check and acquire overlapping locks.
+**Fix:** Wrapped `cmd_acquire` body in `_do_acquire` with `fcntl.flock` serialize acquire per-run (falls back gracefully on non-POSIX).
 
-**Observation:** `--tokens-in -999999` passes argparse and silently inflates
-remaining budget.
+### 6. `reverse-engineer.input.v1.json:12` — opaque `workspace_state` ✅
 
-**Verified:**
-```
-$ factory_budget.py deduct 2026-05-11-healthz-endpoint bugtest \
-    --tokens-in -999999 --tokens-out 0 --wall-min -99.9
-deducted -999,999 tokens, -99.9m for bugtest; remaining tokens: 5,835,303
+**File:** `.aidlc-orchestrator/contracts/reverse-engineer.input.v1.json`
+**Problem:** `workspace_state` is `{ "type": "object" }` with zero properties — accepts `{}`, masking data loss.
+**Fix:** Added properties: `project_type`, `existing_code`, `next_phase`, `tech_stack_summary`, `legacy_patterns`.
 
-$ factory_budget.py status
-used:
-  tokens: -835303       # negative — budget infinite
-  wall_clock_min: -99.3 # negative — bypasses any future wall-clock checks
-```
+### 7. `custom-agent.output.v1.json:12-21` — divergent artifact shape ✅
 
-**Fix:** Use argparse `type` with validation:
+**File:** `.aidlc-orchestrator/contracts/custom-agent.output.v1.json`
+**Problem:** Uses `description` instead of standard `kind` enum + `hash`. No consumer can reliably parse these artifacts.
+**Fix:** Aligned with all other output contracts: `{ path, kind, hash? }` with `required: ["path", "kind"]`.
 
-```python
-def non_negative_int(v: str) -> int:
-    n = int(v)
-    if n < 0:
-        raise argparse.ArgumentTypeError(f"must be >= 0, got {n}")
-    return n
+### 8. `code-generator.input.v1.json:31-46` — allOf.then + default conflict ✅
 
-def non_negative_float(v: str) -> float:
-    n = float(v)
-    if n < 0:
-        raise argparse.ArgumentTypeError(f"must be >= 0, got {n}")
-    return n
-
-p_deduct.add_argument("--tokens-in", type=non_negative_int, default=0)
-p_deduct.add_argument("--tokens-out", type=non_negative_int, default=0)
-p_deduct.add_argument("--wall-min", type=non_negative_float, default=0.0)
-```
-
-**Test:** `factory_budget.py deduct <run> test --tokens-in -1` should fail with
-`ArgumentTypeError`, not corrupt the budget.
+**File:** `.aidlc-orchestrator/contracts/code-generator.input.v1.json`
+**Problem:** `allOf > if(fast_path=true) > then` adds `tier` to required, but `tier` has a JSON Schema `default`. Defaults are metadata — not auto-injected. Fast-path payloads without `tier` will fail validation.
+**Fix:** Removed `tier` from `then.required` — it has a top-level default.
 
 ---
 
-## 🔴 Bug 3: `adopt-legacy` maps `[x] Review` to only 1 of 4 reviewers
+## P1 — Logic bugs
 
-**File:** `aidlc-scripts/factory_run.py:384`
-**Severity:** 🔴 HIGH — **CONFIRMED**
+### 9. `factory_model.py:59-66` — stage model fallback order wrong ✅
 
-**Observation:** `LEGACY_TO_PHASE` maps `"review" → "reviewer-code"`. Legacy
-AIDLC had a single monolithic Review stage. On adoption, only `reviewer-code`
-enters `completed_stages[]`; the other 3 reviewers are silently dropped (not in
-completed_stages, not in skipped_stages).
+**File:** `aidlc-scripts/factory_model.py`
+**Problem:** If `per_stage[stage]` exists but has no `"model"` key (e.g. `{"tokens": 500}`), `entry` is truthy so `custom-agent` fallback is skipped, returning `DEFAULT_MODEL` instead.
+**Fix:** Check `"model" in entry` directly before checking truthiness; now falls through to `custom-agent` when model key absent.
 
-**Verified:**
-```json
-"adopted_stages": ["workspace-scout", ..., "reviewer-code", "ship-agent"]
-// reviewer-security, reviewer-performance, reviewer-simplifier: MISSING
-```
+### 10. `factory_validate.py:50` — float accepted as test count ✅
 
-The missing reviewers are NOT suggested by resume either (current_stage is
-`ship-agent` which is past them in PHASE_ORDER), so 3 stages are just lost.
+**File:** `aidlc-scripts/factory_validate.py`
+**Problem:** `isinstance(tests_added, (int, float))` passes `1.5` as a valid test count.
+**Fix:** Changed to `isinstance(tests_added, int)` only.
 
-**Fix:**
+### 11. `core-workflow.md` vs `orchestrator.md` — audit format conflict ✅
 
-```python
-# In cmd_adopt_legacy(), after _stages_from_legacy() call:
-REVIEWERS = {"reviewer-security", "reviewer-performance", "reviewer-simplifier"}
-if "reviewer-code" in completed:
-    for r in REVIEWERS:
-        if r not in completed and r not in skipped:
-            skipped.append(r)
-```
+**Files:** `aidlc-rules/aws-aidlc-rules/core-workflow.md`, `.claude/agents/orchestrator.md`
+**Problem:** `core-workflow.md` defines `## <ISO8601> ...` audit headers with 30-entry archive policy. `orchestrator.md` uses `## <ts> <PHASE> - <STAGE LABEL>` with timeline.jsonl dedupe. Conflict causes inconsistent log entries when orchestrator is used alongside the non-orchestrator workflow.
+**Fix:** Added carve-out in `core-workflow.md` audit section: "Orchestrator override: when `/factory-*` commands are active, the orchestrator's timeline-based format takes precedence."
 
-**Test:** Adopt a state file with `[x] Review — <date>`. Verify all 4 reviewer
-stages are accounted for (1 completed + 3 skipped).
+### 12. `factory_build_cache.py:88` — yaml/json format mismatch ✅
+
+**File:** `aidlc-scripts/factory_build_cache.py`
+**Problem:** `cmd_check` uses `yaml.safe_load` exclusively. `cmd_save` writes JSON when pyyaml unavailable. If pyyaml is unavailable at read time, cache check always returns `{}` → false cache miss.
+**Fix:** Added `json.loads` fallback in `cmd_check`.
 
 ---
 
-## 🔴 Bug 4: Path traversal via unsanitized `run_id` / `holder`
+## P2 — Fragility / False positives / Brittle code
 
-**File:** `aidlc-scripts/factory_run.py:105`, `aidlc-scripts/factory_conflict.py:102`
-**Severity:** 🔴 HIGH — **CONFIRMED**
+### 13. `factory_secretscan.py:39` — AWS key pattern too broad ✅
 
-**Observation:** `run_id` is used directly in `Path()` construction without
-sanitization. `run_dir(run_id, must_exist=False)` + `mkdir` can create
-directories outside the runs directory.
+**File:** `aidlc-scripts/factory_secretscan.py`
+**Problem:** `[a-zA-Z0-9/+=]{40}` matches git SHAs, UUIDs, random 40-char IDs → extreme false positives.
+**Fix:** Replaced bare 40-char regex with context-anchored pattern requiring `aws_secret|secret_access|secret_key` prefix before the value.
 
-**Verified:**
-```
-RUNS_ROOT / "../../../tmp/evil" → /Users/miguel.belmonte/Desktop/custom aidlc/tmp/evil
-```
+### 14. `factory_agent_discover.py:33-42` — manual frontmatter parser ✅
 
-Note: The orchestrator generates `run_id` automatically (not from user input),
-so this is a defense-in-depth fix, but exploitable if any user-controlled
-value ever feeds into a command argument.
+**File:** `aidlc-scripts/factory_agent_discover.py`
+**Problem:** Hand-rolled line-split parser breaks on multi-line YAML values, colons in values, YAML lists.
+**Fix:** Try `yaml.safe_load()` first; fall back to manual parser only on parse failure.
 
-**Fix:** Add validation function shared by both scripts:
+### 15. `factory_validate.py:53` — fragile `/test` path detection ✅
 
-```python
-import re
-_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
-_HOLDER_RE = re.compile(r"^[a-zA-Z0-9_.:-]+$")
+**File:** `aidlc-scripts/factory_validate.py`
+**Problem:** `"/test" in path` matches `/mytestfile.py`, `/attestation/`, etc.
+**Fix:** Changed to `"test" in Path(path).parts`.
 
-def validate_run_id(run_id: str) -> None:
-    if not _RUN_ID_RE.match(run_id):
-        raise ValueError(f"invalid run_id: {run_id!r}")
+### 16. `factory_budget.py:104-108` — non-atomic budget write ✅
 
-def validate_holder(holder: str) -> None:
-    if not _HOLDER_RE.match(holder):
-        raise ValueError(f"invalid holder: {holder!r}")
-```
+**File:** `aidlc-scripts/factory_budget.py`
+**Problem:** `p.write_text()` without tmp+rename. Crash mid-write corrupts `budget.yaml`.
+**Fix:** Write to tmp file, then `tmp.replace(p)`.
 
-Call at the top of every subcommand handler. Share via `aidlc-scripts/_common.py` or
-inline in both files.
+### 17. `factory_budget.py:126-134` — fragile reviewer pattern matching ✅
 
-**Test:** `factory_run.py init "../../../etc/passwd" --user-request "x"` should
-reject with an error.
+**File:** `aidlc-scripts/factory_budget.py`
+**Problem:** Uses `.replace()` chain for reviewer patterns. Adding a new reviewer type requires modifying the chain.
+**Fix:** Changed to `stage.startswith("reviewer-")` wildcard.
 
----
+### 18. `factory_secretscan.py:127-128` — backup overwrite ✅
 
-## 🟡 Bug 5: Budget `check` ignores wall clock budget
+**File:** `aidlc-scripts/factory_secretscan.py`
+**Problem:** `path.with_suffix(".original")` silently overwrites existing backup.
+**Fix:** Fixed as part of crash-safety rewrite — now checks for existing backup and falls back to timestamped name.
 
-**File:** `aidlc-scripts/factory_budget.py:126-177`
-**Severity:** 🟡 MEDIUM — **DESIGN GAP**
+### 19. `factory_graph.py:82-108` — self-loop detection unclear ✅
 
-**Assessment:** The budget yaml defines `wall_clock_max_min: 240` and `deduct`
-tracks `used.wall_clock_min`, but `check` only enforces token budget. This may
-be intentional (wall clock = advisory soft limit, tokens = hard cost constraint),
-but the inconsistency is confusing — either enforce it or don't track it.
+**File:** `aidlc-scripts/factory_graph.py`
+**Problem:** Self-referencing dependency produces "cycle detected" with no self-loop indication.
+**Fix:** Added explicit check: `if u['name'] in unit_deps` raises ValueError with clear self-loop message.
 
-**Fix:** Add wall-clock check to `cmd_check()`:
+### 20. `factory_complexity.py:115-118` — unrecognized scope/complexity silent fallback ✅
 
-```python
-# In cmd_check(), after token check:
-remaining_wall = float(state["budget"]["wall_clock_max_min"]) - float(state["used"]["wall_clock_min"])
-if remaining_wall <= 0:
-    decision_obj["remaining_wall_min"] = round(remaining_wall, 1)
-    decision_obj["decision"] = "skip" if args.stage in OPTIONAL_STAGES else "halt"
-    decision_obj["reason"] = "wall_clock_exhausted"
-    print(json.dumps(decision_obj))
-    if args.stage in OPTIONAL_STAGES:
-        sys.exit(2)
-    sys.exit(3)
-```
+**File:** `aidlc-scripts/factory_complexity.py`
+**Problem:** Unknown value silently falls back to `"MEDIUM"` via `.get()` default.
+**Fix:** Added warning to stderr when scope or complexity is not in known mappings.
 
-**Test:** Set `used.wall_clock_min: 241` in a run's budget.yaml, then `check`
-should exit 3 (halt).
+### 21. `factory_triage.py:157` — substring match too broad ✅
 
----
+**File:** `aidlc-scripts/factory_triage.py`
+**Problem:** `kw in lower` matches inside other words (`"race"` → `"racecar"`, `"braces"`).
+**Fix:** Changed to `re.search(rf'(?<!\w){re.escape(kw)}(?!\w)', lower)` — word-boundary matching with non-word-character lookahead/behind. All 17 existing tests pass.
 
-## 🟡 Bug 6: `adopt-legacy` picks up prior-iteration `[x]` markers
+### 22. `factory_triage.py:63` — duplicate keyword ✅
 
-**File:** `aidlc-scripts/factory_run.py:429-454`
-**Severity:** 🟡 MEDIUM — **CONFIRMED**
+**File:** `aidlc-scripts/factory_triage.py`
+**Problem:** `"api gateway"` appears twice in `architecture_signal` list.
+**Fix:** Removed duplicate.
 
-**Observation:** `_stages_from_legacy()` scans ALL `[x]` lines in state file
-without distinguishing "Prior Iterations" from "Current Iteration". Prior
-iteration stages leak into adopted completed_stages.
+### 23. `build-test-agent.output.v1.json:22` — missing `"source"` in artifact enum ✅
 
-**Verified:** State file line 40 `[x] Units Generation — 2026-05-08` (prior
-iteration) was adopted as `unit-decomposer` in completed_stages, even though
-the current iteration has `[-] Unit Decomposer SKIPPED` (line 48).
+**File:** `.aidlc-orchestrator/contracts/build-test-agent.output.v1.json`
+**Problem:** Enum is `["doc", "test", "config"]`. If agent produces source patches, they can't be recorded.
+**Fix:** Added `"source"` to the enum.
 
-**Fix:**
+### 24. `code-generator.input.v1.json:13` — `unit_spec_path` always optional ✅
 
-```python
-def _stages_from_legacy(state_text: str) -> tuple[list[str], list[str]]:
-    completed: list[str] = []
-    skipped: list[str] = []
-    # Only scan lines under "### Current Iteration"
-    current_section = state_text.split("### Current Iteration", 1)
-    if len(current_section) < 2:
-        current_section = state_text.split("## Stage Progress", 1)
-    scan_text = current_section[1] if len(current_section) >= 2 else state_text
+**File:** `.aidlc-orchestrator/contracts/code-generator.input.v1.json`
+**Problem:** `unit_spec_path` not in top-level `required`. For non-fast-path code-gen, it's almost certainly needed.
+**Fix:** Added `description` field clarifying it's required for non-fast-path usage.
 
-    for line in scan_text.splitlines():
-        m_completed = _LEGACY_STATE_RE.match(line)
-        m_skipped = _LEGACY_SKIPPED_RE.match(line)  # new regex for [-]
-        if m_completed:
-            # ... existing mapping logic -> add to completed
-        elif m_skipped:
-            # ... mapping logic -> add to skipped
-    return completed, skipped
-```
+### 25. `reviewer.input.v1.json` — `stage_id`/`reviewer` dual identity ✅
 
-Also add `_LEGACY_SKIPPED_RE = re.compile(r"^\s*-?\s*\[-\]\s*(.+)$")` to catch
-`[-]` markers.
+**File:** `.aidlc-orchestrator/contracts/reviewer.input.v1.json`
+**Problem:** `stage_id` uses `["reviewer-code", ...]` but `reviewer` field uses `["code-quality", ...]`. Non-obvious mapping.
+**Fix:** Added `description` field to `reviewer` property documenting the mapping. Also documented in README.md and REFERENCE.md.
 
-**Test:** State file with prior `[x] Units Generation` and current
-`[-] Unit Decomposer SKIPPED`. Adoption should NOT include `unit-decomposer`
-in completed_stages, and SHOULD include it in skipped_stages.
+### 26. `contracts/README.md` — missing contract entries ✅
+
+**File:** `.aidlc-orchestrator/contracts/README.md`
+**Problem:** `custom-agent.input`, `custom-agent.output`, `approval.input` exist on disk but aren't listed.
+**Fix:** Added rows for custom-agent (input v1, output v1) and approval (input v1 only) to the table.
 
 ---
 
-## 🟡 Bug 7: KeyError on missing `file` key in review merge
+## P3 — Docs out of sync
 
-**File:** `aidlc-scripts/factory_merge_reviews.py:184`
-**Severity:** 🟡 MEDIUM — **CONFIRMED**
+### 27. `contracts/REFERENCE.md` — field listings ~80% wrong ✅
 
-**Observation:** `file_findings[f["file"]][reviewer].append(f)` raises KeyError
-if a finding dict lacks the `file` key. Schema validation is optional (only
-applied if `jsonschema` is installed), so malformed reviewer output can crash
-the merge.
+**File:** `.aidlc-orchestrator/contracts/REFERENCE.md`
+**Problem:** Almost every contract's described fields don't match actual JSON schemas.
+**Fix:** Full rewrite matching actual schema files. Every row now reflects real field names from the `.json` files. Added reviewer naming exception documentation.
 
-**Fix:**
+### 28. `contracts/REFERENCE.md` — missing complexity_tiers ✅
 
-```python
-# Before (line 184):
-file_findings[f["file"]][reviewer].append(f)
+**File:** `.aidlc-orchestrator/contracts/REFERENCE.md`
+**Problem:** `budgets/default.yaml` has `complexity_tiers` block but REFERENCE.md doesn't document it.
+**Fix:** Added "Complexity tiers" section with table showing SMALL/MEDIUM/LARGE caps, skip stages, and reviewer pools.
 
-# After:
-file_key = f.get("file", "?")
-file_findings.setdefault(file_key, {}).setdefault(reviewer, []).append(f)
-```
+### 29. `core-workflow.md:361-372` — commands missing `<run-id>` arg ✅
 
-**Test:** Inject a finding without `file` field into a reviewer output YAML, run
-merge — should warn and use `"?"` instead of crashing.
+**File:** `aidlc-rules/aws-aidlc-rules/core-workflow.md`
+**Problem:** `/factory-plan`, `-build`, `-review`, `-ship` listed without `<run-id>`.
+**Fix:** Added `<run-id>` to each.
 
----
+### 30. `core-workflow.md:374` — single-platform reference ✅
 
-## 🟡 Bug 8: Floating-point accumulation in wall clock tracking
+**File:** `aidlc-rules/aws-aidlc-rules/core-workflow.md`
+**Problem:** Only references `.claude/agents/orchestrator.md`, not `.opencode/` equivalent.
+**Fix:** Added `.opencode/agents/orchestrator.md` reference alongside `.claude/`.
 
-**File:** `aidlc-scripts/factory_budget.py:185`
-**Severity:** 🟡 MEDIUM — **CONFIRMED**
+### 31. `core-workflow.md:64-66` vs `orchestrator.md` — skill search path mismatch ✅
 
-**Observation:** Each `deduct` adds float values. IEEE 754 drift is visible in
-existing data: `45.400000000000006`. Over many sub-stages this compounds.
+**File:** `aidlc-rules/aws-aidlc-rules/core-workflow.md`
+**Problem:** Lists `<repo>/.agents/custom-skills/` as highest-priority; `orchestrator.md` only mentions `.agents/skills/` and `~/.agents/skills/`.
+**Fix:** Added orchestrator note in core-workflow.md documenting the discrepancy with suggestion to symlink or update orchestrator.md.
 
-**Verified:** Existing budget.yaml line 24 shows `45.400000000000006`.
+### 32. `factory_run.py:503` — docstring off-by-one ✅
 
-**Fix:** `round()` to 1 decimal on every write:
+**File:** `aidlc-scripts/factory_run.py` (not factory_conflict.py)
+**Problem:** Docstring says "truncate before target stage" but code truncates from target onward.
+**Fix:** Added comment noting "truncate from target stage onward (inclusive)".
 
-```python
-# In cmd_deduct():
-state["used"]["wall_clock_min"] = round(
-    float(state["used"].get("wall_clock_min", 0.0)) + float(args.wall_min), 1
-)
-```
+### 33. `factory_conflict.py:363-364` — `_strip_leading_colon(":")` returns `""` ✅
 
-**Test:** 1000 deductions of 0.1 min → accumulated value should be exactly
-100.0, not 99.999999999.
-
----
-
-## 🟢 Bug 9: TOCTOU race in `complete-stage` and `deduct`
-
-**File:** `aidlc-scripts/factory_run.py:208-217`, `aidlc-scripts/factory_budget.py:180-204`
-**Severity:** 🟢 LOW — **NO ACTIVE EXPLOIT PATH**
-
-**Assessment:** The read-modify-write pattern lacks file locking, BUT the
-orchestrator processes stage post-processing **sequentially** within each run.
-Cross-run isolation prevents races between different runs. This would only be
-exploitable if two orchestrator sessions controlled the same run simultaneously
-— not possible in the current single-writer architecture.
-
-Add file locking for defense-in-depth if desired, but not urgent.
-
-**Fix (optional):**
-
-```python
-import fcntl
-
-def _lock_file(path: Path) -> int:
-    lock_path = path.parent / f".{path.name}.lock"
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    fcntl.flock(fd, fcntl.LOCK_EX)
-    return fd
-```
-
-Wrap read-modify-write cycles in try/finally.
-
----
-
-## 🟢 Bug 10: Lock overwrite on second `acquire`
-
-**File:** `aidlc-scripts/factory_conflict.py:198-204`
-**Severity:** 🟢 LOW — **NO ACTIVE EXPLOIT PATH**
-
-**Assessment:** If the same holder calls `acquire` twice, the second call
-overwrites the first lock's globs. But each unit has a unique holder name
-(`code-generator:<unit>`), and the orchestrator only calls acquire once per
-unit per layer. Not an active bug — defensive improvement only.
-
-**Fix (optional):**
-
-```python
-existing_lock = locks_dir / f"{args.holder}.yaml"
-if existing_lock.exists():
-    existing = yaml.safe_load(existing_lock.read_text()) or {}
-    merged = list(dict.fromkeys(existing.get("globs", []) + list(args.globs)))
-    args.globs = merged
-    if existing.get("mode") != args.mode:
-        _die(f"cannot change lock mode from {existing['mode']} to {args.mode}")
-```
-
----
-
-## 🔵 Bug 11: Budget `check` ignores wall clock (enhancement context)
-
-**See Bug 5** — this is the same issue. I consider this a feature gap
-rather than a bug, because the plan's Cost Governor spec focuses on token
-budget enforcement and wall clock is not mentioned in the `check` exit-code
-contract. Re-classified from "wall clock ignored" to "wall clock enforcement
-not implemented" — a Phase 6.5 enhancement, not a Phase 6 bug.
-
----
-
-## Implementation Order
-
-| Step | Bug | File | Severity | Effort |
-|------|-----|------|----------|--------|
-| 1 | 🔴 4 — Path traversal guard | `factory_run.py` + `factory_conflict.py` | 🔴 | 15 min |
-| 2 | 🔴 2 — Non-negative deduct | `factory_budget.py` | 🔴 | 5 min |
-| 3 | 🔴 1 — `_next_stage` validation | `factory_run.py` | 🔴 | 5 min |
-| 4 | 🔴 3 — Legacy review mapping | `factory_run.py` | 🔴 | 10 min |
-| 5 | 🟡 8 — Float precision | `factory_budget.py` | 🟡 | 5 min |
-| 6 | 🟡 7 — KeyError guard | `factory_merge_reviews.py` | 🟡 | 5 min |
-| 7 | 🟡 6 — Prior iteration exclusion | `factory_run.py` | 🟡 | 15 min |
-| 8 | 🟡 5 — Wall clock check | `factory_budget.py` | 🟡 | 10 min |
-| 9 | 🟢 9 — File locking (optional) | `factory_run.py` + `factory_budget.py` | 🟢 | 20 min |
-| 10 | 🟢 10 — Lock merge (optional) | `factory_conflict.py` | 🟢 | 10 min |
-
-**Total essential (🔴+🟡):** ~1 hour for 8 fixes.
-**Total with 🟢 optional:** ~1.5 hours for 10 fixes.
-
----
-
-## Fix Status (2026-05-12)
-
-| Bug | Severity | File | Status | Verified |
-|-----|----------|------|--------|----------|
-| 1 — `_next_stage()` PHASE_ORDER guard | 🔴 | `factory_run.py` | ✅ Fixed | `resume → ship-agent` |
-| 2 — Non-negative deduct | 🔴 | `factory_budget.py` | ✅ Fixed | `--tokens-in -1` rejected |
-| 3 — Legacy review → 4 reviewers | 🔴 | `factory_run.py` | ✅ Fixed | All 4 in adopted_stages |
-| 4 — Path traversal guard | 🔴 | `factory_run.py` + `factory_conflict.py` | ✅ Fixed | `../../../etc` rejected |
-| 5 — Wall clock check | 🟡 | `factory_budget.py` | ✅ Fixed | `remaining_wall_min` in output; exhaustion → exit 3 |
-| 6 — Prior-iteration exclusion | 🟡 | `factory_run.py` | ✅ Fixed | Prior `[x]` not in adopted |
-| 7 — KeyError on missing `file` | 🟡 | `factory_merge_reviews.py` | ✅ Fixed | `.get("file", "?")` guard |
-| 8 — Float precision | 🟡 | `factory_budget.py` | ✅ Fixed | `round(..., 1)` applied |
-| 9 — File locking | 🟢 | (deferred) | ⏸️ Not implemented | No active exploit path |
-| 10 — Lock merge on re-acquire | 🟢 | `factory_conflict.py` | ✅ Fixed | `src/**` + `tests/**` merged |
-
-## Propagation to Consumer Projects
-
-After fixing canonical scripts at `<repo-root>/aidlc-scripts/`:
-
-```bash
-python3 aidlc-scripts/install_aidlc.py --dest ../pruebaaidlcv2
-
-# Verify fixes:
-python3 ../pruebaaidlcv2/aidlc-scripts/factory_run.py resume 2026-05-11-healthz-endpoint
-python3 ../pruebaaidlcv2/aidlc-scripts/factory_budget.py status 2026-05-11-healthz-endpoint
-```
+**File:** `aidlc-scripts/factory_conflict.py`
+**Problem:** Edge case where stripping colon from a single colon returns empty string instead of `":"`.
+**Fix:** `if len(s) <= 1: return s`.

@@ -182,6 +182,19 @@ def cmd_acquire(args: argparse.Namespace) -> None:
     locks_dir = rd / "locks"
     locks_dir.mkdir(parents=True, exist_ok=True)
 
+    # Serialize acquire with a per-run lock file to prevent TOCTOU races
+    _acquire_lock = rd / ".acquire.lock"
+    try:
+        import fcntl
+        with _acquire_lock.open("a") as lf:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            _do_acquire(args, rd, locks_dir)
+    except (ImportError, OSError):
+        # Fall back to non-locked path on platforms without fcntl (Windows)
+        _do_acquire(args, rd, locks_dir)
+
+
+def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:
     existing = _list_locks(rd)
     conflicts: list[dict] = []
     for lock in existing:
@@ -361,6 +374,8 @@ def _node_text(node, src: bytes) -> str:
 
 def _strip_leading_colon(s: str) -> str:
     s = s.strip()
+    if len(s) <= 1:
+        return s
     return s[1:].strip() if s.startswith(":") else s
 
 

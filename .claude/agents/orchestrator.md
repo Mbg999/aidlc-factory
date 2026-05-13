@@ -419,8 +419,9 @@ If the user passed `--tier=small`, skip triage entirely and go straight to Step 
 
 ### Step 2 — Resolve skill paths once per run
 For each skill name a stage will require, find its SKILL.md (first match wins):
-1. `.agents/skills/<name>/SKILL.md`
-2. `~/.agents/skills/<name>/SKILL.md`
+1. `.agents/custom-skills/<name>/SKILL.md` (project-specific custom skills)
+2. `.agents/skills/<name>/SKILL.md` (repo-local, from installer)
+3. `~/.agents/skills/<name>/SKILL.md` (user-global)
 
 Store the resolved path map in `manifest.yaml` under `skill_paths:`. If a skill
 isn't found, log `[Skill] MISSING: <name>` to audit.md and use the inline

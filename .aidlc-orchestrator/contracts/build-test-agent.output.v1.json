@@ -19,7 +19,7 @@
         "required": ["path", "kind"],
         "properties": {
           "path": { "type": "string" },
-          "kind": { "type": "string", "enum": ["doc", "test", "config"] },
+          "kind": { "type": "string", "enum": ["doc", "test", "config", "source"] },
           "hash": { "type": "string" }
         },
         "additionalProperties": false

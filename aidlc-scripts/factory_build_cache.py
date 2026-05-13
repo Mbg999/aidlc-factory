@@ -85,7 +85,10 @@ def cmd_check(args: argparse.Namespace) -> None:
         print(json.dumps({"hit": False, "hash": hash_val}))
         sys.exit(1)
 
-    cached = yaml.safe_load(cache_file.read_text()) if yaml else {}
+    try:
+        cached = yaml.safe_load(cache_file.read_text()) if yaml else json.loads(cache_file.read_text())
+    except (json.JSONDecodeError, yaml.YAMLError if yaml else ValueError):
+        cached = {}
     print(json.dumps({
         "hit": True,
         "hash": hash_val,

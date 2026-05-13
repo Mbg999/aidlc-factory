@@ -256,24 +256,6 @@ def _reconcile_state(run_id: str) -> dict:
             "stages": sorted(missing),
         })
 
-    budget_p = run_budget_path(run_id) if False else None
-    if budget_p and budget_p.exists():
-        try:
-            budget = yaml.safe_load(budget_p.read_text()) or {}
-            events = budget.get("events", [])
-            for evt in events:
-                if evt.get("action") == "deduct":
-                    stage = evt.get("stage")
-                    if stage and stage not in timeline_stages and stage not in completed:
-                        drift["drift"] = True
-                        drift["details"].append({
-                            "kind": "budget_deduct_no_complete",
-                            "stage": stage,
-                            "ts": evt.get("ts"),
-                        })
-        except (ValueError, TypeError):
-            pass
-
     last_action = manifest.get("last_action_reason")
     if last_action:
         drift["last_action"] = last_action
