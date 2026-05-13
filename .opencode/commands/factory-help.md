@@ -1,84 +1,107 @@
 ---
-description: Quick reference for all AIDLC orchestrator commands. For a step-by-step guide, use /factory-onboarding.
+description: AIDLC Orchestrator help. Explains the two workflows, all commands, and how to get started.
 argument-hint: [command-name]
 ---
 
-# AIDLC Orchestrator — Command Reference
+# AIDLC Orchestrator — Help
 
-## Commands
+There are **two ways** to use AI-DLC:
+
+| | Legacy (all tools) | Orchestrator (Claude Code / OpenCode) |
+|---|---|---|
+| **Trigger** | `"Using AI-DLC, <request>"` in chat | `/factory-spec "<request>"` |
+| **Flow** | Single agent, role-switches per stage | Dedicated subagents per stage |
+| **When to use** | Small features, quick edits | Complex features, budget caps, parallel review |
+
+---
+
+## Legacy workflow (all tools)
+
+```
+Using AI-DLC, add a healthz endpoint to the API gateway
+```
+
+One agent handles everything. Works on every tool.
+
+---
+
+## Orchestrator workflow
+
+```
+/factory-spec "add JWT auth"
+  → triage → scout → analyst → plan → build → review → ship
+```
+
+### Full pipeline
+
+| Step | Command | What happens |
+|------|---------|-------------|
+| 1 | `/factory-spec "<request>"` | **Start here.** Triage + scout + requirements |
+| 2 | `/factory-plan <run-id>` | Execution plan + unit decomposition |
+| 3 | `/factory-build <run-id>` | Parallel code-gen + build-test per unit |
+| 4 | `/factory-review <run-id>` | 4 parallel reviewers → merged report |
+| 5 | `/factory-ship <run-id>` | Release notes, ADRs, changelog |
+
+### Fast Path
+
+Trivial requests skip all stages:
+```
+/factory-spec "fix typo"  →  code-generator  →  commit  →  done
+```
+
+---
+
+## All commands
 
 | Command | What it does |
 |---------|-------------|
-| `/factory-onboarding` | Walk through the system: how runs work, what to expect |
-| `/factory-budget <status\|config\|help>` | Configure and monitor the Cost Governor |
-| `/factory-state <run-id>` | Show run status: current stage, next step, budget, timeline |
-| `/factory-spec <request>` | **Entrypoint.** Scores your request, spawns the right stages |
-| `/factory-plan <run-id>` | After spec: creates execution plan and design units |
-| `/factory-build <run-id>` | After plan: generates code + runs tests in parallel |
-| `/factory-review <run-id>` | After build: 4 parallel reviewers (code, security, perf, simplifier) |
-| `/factory-ship <run-id>` | After review: release notes, ADRs, changelog, CI/CD |
-| `/factory-resume <run-id>` | Pick up a crashed/interrupted run from last checkpoint |
-| `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage (archives prior outputs) |
-| `/factory-self <task>` | Run the orchestrator on **its own codebase** (self-hosting) |
+| `/factory-onboarding` | Guided tour of the system |
+| `/factory-spec "<request>"` | **Start here.** Score + spawn stages |
+| `/factory-plan <run-id>` | Execution plan + design units |
+| `/factory-build <run-id>` | Parallel code-gen + build-test |
+| `/factory-review <run-id>` | 4 parallel reviewers |
+| `/factory-ship <run-id>` | Release notes, ADRs, changelog |
+| `/factory-state <run-id>` | Current stage, next step, budget |
+| `/factory-budget [help]` | Configure Cost Governor |
+| `/factory-resume <run-id>` | Resume crashed run |
+| `/factory-replay <run-id> --from <stage>` | Re-run from a stage |
+| `/factory-self "<task>"` | Run on own codebase |
+| `/factory-help [command]` | This page |
 
-## Quick start
+---
 
-```
-/factory-spec "add healthz endpoint to the API gateway"
-```
-
-If the request is trivial (typo, one-file change), the Fast Path kicks in:
-`/factory-spec` → code-generator → commit → done. No multi-agent overhead.
-
-For complex work, the full pipeline runs: spec → plan → build → review → ship.
-Each step is a separate `/factory-*` command so you can inspect before proceeding.
-
-## Monitoring a run
+## Monitoring
 
 ```bash
-# Visual timeline of completed stages
 python3 aidlc-scripts/factory_run.py graph <run-id>
-
-# Budget usage (tokens, wall clock)
 python3 aidlc-scripts/factory_budget.py status <run-id>
-
-# Approval gate latency
-python3 aidlc-scripts/factory_run.py status <run-id> --latency
-
-# Live event tail
 python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 ```
 
+---
+
 ## Recovery
 
-| Situation | What to do |
-|-----------|-----------|
-| Run crashed mid-stage | `/factory-resume <run-id>` |
-| Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| Agent crashed, locks stale | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Run burned too many tokens | Start over with tighter budget in `.aidlc-orchestrator/budgets/default.yaml` |
+| Situation | Action |
+|-----------|--------|
+| Crash | `/factory-resume <run-id>` |
+| Bad output | `/factory-replay <run-id> --from <stage>` |
+| Stale locks | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+
+---
 
 ## Custom subagents
 
-Create your own subagents by adding `.md` files to `.opencode/agents/custom/`.
-Each file needs frontmatter and body instructions — see `lint-audit.md` as an example.
+Create your own agents in `.opencode/agents/custom/`:
 
 ```bash
 python3 aidlc-scripts/factory_agent_discover.py list
-python3 aidlc-scripts/factory_agent_discover.py show lint-audit
 ```
 
-Custom agents use the generic contracts at `.aidlc-orchestrator/contracts/custom-agent.*.v1.json`.
+---
 
-## Tools
+## Docs
 
-- **Triage:** `python3 aidlc-scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning
-- **Validate:** `python3 aidlc-scripts/factory_validate.py schema.json doc.yaml [--strict]`
-- **Secret scan:** `python3 aidlc-scripts/factory_secretscan.py handoff.yaml`
-- **Audit writes:** `python3 aidlc-scripts/factory_audit_writes.py <run-id> <holder> --locks src/**`
-
-## Documentation
-
-- `docs/TROUBLESHOOTING.md` — common failures and fixes
-- `.aidlc-orchestrator/contracts/REFERENCE.md` — all handoff schemas
-- `ORCHESTRATOR-PLAN.md` — full design doc (phases, decisions, ACs)
+- `docs/TROUBLESHOOTING.md`
+- `.aidlc-orchestrator/contracts/REFERENCE.md`
+- `ORCHESTRATOR-PLAN.md`

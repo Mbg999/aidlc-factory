@@ -1,92 +1,154 @@
 ---
-description: Quick reference for all AIDLC orchestrator commands. For a step-by-step guide, use /factory-onboarding.
+description: AIDLC Orchestrator help. Explains the two workflows, all commands, and how to get started.
 argument-hint: [command-name]
 ---
 
-# AIDLC Orchestrator — Command Reference
+# AIDLC Orchestrator — Help
 
-## Commands
+There are **two ways** to use AI-DLC. Pick whichever fits your task:
 
-| Command | What it does |
-|---------|-------------|
-| `/factory-onboarding` | Walk through the system: how runs work, what to expect |
-| `/factory-budget <status\|config\|help>` | Configure and monitor the Cost Governor |
-| `/factory-state <run-id>` | Show run status: current stage, next step, budget, timeline |
-| `/factory-spec <request>` | **Entrypoint.** Scores your request, spawns the right stages |
-| `/factory-plan <run-id>` | After spec: creates execution plan and design units |
-| `/factory-build <run-id>` | After plan: generates code + runs tests in parallel |
-| `/factory-review <run-id>` | After build: 4 parallel reviewers (code, security, perf, simplifier) |
-| `/factory-ship <run-id>` | After review: release notes, ADRs, changelog, CI/CD |
-| `/factory-resume <run-id>` | Pick up a crashed/interrupted run from last checkpoint |
-| `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage (archives prior outputs) |
-| `/factory-self <task>` | Run the orchestrator on **its own codebase** (self-hosting) |
+| | Legacy (all tools) | Orchestrator (Claude Code) |
+|---|---|---|
+| **Trigger** | `"Using AI-DLC, <request>"` in chat | `/factory-spec "<request>"` |
+| **Flow** | Single agent, role-switches per stage | Dedicated subagents per stage |
+| **When to use** | Small features, quick edits, non-Claude tools | Complex features, budget caps, parallel review, crash recovery |
 
-## Quick start
+---
+
+## Legacy workflow (all tools)
+
+Just start your prompt with:
 
 ```
-/factory-spec "add healthz endpoint to the API gateway"
+Using AI-DLC, add a healthz endpoint to the API gateway
 ```
 
-If the request is trivial (typo, one-file change), the Fast Path kicks in:
-`/factory-spec` → code-generator → commit → done. No multi-agent overhead.
+The agent handles everything — workspace detection, requirements, planning,
+code generation, review, and ship. One conversation, one agent.
 
-For complex work, the full pipeline runs: spec → plan → build → review → ship.
-Each step is a separate `/factory-*` command so you can inspect before proceeding.
+Works on: Claude Code, Copilot, Cursor, Cline, Amazon Q, Kiro, OpenCode, Codex CLI.
 
-## Monitoring a run
+---
+
+## Orchestrator workflow (Claude Code)
+
+The orchestrator uses specialized subagents per stage. Start with:
+
+```
+/factory-spec "add JWT auth to the API gateway"
+```
+
+This triggers triage (TINY → FastPath, or SMALL+ → full pipeline).
+
+### Full pipeline
+
+```
+/factory-spec <request>   →  workspace-scout → requirements-analyst
+/factory-plan <run-id>     →  workflow-planner → unit-decomposer
+/factory-build <run-id>    →  code-generator × N units + build-test-agent
+/factory-review <run-id>   →  4 parallel reviewers → merged report
+/factory-ship <run-id>     →  release notes, ADRs, changelog, CI/CD
+```
+
+Each command waits for your approval before proceeding. You inspect, approve,
+and move to the next stage.
+
+### Fast Path (TINY tier)
+
+For trivial requests (typo, README fix, one-file change), the orchestrator
+skips all stages and goes directly to code-generator:
+
+```
+/factory-spec "fix typo in README"
+→ triage: TINY (score 0)
+→ code-generator → commit
+→ done. No manifest, no audit, no multi-agent overhead.
+```
+
+---
+
+## Command reference
+
+| Command | When to use | What happens |
+|---------|-------------|-------------|
+| `/factory-onboarding` | First time using the orchestrator | Guided tour of the system |
+| `/factory-spec "<request>"` | **Start here** for any new feature | Triages your request, spawns scout + analyst |
+| `/factory-plan <run-id>` | After `/factory-spec` completes | Creates execution plan + design units |
+| `/factory-build <run-id>` | After plan is approved | Generates code + runs tests in parallel |
+| `/factory-review <run-id>` | After build completes | 4 reviewers analyze code in parallel |
+| `/factory-ship <run-id>` | After review passes | Release notes, ADRs, changelog |
+| `/factory-state <run-id>` | Check progress anytime | Shows current stage, next step, budget, timeline |
+| `/factory-budget [help]` | Configure or check budget | Cost Governor settings, trends, model routing |
+| `/factory-resume <run-id>` | Run crashed mid-flight | Picks up from the last completed stage |
+| `/factory-replay <run-id> --from <stage>` | Stage produced wrong output | Rolls back and re-runs from that stage |
+| `/factory-self "<task>"` | Improve the orchestrator itself | Runs pipeline against orchestrator's own code |
+| `/factory-help [command]` | Remember a command | This page |
+
+---
+
+## Monitoring
 
 ```bash
-# Visual timeline of completed stages
+# Visual timeline of what ran and how long it took
 python3 aidlc-scripts/factory_run.py graph <run-id>
 
-# Budget usage (tokens, wall clock)
+# Token and wall-clock usage
 python3 aidlc-scripts/factory_budget.py status <run-id>
 
-# Approval gate latency
+# Approval gate delays
 python3 aidlc-scripts/factory_run.py status <run-id> --latency
 
-# Live event tail
+# Live event feed
 python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 ```
 
+---
+
 ## Recovery
 
-| Situation | What to do |
-|-----------|-----------|
-| Run crashed mid-stage | `/factory-resume <run-id>` |
-| Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| Agent crashed, locks stale | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Run burned too many tokens | Start over with tighter budget in `.aidlc-orchestrator/budgets/default.yaml` |
+| Situation | Solution |
+|-----------|----------|
+| Run crashed or you closed the session | `/factory-resume <run-id>` |
+| A stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
+| An agent crashed and left stale locks | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Budget exhausted mid-run | Edit `budgets/default.yaml` and re-init: `factory_budget.py init <run-id>` |
+| Need to know what happened | `python3 aidlc-scripts/factory_run.py timeline <run-id> --follow` |
+
+---
 
 ## Custom subagents
 
-Create your own subagents by adding `.md` files to `.claude/agents/custom/` (or
-`.opencode/agents/custom/` for OpenCode). Each file needs frontmatter and body
-instructions — see `lint-audit.md` in that directory as an example.
+Create your own specialized agents in `.claude/agents/custom/`:
 
 ```bash
-# List available agents
+# Discover available agents
 python3 aidlc-scripts/factory_agent_discover.py list
-
-# Show details for a specific agent
 python3 aidlc-scripts/factory_agent_discover.py show lint-audit
 ```
 
-Custom agents use the generic contracts:
-- `.aidlc-orchestrator/contracts/custom-agent.input.v1.json`
-- `.aidlc-orchestrator/contracts/custom-agent.output.v1.json`
+Custom agents use generic contracts and flow through the Cost Governor
+(300K tokens / sonnet by default). See `README.md` for details.
 
-The orchestrator can spawn any discovered agent via the standard `Task()` cycle.
+---
 
-## Tools
+## CLI tools
 
-- **Triage:** `python3 aidlc-scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning
-- **Validate:** `python3 aidlc-scripts/factory_validate.py schema.json doc.yaml [--strict]`
-- **Secret scan:** `python3 aidlc-scripts/factory_secretscan.py handoff.yaml`
-- **Audit writes:** `python3 aidlc-scripts/factory_audit_writes.py <run-id> <holder> --locks src/**`
+```bash
+# Score a request without spawning agents
+python3 aidlc-scripts/factory_triage.py "add healthz" --dry-run
+
+# Validate a handoff contract
+python3 aidlc-scripts/factory_validate.py schema.json doc.yaml --strict
+
+# Scan for secrets in handoff files
+python3 aidlc-scripts/factory_secretscan.py handoff.yaml
+```
+
+---
 
 ## Documentation
 
 - `docs/TROUBLESHOOTING.md` — common failures and fixes
 - `.aidlc-orchestrator/contracts/REFERENCE.md` — all handoff schemas
-- `ORCHESTRATOR-PLAN.md` — full design doc (phases, decisions, ACs)
+- `ORCHESTRATOR-PLAN.md` — full design doc
+- `ORCHESTRATOR-SIMPLIFY-PLAN.md` — architecture roadmap
