@@ -798,6 +798,67 @@ For non-Claude tools, the installer still copies the contracts and scripts (they
 
 ---
 
+### Custom Subagents
+
+You can create your own specialized subagents for tasks not covered by the
+built-in stages (linting, compliance checks, legal review, etc.).
+
+**Creating a custom agent** — add a `.md` file to `.claude/agents/custom/` (or
+`.opencode/agents/custom/` for OpenCode) with frontmatter and body instructions:
+
+```bash
+mkdir -p .claude/agents/custom
+cat > .claude/agents/custom/my-agent.md << 'EOF'
+---
+description: Describe what your agent does
+mode: subagent
+permission:
+  read: allow
+  edit: deny
+  bash: allow
+---
+# My Custom Agent
+
+Instructions for what the agent does.
+EOF
+```
+
+The filename (without `.md`) becomes the agent name. OpenCode users also need
+`mode: subagent` and `permission` in frontmatter.
+
+**Built-in example** — `lint-audit` is shipped in both `.claude/agents/custom/`
+and `.opencode/agents/custom/`. It runs the project's linter and reports
+violations without modifying files.
+
+**Discover available agents:**
+```bash
+python3 aidlc-scripts/factory_agent_discover.py list
+python3 aidlc-scripts/factory_agent_discover.py show lint-audit
+```
+
+**Using a custom agent** — the orchestrator can spawn any discovered agent
+via the standard `Task()` cycle with generic contracts:
+```yaml
+# Input: .aidlc-orchestrator/contracts/custom-agent.input.v1.json
+# Output: .aidlc-orchestrator/contracts/custom-agent.output.v1.json
+```
+
+```bash
+Task(subagent_type="custom/lint-audit", prompt=".../lint-audit.input.yaml")
+```
+
+Custom agents flow through the Cost Governor with a default budget of
+300K tokens and `sonnet` model (configured in `budgets/default.yaml` as
+`custom-agent`). Override by adding an explicit entry for your agent name.
+
+**Commit custom agents to the repo:**
+
+```gitignore
+# In .gitignore: keep these committed
+.claude/agents/custom/
+.opencode/agents/custom/
+```
+
 ### Tool Adapters
 
 Adapter files explain how to wire AI-DLC rules into each agentic coding tool. They live in `aidlc-rules/adapters/` and are informational only — the core rules stay unchanged.

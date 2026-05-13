@@ -159,6 +159,35 @@ no ship stage. The git commit IS the audit trail.
    after which the standard /factory-spec flow takes over.
 ```
 
+## Custom subagents
+
+You can spawn any agent file found in `.claude/agents/custom/` (or
+`.opencode/agents/custom/`). These are user-defined agents for specialized
+tasks not covered by the built-in stages.
+
+**Discovery:**
+```bash
+python3 aidlc-scripts/factory_agent_discover.py list
+```
+
+**Spawning a custom agent** follows the same cycle as a built-in stage:
+1. Write an input handoff conforming to `custom-agent.input.v1.json`
+2. Validate with `factory_validate.py`
+3. `Task(subagent_type="custom/<agent-name>", prompt=...)`
+4. Validate output against `custom-agent.output.v1.json`
+5. Post-process (deduct, audit, etc.)
+
+Custom agents flow through the Cost Governor using the `custom-agent` default
+entry in `budgets/default.yaml` (300K tokens, sonnet model). Override by adding
+an explicit per-stage entry for your custom agent name.
+
+**Example — lint-audit agent:**
+```
+Task(subagent_type="custom/lint-audit", prompt=".../lint-audit.input.yaml")
+```
+This agent runs `eslint`/`ruff`/`clippy` and reports violations without
+modifying files. Its agent file is at `.claude/agents/custom/lint-audit.md`.
+
 **What FAST_PATH sacrifices:**
 - No replay capability (cannot `/factory-replay` a TINY run)
 - No knowledge emission (engram saves skipped)

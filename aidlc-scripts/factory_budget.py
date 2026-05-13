@@ -128,7 +128,7 @@ def estimate_stage_tokens(default: dict, stage: str) -> int:
     # reviewer-* all share `reviewer-*` style budget under per_stage
     for key in (stage, stage.replace("-code", "-*").replace("-security", "-*")
                 .replace("-performance", "-*").replace("-simplifier", "-*"),
-                "reviewer-*"):
+                "reviewer-*", "custom-agent"):
         if key in per:
             return int(per[key]["tokens"])
     return FALLBACK_STAGE_TOKENS

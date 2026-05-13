@@ -24,6 +24,10 @@ per_stage:
   reviewer-simplifier:    { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
   ship-agent:             { tokens: 300_000, wall_min: 20, retries: 1, model: "sonnet" }
 
+  # Default for custom/user-defined agents. Override by adding explicit entries
+  # for specific custom agent names.
+  custom-agent:           { tokens: 300_000, wall_min: 20, retries: 1, model: "sonnet" }
+
 adaptive_depth:
   threshold_pct_remaining: 30
   downshift_order:

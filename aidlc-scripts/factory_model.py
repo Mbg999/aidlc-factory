@@ -42,7 +42,8 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
     Resolution order:
         1. AIDLC_MODEL_<STAGE> env var (uppercased stage, dashes → underscores)
         2. Budget file per_stage[<stage>].model
-        3. DEFAULT_MODEL
+        3. Budget file per_stage["custom-agent"].model (fallback for unknown stages)
+        4. DEFAULT_MODEL
     """
     env_key = f"AIDLC_MODEL_{stage.upper().replace('-', '_')}"
     env_model = os.environ.get(env_key)
@@ -58,6 +59,9 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
             entry = per_stage.get(stage)
             if not entry and stage.startswith("reviewer-"):
                 entry = per_stage.get("reviewer-code")
+            # custom-agent fallback for unknown/user-defined stages
+            if not entry:
+                entry = per_stage.get("custom-agent")
             if entry and "model" in entry:
                 return entry["model"]
         except Exception:

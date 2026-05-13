@@ -58,6 +58,26 @@ python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 | Agent crashed, locks stale | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
 | Run burned too many tokens | Start over with tighter budget in `.aidlc-orchestrator/budgets/default.yaml` |
 
+## Custom subagents
+
+Create your own subagents by adding `.md` files to `.claude/agents/custom/` (or
+`.opencode/agents/custom/` for OpenCode). Each file needs frontmatter and body
+instructions — see `lint-audit.md` in that directory as an example.
+
+```bash
+# List available agents
+python3 aidlc-scripts/factory_agent_discover.py list
+
+# Show details for a specific agent
+python3 aidlc-scripts/factory_agent_discover.py show lint-audit
+```
+
+Custom agents use the generic contracts:
+- `.aidlc-orchestrator/contracts/custom-agent.input.v1.json`
+- `.aidlc-orchestrator/contracts/custom-agent.output.v1.json`
+
+The orchestrator can spawn any discovered agent via the standard `Task()` cycle.
+
 ## Tools
 
 - **Triage:** `python3 aidlc-scripts/factory_triage.py "<request>" [--dry-run]` — score without spawning

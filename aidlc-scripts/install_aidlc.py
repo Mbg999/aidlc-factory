@@ -137,6 +137,7 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_complexity.py",
     "factory_model.py",
     "factory_graph.py",
+    "factory_agent_discover.py",
 ]
 
 # Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning
