@@ -480,6 +480,41 @@ xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-
 
 ---
 
+## Python virtual environment (prerequisite)
+
+The installer and factory scripts require Python 3.9+ with `pyyaml` and `jsonschema`.
+Set up a virtual environment before running anything:
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell):**
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+**Windows (CMD):**
+```cmd
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+```
+
+To deactivate the environment later:
+```bash
+deactivate
+```
+
+> If you skip the venv, you'll get `ModuleNotFoundError: No module named 'yaml'` when running the installer. The `requirements.txt` is created automatically by the installer — or you can install manually: `pip install pyyaml jsonschema`.
+
+---
+
 ### Install script
 
 You can use the bundled installer script to copy the AI-DLC rules and (optionally) agent skills into a project. The script lives at `aidlc-scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
