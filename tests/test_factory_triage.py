@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,95 +12,160 @@ SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 TRIAGE_PY = SCRIPTS / "factory_triage.py"
 
 
-@pytest.mark.parametrize("request_text,expected_tier,expected_score,expected_pipeline", [
-    ("add a healthz endpoint", "TINY", 0, "fast"),
-    ("fix a typo in README", "TINY", 0, "fast"),
-    ("add JWT auth to API gateway", "SMALL", 2, "full"),
-    ("refactor auth module to extract AuthService", "SMALL", 2, "full"),
-    ("implement payment microservice with Stripe, S3, and Kafka", "SMALL", 3, "full"),
-    ("migrate monolith to microservices across the entire codebase", "SMALL", 4, "full"),
-])
-def test_triage_ac(request_text, expected_tier, expected_score, expected_pipeline):
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), request_text],
+def run(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(TRIAGE_PY), *args],
         capture_output=True, text=True,
     )
-    data = json.loads(result.stdout)
-    assert data["tier"] == expected_tier, f"tier mismatch for {request_text!r}"
-    assert data["score"] == expected_score, f"score mismatch for {request_text!r}"
-    assert data["recommended_pipeline"] == expected_pipeline
 
 
-@pytest.mark.parametrize("request_text", [
-    "",
-    "   ",
-    "ñøñ-ÅSCII çħæŕš",
-    "a" * 10000,
-    "normal request with no keywds",
-])
-def test_triage_edge_cases(request_text):
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), request_text],
-        capture_output=True, text=True,
-    )
-    data = json.loads(result.stdout)
-    assert isinstance(data["score"], int)
-    assert data["tier"] in ("TINY", "SMALL", "MEDIUM", "LARGE")
+class TestPrefilter:
+    """factory_triage.py prefilter — quick TINY check for trivial work."""
+
+    @pytest.mark.parametrize("request_text", [
+        "fix typo in README",
+        "fix a typo in README",
+        "update README",
+        "fix comment",
+        "add license file",
+        "fix docs",
+    ])
+    def test_trivial_returns_tiny(self, request_text):
+        result = run("prefilter", request_text)
+        data = json.loads(result.stdout)
+        assert data["tier"] == "TINY"
+        assert result.returncode == 0
+
+    @pytest.mark.parametrize("request_text", [
+        "add a healthz endpoint",
+        "zzz zzz zzz",
+        "",
+    ])
+    def test_non_trivial_returns_unknown(self, request_text):
+        result = run("prefilter", request_text)
+        data = json.loads(result.stdout)
+        assert data["tier"] == "UNKNOWN"
+        assert result.returncode == 10
+
+    def test_empty_whitespace(self):
+        result = run("prefilter", "   ")
+        assert result.returncode == 10
+
+    def test_non_ascii(self):
+        result = run("prefilter", "ñøñ-ÅSCII çħæŕš")
+        assert result.returncode == 10
 
 
-def test_triage_explain_flag():
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "add healthz", "--explain"],
-        capture_output=True, text=True,
-    )
-    data = json.loads(result.stdout)
-    assert data["tier"] == "TINY"
-    assert "TRIAGE:" in result.stderr
+class TestPrompt:
+    """factory_triage.py prompt — prints LLM classification prompt."""
+
+    def test_prompt_contains_request(self):
+        result = run("prompt", "build a pokedex")
+        assert result.returncode == 0
+        assert "build a pokedex" in result.stdout
+        assert "complexity triage" in result.stdout.lower()
+        assert "single_file" in result.stdout
+        assert "security_relevance" in result.stdout
+
+    def test_prompt_handles_special_chars(self):
+        result = run("prompt", "añadir login con google")
+        assert result.returncode == 0
+        assert "añadir login con google" in result.stdout
 
 
-def test_triage_single_factor_architecture():
-    """Request mentioning only architecture signal should score 2."""
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "design system architecture for the new service"],
-        capture_output=True, text=True,
-    )
-    data = json.loads(result.stdout)
-    assert data["score"] == 2, f"expected 2, got {data['score']}: {data['factors']}"
-    assert data["factors"]["architecture_signal"] == 2
+class TestApply:
+    """factory_triage.py apply — maps LLM classification to tier."""
 
+    def _apply(self, data: dict) -> subprocess.CompletedProcess:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+            f.flush()
+            result = run("apply", f.name)
+        Path(f.name).unlink()
+        return result
 
-def test_triage_score_zero_with_non_matching_text():
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "zzz zzz zzz"],
-        capture_output=True, text=True,
-    )
-    data = json.loads(result.stdout)
-    assert data["score"] == 0
-    assert data["tier"] == "TINY"
+    def test_trivial_classification_small(self):
+        """Low risk, single file, no deps -> SMALL."""
+        data = {
+            "intent": "modify",
+            "scope": "single_file",
+            "risk": "low",
+            "architecture_impact": "none",
+            "security_relevance": "none",
+            "external_dependencies": [],
+            "data_layer_impact": "none",
+            "coordination_required": False,
+            "ambiguity": "low",
+            "estimated_affected_components": "1-2",
+        }
+        result = self._apply(data)
+        assert json.loads(result.stdout)["tier"] == "SMALL"
+        assert result.returncode == 1
 
+    def test_medium_request(self):
+        """Multiple modules, moderate risk -> MEDIUM."""
+        data = {
+            "intent": "create",
+            "scope": "multi_module",
+            "risk": "medium",
+            "architecture_impact": "medium",
+            "security_relevance": "none",
+            "external_dependencies": ["stripe"],
+            "data_layer_impact": "medium",
+            "coordination_required": True,
+            "ambiguity": "medium",
+            "estimated_affected_components": "3-5",
+        }
+        result = self._apply(data)
+        assert json.loads(result.stdout)["tier"] == "MEDIUM"
+        assert result.returncode == 2
 
-def test_triage_exit_code_tiny():
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "add healthz"],
-        capture_output=True,
-    )
-    assert result.returncode == 0
+    def test_large_request(self):
+        """System-wide, high risk, many components -> LARGE."""
+        data = {
+            "intent": "migrate",
+            "scope": "system_wide",
+            "risk": "high",
+            "architecture_impact": "high",
+            "security_relevance": "high",
+            "external_dependencies": ["aws", "stripe", "kafka"],
+            "data_layer_impact": "high",
+            "coordination_required": True,
+            "ambiguity": "high",
+            "estimated_affected_components": "10+",
+        }
+        result = self._apply(data)
+        assert json.loads(result.stdout)["tier"] == "LARGE"
+        assert result.returncode == 3
 
+    def test_apply_from_stdin(self):
+        """- reads from stdin."""
+        data = {"scope": "single_file", "risk": "low", "architecture_impact": "none",
+                "security_relevance": "none", "data_layer_impact": "none",
+                "coordination_required": False, "ambiguity": "low",
+                "estimated_affected_components": "1-2", "intent": "modify"}
+        result = subprocess.run(
+            [sys.executable, str(TRIAGE_PY), "apply", "-"],
+            input=json.dumps(data), capture_output=True, text=True,
+        )
+        assert json.loads(result.stdout)["tier"] == "SMALL"
 
-def test_triage_exit_code_small():
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "add JWT auth to API gateway"],
-        capture_output=True,
-    )
-    assert result.returncode == 1
-
-
-def test_triage_dry_run():
-    """--dry-run prints triage summary without JSON output."""
-    result = subprocess.run(
-        [sys.executable, str(TRIAGE_PY), "add healthz endpoint", "--dry-run"],
-        capture_output=True, text=True,
-    )
-    assert result.returncode == 0
-    assert "TINY" in result.stdout
-    assert "FAST_PATH" in result.stdout
+    def test_pokedex_request(self):
+        """Full-stack pokedex app -> MEDIUM (multi_module, coordination)."""
+        data = {
+            "intent": "create",
+            "scope": "multi_module",
+            "risk": "medium",
+            "architecture_impact": "medium",
+            "security_relevance": "low",
+            "external_dependencies": ["pokeapi"],
+            "data_layer_impact": "low",
+            "coordination_required": True,
+            "ambiguity": "medium",
+            "estimated_affected_components": "3-5",
+            "notes": "react frontend, express backend, external api integration",
+        }
+        result = self._apply(data)
+        tier = json.loads(result.stdout)["tier"]
+        assert tier in ("MEDIUM", "LARGE")
+        assert result.returncode in (2, 3)

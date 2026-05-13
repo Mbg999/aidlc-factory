@@ -399,17 +399,28 @@ Users may optionally pass `--tier=small` to skip triage and force the full pipel
 
 ### Step 0 — Triage Gate (FAST_PATH check)
 
-Before any infrastructure setup, run the triage scorer:
+Before any infrastructure setup, run the prefilter:
 
 ```bash
-python3 aidlc-scripts/factory_triage.py "<user-request>"
+python3 aidlc-scripts/factory_triage.py prefilter "<user-request>"
 ```
 
 Exit code mapping:
 - **exit 0** (TINY) → branch into FAST_PATH. Skip all subsequent Phase 0 steps.
   Execute `## FAST_PATH — TINY tier execution` below. No manifest, no audit.
-- **exit 1-3** (SMALL/MEDIUM/LARGE) → continue to Step 1 below (standard path).
-  Pass the triage result to requirements-analyst as context.
+- **exit 10** (UNKNOWN) → not trivial. Use LLM classification to determine tier:
+
+  1. Print the classification prompt:
+     ```bash
+     python3 aidlc-scripts/factory_triage.py prompt "<user-request>"
+     ```
+  2. Classify the request using your own LLM reasoning (you are already an LLM).
+     Output a JSON object matching the schema printed by the prompt.
+  3. Map the classification to a tier:
+     ```bash
+     python3 aidlc-scripts/factory_triage.py apply <classification.json>
+     ```
+  4. Use the exit code (1=SMALL, 2=MEDIUM, 3=LARGE) as the pipeline decision.
 
 If the user passed `--tier=small`, skip triage entirely and go straight to Step 1.
 
