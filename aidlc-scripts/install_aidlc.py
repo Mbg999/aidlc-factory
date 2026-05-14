@@ -314,6 +314,7 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_model.py",
     "factory_graph.py",
     "factory_agent_discover.py",
+    "factory_telemetry.py",
 ]
 
 # Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning
@@ -550,6 +551,13 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
     if src_contracts.exists():
         print(f"  contracts -> {dst_contracts.relative_to(target_root)}/")
         copy_tree(src_contracts, dst_contracts, dry_run)
+
+    # Shared Layer 1: runtime cold-path docs (any tool)
+    src_runtime = repo_root / ".aidlc-orchestrator" / "runtime"
+    dst_runtime = target_root / ".aidlc-orchestrator" / "runtime"
+    if src_runtime.exists():
+        print(f"  runtime -> {dst_runtime.relative_to(target_root)}/")
+        copy_tree(src_runtime, dst_runtime, dry_run)
 
     src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
     dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"

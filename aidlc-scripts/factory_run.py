@@ -177,6 +177,176 @@ def _set_dotted(obj: dict, dotted_key: str, value) -> None:
     cur[parts[-1]] = value
 
 
+# ---------------------------------------------------------------------------
+# emit_audit_block — atomic "timeline event + audit.md append" helper.
+#
+# This compiles the substep-6 canonical sequence from orchestrator.md
+# (Step 8 of shared primitives) into one call. The orchestrator used to
+# inline the full procedure at every approval gate; that boilerplate now
+# lives in `.aidlc-orchestrator/contracts/audit-block.protocol.md` and is
+# enforced here.
+#
+# Canonical evt vocabulary (matches orchestrator.md spec):
+#   user_answers_received  — requires --stage
+#   user_decision          — requires --stage + --field decision=<approve|reject|amend|cancel>
+#   stage_skipped          — requires --stage + --field reason=<text>
+#   orchestrator_note      — requires --field summary=<text>
+#
+# Header format (locked, do not deviate):
+#   ## <ts> <PHASE> - <LABEL>
+#   - bullet1
+#   - bullet2
+# ---------------------------------------------------------------------------
+
+
+AUDIT_BLOCK_EVT_VOCABULARY = {
+    "user_answers_received": {"required_stage": True, "required_fields": ()},
+    "user_decision":         {"required_stage": True, "required_fields": ("decision",)},
+    "stage_skipped":         {"required_stage": True, "required_fields": ("reason",)},
+    "orchestrator_note":     {"required_stage": False, "required_fields": ("summary",)},
+}
+
+VALID_PHASES = ("INCEPTION", "CONSTRUCTION", "OPERATIONS")
+
+
+def audit_md_path() -> Path:
+    return AIDLC_DOCS / "audit.md"
+
+
+def _read_last_h2(audit_path: Path) -> tuple[str, str] | None:
+    """Return (ts, '<PHASE> - <LABEL>') for the last H2 in audit.md, or None."""
+    if not audit_path.exists():
+        return None
+    last = None
+    for line in audit_path.read_text().splitlines():
+        if line.startswith("## "):
+            last = line
+    if not last:
+        return None
+    # Format: "## <ts> <PHASE> - <LABEL>"
+    body = last[3:].strip()
+    parts = body.split(None, 1)
+    if len(parts) < 2:
+        return None
+    ts, rest = parts[0], parts[1]
+    return (ts, rest)
+
+
+def _flock(path: Path):
+    """Context manager for POSIX advisory exclusive lock on `path`.
+
+    Uses a separate lockfile (path + '.lock') so writers can read+write the
+    target safely. Returns a no-op CM on platforms without fcntl (Windows).
+    """
+    import contextlib
+
+    @contextlib.contextmanager
+    def cm():
+        try:
+            import fcntl
+        except ImportError:
+            yield
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lockfile = path.with_suffix(path.suffix + ".lock")
+        with lockfile.open("a") as lf:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+    return cm()
+
+
+def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> bool:
+    """Append a block under flock with a dedupe guard. Returns True if appended,
+    False if dedupe'd."""
+    audit = audit_md_path()
+    with _flock(audit):
+        if not audit.exists():
+            audit.parent.mkdir(parents=True, exist_ok=True)
+            audit.write_text("# Audit Log\n\n")
+
+        last = _read_last_h2(audit)
+        new_rest = f"{phase} - {label}"
+        if last and last[0] == ts and last[1] == new_rest:
+            return False  # dedupe
+
+        # Chronology check: never write a header with ts < the last header's ts.
+        if last:
+            try:
+                from datetime import datetime as _dt
+                if _dt.fromisoformat(ts) < _dt.fromisoformat(last[0]):
+                    _die(f"chronology violation: ts {ts} < last audit ts {last[0]}")
+            except (ValueError, TypeError):
+                pass  # unparseable — let it through rather than blocking
+
+        # Build the block. Always separate from preceding content by a blank line.
+        prior = audit.read_text()
+        sep = "" if prior.endswith("\n\n") else ("\n" if prior.endswith("\n") else "\n\n")
+        block = f"{sep}## {ts} {new_rest}\n"
+        for b in bullets:
+            block += f"- {b}\n"
+        block += "\n"
+        with audit.open("a") as f:
+            f.write(block)
+    return True
+
+
+def cmd_emit_audit_block(args: argparse.Namespace) -> None:
+    # Validate evt.
+    if args.evt not in AUDIT_BLOCK_EVT_VOCABULARY:
+        valid = ", ".join(sorted(AUDIT_BLOCK_EVT_VOCABULARY))
+        _die(f"unknown evt: {args.evt!r}. Valid evt vocabulary: {valid}")
+    rules = AUDIT_BLOCK_EVT_VOCABULARY[args.evt]
+
+    # Validate phase.
+    if args.phase not in VALID_PHASES:
+        _die(f"invalid phase: {args.phase!r}. Valid phases: {', '.join(VALID_PHASES)}")
+
+    # Validate stage if required.
+    if rules["required_stage"] and not args.stage:
+        _die(f"evt {args.evt!r} requires --stage")
+
+    # Validate at least one bullet.
+    if not args.bullet:
+        _die(f"at least one --bullet is required")
+
+    # Validate required fields and parse them.
+    fields: dict = {}
+    for kv in args.field or []:
+        k, v = _parse_field(kv)
+        fields[k] = v
+    for required in rules["required_fields"]:
+        if required not in fields:
+            _die(f"evt {args.evt!r} requires --field {required}=<value>")
+
+    # Validate run exists (unless --ts is provided — retry semantics).
+    if not args.ts:
+        run_dir(args.run_id, must_exist=True)  # _die's if not found
+
+    # Validate label.
+    if not args.label:
+        _die("--label is required")
+
+    # Determine ts: either explicit (retry) or fresh emit.
+    if args.ts:
+        ts = args.ts
+        # Don't emit a duplicate timeline event on retry; just attempt audit append.
+    else:
+        ts = now_iso()
+        event = {"ts": ts, "evt": args.evt, "run_id": args.run_id, **fields}
+        if args.stage:
+            event["stage"] = args.stage
+        append_event(args.run_id, event)
+
+    appended = _append_audit_block(ts, args.phase, args.label, args.bullet)
+    if appended:
+        print(ts)
+    else:
+        print(f"{ts} (dedupe skipped — identical block already present)")
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     rd = run_dir(args.run_id, must_exist=False)
     rd.mkdir(parents=True, exist_ok=True)
@@ -900,6 +1070,24 @@ def main() -> None:
     p_emit.add_argument("--stage")
     p_emit.add_argument("--field", action="append")
     p_emit.set_defaults(func=cmd_emit)
+
+    p_eab = sub.add_parser("emit_audit_block",
+        help="atomic timeline-emit + dedupe-guarded audit.md append (substep-6 helper)")
+    p_eab.add_argument("run_id")
+    p_eab.add_argument("--evt", required=True,
+        help="one of: " + ", ".join(sorted(AUDIT_BLOCK_EVT_VOCABULARY)))
+    p_eab.add_argument("--stage", help="stage_id (required for most evts)")
+    p_eab.add_argument("--phase", required=True,
+        help="one of: " + ", ".join(VALID_PHASES))
+    p_eab.add_argument("--label", required=True,
+        help="block label, e.g. 'User Decision (workflow-planner)'")
+    p_eab.add_argument("--field", action="append",
+        help="evt-required fields: decision=, reason=, summary= (per evt)")
+    p_eab.add_argument("--bullet", action="append",
+        help="audit bullet — at least one required; repeatable")
+    p_eab.add_argument("--ts",
+        help="override emitted ts (retry semantics; skips timeline emit)")
+    p_eab.set_defaults(func=cmd_emit_audit_block)
 
     p_status = sub.add_parser("status")
     p_status.add_argument("run_id")
