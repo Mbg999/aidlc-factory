@@ -112,8 +112,11 @@ Every stage ends with:
 - A **plan is approved** by the user (commit the plan + any generated questions)
 - A **stage completes** and user approves to continue (commit all stage artifacts)
 - A **unit construction phase** finishes (commit unit artifacts)
-- **Code generation** completes a step or unit (commit generated code + updated plan checkboxes)
 - The user says **"continue"**, **"next"**, **"approve"**, or any equivalent progression
+
+**CRITICAL**: Auto-commits run at the orchestrator level only — after the user
+approval gate. Subagent `Task()` spawns MUST NOT run `git commit`. The
+orchestrator collects all approved artifacts and commits once.
 
 **Commit format**: `<type>(<scope>): <description>`
 **Always stage all changes**: `git add -A` before committing to capture all artifact updates

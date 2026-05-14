@@ -82,8 +82,9 @@ code are presented together for a single approval gate.
 For each plan task (top to bottom):
 1. **Red** — write a failing test
 2. **Green** — minimum code to pass
-3. **Refactor** — clean up, keep green
-4. **Commit** — atomic commit per slice. Mark `[x]` in the plan file in the SAME interaction.
+   3. **Refactor** — clean up, keep green
+   Mark `[x]` in the plan file in the SAME interaction. Do NOT run `git commit`.
+   Orchestrator commits after user approval gate.
 
 Apply `code-review-and-quality` skill **on yourself** (five-axis self-review)
 when the unit's last task is done. Note the self-review summary in
@@ -100,7 +101,7 @@ No further work; just emit the final output handoff.
 Skip Sub-stage 1 entirely (no plan file, no plan approval gate).
 Skip Sub-stage 3 entirely (no approval re-spawn — orchestrator handles inline).
 
-Still run TDD: Red → Green → Refactor → Commit per what the request needs.
+Still run TDD: Red → Green → Refactor per what the request needs. Do NOT run `git commit`.
 Self-review is still required. The plan is implicit (single task: implement).
 
 Stripped output format (return as one-line JSON, no file written):
