@@ -13,12 +13,14 @@ Always executes. Depth adapts to complexity (see [depth-levels.md](../common/dep
 
 - `idea-refine/SKILL.md` — Divergent→convergent thinking to explore problem space. **Key process**: explore multiple approaches before converging on one; follow Process steps; check Rationalizations table.
 - `spec-driven-development/SKILL.md` — Write spec (PRD): objectives, scope, constraints, boundaries. **Key process**: produce structured spec covering all areas; follow verification exit criteria.
+- `requirements-intelligence/SKILL.md` — Adaptive elicitation engine. **Key process**: signal scoring → technique routing (ambiguity-detection / socratic / pre-mortem / assumption-mining) → coverage-map enforcement (8 axes: Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) → dedupe + budget. **Gates Step 6** — coverage map must be complete before the question file is written.
 
 **Inline fallback** (if SKILL.md files not installed):
 1. Explore the problem space: list ≥3 possible approaches before choosing one
 2. Write a structured spec: objectives, core features, constraints, boundaries, testing strategy
 3. Verify: spec covers all areas identified in completeness analysis
 4. Do NOT proceed to next stage without a written, reviewable spec artifact
+5. Before writing questions, build an 8-axis coverage table (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) and ensure every axis required at the active depth has ≥1 question. Scan the request for weasel words (`fast`, `scalable`, `secure`, `clean`, `simple`) and convert each into a quantifier MCQ.
 
 ## Steps
 

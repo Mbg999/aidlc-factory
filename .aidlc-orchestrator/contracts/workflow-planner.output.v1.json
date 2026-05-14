@@ -33,7 +33,8 @@
         },
         "additionalProperties": false
       },
-      "minItems": 2
+      "minItems": 3,
+      "description": "Must contain entries for using-agent-skills, planning-and-task-breakdown, and requirements-intelligence (plan-stage variant — pre-mortem on plan artifact). The requirements-intelligence entry may be status: N/A with evidence='trivial plan: skipped per SKILL.md plan-stage variant rule' when plan is single-unit AND every task has ≥2 acceptance criteria."
     },
     "cost": { "type": "object" },
     "units": {

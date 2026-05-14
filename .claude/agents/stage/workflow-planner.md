@@ -30,7 +30,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Anti-bypass / Red Flags** — same as other stages.
 
-**Skills:** `using-agent-skills`, `planning-and-task-breakdown`.
+**Skills:** `using-agent-skills`, `planning-and-task-breakdown`, `requirements-intelligence` (plan-stage variant only).
+
+**Plan-stage variant of `requirements-intelligence`:** load the skill in *plan-stage* mode (see `requirements-intelligence/SKILL.md` § "Plan-stage variant" and `pre-mortem.md` § "Plan-stage variant"). Run the pre-mortem rubric against the plan artifact and emit ≤3 plan-risk questions appended to the approval surface (NOT a separate questions file). Pre-mortem-on-plan asks: (1) where will this plan break first during construction, (2) which unit boundary, if wrong, forces a re-plan, (3) which task has the weakest acceptance criterion. Skip if the plan is single-unit AND every task already has ≥2 acceptance criteria — log `[PlanPreMortem] skipped: trivial plan` in audit_entries.
 
 ## Your job
 Follow `aidlc-rules/aws-aidlc-rule-details/inception/workflow-planning.md` and

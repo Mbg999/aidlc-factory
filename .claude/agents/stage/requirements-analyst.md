@@ -50,6 +50,7 @@ prefixed `[RedFlag] <skill-name>:`.
 - `using-agent-skills` — meta-protocol
 - `idea-refine` — divergent→convergent thinking; explore ≥3 approaches before converging
 - `spec-driven-development` — produce structured PRD (objectives, scope, constraints, boundaries, testing strategy)
+- `requirements-intelligence` — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
 
 ## Two-pass execution
 
@@ -83,7 +84,7 @@ Execute Steps 1–6 of the rule file
   Orchestrator wraps them in dated headers when appending to `audit.md`. Include
   bullets for depth determination, completeness gaps identified, extension opt-in scan
   results, and skill execution evidence.
-- `skill_compliance`: PASS for `using-agent-skills`, `idea-refine` (verify with the ≥3-approach log), `spec-driven-development` (verify with the question-coverage map)
+- `skill_compliance`: PASS for `using-agent-skills`, `idea-refine` (verify with the ≥3-approach log), `spec-driven-development` (verify with the question-coverage map), and `requirements-intelligence` (verify with the `[CoverageMap]` table, `[SignalScore]`, `[Techniques]` applied, and `[QuestionBudget]` evidence — all surfaced in `audit_entries[]`)
 
 DO NOT proceed to Step 7. Return to orchestrator.
 
@@ -110,8 +111,10 @@ Execute Step 7 of the rule file:
   Orchestrator wraps them in dated headers when appending to `audit.md`. Include
   bullets for user-decision summaries, any conflicts reconciled (with the chosen
   rationale), and per-skill verification evidence.
-- `skill_compliance`: PASS for all three skills with updated evidence
-  (e.g., requirements.md path + section count)
+- `skill_compliance`: PASS for all four skills with updated evidence
+  (e.g., requirements.md path + section count for `spec-driven-development`;
+  for `requirements-intelligence`: final coverage map + how each user answer
+  was incorporated into the spec, citing the question ID it resolved)
 
 (Step 8 — state update — and Step 9 — completion message — are owned by the orchestrator.)
 

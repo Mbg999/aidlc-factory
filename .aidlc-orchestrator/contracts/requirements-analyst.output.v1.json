@@ -49,8 +49,8 @@
         },
         "additionalProperties": false
       },
-      "minItems": 3,
-      "description": "Must contain entries for idea-refine, spec-driven-development, using-agent-skills"
+      "minItems": 4,
+      "description": "Must contain entries for idea-refine, spec-driven-development, using-agent-skills, and requirements-intelligence (coverage-map + signal-score + techniques-applied + question-budget evidence)"
     },
     "cost": {
       "type": "object",
