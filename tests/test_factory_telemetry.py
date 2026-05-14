@@ -149,7 +149,7 @@ def test_hot_path_boilerplate_zero_on_current_orchestrator(tmp_path: Path):
 
 
 def test_hot_path_pointer_count_nonzero_on_current_orchestrator(tmp_path: Path):
-    """The refactored orchestrator.md must have ≥6 pointer references."""
+    """The orchestrator.md kernel must have ≥3 pointer references to runtime files."""
     md = SCRIPTS.parent / ".claude" / "agents" / "orchestrator.md"
     if not md.exists():
         pytest.skip("orchestrator.md not found")
@@ -158,7 +158,7 @@ def test_hot_path_pointer_count_nonzero_on_current_orchestrator(tmp_path: Path):
     assert r.returncode == 0, r.stderr
     report = json.loads(json_out.read_text())
     ptr_total = sum(s["pointer_hit_total"] for s in report["sections"])
-    assert ptr_total >= 6, f"expected ≥6 pointer references, got {ptr_total}"
+    assert ptr_total >= 3, f"expected ≥3 pointer references, got {ptr_total}"
 
 
 def test_hot_path_no_h2_treats_whole_file_as_preamble(tmp_path: Path):

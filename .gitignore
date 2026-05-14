@@ -13,6 +13,8 @@
 !.aidlc-orchestrator/contracts/**
 !.aidlc-orchestrator/budgets/
 !.aidlc-orchestrator/budgets/default.yaml
+!.aidlc-orchestrator/runtime/
+!.aidlc-orchestrator/runtime/**
 .codebuild/**
 .worktrees/**
 .vscode/**

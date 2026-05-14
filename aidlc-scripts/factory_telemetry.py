@@ -111,11 +111,27 @@ BOILERPLATE_PHRASES = [
 
 POINTER_PHRASES = [
     "audit-block.protocol.md",
+    "runtime/index.md",
     "runtime/spawn-loop.md",
     "runtime/fast-path.md",
     "runtime/recovery.md",
     "runtime/replay-adopt.md",
     "runtime/project-profile.md",
+    "runtime/cmd-factory-spec.md",
+    "runtime/cmd-factory-plan.md",
+    "runtime/cmd-factory-build.md",
+    "runtime/cmd-factory-review.md",
+    "runtime/cmd-factory-ship.md",
+    "runtime/validation.md",
+    "runtime/compaction.md",
+    "runtime/skill-protocol.md",
+    "runtime/audit-lifecycle.md",
+    "runtime/extension-loading.md",
+    "runtime/run-manager.md",
+    "runtime/conflict-resolver.md",
+    "runtime/knowledge-agent.md",
+    "runtime/cost-governor.md",
+    "runtime/custom-subagents.md",
 ]
 
 COLD_HINTS = [

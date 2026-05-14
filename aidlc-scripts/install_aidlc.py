@@ -552,7 +552,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         print(f"  contracts -> {dst_contracts.relative_to(target_root)}/")
         copy_tree(src_contracts, dst_contracts, dry_run)
 
-    # Shared Layer 1: runtime cold-path docs (any tool)
+    # Shared Layer 1: runtime architecture + commands (any tool)
     src_runtime = repo_root / ".aidlc-orchestrator" / "runtime"
     dst_runtime = target_root / ".aidlc-orchestrator" / "runtime"
     if src_runtime.exists():
