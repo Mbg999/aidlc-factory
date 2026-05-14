@@ -29,11 +29,10 @@ Emit `CONSTRUCTION - UNIT GRAPH` audit block. "Layer" = "wave".
 For each layer in order:
 
 ### B.1 — Sequential per-unit pre-flight (all before spawn)
-1. Budget gate: `factory_budget.py check <run-id> code-generator`. exit 3 = halt; exit 2 = skip unit.
-2. Lock acquire: `factory_conflict.py acquire <run-id> code-generator:<unit> <locks>`. Default: `src/<unit>/**`, `tests/<unit>/**`. exit 1 = drop.
-3. AST snapshot (Python): `factory_conflict.py snapshot <run-id> code-generator:<unit> <files>`.
-4. Knowledge query: `mem_search` with unit tags; inject top-5 into `context_pointers[]`.
-5. Build input handoff `code-generator.<unit>.input.yaml`. Validate.
+1. Lock acquire: `factory_conflict.py acquire <run-id> code-generator:<unit> <locks>`. Default: `src/<unit>/**`, `tests/<unit>/**`. exit 1 = drop.
+2. AST snapshot (Python): `factory_conflict.py snapshot <run-id> code-generator:<unit> <files>`.
+3. Knowledge query: `mem_search` with unit tags; inject top-5 into `context_pointers[]`.
+4. Build input handoff `code-generator.<unit>.input.yaml`. Validate.
 
 Active set = units that passed all gates.
 
@@ -45,7 +44,7 @@ Active set = units that passed all gates.
 Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
 1. Parallel `Task(subagent_type="code-generator", ...)` in ONE message (≤ 4).
 2. Wait for all returns. Per-unit post-processing (any order): validate output →
-   AST drift check → budget deduct → knowledge save → audit append.
+   AST drift check → knowledge save → audit append.
 3. If AST drift conflict written, surface BEFORE approval gate.
 4. Approval gate: surface ALL units. User can approve all, reject specific units
    (re-plan with revised context), or cancel layer.

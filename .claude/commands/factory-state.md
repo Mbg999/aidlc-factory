@@ -18,12 +18,7 @@ You are the AIDLC orchestrator. The user wants to know the state of run
    python3 aidlc-scripts/factory_run.py graph $ARGUMENTS
    ```
 
-3. Check budget:
-   ```bash
-   python3 aidlc-scripts/factory_budget.py status $ARGUMENTS
-   ```
-
-4. Compute next steps:
+3. Compute next steps:
    ```bash
    python3 aidlc-scripts/factory_run.py resume $ARGUMENTS
    ```
@@ -38,6 +33,5 @@ You are the AIDLC orchestrator. The user wants to know the state of run
    - How many stages complete / total
    - What's the current stage and how it's doing
    - What stage runs next
-   - Budget remaining (tokens and wall clock)
    - Any conflicts, drift, or warnings
    - Suggested next `/factory-*` command to run

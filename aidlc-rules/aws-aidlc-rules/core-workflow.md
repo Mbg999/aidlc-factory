@@ -85,7 +85,7 @@ Directory: `aidlc-docs/{inception,construction,operations}/`. App code stays in 
 ## AIDLC Orchestrator (multi-agent factory mode)
 
 This project ships with the AIDLC orchestrator:
-- `/factory-onboarding`, `/factory-help`, `/factory-budget`, `/factory-state`
+- `/factory-onboarding`, `/factory-help`, `/factory-state`
 - `/factory-spec <feature>` — workspace scout + requirements + plan
 - `/factory-plan <run-id>` — decompose plan into per-unit specs
 - `/factory-build <run-id>` — layer-parallel code generation with locks + AST checks

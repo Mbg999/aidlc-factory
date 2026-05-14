@@ -65,10 +65,8 @@ Execute Steps 1–6 of the rule file
 1. **Step 1** — Load Reverse Engineering context if `workspace_state.project_type == brownfield` AND `workspace_state.reverse_engineering_artifacts_present == true`. Read from `aidlc-docs/inception/reverse-engineering/`.
 2. **Step 2** — Classify request: clarity (Clear/Vague/Incomplete), type (New Feature/Bug Fix/Refactoring/Upgrade/Migration/Enhancement/New Project), scope (Single File/Single Component/Multiple Components/System-wide/Cross-system), complexity (Trivial/Simple/Moderate/Complex). Populate `request_classification` in your output.
 3. **Step 3** — Determine depth: `minimal | standard | comprehensive` per `aidlc-rules/aws-aidlc-rule-details/common/depth-levels.md`. Populate `depth` in your output.
-   - **If input contains `depth_override`** (set by the Cost Governor when
-     budget is below threshold): use that value instead of your own
-     classification result. Log to `audit_entries[]`:
-     `[CostGov] Depth overridden to <value> by Cost Governor (budget gate)`.
+   - **If input contains `depth_override`**: use that value instead of your own
+     classification result.
 4. **Step 4** — Assess current requirements: search workspace for existing requirement docs, intent statements, etc. Convert non-markdown to markdown.
 5. **Step 5** — Completeness analysis across functional / non-functional / user scenarios / business / technical / quality attributes.
    - **5.1** — Extension opt-in prompts: scan `aidlc-rules/aws-aidlc-rules/extensions/**/*.opt-in.md`, append each `## Opt-In Prompt` question to your questions file.

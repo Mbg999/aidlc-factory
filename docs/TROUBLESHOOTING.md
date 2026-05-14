@@ -23,24 +23,6 @@ python3 aidlc-scripts/factory_run.py status <run-id> --json | grep completed_sta
 python3 aidlc-scripts/factory_run.py set <run-id> --field current_stage=workspace-scout
 ```
 
-### Budget shows negative remaining
-
-**Symptom:** `factory_budget.py check` or `status` shows negative tokens remaining.
-
-**Likely cause:** `deduct` was called with parameters exceeding the remaining
-budget. The Cost Governor does not enforce hard caps on `deduct` (that's the
-`check` gate's job). If `check` wasn't called before `deduct`, overspend is
-possible.
-
-**Check:**
-```bash
-python3 aidlc-scripts/factory_budget.py status <run-id> | grep -A5 used
-python3 aidlc-scripts/factory_budget.py status <run-id> | grep tokens_max
-```
-
-**Fix:** None needed for display — negative remaining just indicates overspend.
-To reset, re-initialize the budget via `factory_budget.py init <run-id>`.
-
 ### Parallel reviewers complete but merge fails
 
 **Symptom:** `factory_merge_reviews.py` exits with error after all 4 reviewers

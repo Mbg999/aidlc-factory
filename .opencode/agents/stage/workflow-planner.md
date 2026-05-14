@@ -45,9 +45,7 @@ Follow `aidlc-rules/aws-aidlc-rule-details/inception/workflow-planning.md` and
 Steps:
 1. Load predecessor artifacts: requirements doc, (optional) stories, (if brownfield) reverse-engineering artifacts.
 2. Decide phases + depth (minimal/standard/comprehensive) — match to requirements depth.
-   - **If input contains `depth_override`** (set by the Cost Governor): use
-     that value instead. Log to `audit_entries[]`:
-     `[CostGov] Depth overridden to <value> by Cost Governor (budget gate)`.
+   - **If input contains `depth_override`**: use that value instead.
 3. Identify multi-package change boundaries if any (front-end + back-end + infra).
 4. Generate a **Mermaid diagram** of the workflow. Validate syntax (Mermaid live editor rules — no unescaped special chars, fences ` ```mermaid `).
 5. Decompose into tasks (the `planning-and-task-breakdown` skill governs depth):

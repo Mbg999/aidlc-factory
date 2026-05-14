@@ -1,46 +1,23 @@
-# AIDLC Orchestrator — Default Budgets
-# Used by the Cost Governor (Phase 2). Phase 0/1 do not enforce these
-# but agents may include them in input contracts as advisory hints.
-
-run:
-  tokens_max: 5_000_000
-  wall_clock_max_min: 240
+# AIDLC Orchestrator — Per-Stage Model Assignments
+# Read by factory_model.py to set model_override per stage.
+# Set AIDLC_DEFAULT_MODEL=default to skip model_override entirely.
 
 concurrency:
-  max_parallel: 4   # locked decision (ORCHESTRATOR-PLAN.md §10 row 4)
+  max_parallel: 4
 
 per_stage:
   # Models are Claude Code shorthand (sonnet/opus/haiku).
-  # For other tools, you can place the models you want there, or set AIDLC_DEFAULT_MODEL=default to skip model_override.
-  workspace-scout:        { tokens: 50_000,  wall_min: 5,  retries: 1, model: "sonnet" }
-  reverse-engineer:       { tokens: 600_000, wall_min: 30, retries: 2, model: "sonnet" }
-  requirements-analyst:   { tokens: 800_000, wall_min: 30, retries: 2, model: "opus" }
-  story-writer:           { tokens: 300_000, wall_min: 15, retries: 1, model: "sonnet" }
-  workflow-planner:       { tokens: 600_000, wall_min: 25, retries: 2, model: "opus" }
-  unit-decomposer:        { tokens: 150_000, wall_min: 20, retries: 1, model: "sonnet" }
-  code-generator:         { tokens: 500_000, wall_min: 30, retries: 2, model: "opus" }
-  build-test-agent:       { tokens: 300_000, wall_min: 20, retries: 3, model: "sonnet" }
-  reviewer-code:          { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
-  reviewer-security:      { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
-  reviewer-performance:   { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
-  reviewer-simplifier:    { tokens: 200_000, wall_min: 15, retries: 1, model: "sonnet" }
-  ship-agent:             { tokens: 300_000, wall_min: 20, retries: 1, model: "sonnet" }
-
-  # Default for custom/user-defined agents. Override by adding explicit entries
-  # for specific custom agent names.
-  custom-agent:           { tokens: 300_000, wall_min: 20, retries: 1, model: "sonnet" }
-
-adaptive_depth:
-  threshold_pct_remaining: 30
-  downshift_order:
-    - "comprehensive→standard"
-    - "standard→minimal"
-    - "skip-optional"     # User Stories, Application Design, Units Generation
-
-# Complexity tier caps — set by factory_complexity.py after requirements-analyst.
-# When manifest.complexity_tier is present, factory_budget.py uses these caps
-# instead of run.tokens_max. LARGE = same as run defaults (no regression).
-complexity_tiers:
-  SMALL:  { tokens_max: 500_000,   wall_clock_max_min: 30  }
-  MEDIUM: { tokens_max: 1_500_000, wall_clock_max_min: 90  }
-  LARGE:  { tokens_max: 5_000_000, wall_clock_max_min: 240 }
+  workspace-scout:        { model: "sonnet" }
+  reverse-engineer:       { model: "sonnet" }
+  requirements-analyst:   { model: "opus" }
+  story-writer:           { model: "sonnet" }
+  workflow-planner:       { model: "opus" }
+  unit-decomposer:        { model: "sonnet" }
+  code-generator:         { model: "opus" }
+  build-test-agent:       { model: "sonnet" }
+  reviewer-code:          { model: "sonnet" }
+  reviewer-security:      { model: "sonnet" }
+  reviewer-performance:   { model: "sonnet" }
+  reviewer-simplifier:    { model: "sonnet" }
+  ship-agent:             { model: "sonnet" }
+  custom-agent:           { model: "sonnet" }

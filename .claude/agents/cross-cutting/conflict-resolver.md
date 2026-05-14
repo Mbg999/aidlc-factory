@@ -108,7 +108,6 @@ For each layer of independent units (computed by topo-sort on `depends_on`):
                    or [f"src/{unit}/**", f"tests/{unit}/**"]   # default
 
 2. Sequential pre-flight per unit (CHEAP — do all before any spawn):
-     - factory_budget.py check         (skip/halt if needed)
      - factory_conflict.py acquire     (drop unit from layer if path_collision
                                         with another unit IN THIS LAYER)
      - factory_conflict.py snapshot    (Python files only)
@@ -122,8 +121,7 @@ For each layer of independent units (computed by topo-sort on `depends_on`):
 
 4. Sequential post-spawn per returned unit:
      - validate output handoff
-     - factory_conflict.py check-symbols     (interface drift?)
-     - factory_budget.py deduct
+      - factory_conflict.py check-symbols     (interface drift?)
      - knowledge save (mem_save per emitted_knowledge entry)
      - audit append
      - factory_conflict.py release           (always release, even on conflict)

@@ -13,7 +13,7 @@ For `/factory-spec <description>`. Pass `--tier=small` to skip triage.
 run_id = YYYY-MM-DD-<slug>  # first 3-4 words, hyphenated
 mkdir -p .aidlc-orchestrator/runs/<run-id>/handoffs
 ```
-Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: workspace-scout, completed_stages: []}`. Then `factory_budget.py init <run-id>` (idempotent).
+Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: workspace-scout, completed_stages: []}`.
 
 ## Step 2 — Resolve skill paths (once per run)
 Find each required SKILL.md: `.agents/custom-skills/<name>/SKILL.md` → `.agents/skills/<name>/SKILL.md` → `~/.agents/skills/<name>/SKILL.md`. Store in `manifest.skill_paths:`. Log `[Skill] MISSING: <name>` if not found (uses inline fallback).
@@ -25,10 +25,10 @@ PRIORITY: P2
 Execute `stage/workspace-scout.md` inline (no `Task()`). Follow the
 [post-execution loop](spawn-loop.md) for bookkeeping.
 
-Pre-execution (steps 0-2): emit `spawn_start`, run budget gate, knowledge query.
+Pre-execution (steps 0-1): emit `spawn_start`, knowledge query.
 Then execute stage instructions directly — no handoff file, no contract validation.
 After execution: lightweight validation (see [`validation.md`](validation.md)),
-context compaction (see [`compaction.md`](compaction.md)), budget deduct, audit
+context compaction (see [`compaction.md`](compaction.md)), audit
 append, state update, auto-commit, `spawn_end`, complete-stage, halt-check.
 
 Stage-specific knobs:
@@ -52,7 +52,7 @@ Execute `stage/requirements-analyst.md` inline (no `Task()`). Follow the
 
 **Two-pass**: both passes execute inline. Pass 1 emits answers → surface → user responds → Pass 2.
 
-Pre-execution (steps 0-2): emit `spawn_start`, run budget gate, knowledge query.
+Pre-execution (steps 0-1): emit `spawn_start`, knowledge query.
 Then execute inline. After each pass: lightweight validation, context compaction.
 On user answers (between passes): call `emit_audit_block` per [`audit-block.protocol.md` § user_answers_received](../contracts/audit-block.protocol.md).
 
@@ -66,11 +66,11 @@ Stage-specific knobs:
 
 ## Step 4.5 — Complexity Routing Gate (once per run, after Pass 2)
 
-Assign tier (SMALL/MEDIUM/LARGE) and write routing into manifest + budget.
+Assign tier (SMALL/MEDIUM/LARGE) and write routing into manifest.
 
-1. `factory_complexity.py <run-id> --apply` (writes tier + token cap; on failure default to LARGE).
+1. `factory_complexity.py <run-id> --apply` (on failure default to LARGE).
 2. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only).
-3. `emit_audit_block` with tier rationale, skip list, reviewer pool, token cap.
+3. `emit_audit_block` with tier rationale, skip list, reviewer pool.
 
 **Skip enforcement**: for each skipped stage, `emit_audit_block --evt stage_skipped` → append to `manifest.skipped_stages[]` → continue. Do NOT spawn.
 

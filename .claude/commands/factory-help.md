@@ -11,7 +11,7 @@ There are **two ways** to use AI-DLC. Pick whichever fits your task:
 |---|---|---|
 | **Trigger** | `"Using AI-DLC, <request>"` in chat | `/factory-spec "<request>"` |
 | **Flow** | Single agent, role-switches per stage | Dedicated subagents per stage |
-| **When to use** | Small features, quick edits, non-Claude tools | Complex features, budget caps, parallel review, crash recovery |
+| **When to use** | Small features, quick edits, non-Claude tools | Complex features, parallel review, crash recovery |
 
 ---
 
@@ -77,8 +77,7 @@ skips all stages and goes directly to code-generator:
 | `/factory-build <run-id>` | After plan is approved | Generates code + runs tests in parallel |
 | `/factory-review <run-id>` | After build completes | 4 reviewers analyze code in parallel |
 | `/factory-ship <run-id>` | After review passes | Release notes, ADRs, changelog |
-| `/factory-state <run-id>` | Check progress anytime | Shows current stage, next step, budget, timeline |
-| `/factory-budget [help]` | Configure or check budget | Cost Governor settings, trends, model routing |
+| `/factory-state <run-id>` | Check progress anytime | Shows current stage, next step, timeline |
 | `/factory-resume <run-id>` | Run crashed mid-flight | Picks up from the last completed stage |
 | `/factory-replay <run-id> --from <stage>` | Stage produced wrong output | Rolls back and re-runs from that stage |
 | `/factory-self "<task>"` | Improve the orchestrator itself | Runs pipeline against orchestrator's own code |
@@ -91,9 +90,6 @@ skips all stages and goes directly to code-generator:
 ```bash
 # Visual timeline of what ran and how long it took
 python3 aidlc-scripts/factory_run.py graph <run-id>
-
-# Token and wall-clock usage
-python3 aidlc-scripts/factory_budget.py status <run-id>
 
 # Approval gate delays
 python3 aidlc-scripts/factory_run.py status <run-id> --latency
@@ -111,7 +107,6 @@ python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 | Run crashed or you closed the session | `/factory-resume <run-id>` |
 | A stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
 | An agent crashed and left stale locks | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Budget exhausted mid-run | Edit `budgets/default.yaml` and re-init: `factory_budget.py init <run-id>` |
 | Need to know what happened | `python3 aidlc-scripts/factory_run.py timeline <run-id> --follow` |
 
 ---
@@ -126,8 +121,8 @@ python3 aidlc-scripts/factory_agent_discover.py list
 python3 aidlc-scripts/factory_agent_discover.py show lint-audit
 ```
 
-Custom agents use generic contracts and flow through the Cost Governor
-(300K tokens / sonnet by default). See `README.md` for details.
+Custom agents use generic contracts and default to `sonnet` model.
+See `README.md` for details.
 
 ---
 

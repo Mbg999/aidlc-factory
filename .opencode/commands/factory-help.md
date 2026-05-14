@@ -11,7 +11,7 @@ There are **two ways** to use AI-DLC:
 |---|---|---|
 | **Trigger** | `"Using AI-DLC, <request>"` in chat | `/factory-spec "<request>"` |
 | **Flow** | Single agent, role-switches per stage | Dedicated subagents per stage |
-| **When to use** | Small features, quick edits | Complex features, budget caps, parallel review |
+| **When to use** | Small features, quick edits | Complex features, parallel review |
 
 ---
 
@@ -61,8 +61,7 @@ Trivial requests skip all stages:
 | `/factory-build <run-id>` | Parallel code-gen + build-test |
 | `/factory-review <run-id>` | 4 parallel reviewers |
 | `/factory-ship <run-id>` | Release notes, ADRs, changelog |
-| `/factory-state <run-id>` | Current stage, next step, budget |
-| `/factory-budget [help]` | Configure Cost Governor |
+| `/factory-state <run-id>` | Current stage, next step |
 | `/factory-resume <run-id>` | Resume crashed run |
 | `/factory-replay <run-id> --from <stage>` | Re-run from a stage |
 | `/factory-self "<task>"` | Run on own codebase |
@@ -74,7 +73,6 @@ Trivial requests skip all stages:
 
 ```bash
 python3 aidlc-scripts/factory_run.py graph <run-id>
-python3 aidlc-scripts/factory_budget.py status <run-id>
 python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 ```
 

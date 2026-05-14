@@ -123,7 +123,7 @@ Final stage: release notes, ADRs, CHANGELOG update, CI/CD wiring suggestions.
 | Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
 | Stale locks from dead agent | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
 | Need to see what happened | `python3 aidlc-scripts/factory_run.py graph <run-id>` |
-| Budget was too tight | Edit `.aidlc-orchestrator/budgets/default.yaml` and re-init: `python3 aidlc-scripts/factory_budget.py init <run-id>` |
+| Model assignment wrong | Edit `.aidlc-orchestrator/budgets/default.yaml` per-stage `model` fields |
 
 If a stage returns `needs_human`, the orchestrator pauses and presents a
 structured approval prompt:

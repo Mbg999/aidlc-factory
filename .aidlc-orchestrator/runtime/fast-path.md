@@ -2,7 +2,7 @@
 
 PRIORITY: P3
 
-Runs when the Phase 0 Triage Gate returns TINY (score 0–1). Bypasses **ALL** shared primitives — no manifest.yaml, no timeline.jsonl, no audit.md blocks (except one flat line), no budget gate, no lock registry, no knowledge saves, no reviewer pool, no ship stage. The git commit IS the audit trail.
+Runs when the Phase 0 Triage Gate returns TINY (score 0–1). Bypasses **ALL** shared primitives — no manifest.yaml, no timeline.jsonl, no audit.md blocks (except one flat line), no lock registry, no knowledge saves, no reviewer pool, no ship stage. The git commit IS the audit trail.
 
 ## Execution
 
@@ -50,7 +50,7 @@ Runs when the Phase 0 Triage Gate returns TINY (score 0–1). Bypasses **ALL** s
 - No ADRs (ship stage skipped).
 - No build-test-agent stage (code-generator runs tests inline via TDD).
 - No conflict-resolver locks (single spawn, nothing to conflict with).
-- No budget gate (no orchestrator-level tracking; code-generator self-monitors).
+- No orchestartor-level tracking; code-generator self-monitors.
 
 ## Bailout paths
 

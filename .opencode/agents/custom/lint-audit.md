@@ -52,5 +52,5 @@ audit_entries:
 ## Notes
 
 - Read-only agent — never modify files
-- The orchestrator calls `factory_budget.py deduct` after you return
+- The orchestrator handles audit entries after you return
 - Always log what you checked even if zero violations found

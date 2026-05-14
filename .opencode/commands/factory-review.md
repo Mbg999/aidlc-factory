@@ -12,17 +12,13 @@ Adopt the role from @.opencode/agents/orchestrator.md and execute the
 
 Sequence:
 1. Read `manifest.yaml`. Refuse if construction isn't complete.
-2. **Sequential pre-flight gates** for each of [reviewer-code, reviewer-security,
-   reviewer-performance, reviewer-simplifier]:
-   `python3 aidlc-scripts/factory_budget.py check <run-id> reviewer-<x>`. Compute
-   the active set; halt if any returns exit 3, drop from set if any returns 2.
-3. **Sequential knowledge queries** per active reviewer; build per-reviewer
+2. **Sequential knowledge queries** per active reviewer; build per-reviewer
    input handoff under `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-<x>.input.yaml`
    with reviewer-specific tags and top-5 priors injected into `context_pointers[]`.
    Validate each input against `reviewer.input.v1.json`.
 4. **Parallel spawn** — emit ONE message containing all N (≤4) `Task()` calls.
    This is what makes Phase 4 different from Phase 1.
-5. **Sequential post-processing** per reviewer: validate output → budget deduct →
+5. **Sequential post-processing** per reviewer: validate output →
    knowledge save → audit append.
 6. **Merge**:
    ```bash

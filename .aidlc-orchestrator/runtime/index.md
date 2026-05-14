@@ -54,7 +54,6 @@ run_id: YYYY-MM-DD-<slug>; started_at: <ISO8601>; user_request: "<verbatim>"
 current_stage: <stage>; completed_stages: []; project_slug: <repo-slug>
 project_profile: {ui: bool, api: bool, has_legacy: bool}
 skill_paths: {<name>: <resolved path>}
-budget_remaining: {tokens: N, wall_clock_min: N}
 ```
 
 ## §4 Runtime file index
@@ -75,7 +74,6 @@ budget_remaining: {tokens: N, wall_clock_min: N}
 | `run-manager.md` | P3 | Run Manager reference |
 | `conflict-resolver.md` | P3 | Conflict Resolver reference |
 | `knowledge-agent.md` | P3 | Knowledge Agent reference |
-| `cost-governor.md` | P3 | Cost Governor reference |
 | `custom-subagents.md` | P3 | Custom subagents reference |
 | `validation.md` | P3 | Lightweight validation rules |
 | `compaction.md` | P3 | Context compaction rules |

@@ -71,15 +71,14 @@
 
 ## Complexity tiers
 
-Defined in `budgets/default.yaml` under `complexity_tiers`. Each tier caps
-tokens and wall-clock minutes, sets skip/merge routing, and defines the
-reviewer pool:
+Tiers (SMALL/MEDIUM/LARGE) set by `factory_complexity.py` control skip/merge
+routing and the reviewer pool. Defined in `shared/complexity-tier.schema.json`.
 
-| Tier | Max tokens | Max wall (min) | Skip stages | Reviewer pool |
-|------|-----------|----------------|-------------|---------------|
-| SMALL | 500K | 30 | story-writer, unit-decomposer | code only |
-| MEDIUM | 1.5M | 90 | story-writer | code, security, simplifier |
-| LARGE | 5M | 240 | (none) | all 4 reviewers |
+| Tier | Skip stages | Reviewer pool |
+|------|-------------|---------------|
+| SMALL | story-writer, unit-decomposer | code only |
+| MEDIUM | story-writer | code, security, simplifier |
+| LARGE | (none) | all 4 reviewers |
 
 ---
 
