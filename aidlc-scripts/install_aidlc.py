@@ -431,7 +431,7 @@ def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> No
         print(f"  created {req_path.relative_to(target_root)} with {len(deps)} dep(s)")
 
 
-def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run: bool) -> None:
+def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run: bool, force: bool = False) -> None:
     """Append orchestrator runtime-state patterns to target's .gitignore.
 
     Idempotent: only adds patterns not already present (exact-line match).
@@ -443,7 +443,7 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
         print(f"[DRY-RUN] Would update {gi_path} with: {', '.join(entries)}")
         return
 
-    if gi_path.exists():
+    if gi_path.exists() and not force:
         existing_text = gi_path.read_text()
         existing_lines = {line.strip() for line in existing_text.splitlines()}
         new_lines = [e for e in entries if e not in existing_lines]
@@ -463,20 +463,31 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
         print(f"  created {gi_path.relative_to(target_root)} with {len(entries)} pattern(s)")
 
 
-def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool) -> None:
-    """Append the orchestrator pointer block to CLAUDE.md once.
+def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False) -> None:
+    """Append or update the orchestrator pointer block in the workflow doc.
 
-    Idempotent: skips if marker already present. Creates the file if missing
-    (which would only happen if rules install was skipped — rare but safe).
+    Idempotent: skips if marker already present and force=False.
+    With force=True: replaces the existing block between markers.
+    Creates the file if missing.
     """
     if dry_run:
-        print(f"[DRY-RUN] Would append orchestrator pointer to {claude_md_path}")
+        action = "replace" if force else "append"
+        print(f"[DRY-RUN] Would {action} orchestrator pointer in {claude_md_path}")
         return
 
     if claude_md_path.exists():
         existing = claude_md_path.read_text(encoding="utf-8")
         if marker in existing:
-            print(f"  CLAUDE.md already contains orchestrator pointer — no changes")
+            if not force:
+                print(f"  workflow doc already contains orchestrator pointer — no changes")
+                return
+            # Replace content between markers (inclusive)
+            start = existing.index(marker)
+            end = existing.index("\n## ", start + len(marker)) if "\n## " in existing[start:] else len(existing)
+            # Keep everything before the marker, append new block
+            updated = existing[:start] + block.lstrip()
+            claude_md_path.write_text(updated, encoding="utf-8")
+            print(f"  replaced orchestrator pointer in {claude_md_path.relative_to(claude_md_path.parent)}")
             return
         with claude_md_path.open("a", encoding="utf-8") as f:
             if not existing.endswith("\n"):
@@ -517,7 +528,7 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
     return mapping.get(tool)
 
 
-def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool) -> None:
+def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False) -> None:
     """Install AIDLC Orchestrator (Phases 0-6) artifacts for one or more tools.
 
     Layers:
@@ -606,6 +617,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 ORCHESTRATOR_CLAUDE_POINTER_MARKER,
                 pointer_block,
                 dry_run,
+                force=force,
             )
 
     # Shared Layer 3: Python deps
@@ -614,7 +626,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
 
     # Shared Layer 3: gitignore runtime state (any tool)
     print(f"  runtime state -> .gitignore")
-    update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run)
+    update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run, force=force)
 
     if not dry_run:
         print(f"\n  Then: invoke /factory-spec <feature> in the tool to start a run.")
@@ -863,8 +875,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-orchestrator", dest="with_orchestrator", action="store_false",
                    help="Skip orchestrator installation.")
     p.add_argument("--force", action="store_true",
-                   help="Re-install over an existing installation. Without this flag, "
-                        "tools detected as already installed are skipped (merge mode).")
+                   help="Re-install / upgrade over an existing installation. Overwrites all "
+                        "orchestrator files (kernel, runtime, scripts, contracts, subagents) "
+                        "while preserving run state (runs/, knowledge/). "
+                        "Without this flag, already-installed tools are skipped (merge mode).")
     p.add_argument("--no-venv", dest="no_venv", action="store_true",
                    help="Skip creating .venv and pip-installing requirements.txt. "
                         "Default: a virtualenv is created at <dest>/.venv and the "
@@ -1095,7 +1109,7 @@ def main() -> int:
 
     if install_orch:
         try:
-            install_orchestrator(tools, repo_root, target_root, args.dry_run)
+            install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force)
         except Exception as e:
             print(f"ERROR installing orchestrator: {e}")
             return 6

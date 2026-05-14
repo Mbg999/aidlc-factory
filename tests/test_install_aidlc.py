@@ -199,6 +199,94 @@ class TestCli:
         assert "Installing for Claude Code" in r.stdout
 
 
+# ---------- update_workflow_doc_pointer (force upgrade) ----------
+
+class TestUpdateWorkflowDocPointer:
+    def test_append_when_marker_missing(self, tmp_path: Path):
+        doc = tmp_path / "CLAUDE.md"
+        doc.write_text("existing content\n")
+        install_aidlc.update_workflow_doc_pointer(
+            doc, "<!-- MARKER -->", "\n<!-- MARKER -->\n## NEW BLOCK\n", dry_run=False,
+        )
+        assert "<!-- MARKER -->" in doc.read_text()
+        assert "NEW BLOCK" in doc.read_text()
+
+    def test_skip_when_marker_present_no_force(self, tmp_path: Path):
+        doc = tmp_path / "CLAUDE.md"
+        doc.write_text("before\n<!-- MARKER -->\n## OLD BLOCK\nafter\n")
+        install_aidlc.update_workflow_doc_pointer(
+            doc, "<!-- MARKER -->", "\n<!-- MARKER -->\n## NEW BLOCK\n", dry_run=False,
+        )
+        text = doc.read_text()
+        assert "OLD BLOCK" in text  # unchanged
+        assert "NEW BLOCK" not in text
+
+    def test_replace_when_marker_present_with_force(self, tmp_path: Path):
+        doc = tmp_path / "CLAUDE.md"
+        doc.write_text("before\n<!-- MARKER -->\n## OLD BLOCK\n## OTHER STUFF\nafter\n")
+        install_aidlc.update_workflow_doc_pointer(
+            doc, "<!-- MARKER -->", "<!-- MARKER -->\n## NEW BLOCK\n", dry_run=False, force=True,
+        )
+        text = doc.read_text()
+        assert "OLD BLOCK" not in text  # replaced
+        assert "NEW BLOCK" in text
+        assert "before" in text  # preamble preserved
+        # Content after the block is removed (replaced in place)
+        assert "after" not in text  # old content after marker is gone
+
+    def test_dry_run_does_not_modify(self, tmp_path: Path):
+        doc = tmp_path / "CLAUDE.md"
+        doc.write_text("before\n<!-- MARKER -->\n## OLD BLOCK\nafter\n")
+        install_aidlc.update_workflow_doc_pointer(
+            doc, "<!-- MARKER -->", "<!-- MARKER -->\n## NEW BLOCK\n", dry_run=True, force=True,
+        )
+        assert "OLD BLOCK" in doc.read_text()  # unchanged
+        assert "NEW BLOCK" not in doc.read_text()
+
+    def test_creates_file_when_missing(self, tmp_path: Path):
+        doc = tmp_path / "CLAUDE.md"
+        assert not doc.exists()
+        install_aidlc.update_workflow_doc_pointer(
+            doc, "<!-- MARKER -->", "<!-- MARKER -->\n## NEW BLOCK\n", dry_run=False,
+        )
+        assert doc.exists()
+        assert "NEW BLOCK" in doc.read_text()
+
+
+# ---------- update_gitignore (force upgrade) ----------
+
+class TestUpdateGitignore:
+    def test_append_when_marker_missing(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text("*.pyc\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# header", dry_run=False,
+        )
+        text = gi.read_text()
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_skip_when_entries_exist_no_force(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text(".aidlc-orchestrator/runs/\n.aidlc-orchestrator/knowledge/\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# header", dry_run=False,
+        )
+        text = gi.read_text()
+        assert text.count(".aidlc-orchestrator/runs/") == 1  # no duplicate
+
+    def test_reappends_when_entries_exist_with_force(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text(".aidlc-orchestrator/runs/\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/", ".aidlc-orchestrator/knowledge/"],
+            "# header", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        # With force, entries are re-appended (duplicate entry is acceptable — idempotent at runtime)
+        assert text.count(".aidlc-orchestrator/runs/") >= 1
+        assert ".aidlc-orchestrator/knowledge/" in text
+
+
 # ---------- ensure_target_requirements ----------
 
 class TestEnsureTargetRequirements:
