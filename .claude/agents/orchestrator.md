@@ -109,11 +109,9 @@ Engram-backed persistent memory (MCP, NOT Task()). Full spec: [`cross-cutting/kn
 
 For `/factory-spec <description>`. Pass `--tier=small` to skip triage.
 
-### Step 0 — Triage Gate
+### Step 0 — Triage Gate (LLM-only)
 
-`python3 aidlc-scripts/factory_triage.py prefilter "<request>"`. Exit codes:
-- **0** (TINY) → FAST_PATH. Skip all remaining Phase 0 steps.
-- **10** (UNKNOWN) → `factory_triage.py prompt "<request>"` → classify as LLM → `factory_triage.py apply <classification.json>` → exit code 1=SMALL, 2=MEDIUM, 3=LARGE.
+`factory_triage.py prompt "<request>"` → classify as LLM → `factory_triage.py apply <classification.json>`. Exit codes: 0=TINY (FAST_PATH), 1=SMALL, 2=MEDIUM, 3=LARGE.
 
 ### Step 1 — Init run dir + budget
 ```
