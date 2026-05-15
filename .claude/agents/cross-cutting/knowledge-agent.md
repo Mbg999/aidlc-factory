@@ -153,6 +153,36 @@ construct the query with multiple `scope` parameters or use the engram
 search's project parameter directly. This is a deliberate operator choice,
 not a default.
 
+## CodeGraph enrichment (Phase 8)
+
+When `.codegraph/codegraph.db` is present AND a stage emits a `pattern`
+or `adr` knowledge entry, the orchestrator enriches it before calling `mem_save`:
+
+1. **Anchor to source** — call `codegraph_node <primary_symbol>` where
+   `<primary_symbol>` is extracted from the `related_artifacts[]` list
+   (first `.py/.ts/.go/.rs` file → infer the primary export from the artifact name).
+   Append the canonical source snippet to the entry's `body` under a
+   `**Source (at emit time):**` heading.
+
+2. **Caller context** — call `codegraph_callers <primary_symbol>` and append
+   `caller_count: <N>` to the entry body as `**Caller count at emit time:** <N>`.
+   This makes future recall of the pattern weight proportionally to its usage.
+
+3. **ADR symbol links** — for `kind: adr`, append to `related_artifacts[]` the
+   codegraph node IDs of the primary symbols referenced in the ADR body.
+   Format: `codegraph://node/<id>`.
+
+**When to skip enrichment:**
+- `kind: antipattern` or `kind: lesson` — these describe failure shapes, not
+  live code; anchoring to a symbol that may get deleted is noise.
+- CodeGraph absent → skip silently.
+- `codegraph_node` returns `not_found` → skip silently; the entry is still saved.
+
+Log enrichment in `audit_entries[]` as:
+```
+[Knowledge] CodeGraph enriched <kind>: <title> — node: <id>, callers: <N>
+```
+
 ## Failure mode
 
 If engram is unavailable (MCP server down, plugin uninstalled), the

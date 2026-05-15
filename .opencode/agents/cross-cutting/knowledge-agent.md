@@ -152,6 +152,26 @@ construct the query with multiple `scope` parameters or use the engram
 search's project parameter directly. This is a deliberate operator choice,
 not a default.
 
+## CodeGraph enrichment (Phase 8)
+
+When `.codegraph/codegraph.db` is present AND a stage emits a `pattern`
+or `adr` knowledge entry, the orchestrator enriches it before calling `mem_save`:
+
+1. **Anchor to source** — call `codegraph_node <primary_symbol>` (derived from
+   `related_artifacts[]` first source file → primary export name).
+   Append canonical source snippet to `body` under `**Source (at emit time):**`.
+
+2. **Caller context** — call `codegraph_callers <primary_symbol>` and append
+   `**Caller count at emit time:** <N>` to the entry body.
+
+3. **ADR symbol links** — for `kind: adr`, append codegraph node IDs to
+   `related_artifacts[]` as `codegraph://node/<id>`.
+
+**Skip enrichment when:** `kind` is `antipattern` or `lesson`; CodeGraph absent;
+`codegraph_node` returns `not_found`.
+
+Log: `[Knowledge] CodeGraph enriched <kind>: <title> — node: <id>, callers: <N>`
+
 ## Failure mode
 
 If engram is unavailable (MCP server down, plugin uninstalled), the

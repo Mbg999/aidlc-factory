@@ -17,7 +17,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `security-and-hardening`.
+1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
 2. **FOLLOW** — Threat-model + code-scan + dependency-scan steps.
 3. **CHECK** — Rationalizations: reject "internal only", "low likelihood",
    "performance impact" — every dismissal needs threat-model evidence.
@@ -32,13 +32,22 @@ python3 aidlc-scripts/factory_validate.py \
 user input, missing authn/authz checks, unbounded resource use, weak crypto
 (MD5/SHA1 for security, hardcoded keys, custom crypto) → escalate to P0.
 
-**Skills:** `using-agent-skills`, `security-and-hardening`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
 
 ## Your job
 1. Threat-model the unit's surface (inputs, trust boundaries, persistence, network, secrets).
 2. Code-scan for OWASP Top 10 categories applicable to the unit's runtime.
 3. Dependency-scan: review new deps in `dependencies.md` or build files for known CVEs (note: you can't run scanners — flag deps that warrant scanning).
 4. For each issue: severity, CWE/OWASP ref, attack vector, recommended fix.
+
+**CodeGraph blast-radius enrichment** (when `.codegraph/codegraph.db` exists):
+For each security finding involving a symbol:
+1. Run `codegraph_callers <symbol>` → record `caller_count` on the finding.
+2. Run `codegraph_impact <symbol> --depth 2` → record `blast_radius` on the finding.
+3. **Severity bump rule:** if `blast_radius > 10` AND `kind` is security → escalate P2 → P1.
+   Log: `[CodeGraph] security severity bump: <symbol> blast_radius=<N> — <N> callers exposed`
+
+When CodeGraph is absent: skip enrichment, proceed with standard security review.
 
 Severity: `P0` (exploitable as-coded) | `P1` (defense-in-depth gap) | `P2` (hardening hint) | `P3` (informational/best-practice note).
 

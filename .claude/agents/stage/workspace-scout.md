@@ -46,10 +46,10 @@ If exit ≠ 0: STOP. Return `failed <input-path>` to the orchestrator and exit.
 during execution, set output `status: needs_human` and copy the red flag
 text into `audit_entries[]` prefixed `[RedFlag] <skill-name>:`.
 
-**Note for this stage:** Workspace Scout requires only the implicit
-`using-agent-skills`. No Define/Build skills apply (workspace detection is
-observation, not specification). Your `skill_compliance[]` will have a single
-entry for `using-agent-skills` showing you followed the protocol.
+**Note for this stage:** Workspace Scout loads `using-agent-skills` and
+`codegraph-aware-exploration`. No Define/Build skills apply (workspace detection
+is observation, not specification). Your `skill_compliance[]` will have entries
+for `using-agent-skills` and `codegraph-aware-exploration`.
 
 ## Your job
 Follow the rule file:
@@ -118,6 +118,37 @@ Emit one audit entry:
 ```
 
 If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
+
+### Step 2.6 — CodeGraph awareness
+
+Check for an existing CodeGraph index:
+```bash
+test -f .codegraph/codegraph.db && echo "indexed" || echo "not-indexed"
+```
+
+**If indexed:**
+```bash
+codegraph status --json 2>/dev/null
+```
+Parse the JSON output and populate `workspace_state.codegraph_state`:
+- `indexed: true`
+- `nodes: <node_count from status>`
+- `files: <file_count from status>`
+- `backend: "native" | "wasm"` (from status; default `"native"` if absent)
+
+Emit:
+```
+[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm
+```
+If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native install recommended`.
+
+**If NOT indexed AND `project_type == brownfield`:**
+- Emit: `[Suggest] codegraph init -i would reduce reverse-engineer token usage by ~90% on this brownfield project`
+- Surface suggestion to user in the workspace_state completion message (orchestrator will relay).
+- Set `codegraph_state: { indexed: false }` in `workspace_state`.
+
+**If NOT indexed AND `project_type == greenfield`:**
+- Set `codegraph_state: { indexed: false }` in `workspace_state`. No suggestion needed.
 
 ### Step 3 — Determine next phase
 - Empty workspace → `project_type: greenfield`, `next_phase: requirements-analysis`

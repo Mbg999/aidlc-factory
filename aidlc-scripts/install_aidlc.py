@@ -330,6 +330,8 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     # Hallucination prevention stack (Piece 3 + Piece 4)
     "factory_autoskills.py",      # fetch+verify community skills from skill-sources.yaml
     "factory_skill_drift.py",     # detect skills whose version range lags behind latest stable
+    # CodeGraph integration (optional — installed when --with-codegraph is set)
+    "factory_codegraph.py",       # install/init/index/status CLI helper for CodeGraph
 ]
 
 # Root-level config files installed once alongside the orchestrator.
@@ -373,6 +375,7 @@ ORCHESTRATOR_PYTHON_DEPS = [
 ORCHESTRATOR_GITIGNORE_ENTRIES = [
     ".aidlc-orchestrator/runs/",
     ".aidlc-orchestrator/knowledge/",
+    ".codegraph/",  # CodeGraph index — rebuilt locally, no git history value
 ]
 ORCHESTRATOR_GITIGNORE_HEADER = "# AIDLC orchestrator runtime state"
 
@@ -913,6 +916,118 @@ def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path
 
 
 
+CODEGRAPH_NPM_PACKAGE = "@colbymchenry/codegraph"
+CODEGRAPH_NODE_MIN = 18
+
+CODEGRAPH_MCP_CONFIG = {
+    "mcpServers": {
+        "codegraph": {
+            "command": "codegraph",
+            "args": ["mcp"],
+            "env": {}
+        }
+    }
+}
+
+# Allowlist of CodeGraph MCP tools that stage subagents may call.
+# Note: codegraph_context and codegraph_explore are EXCLUDED from the
+# orchestrator's main session — they return large source sections.
+CODEGRAPH_SAFE_ORCHESTRATOR_TOOLS = [
+    "codegraph_search",
+    "codegraph_node",
+    "codegraph_files",
+    "codegraph_status",
+]
+
+
+def _check_node_version(min_major: int) -> tuple[bool, str]:
+    """Return (ok, version_string). ok=False when node < min_major or not found."""
+    try:
+        result = subprocess.run(
+            ["node", "--version"], capture_output=True, text=True, timeout=10
+        )
+        version_str = result.stdout.strip()  # e.g. "v20.11.0"
+        major = int(version_str.lstrip("v").split(".")[0])
+        return major >= min_major, version_str
+    except (FileNotFoundError, ValueError, subprocess.TimeoutExpired):
+        return False, "not found"
+
+
+def install_codegraph(target_root: Path, dry_run: bool) -> None:
+    """Install CodeGraph globally via npm and write .mcp.json to target_root.
+
+    Steps:
+      1. Check Node >= 18.
+      2. npm install -g @colbymchenry/codegraph.
+      3. Write project-local .mcp.json with the codegraph MCP server entry.
+         Merges into existing .mcp.json if present.
+
+    Raises RuntimeError if Node < 18 or npm install fails.
+    """
+    import json
+
+    print("\n--- Installing CodeGraph (@colbymchenry/codegraph) ---")
+
+    # Step 1: Node version check
+    ok, version_str = _check_node_version(CODEGRAPH_NODE_MIN)
+    if not ok:
+        raise RuntimeError(
+            f"CodeGraph requires Node >= {CODEGRAPH_NODE_MIN}. "
+            f"Detected: {version_str}. Install Node {CODEGRAPH_NODE_MIN}+ and retry."
+        )
+    print(f"  Node: {version_str} (>= {CODEGRAPH_NODE_MIN}) — OK")
+
+    # Step 2: npm install -g
+    if dry_run:
+        print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
+    else:
+        print(f"  Installing {CODEGRAPH_NPM_PACKAGE} globally via npm...")
+        result = subprocess.run(
+            ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE],
+            capture_output=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"npm install -g {CODEGRAPH_NPM_PACKAGE} failed (exit {result.returncode}). "
+                "Check npm permissions or use --prefix for a local install."
+            )
+        # Verify the install
+        ver_result = subprocess.run(
+            ["codegraph", "--version"], capture_output=True, text=True, timeout=15
+        )
+        cg_version = ver_result.stdout.strip() if ver_result.returncode == 0 else "unknown"
+        print(f"  codegraph: {cg_version}")
+
+    # Step 3: Write .mcp.json
+    mcp_path = target_root / ".mcp.json"
+    if dry_run:
+        print(f"[DRY-RUN] Would write/merge CodeGraph MCP entry into {mcp_path}")
+        return
+
+    if mcp_path.exists():
+        try:
+            existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+    else:
+        existing = {}
+
+    existing.setdefault("mcpServers", {})
+    if "codegraph" in existing["mcpServers"]:
+        print(f"  .mcp.json already has 'codegraph' MCP entry — skipping merge")
+    else:
+        existing["mcpServers"]["codegraph"] = CODEGRAPH_MCP_CONFIG["mcpServers"]["codegraph"]
+        mcp_path.write_text(
+            json.dumps(existing, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"  .mcp.json — added 'codegraph' MCP server entry")
+
+    print("\n  CodeGraph installed. Next steps:")
+    print(f"    cd {target_root}")
+    print("    codegraph init -i   # index your project (first-time, ~30s–4min)")
+    print("    codegraph status    # verify the index is live")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
     p.add_argument("--tool", required=False,
@@ -943,6 +1058,10 @@ def parse_args() -> argparse.Namespace:
                    help="Skip creating .venv and pip-installing requirements.txt. "
                         "Default: a virtualenv is created at <dest>/.venv and the "
                         "target's requirements.txt is installed into it.")
+    p.add_argument("--with-codegraph", action="store_true", default=False,
+                   help="Install CodeGraph (@colbymchenry/codegraph via npm) and write the "
+                        "project-local .mcp.json MCP server config. Requires Node >= 18. "
+                        "Default: off — CodeGraph is opt-in.")
     return p.parse_args()
 
 
@@ -1177,6 +1296,14 @@ def main() -> int:
             return 6
     else:
         print("\nSkipped AIDLC orchestrator installation.")
+
+    # --- CodeGraph (optional, --with-codegraph) ---
+    if args.with_codegraph:
+        try:
+            install_codegraph(target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing CodeGraph: {e}")
+            print("  CodeGraph is optional — AIDLC will degrade gracefully without it.")
 
     # --- Python venv + dependencies ---
     if args.no_venv:

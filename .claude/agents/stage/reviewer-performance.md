@@ -17,7 +17,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `performance-optimization`.
+1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`.
 2. **FOLLOW** — Hot-path + complexity + allocation review.
 3. **CHECK** — Rationalizations: reject "good enough at current scale" without
    a documented current scale.
@@ -31,12 +31,22 @@ unbounded retries, and quadratic loops on user input are NOT premature.
 **Red Flags:** N+1 queries, unbounded loops on external input, synchronous
 I/O on hot paths, allocations inside loops, retry storms without backoff.
 
-**Skills:** `using-agent-skills`, `performance-optimization`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`.
 
 ## Your job
 1. Identify the hot paths from the unit's contract (inputs/outputs and public API).
 2. For each hot path: complexity analysis (time + space), allocation patterns, I/O patterns.
 3. For each issue: severity, location, expected impact at expected scale, recommendation.
+
+**CodeGraph hot-path tracing** (when `.codegraph/codegraph.db` exists):
+For each hot path:
+1. Run `codegraph_callees <entry_point>` to trace the full call chain depth.
+   This surfaces hidden I/O, hidden allocations, and accidental recursion.
+2. Run `codegraph_callers <bottleneck_symbol>` to confirm how many code paths
+   feed through the bottleneck — `caller_count` becomes `expected_impact_scale`.
+3. Log: `[CodeGraph] hot-path: <symbol> → <depth> callees, <callers_count> callers`
+
+When CodeGraph is absent: trace hot paths via Grep + Read.
 
 Severity: `P0` (will fail SLO at expected load) | `P1` (degrades at peak) | `P2` (cleanup) | `P3` (info/micro-opt).
 

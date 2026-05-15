@@ -19,19 +19,28 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `code-review-and-quality`.
+1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `code-review-and-quality`.
 2. **FOLLOW** — Five-axis review process.
 3. **CHECK** — Rationalizations: reject "it works, ship it", "we'll refactor later".
 4. **VERIFY** — Concrete findings: each with `file:line`, severity, axis, recommendation.
 5. **LOG** — `skill_compliance[]` rows.
 6. **BLOCK** — fail → `status: blocked`.
 
-**Skills:** `using-agent-skills`, `code-review-and-quality`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `code-review-and-quality`.
 
 ## Your job
 For each source file in the predecessor artifacts (code-generator output):
 - Apply the five-axis review.
 - Produce structured findings.
+
+**CodeGraph blast-radius enrichment** (when `.codegraph/codegraph.db` exists):
+For each finding involving a symbol:
+1. Run `codegraph_callers <symbol>` → record `caller_count` on the finding.
+2. Run `codegraph_impact <symbol> --depth 2` → record `blast_radius` on the finding.
+3. **Severity bump rule:** if `blast_radius > 10` AND `kind` is correctness → escalate P2 → P1.
+   Log: `[CodeGraph] severity bump: <symbol> blast_radius=<N> → P2→P1`
+
+When CodeGraph is absent: skip enrichment, proceed with standard review.
 
 Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to have) | `P3` (style/nit/info).
 

@@ -418,3 +418,95 @@ class TestVenvCli:
         # dry-run should mention the venv path without actually creating it
         assert "Would create venv" in r.stdout or "[DRY-RUN] Would create venv" in r.stdout
         assert not (tmp_path / ".venv").exists()
+
+
+# ---------- CodeGraph integration ----------
+
+class TestCodeGraphIntegration:
+    """CodeGraph integration files and installer constants."""
+
+    def test_factory_codegraph_in_scripts(self):
+        assert "factory_codegraph.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+
+    def test_factory_codegraph_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_codegraph.py").exists()
+
+    def test_codegraph_skill_exists(self):
+        skill_md = (
+            REPO_ROOT / ".agents" / "custom-skills"
+            / "codegraph-aware-exploration" / "SKILL.md"
+        )
+        assert skill_md.exists(), f"codegraph-aware-exploration skill not found at {skill_md}"
+
+    def test_codegraph_skill_has_valid_frontmatter(self):
+        skill_md = (
+            REPO_ROOT / ".agents" / "custom-skills"
+            / "codegraph-aware-exploration" / "SKILL.md"
+        )
+        text = skill_md.read_text()
+        assert text.startswith("---"), "SKILL.md must start with frontmatter"
+        assert "name: codegraph-aware-exploration" in text
+        assert "description:" in text
+
+    def test_codegraph_gitignore_entry(self):
+        assert ".codegraph/" in install_aidlc.ORCHESTRATOR_GITIGNORE_ENTRIES
+
+    def test_workspace_scout_contract_has_codegraph_state(self):
+        import json
+        contract_path = (
+            REPO_ROOT / ".aidlc-orchestrator" / "contracts"
+            / "workspace-scout.output.v1.json"
+        )
+        schema = json.loads(contract_path.read_text())
+        ws = schema["properties"]["workspace_state"]["properties"]
+        assert "codegraph_state" in ws, "codegraph_state missing from workspace_state schema"
+        cg = ws["codegraph_state"]["properties"]
+        assert "indexed" in cg
+        assert "nodes" in cg
+        assert "files" in cg
+        assert "backend" in cg
+
+    def test_codegraph_dry_run_flag_accepted(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--with-codegraph", "--dry-run",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        # Dry-run should mention codegraph install without actually running npm
+        assert "CodeGraph" in r.stdout or "codegraph" in r.stdout.lower()
+
+    def test_orchestrator_md_has_codegraph_section(self):
+        orchestrator_md = REPO_ROOT / ".claude" / "agents" / "orchestrator.md"
+        text = orchestrator_md.read_text()
+        assert "CodeGraph contextualization" in text
+        assert "codegraph_context" in text
+        assert "MUST NOT" in text  # main-session restriction
+
+    def test_reverse_engineer_loads_codegraph_skill(self):
+        re_md = REPO_ROOT / ".claude" / "agents" / "stage" / "reverse-engineer.md"
+        text = re_md.read_text()
+        assert "codegraph-aware-exploration" in text
+
+    def test_code_generator_has_preflight(self):
+        cg_md = REPO_ROOT / ".claude" / "agents" / "stage" / "code-generator.md"
+        text = cg_md.read_text()
+        assert "Pre-flight" in text
+        assert "codegraph_impact" in text
+        assert "blast-radius" in text.lower() or "blast_radius" in text
+
+    def test_build_test_agent_has_affected_step(self):
+        bt_md = REPO_ROOT / ".claude" / "agents" / "stage" / "build-test-agent.md"
+        text = bt_md.read_text()
+        assert "Affected test detection" in text
+        assert "codegraph affected" in text
+
+    def test_all_reviewers_load_codegraph_skill(self):
+        reviewer_dir = REPO_ROOT / ".claude" / "agents" / "stage"
+        for name in ("reviewer-code", "reviewer-security", "reviewer-performance", "reviewer-simplifier"):
+            md = reviewer_dir / f"{name}.md"
+            text = md.read_text()
+            assert "codegraph-aware-exploration" in text, (
+                f"{name}.md does not load codegraph-aware-exploration"
+            )

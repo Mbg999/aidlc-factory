@@ -96,6 +96,17 @@
             "additionalProperties": false
           },
           "default": []
+        },
+        "codegraph_state": {
+          "type": "object",
+          "description": "CodeGraph index state. Present when .codegraph/ directory exists in the workspace.",
+          "properties": {
+            "indexed": { "type": "boolean" },
+            "nodes": { "type": "integer", "minimum": 0 },
+            "files": { "type": "integer", "minimum": 0 },
+            "backend": { "type": "string", "enum": ["native", "wasm"] }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

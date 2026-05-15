@@ -66,6 +66,22 @@ Estimated: <N> tokens, <N> min
 - Never invent skill names — log `[Skill] MISSING` and use inline fallback.
 - `needs_human` pauses the run. Surface, wait, do NOT proceed.
 
+## CodeGraph contextualization
+
+If `.codegraph/codegraph.db` exists in the workspace:
+
+- Stage agents MUST load the `codegraph-aware-exploration` skill before any grep/glob/Read.
+- The orchestrator (this agent) may call `codegraph_search`, `codegraph_node`,
+  `codegraph_files`, `codegraph_status` directly for routing decisions.
+- The orchestrator MUST NOT call `codegraph_context` or `codegraph_explore` —
+  these return large source sections and saturate the main context. Delegate to
+  a stage subagent.
+- Workspace-scout reports `workspace_state.codegraph_state.{indexed, nodes, files, backend}`.
+
+If `.codegraph/codegraph.db` does NOT exist on a brownfield workspace:
+- Workspace-scout surfaces a one-line suggestion to run `codegraph init -i`.
+- The user opts in. The orchestrator MUST NOT auto-init without explicit consent.
+
 ## Reference
 - Plan: [`ORCHESTRATOR-PLAN.md`](ORCHESTRATOR-PLAN.md).
 - Stage agents: `.opencode/agents/stage/<name>.md`.

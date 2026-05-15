@@ -52,10 +52,10 @@ If exit ≠ 0: STOP. Return `failed <input-path>` to the orchestrator and exit.
 during execution, set output `status: needs_human` and copy the red flag
 text into `audit_entries[]` prefixed `[RedFlag] <skill-name>:`.
 
-**Note for this stage:** Workspace Scout requires only the implicit
-`using-agent-skills`. No Define/Build skills apply (workspace detection is
-observation, not specification). Your `skill_compliance[]` will have a single
-entry for `using-agent-skills` showing you followed the protocol.
+**Note for this stage:** Workspace Scout loads `using-agent-skills` and
+`codegraph-aware-exploration`. No Define/Build skills apply (workspace detection
+is observation, not specification). Your `skill_compliance[]` will have entries
+for `using-agent-skills` and `codegraph-aware-exploration`.
 
 ## Your job
 Follow the rule file:
@@ -77,6 +77,50 @@ Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
 avoid token blow-up.
+
+### Step 2.5 — Parse manifest/lockfiles for tech_stack
+
+After detecting build/manifest files, parse them to populate `workspace_state.tech_stack[]`.
+This enables lockfile-aware skill activation in downstream agents.
+
+**npm** — `package.json` `dependencies` + `devDependencies`:
+Record `ecosystem: npm` entries for: `next`, `react`, `vue`, `svelte`, `bun`, `vite`, `@angular/core`, `nuxt`, `astro`, `remix`.
+
+**Python** — `pyproject.toml` or `requirements.txt`:
+Record `ecosystem: pip` entries.
+
+**Rust** — `Cargo.toml` `[dependencies]`: Record `ecosystem: cargo` entries.
+
+**Go** — `go.mod` `require` block: Record `ecosystem: go` entries.
+
+**Version normalization**: strip `^`, `~`, `>=`, `~=` prefix → pinned baseline version.
+
+Emit: `[Stack] tech_stack: <N> packages detected (next@15.1.0, react@18.3.0, …)`
+If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
+
+### Step 2.6 — CodeGraph awareness
+
+Check for an existing CodeGraph index:
+```bash
+test -f .codegraph/codegraph.db && echo "indexed" || echo "not-indexed"
+```
+
+**If indexed:**
+```bash
+codegraph status --json 2>/dev/null
+```
+Parse the JSON output and populate `workspace_state.codegraph_state`:
+- `indexed: true`, `nodes: <N>`, `files: <N>`, `backend: "native" | "wasm"`
+
+Emit: `[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm`
+If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native install recommended`.
+
+**If NOT indexed AND `project_type == brownfield`:**
+Emit: `[Suggest] codegraph init -i would reduce reverse-engineer token usage by ~90% on this brownfield project`
+Set `codegraph_state: { indexed: false }` in `workspace_state`.
+
+**If NOT indexed AND `project_type == greenfield`:**
+Set `codegraph_state: { indexed: false }` in `workspace_state`.
 
 ### Step 3 — Determine next phase
 - Empty workspace → `project_type: greenfield`, `next_phase: requirements-analysis`

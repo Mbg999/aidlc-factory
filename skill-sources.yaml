@@ -1,0 +1,72 @@
+# skill-sources.yaml — External skill registry for autoskills adapter
+#
+# Usage:
+#   python3 aidlc-scripts/factory_autoskills.py            # install/update all
+#   python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview only
+#   python3 aidlc-scripts/factory_autoskills.py --skill nextjs-15
+#
+# Format per entry:
+#   name:       unique slug (becomes the directory name under .agents/skills/)
+#   url:        raw URL to the skill's SKILL.md file
+#   sha256:     expected SHA-256 hex digest of the file at `url` (pin for integrity)
+#   applies_to: used by lockfile-aware activation in code-generator and build-test-agent
+#     framework: npm package name / pip package name / cargo crate name
+#     version:   semver range (node-semver syntax)
+#
+# To add a skill:
+#   1. Add an entry below with url + sha256 (get sha256 via: curl -sL <url> | sha256sum)
+#   2. Run: python3 aidlc-scripts/factory_autoskills.py --skill <name>
+#   3. Commit the updated skill-sources.yaml and the installed skill file
+
+sources:
+
+  # Next.js 15 — app router, server components, turbopack
+  # Maintained by: vercel-labs / autoskills community
+  # Uncomment and fill sha256 when you have a real upstream URL:
+  # - name: nextjs-15
+  #   url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/nextjs-15/SKILL.md
+  #   sha256: ""   # run: curl -sL <url> | shasum -a 256
+  #   applies_to:
+  #     framework: next
+  #     version: ">=15.0.0 <16.0.0"
+
+  # Next.js 14 — app router stable
+  # - name: nextjs-14
+  #   url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/nextjs-14/SKILL.md
+  #   sha256: ""
+  #   applies_to:
+  #     framework: next
+  #     version: ">=14.0.0 <15.0.0"
+
+  # Bun runtime + Bun.serve
+  # - name: bun
+  #   url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/bun/SKILL.md
+  #   sha256: ""
+  #   applies_to:
+  #     framework: bun
+  #     version: ">=1.0.0"
+
+  # Vue 3 — composition API, Pinia, Vite
+  # - name: vue3
+  #   url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/vue3/SKILL.md
+  #   sha256: ""
+  #   applies_to:
+  #     framework: vue
+  #     version: ">=3.0.0 <4.0.0"
+
+  # FastAPI — async Python web framework
+  # - name: fastapi
+  #   url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/fastapi/SKILL.md
+  #   sha256: ""
+  #   applies_to:
+  #     framework: fastapi
+  #     version: ">=0.100.0"
+
+  # Placeholder so the file parses correctly with an empty sources list
+  # Remove this when you add real entries above.
+  - name: _placeholder
+    url: ""
+    sha256: ""
+    applies_to:
+      framework: _none
+      version: ">=0.0.0"

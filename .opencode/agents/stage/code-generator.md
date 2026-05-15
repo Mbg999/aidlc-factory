@@ -49,9 +49,20 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `incremental-implementation`,
-`test-driven-development`, `source-driven-development`,
-`frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
+`incremental-implementation`, `test-driven-development`, `source-driven-development`,
+`validator-retry`, `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+
+**Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
+or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
+that declares `applies_to` frontmatter, only load it if:
+  1. `applies_to.framework` matches a `package` in `tech_stack[]`, AND
+  2. the skill's `applies_to.version` semver range covers the pinned `version` in `tech_stack[]`.
+Skills with no `applies_to` are universal — always load them. Log each decision with `[Skills]` prefix.
+
+**`environment-detection` runs FIRST** — before any code that requires a runtime, package manager,
+or build tool. Check `command -v <tool>` for every dependency; USE the existing installation when
+compatible. Log `[Env]` entries to `audit_entries[]` before any install command runs.
 
 ## Your job
 Follow these rule files in order:
@@ -79,10 +90,37 @@ block before the first task. Emit `status: needs_human` with
 code are presented together for a single approval gate.
 
 ### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
+
+#### Pre-flight (CodeGraph — when `.codegraph/codegraph.db` exists)
+
+Before the first Red/Green/Refactor task, run the CodeGraph pre-flight:
+
+1. **Duplicate check** — `codegraph_search` for symbols matching the task description.
+   Note existing symbols that implement the same logic in `audit_entries[]` as
+   `[Impact] duplicate candidate: <symbol> at <file:line> — confirm intent before generating`.
+
+2. **Blast-radius check** — for each existing symbol the task will modify:
+   `codegraph_impact <symbol> --depth 2`
+   Log: `[Impact] <symbol> → <callers_count> callers, <callees_count> callees`
+
+3. **Gate** — if `callers_count > 20` for any symbol being modified:
+   Set `status: needs_human` with reason:
+   `"high-blast-radius edit: <symbol> has <N> callers — needs human approval before proceeding"`
+   HALT. Do not write code until re-spawned with approval.
+
+When CodeGraph is absent: skip pre-flight, proceed directly to Red step.
+
+#### TDD loop
+
 For each plan task (top to bottom):
 1. **Red** — write a failing test
 2. **Green** — minimum code to pass
-   3. **Refactor** — clean up, keep green
+3. **Refactor** — clean up, keep green
+4. **Validate** — follow `validator-retry` skill Process:
+   - Run detected static validators (tsc, pyright, cargo check, go vet, eslint)
+   - On errors: feed `errors_text` back as context, retry up to 3 times
+   - On persistent failure after 3 retries: set `status: blocked` and HALT
+   - On clean: emit `[Validator] clean` and continue to next task
    Mark `[x]` in the plan file in the SAME interaction. Do NOT run `git commit`.
    Orchestrator commits after user approval gate.
 

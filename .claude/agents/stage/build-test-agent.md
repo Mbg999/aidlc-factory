@@ -30,7 +30,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. Load a skill
@@ -50,7 +50,20 @@ For the unit specified in input:
    - Run detected validators (tsc, pyright, cargo check, go vet, eslint)
    - On errors: feed `errors_text` back, retry up to 3 times
    - On persistent failure: set `status: blocked`. Do NOT proceed to tests.
-   - On clean: emit `[Validator] clean` and proceed to tests.
+   - On clean: emit `[Validator] clean` and proceed to affected-test detection.
+
+3.5. **Affected test detection** (CodeGraph — when `.codegraph/codegraph.db` exists):
+   ```bash
+   AFFECTED=$(git diff --name-only HEAD~1 2>/dev/null | codegraph affected --stdin --quiet 2>/dev/null)
+   ```
+   - If `AFFECTED` is non-empty: run ONLY affected tests. Pass the affected list to the
+     test runner (Vitest `--reporter=json`, pytest `-k`, go test `./...` filtered,
+     cargo test `--test <name>`). Emit:
+     `[CodeGraph] tests_filtered: <N_affected>/<N_total> — running impacted subset only`
+   - If `AFFECTED` is empty OR codegraph not installed: fall back to full suite.
+     Emit: `[CodeGraph] no affected tests detected — running full suite`
+   - Never fail the build because `codegraph affected` is unavailable.
+
 4. Run tests → capture pass/fail counts, coverage if measured.
 5. On test failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
 6. Produce:

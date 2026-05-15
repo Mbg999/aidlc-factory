@@ -43,9 +43,9 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `environment-detection`, `incremental-implementation`,
-`test-driven-development`, `source-driven-development`, `validator-retry`,
-`frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
+`incremental-implementation`, `test-driven-development`, `source-driven-development`,
+`validator-retry`, `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
@@ -87,6 +87,30 @@ block before the first task. Emit `status: needs_human` with
 code are presented together for a single approval gate.
 
 ### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
+
+#### Pre-flight (CodeGraph — when `.codegraph/codegraph.db` exists)
+
+Before the first Red/Green/Refactor task, run the CodeGraph pre-flight:
+
+1. **Duplicate check** — `codegraph_search` for symbols matching the task description.
+   If existing symbols implement the same logic: note them in `audit_entries[]` as
+   `[Impact] duplicate candidate: <symbol> at <file:line> — confirm intent before generating`.
+
+2. **Blast-radius check** — for each existing symbol the task will modify:
+   ```
+   codegraph_impact <symbol> --depth 2
+   ```
+   Log: `[Impact] <symbol> → <callers_count> callers, <callees_count> callees`
+
+3. **Gate** — if `callers_count > 20` for any symbol being modified:
+   Set `status: needs_human` with reason:
+   `"high-blast-radius edit: <symbol> has <N> callers — needs human approval before proceeding"`
+   HALT. Do not write code until re-spawned with approval.
+
+When CodeGraph is absent: skip pre-flight, proceed directly to Red step.
+
+#### TDD loop
+
 For each plan task (top to bottom):
 1. **Red** — write a failing test
 2. **Green** — minimum code to pass
