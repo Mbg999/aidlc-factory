@@ -18,15 +18,22 @@ Before proceeding to Step 1, verify:
 ## Agent Skills (MANDATORY — per stage-conventions.md protocol)
 **You MUST load and follow these skills. Skipping is a workflow violation.**
 
+- `environment-detection/SKILL.md` — Detect-before-install discipline for language runtimes / package managers / build tools. **Key process**: `command -v <tool>` → use existing if compatible → prefer fast version managers (nvm / asdf / mise) → brew is last resort. Avoids 180s timeouts from source-built `brew install`. **Runs FIRST**, before any `npm install` / `pip install` / `brew install`.
 - `debugging-and-error-recovery/SKILL.md` — Scientific debugging for build/test failures. **Key process**: reproduce → localize → reduce → fix → guard. Stop-the-line rule.
 - `browser-testing-with-devtools/SKILL.md` *(UI projects only)* — DevTools visual/network/console testing. **Key process**: verify with live runtime data, not assumptions.
 - `test-driven-development/SKILL.md` — Test pyramid 80/15/5, mutation testing, coverage thresholds. **Key process**: verify tests actually catch bugs (mutation), not just pass.
 
 **Inline fallback** (if SKILL.md files not installed):
-1. Run build — if fails, use 5-step triage: reproduce, localize, reduce, fix, guard
-2. Run tests — coverage must meet thresholds (80% unit, 15% integration, 5% e2e)
-3. For UI: verify in browser with DevTools (DOM, console, network)
-4. Every fix must include a regression test that would have caught the bug
+1. **Environment first**: run `command -v <tool>` and `<tool> --version` for every runtime named in the unit spec.
+   1a. Read project pin files BEFORE picking a version: `.tool-versions` (asdf/mise), `.nvmrc` / `.node-version` (Node), `.python-version` (Python), `package.json` `engines.node`, `pyproject.toml` `requires-python`. The project pin wins.
+   1b. If detected AND version satisfies pin → USE existing. Stop.
+   1c. If detected but wrong version → use a version manager to SWITCH: `nvm use <ver>`, `asdf local <tool> <ver>`, `pyenv local <ver>`, `mise use <tool>@<ver>`. Source the init script first when needed (`. ~/.nvm/nvm.sh`, `. ~/.asdf/asdf.sh`).
+   1d. If missing → use the version manager to INSTALL (`nvm install <ver>`, `asdf install <tool> <ver>`, `pyenv install --skip-existing <ver>`). These are idempotent and pull pre-built binaries.
+   1e. ONLY if no version manager is available, fall back to `brew install` (macOS), `apt-get install -y` (Debian/Ubuntu), `dnf install -y` (Fedora). NEVER `brew install` something that's already on `$PATH`.
+2. Run build — if fails, use 5-step triage: reproduce, localize, reduce, fix, guard
+3. Run tests — coverage must meet thresholds (80% unit, 15% integration, 5% e2e)
+4. For UI: verify in browser with DevTools (DOM, console, network)
+5. Every fix must include a regression test that would have caught the bug
 
 ---
 

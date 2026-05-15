@@ -43,9 +43,11 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `incremental-implementation`,
+**Skills:** `using-agent-skills`, `environment-detection`, `incremental-implementation`,
 `test-driven-development`, `source-driven-development`,
 `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+
+**`environment-detection` runs FIRST** — before any code that requires a runtime, package manager, or build tool. Check `command -v <tool>` for every dependency named in the unit spec; USE the existing installation when compatible. Avoid `brew install` unless no version manager is present (it compiles from source by default and is the largest avoidable cost). Log `[Env]` entries to `audit_entries[]` before any install command runs.
 
 ## Your job
 Follow these rule files in order:

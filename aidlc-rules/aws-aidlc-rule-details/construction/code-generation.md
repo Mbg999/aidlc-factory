@@ -14,6 +14,7 @@ Generate code per unit in two parts:
 ## Agent Skills (MANDATORY — per stage-conventions.md protocol)
 **You MUST load and follow these skills. Skipping is a workflow violation.**
 
+- `environment-detection/SKILL.md` — Detect-before-install discipline for language runtimes and package managers. **Key process**: `command -v <tool>` → USE existing if compatible → prefer fast version managers (nvm / asdf / mise) over brew. **Runs FIRST**, before any install command. Avoids 180s `brew install` source-build timeouts when the tool is already on `$PATH`.
 - `incremental-implementation/SKILL.md` — Thin vertical slices: implement → test → verify → commit. **Key process**: one slice at a time, verify before moving to next.
 - `test-driven-development/SKILL.md` — Red-Green-Refactor; test pyramid 80/15/5. **Key process**: write failing test FIRST, then implement, then refactor.
 - `frontend-ui-engineering/SKILL.md` *(UI projects only)* — Component architecture, WCAG 2.1 AA. **Key process**: design system tokens, accessibility from the start.

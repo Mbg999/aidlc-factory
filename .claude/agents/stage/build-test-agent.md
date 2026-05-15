@@ -30,7 +30,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `test-driven-development`, `debugging-and-error-recovery`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `browser-testing-with-devtools*`.
+
+**`environment-detection` runs FIRST** — before any `npm install` / `pip install` / `brew install` / equivalent. The skill enforces detect-before-install: check `command -v <tool>` and `<tool> --version` for every required runtime, USE the existing installation when version is compatible, prefer fast version managers (nvm / asdf / mise / pyenv) when not, and treat brew as a last resort. Source-built brew installs are the single largest avoidable cost in this stage and have caused 180s timeouts on `brew install node@20` when node was already on `$PATH` via nvm. Log every detection result to `audit_entries[]` with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
 
 ## Your job
 Follow `aidlc-rules/aws-aidlc-rule-details/construction/build-and-test.md`.
