@@ -125,12 +125,29 @@ Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/requirements-analyst.output
 It MUST validate against:
 `.aidlc-orchestrator/contracts/requirements-analyst.output.v1.json`
 
-Then validate:
+Then validate against the **envelope schema**:
 ```bash
 python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/requirements-analyst.output.v1.json \
     <output-handoff-path>
 ```
+
+Then validate the **artifact content** (axis-tag coverage, MCQ format, coverage-map claim integrity). Resolve the mode from the feature flag first:
+```bash
+MODE=$(python3 aidlc-scripts/factory_features.py is-set content_validator_strict && echo strict || echo warn)
+python3 aidlc-scripts/factory_content_validate.py --mode "$MODE" requirements <output-handoff-path>
+```
+Mode is `warn` by default (issues print, exit 0 — soft launch). Flip to
+`strict` by setting `features.content_validator_strict: true` in
+`.aidlc-orchestrator/budgets/default.yaml` OR exporting
+`AIDLC_FEATURE_CONTENT_VALIDATOR_STRICT=true` for a one-off run.
+
+If content validation fails in strict mode, set output `status: blocked` and
+re-emit with an `audit_entries[]` row prefixed `[ContentValidator]` describing
+the failure. Common failure modes:
+- Coverage-map claim with no matching `<!-- axis: X -->` tag in questions file.
+- Question missing `[Answer]:` tag or `X) Other` option.
+- Pass 2 requirements.md suspiciously short (likely empty spec).
 
 Return ONE line: `<status> <output-handoff-path>`
 

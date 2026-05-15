@@ -17,9 +17,10 @@
   - `design-questions.md`
 
 #### Question Structure
-Each question: meaningful options + "Other" as last option.
+Each question: axis tag (HTML comment) + meaningful options + "Other" as last option.
 
 ```markdown
+<!-- axis: Purpose -->
 ## Question [Number]
 [Clear, specific question text]
 
@@ -32,9 +33,11 @@ X) Other (please describe after [Answer]: tag below)
 ```
 
 **CRITICAL**:
+- **Axis tag MANDATORY** — every `## Question` must be preceded by `<!-- axis: <AxisName> -->`. Allowed axis names: `Purpose`, `Needs`, `Limits`, `Expectations`, `Context`, `Risks`, `Acceptance`, `Unknowns` (see `.agents/custom-skills/requirements-intelligence/coverage-map.md`). Multi-axis questions (assumption-mining): comma-separated, e.g. `<!-- axis: Needs, Limits, Context -->`.
 - "Other" MANDATORY as the LAST option
 - Only meaningful options — don't invent choices
 - Use as many as needed (minimum 2 + Other)
+- The axis tag is what `aidlc-scripts/factory_content_validate.py requirements` reads to verify coverage-map claims. Untagged questions are invisible to the validator and will cause coverage-map claims to fail.
 
 ### Complete Example
 ```markdown

@@ -4,9 +4,9 @@ PRIORITY: P2
 
 For `/factory-spec <description>`. Pass `--tier=small` to skip triage.
 
-## Step 0 — Triage Gate (LLM-only)
+## Step 0 — Fast-Path Prefilter (regex, zero token cost)
 
-`factory_triage.py prompt "<request>"` → classify as LLM → `factory_triage.py apply <classification.json>`. Exit codes: 0=TINY (FAST_PATH), 1=SMALL, 2=MEDIUM, 3=LARGE.
+`factory_triage.py --prefilter "<request>"`. Exit `0` = trivial → FAST_PATH per [`fast-path.md`](fast-path.md); exit `10` = proceed with normal flow. **Do NOT make an LLM classification call here** — `requirements-analyst` classifies with full context in Step 4 (its `request_classification` block) and `factory_complexity.py` derives concrete routing decisions from that in Step 4.5. Pre-LLM triage is wasted tokens; the prefilter catches the only case where pre-stage routing pays for itself (truly trivial work that should bypass the whole orchestrator).
 
 ## Step 1 — Init run dir + budget
 ```
@@ -64,20 +64,20 @@ Stage-specific knobs:
   2. `Stage Progress`: mark `[x] Requirements Analysis — <ISO date>`.
   3. `Extension Configuration` table (upsert per current iteration): parse the answered questions file for `^## Question: (.+) Extension$` headings. Map answer letter → enabled value via the option text: `A → Yes`; `B`/`C` → `Partial` if option text contains "Partial"/"only", else `No`; anything else → `Unknown` (and log warning). Upsert into `## Extension Configuration` table with `Decided At = Current iteration: Requirements Analysis (Answer <letter>) — run_id <run-id>`. Create the table with 3-column shape (`| Extension | Enabled | Decided At |`) if absent. Log `[Orchestrator] Extension Configuration upserted: <ext>=<val>` per row.
 
-## Step 4.5 — Complexity Routing Gate (once per run, after Pass 2)
+## Step 4.5 — Stage-Routing Decisions (once per run, after Pass 2)
 
-Assign tier (SMALL/MEDIUM/LARGE) and write routing into manifest.
+Derive concrete pipeline decisions from `request_classification` + `project_profile`. The abstract tier label is an implementation detail — what matters downstream is `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
 
-1. `factory_complexity.py <run-id> --apply` (on failure default to LARGE).
-2. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only).
-3. `emit_audit_block` with tier rationale, skip list, reviewer pool.
+1. `factory_complexity.py <run-id> --apply` (on failure default to "run everything": empty skip list, full reviewer pool).
+2. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only). `complexity_tier` is persisted for telemetry but is not the user-facing artifact.
+3. `emit_audit_block` with skip list + reviewer pool + one-line rationale per decision.
 
 **Skip enforcement**: for each skipped stage, `emit_audit_block --evt stage_skipped` → append to `manifest.skipped_stages[]` → continue. Do NOT spawn.
 
-**SMALL merged gate**: if `merge_codegen_gate`, set `merged_plan_generate: true` in code-generator input → agent skips plan-approval, outputs `sub_stage: generated`.
+**Merged codegen gate**: if `merge_codegen_gate`, set `merged_plan_generate: true` in code-generator input → agent skips plan-approval, outputs `sub_stage: generated`.
 
 ## Step 5 — Auto-commit
 `git add -A && git commit -m "<type>(<scope>): <description>"` per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
 
 ## Step 6 — Present completion
-Show: run_id, workspace_state (1 line), requirements.md path, complexity tier + skips, skill compliance table. Offer `/factory-plan <run-id>`.
+Show: run_id, workspace_state (1 line), requirements.md path, **routing decisions** (`skip_stages`, `reviewer_pool`, `merge_codegen_gate`), skill compliance table. Offer `/factory-plan <run-id>`. Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.

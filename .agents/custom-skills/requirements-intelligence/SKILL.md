@@ -124,6 +124,11 @@ Each technique outputs candidate questions tagged with the axis it covers.
 5. Write to `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`
    using the `[Answer]:` MCQ format from `aidlc-rules/aws-aidlc-rule-details/common/question-format-guide.md`.
    Every question MUST end with `X) Other (please describe after [Answer]: tag below)`.
+6. **MANDATORY axis tag.** Each `## Question` MUST be immediately preceded by an HTML comment naming the coverage axis it probes:
+   - Single-axis: `<!-- axis: Purpose -->`
+   - Multi-axis (assumption-mining): `<!-- axis: Needs, Limits, Context -->`
+   - Allowed values: `Purpose`, `Needs`, `Limits`, `Expectations`, `Context`, `Risks`, `Acceptance`, `Unknowns`.
+   The post-stage content validator (`aidlc-scripts/factory_content_validate.py requirements <handoff>`) parses these tags to verify your `[CoverageMap]` claims. Untagged questions are invisible to it; a claim with no matching tag is a FAIL in strict mode (a WARN in soft-launch mode).
 
 Emit: `[QuestionBudget] used/max: <n>/<max>`.
 

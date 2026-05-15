@@ -15,7 +15,7 @@ validate → Task() → output validate) are SKIPPED for inline sequential stage
 
 0. **Timeline event (spawn_start)**: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt spawn_start --stage <stage> --field tokens_estimate=N`
 
-1. **Knowledge query (pre-spawn)**: call `mcp__plugin_engram_engram__mem_search` with stage-derived query (see [`cross-cutting/knowledge-agent.md`](../../.claude/agents/cross-cutting/knowledge-agent.md)). Inject top-5 results (after confidence/deprecation filtering, antipattern boosting) into input handoff's `context_pointers[]` as markdown strings. Log `[Knowledge] Query <stage>: <N> priors retrieved` to audit. If engram is unavailable, leave `context_pointers[]` empty and log `[Knowledge] DEGRADED: engram unavailable`.
+1. **Knowledge query (pre-spawn)**: call `mcp__plugin_engram_engram__mem_search` TWICE — once scoped to `aidlc/<project_slug>/*` (top-5), once to `aidlc/_shared/*` (top-5) if `features.shared_corpus_injection=true`. Inject results (after confidence/deprecation filtering, antipattern boosting) into input handoff's `context_pointers[]` as markdown strings, each tagged with `scope: project` or `scope: shared`. Log `[Knowledge] Query <stage>: <N> project priors + <M> shared priors retrieved` to audit. Full namespace + lifecycle: [`runtime/knowledge-agent.md`](knowledge-agent.md). If engram is unavailable, leave `context_pointers[]` empty and log `[Knowledge] DEGRADED: engram unavailable`.
 
 2. **Model resolution**: `python3 aidlc-scripts/factory_model.py resolve <stage>`. If output is non-empty and not the tool default, add `model_override: <model>` to input handoff. If user passed `--model` on the slash command, use that instead and skip the script.
 
@@ -43,7 +43,7 @@ validate → Task() → output validate) are SKIPPED for inline sequential stage
 
 8. **Update `aidlc-docs/aidlc-state.md`**: set `Current Stage` and `Stage Progress`.
 
-9. **Auto-commit**: per `core-workflow.md` MANDATORY rule. `git add -A && git commit -m "<type>(<scope>): <description>"`.
+9. **Auto-commit — DEFERRED**: do NOT commit per-stage. Commits fire ONLY at the command boundary (`cmd-factory-*.md` final step) AFTER explicit user approval. Per-stage commits create unauthorized git history for unapproved artifacts (e.g. story-writer output committed before the user has approved the plan it feeds). See `aws-aidlc-rules/core-workflow.md` § "Auto-Commit on Approval".
 
 10. **Timeline event (spawn_end)**: `python3 aidlc-scripts/factory_run.py emit <run-id> --evt spawn_end --stage <stage> --field status=<s> --field tokens=N --field wall_min=F`
 
@@ -72,7 +72,7 @@ After inline stage execution, run these steps in order:
 5. Knowledge save
 6. Audit append
 7. State update
-8. Auto-commit
+8. ~~Auto-commit~~ **DEFERRED to command boundary** — see Step 9 in the full spawn loop above. Per-stage commits create unauthorized git history for unapproved artifacts.
 9. `spawn_end` emit
 10. State update — complete-stage/fail-stage
 11. Halt or surface

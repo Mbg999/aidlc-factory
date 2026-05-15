@@ -12,6 +12,15 @@ Adopt the role, authority rules, and Phase 0 sequence defined in
 
 Execute the Phase 0 sequence end-to-end:
 
+0. **Fast-path prefilter (regex, zero token cost)**:
+   - `python3 aidlc-scripts/factory_triage.py --prefilter "$ARGUMENTS"`.
+   - Exit `0` = truly trivial (typo, README, single-file config tweak) → route
+     to FAST_PATH per `runtime/fast-path.md` and skip the full orchestrator.
+   - Exit `10` (the typical case) = proceed with the normal flow. Do NOT make
+     an LLM classification call here — `requirements-analyst` will classify
+     with full context (workspace + request) in Step 4.
+   - Skip Step 0 only if `--tier=<value>` was passed.
+
 1. **Generate run-id** of the form `YYYY-MM-DD-<slug>` and create
    `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
 
@@ -56,13 +65,27 @@ Execute the Phase 0 sequence end-to-end:
    - Append audit entries → update state file
    - Auto-commit (`docs(requirements-analysis): complete requirements analysis`)
 
-6. **Present completion**:
-   - Show run_id, run directory path
-   - Show `workspace_state` summary (one line)
-   - Show `requirements.md` path
-   - Show skill compliance summary (PASS/FAIL/N/A per skill, both stages)
-   - Offer next step: `/factory-plan <run-id>` (wired in Phase 1; for now,
-     remind the user that Phase 0 stops here)
+5.5. **Stage-routing decisions** (post-requirements):
+   - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply` — reads
+     `request_classification` + `project_profile` and computes the actual
+     decisions: `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
+     On failure, default to "run everything" (no skips, all reviewers).
+   - `factory_run.py set <run-id>` to persist those fields into manifest.
+   - `emit_audit_block` with skip list + reviewer pool + rationale (one line
+     each — no abstract tier label needed in user-facing output).
+   - For each entry in `skip_stages`, emit `stage_skipped` and append to
+     `manifest.skipped_stages[]`. Do NOT spawn skipped stages.
+   - When `merge_codegen_gate=true`, set `merged_plan_generate: true` for the
+     downstream code-generator input handoff.
+
+6. **Present completion** — surface what was decided, not abstract labels:
+   - `run_id` + run directory path
+   - One-line `workspace_state` summary
+   - `requirements.md` path
+   - **Routing decisions**:
+     `🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>`
+   - Skill compliance summary (PASS/FAIL/N/A, both stages)
+   - Next step: `/factory-plan <run-id>`
 
 ## Hard rules (from @.claude/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.

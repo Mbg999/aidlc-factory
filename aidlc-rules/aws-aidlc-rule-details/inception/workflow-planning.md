@@ -8,12 +8,14 @@
 **You MUST load and follow these skills. Skipping is a workflow violation.**
 
 - `planning-and-task-breakdown/SKILL.md` — Decompose execution plan into small, verifiable tasks with acceptance criteria and dependency ordering. **Key process**: vertical slices, not horizontal layers; each task independently verifiable.
+- `requirements-intelligence/SKILL.md` — Plan-stage variant only. Runs the pre-mortem rubric against the produced plan artifact: where will this plan break first, which unit boundary forces a re-plan, which task has the weakest acceptance criterion. Emit ≤3 plan-risk questions appended to the approval surface (NOT a separate questions file). Skip on trivial plans (single-unit AND every task has ≥2 acceptance criteria) — emit `status: N/A` in skill_compliance with evidence `"trivial plan: skipped per SKILL.md plan-stage variant rule"`.
 
 **Inline fallback** (if SKILL.md files not installed):
 1. Slice work vertically (complete path per task, not layer-by-layer)
 2. Each task has: acceptance criteria, verification steps, dependencies
 3. Add checkpoints between phases
-4. Present plan for human review before execution
+4. Before approval: run a plan-stage pre-mortem — list where the plan is most likely to break during construction (integration boundaries, weakest acceptance criterion, riskiest unit boundary) and append ≤3 plan-risk questions to the approval surface.
+5. Present plan for human review before execution
 
 ## Step 1: Load All Prior Context
 

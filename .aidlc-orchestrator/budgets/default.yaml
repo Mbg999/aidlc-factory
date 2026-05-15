@@ -21,3 +21,25 @@ per_stage:
   reviewer-simplifier:    { model: "sonnet" }
   ship-agent:             { model: "sonnet" }
   custom-agent:           { model: "sonnet" }
+
+# Feature flags consumed by factory_features.py.
+# Override via AIDLC_FEATURE_<KEY> env var (uppercase, dashes → underscores).
+features:
+  # strict content validation. When true, factory_content_validate.py
+  # is invoked with --mode strict in stage agent verification steps; any failure
+  # blocks the stage. Default false = soft-launch warn mode.
+  content_validator_strict: false
+
+  # SLO-breach gating. When true, factory_slo_check.py runs before
+  # every stage spawn and a breach blocks the run until acknowledged via
+  # aidlc-docs/quality/slo-acks.md.
+  slo_blocking: false
+
+  # Phase 4.1 — engram pattern promotion to aidlc/_shared. Default true once
+  # patterns exist; safe to keep enabled (provenance-tracked, manually
+  # unpromotable).
+  knowledge_promotion: true
+
+  # fetch aidlc/_shared/* into context_pointers[] alongside
+  # project-scoped priors before each stage spawn.
+  shared_corpus_injection: true

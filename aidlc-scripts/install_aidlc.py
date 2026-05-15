@@ -315,6 +315,29 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_graph.py",
     "factory_agent_discover.py",
     "factory_telemetry.py",
+    # Tier-god additions (Phase 1 + 2 + 3 + 4 of TIER-GOD-PLAN.md)
+    "factory_content_validate.py",
+    "factory_lint_rules.py",
+    "factory_evidence_extract.py",
+    "factory_features.py",
+    "factory_stage_registry.py",
+    "factory_cost_estimate.py",
+    "factory_quality_report.py",
+    "factory_prompt_ab.py",
+    "factory_slo_check.py",
+    "factory_knowledge_promote.py",
+    "factory_knowledge_dashboard.py",
+]
+
+# Phase 5 — executor adapter package (tool-agnostic spawn layer).
+# Shipped to every consumer; the active adapter is picked at runtime per
+# --tool. See aidlc-scripts/executors/registry.yaml and
+# .aidlc-orchestrator/contracts/executor.v1.md.
+ORCHESTRATOR_EXECUTOR_PKG_DIR = Path("aidlc-scripts/executors")
+
+# Phase 3 — quality docs (SLO definitions).
+ORCHESTRATOR_QUALITY_DOCS = [
+    Path("aidlc-docs/quality/slos.md"),
 ]
 
 # Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning
@@ -575,6 +598,21 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
     if src_budget.exists():
         print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
         copy_file(src_budget, dst_budget, dry_run)
+
+    # Shared Layer 1: executor adapter package (Phase 5 — tool-agnostic spawn)
+    src_executors = repo_root / ORCHESTRATOR_EXECUTOR_PKG_DIR
+    dst_executors = target_root / ORCHESTRATOR_EXECUTOR_PKG_DIR
+    if src_executors.exists():
+        print(f"  executor adapters -> {dst_executors.relative_to(target_root)}/")
+        copy_tree(src_executors, dst_executors, dry_run)
+
+    # Shared Layer 1: quality docs (Phase 3 — SLO definitions)
+    for rel in ORCHESTRATOR_QUALITY_DOCS:
+        src_q = repo_root / rel
+        dst_q = target_root / rel
+        if src_q.exists():
+            print(f"  quality doc -> {dst_q.relative_to(target_root)}")
+            copy_file(src_q, dst_q, dry_run)
 
     # Per-tool Layer 2: subagents + slash commands + workflow doc pointer
     for tool in tools:
@@ -893,8 +931,10 @@ def ask_orchestrator(tools: list[str]) -> bool:
     degraded = [t for t in tools if t not in ("claude", "opencode")]
     if native and not degraded:
         msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
-               f"  Includes: 13 stage subagents, 11 /factory-* slash commands, 9 factory_*.py scripts,\n"
-               f"  20+ JSON schema contracts, default budget policy.\n"
+               f"  Includes: 13 stage subagents, 11 /factory-* slash commands, "
+               f"{len(ORCHESTRATOR_FACTORY_SCRIPTS)} factory_*.py scripts,\n"
+               f"  executor adapter package (claude-code + opencode), "
+               f"20+ JSON schema contracts, default budget policy, quality SLOs.\n"
                f"  [Y/n]: ")
     else:
         deg_label = ", ".join(degraded)

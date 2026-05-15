@@ -30,13 +30,21 @@ Follow `common/question-format-guide.md` (MCQ, `[Answer]:` tags).
 ## MANDATORY: Welcome Message
 Show once at start from `common/process-overview.md`.
 
-## MANDATORY: Auto-Commit on Approval
-**CRITICAL**: After EVERY user approval, plan approval, stage completion, or "continue"/"approve"/"go ahead", run:
+## MANDATORY: Auto-Commit on Approval ONLY
+**CRITICAL**: Commits fire ONLY after an EXPLICIT user approval signal — never on stage completion alone, never on `status: complete` from an agent.
+
+Approval signals are user messages containing: `approve`, `approved`, `go ahead`, `continue`, `next`, `lgtm`, `ship it`, `proceed`, `dale`, `sí`, or equivalent affirmative response to a `needs_human` gate. Silence or ambiguous responses are NOT approval.
+
+When (and only when) an approval signal arrives:
 ```bash
 git add -A && git commit -m "<type>(<scope>): <description>"
 ```
 Types: `docs` (plans/requirements), `feat` (code), `build` (build/test).
-Scope: stage/unit in kebab-case. If git fails, log warning and continue.
+Scope: command/stage in kebab-case (e.g. `requirements-analysis`, `workflow-planning`, `auth-unit`). If git fails, log warning and continue.
+
+**Anti-pattern to reject**: committing on `status: complete` from an intermediate stage (e.g. `docs(story-writer): create user stories and personas` fired before the user has reviewed/approved the plan that consumes those stories). The plan-stage approval gate is the commit trigger — story-writer's output rides along inside that commit.
+
+**Multi-stage commands**: `/factory-plan` may run story-writer → workflow-planner → unit-decomposer internally. ONE commit fires at command boundary after the user approves the workflow-planner plan, covering everything in the working tree.
 
 ---
 
