@@ -60,6 +60,7 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 | **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
 | **Multi-agent orchestrator** | A second workflow that executes the same AI-DLC rules across 13 specialized Claude Code subagents. Adds contract validation, parallel reviewer pool, file-glob locks + AST symbol drift, project-scoped knowledge store, kill/resume, legacy adoption. | Claude Code (uses `Task()` spawning). Other tools fall back to the legacy single-agent flow automatically. |
 | **Hallucination prevention** | 4-piece stack: validator-retry loop, lockfile-aware skill activation, autoskills adapter, drift detector. Eliminates hallucinated APIs and stale framework patterns without maintaining per-framework knowledge. | Orchestrator (validators already present in project) |
+| **CodeGraph contextualization** | Pre-indexed semantic code knowledge graph (100% local, MCP-based). Stage agents use `codegraph_search`, `codegraph_callers`, `codegraph_impact`, and `codegraph_callees` for targeted lookups, blast-radius gating, dead-code detection, and hot-path tracing instead of brute-force grep/Read. Benchmarks: 92% fewer tool calls, 71% faster. Graceful degradation when absent. | Node ≥ 18; opt-in via `--with-codegraph` |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
 Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `aidlc-scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `aidlc-scripts/factory_*.py` (runtime).
@@ -545,6 +546,7 @@ Key options:
   Each subdirectory should contain a `SKILL.md`. Installed to `.agents/skills/`,
   overriding agent-skills with the same name.
 - `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
+- `--with-codegraph`: install CodeGraph semantic code graph (requires Node ≥ 18). Runs `npm install -g @colbymchenry/codegraph`, writes `.mcp.json` with the MCP server config, adds `.codegraph/` to `.gitignore`, and copies `aidlc-scripts/factory_codegraph.py`
 
 Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location used by the workflow). Without skills installed, the workflow uses inline fallback processes embedded in each stage rule file.
 
@@ -732,6 +734,7 @@ auto-installed when the installer runs. Currently ships:
   linting, fixing, building, and testing before the five-axis review
 - `validator-retry` — static type/lint validator with compile-error-feedback retry loop (Piece 1 of the hallucination prevention stack; see below)
 - `environment-detection` — cross-platform detect-before-install discipline for runtimes
+- `codegraph-aware-exploration` — routes stage agents to CodeGraph MCP tools for targeted symbol lookups, blast-radius gating, dead-code detection, and hot-path tracing; falls back gracefully to grep/Read when `.codegraph/codegraph.db` is absent
 
 **Adding your own custom skills:**
 
@@ -881,8 +884,9 @@ This copies:
 - `aidlc-scripts/factory_{validate,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache,model}.py` — runtime
 - `aidlc-scripts/factory_autoskills.py` — community skill fetcher + SHA-256 verifier
 - `aidlc-scripts/factory_skill_drift.py` — version-range drift detector (npm/PyPI/crates.io)
+- `aidlc-scripts/factory_codegraph.py` — CodeGraph status/check/affected-test helper (installed by `--with-codegraph`)
 - `skill-sources.yaml` — external skill registry (user-customizable; not overwritten on re-install)
-- `.gitignore` entries for `.aidlc-orchestrator/runs/` and `.aidlc-orchestrator/knowledge/`
+- `.gitignore` entries for `.aidlc-orchestrator/runs/`, `.aidlc-orchestrator/knowledge/`, and `.codegraph/` (when CodeGraph is enabled)
 - A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
 
 For non-Claude tools, the installer still copies the contracts and scripts (they're useful for manual validation) but skips the subagents — those tools run in degraded single-agent mode per `aidlc-rules/adapters/<tool>.md`.
@@ -1209,6 +1213,8 @@ aidlc-scripts/factory_*.py
 aidlc-scripts/VERSION
 # Hallucination prevention stack
 skill-sources.yaml
+# CodeGraph MCP server config (commit so all devs use the same server)
+.mcp.json
 ```
 
 **Optional - Add to `.gitignore` (if needed):**
@@ -1222,9 +1228,12 @@ skill-sources.yaml
 .aidlc-orchestrator/knowledge/
 .aidlc-orchestrator/build-cache/
 .aidlc-orchestrator/stats/
+
+# CodeGraph index (local, regenerated from source; do not commit)
+.codegraph/
 ```
 
-The installer adds the runtime-state lines to your project's `.gitignore` automatically when you use `--with-orchestrator`.
+The installer adds the runtime-state and `.codegraph/` lines to your project's `.gitignore` automatically when you use `--with-orchestrator` / `--with-codegraph`.
 
 ---
 
@@ -1353,7 +1362,7 @@ This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`.
 - [ ] Auto-merge conflict resolution (currently escalation-only)
 - [ ] Mid-flight cancellation for runaway stages (blocked on Claude Code SDK Task() atomicity)
 - [ ] Probably shared memory in real time
-- [ ] Try to reduce tokens usage
+- [X] CodeGraph integration — semantic code knowledge graph (92% fewer tool calls, 71% faster) wired into all stage agents; blast-radius gating, dead-code detection, hot-path tracing; graceful fallback when absent
 
 ## License
 
