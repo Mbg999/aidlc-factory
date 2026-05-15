@@ -44,8 +44,20 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
 **Skills:** `using-agent-skills`, `environment-detection`, `incremental-implementation`,
-`test-driven-development`, `source-driven-development`,
+`test-driven-development`, `source-driven-development`, `validator-retry`,
 `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+
+**Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
+or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
+that declares `applies_to` frontmatter, only load it if:
+  1. `applies_to.framework` matches a `package` in `tech_stack[]`, AND
+  2. the skill's `applies_to.version` semver range covers the pinned `version` in `tech_stack[]`.
+Skills with no `applies_to` are universal — always load them. Log each decision:
+```
+[Skills] nextjs-15 LOADED — next@15.1.0 in range >=15.0.0 <16.0.0
+[Skills] nextjs-14 SKIPPED — next@15.1.0 outside range >=14.0.0 <15.0.0
+[Skills] environment-detection LOADED — universal (no applies_to)
+```
 
 **`environment-detection` runs FIRST** — before any code that requires a runtime, package manager, or build tool. Check `command -v <tool>` for every dependency named in the unit spec; USE the existing installation when compatible. Avoid `brew install` unless no version manager is present (it compiles from source by default and is the largest avoidable cost). Log `[Env]` entries to `audit_entries[]` before any install command runs.
 
@@ -78,7 +90,13 @@ code are presented together for a single approval gate.
 For each plan task (top to bottom):
 1. **Red** — write a failing test
 2. **Green** — minimum code to pass
-   3. **Refactor** — clean up, keep green
+3. **Refactor** — clean up, keep green
+4. **Validate** — follow `validator-retry` skill Process:
+   - Run detected static validators (tsc, pyright, cargo check, go vet, eslint)
+   - On errors: feed `errors_text` back as context, retry up to 3 times
+   - On persistent failure after 3 retries: set `status: blocked` and HALT
+   - On clean: emit `[Validator] clean` and continue to next task
+
    Mark `[x]` in the plan file in the SAME interaction. Do NOT run `git commit`.
    Orchestrator commits after user approval gate.
 

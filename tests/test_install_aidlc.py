@@ -118,6 +118,72 @@ class TestDetectInstalledTools:
         assert install_aidlc.detect_installed_tools(tmp_path) == {"claude", "opencode", "kiro"}
 
 
+# ---------- hallucination prevention stack constants ----------
+
+class TestHallucinationPreventionStack:
+    """Piece 3 + Piece 4 scripts must be registered in installer constants."""
+
+    def test_factory_autoskills_in_scripts(self):
+        assert "factory_autoskills.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+
+    def test_factory_skill_drift_in_scripts(self):
+        assert "factory_skill_drift.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+
+    def test_skill_sources_in_root_configs(self):
+        assert "skill-sources.yaml" in install_aidlc.ORCHESTRATOR_ROOT_CONFIGS
+
+    def test_skill_sources_yaml_exists_in_repo(self):
+        assert (REPO_ROOT / "skill-sources.yaml").exists()
+
+    def test_factory_autoskills_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_autoskills.py").exists()
+
+    def test_factory_skill_drift_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_skill_drift.py").exists()
+
+    def test_validator_retry_skill_exists(self):
+        skill_md = REPO_ROOT / ".agents" / "custom-skills" / "validator-retry" / "SKILL.md"
+        assert skill_md.exists(), f"validator-retry skill not found at {skill_md}"
+
+    def test_skill_sources_copied_on_orchestrator_install(self, tmp_path: Path):
+        """skill-sources.yaml must land in the target root during orchestrator install."""
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert (tmp_path / "skill-sources.yaml").exists(), (
+            "skill-sources.yaml was not installed to target root"
+        )
+
+    def test_skill_sources_not_overwritten_without_force(self, tmp_path: Path):
+        """Re-install without --force must not overwrite a customised skill-sources.yaml."""
+        _stub_skills(tmp_path)
+        sentinel = "# user-customised\n"
+        (tmp_path / "skill-sources.yaml").write_text(sentinel)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        assert (tmp_path / "skill-sources.yaml").read_text() == sentinel, (
+            "skill-sources.yaml was overwritten without --force"
+        )
+
+    def test_skill_sources_overwritten_with_force(self, tmp_path: Path):
+        """Re-install with --force must overwrite skill-sources.yaml."""
+        _stub_skills(tmp_path)
+        (tmp_path / "skill-sources.yaml").write_text("# old content\n")
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv", "--force",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0
+        content = (tmp_path / "skill-sources.yaml").read_text()
+        assert content != "# old content\n", "skill-sources.yaml was NOT overwritten with --force"
+
+
 # ---------- CLI integration (subprocess) ----------
 
 def _stub_skills(target: Path) -> None:

@@ -72,6 +72,53 @@ Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
 avoid token blow-up.
 
+### Step 2.5 — Parse manifest/lockfiles for tech_stack
+
+After detecting build/manifest files, parse them to populate `workspace_state.tech_stack[]`.
+This enables lockfile-aware skill activation in downstream agents — they only inject skills
+whose `applies_to` version range matches what the project actually pins.
+
+Parse in this priority order (first file found per ecosystem wins for a given package):
+
+**npm ecosystem** — read `package.json` `dependencies` + `devDependencies`:
+```bash
+# Extract all packages with their pinned versions
+node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; Object.entries(d).forEach(([k,v])=>console.log(k,v.replace(/[^~>=]/,'').replace(/[^0-9.]/g,'')))" 2>/dev/null
+# Fallback: read package-lock.json or yarn.lock for resolved versions
+```
+Record `ecosystem: npm` entries for: `next`, `react`, `vue`, `svelte`, `bun`, `vite`,
+`@angular/core`, `nuxt`, `astro`, `remix`.
+
+**Python ecosystem** — read `pyproject.toml` `[tool.poetry.dependencies]` or
+`[project.dependencies]`, or `requirements.txt`:
+```bash
+grep -E "^(next|fastapi|django|flask|sqlalchemy|pydantic)" requirements.txt 2>/dev/null
+```
+Record `ecosystem: pip` entries.
+
+**Rust ecosystem** — read `Cargo.toml` `[dependencies]`:
+```bash
+grep -A1 "\[dependencies\]" Cargo.toml 2>/dev/null | grep "="
+```
+Record `ecosystem: cargo` entries.
+
+**Go ecosystem** — read `go.mod` `require` block:
+```bash
+grep -E "^\s+[a-z]" go.mod 2>/dev/null
+```
+Record `ecosystem: go` entries.
+
+**Version normalization**: strip leading `^`, `~`, `>=`, `~=` prefix characters to get
+the pinned baseline version (e.g. `^15.1.0` → `15.1.0`). If a range operator is present
+without a single pinned version, record the lower bound.
+
+Emit one audit entry:
+```
+[Stack] tech_stack: <N> packages detected (next@15.1.0, react@18.3.0, …)
+```
+
+If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
+
 ### Step 3 — Determine next phase
 - Empty workspace → `project_type: greenfield`, `next_phase: requirements-analysis`
 - Existing code, no `aidlc-docs/inception/reverse-engineering/` artifacts →

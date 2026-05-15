@@ -78,7 +78,25 @@
           "type": "string",
           "enum": ["reverse-engineering", "requirements-analysis"]
         },
-        "reverse_engineering_artifacts_present": { "type": "boolean" }
+        "reverse_engineering_artifacts_present": { "type": "boolean" },
+        "tech_stack": {
+          "type": "array",
+          "description": "Pinned framework/library versions parsed from lockfiles. Used by downstream agents for lockfile-aware skill activation.",
+          "items": {
+            "type": "object",
+            "required": ["package", "version", "ecosystem"],
+            "properties": {
+              "package": { "type": "string" },
+              "version": { "type": "string" },
+              "ecosystem": {
+                "type": "string",
+                "enum": ["npm", "pip", "cargo", "go", "gem", "nuget"]
+              }
+            },
+            "additionalProperties": false
+          },
+          "default": []
+        }
       },
       "additionalProperties": false
     },

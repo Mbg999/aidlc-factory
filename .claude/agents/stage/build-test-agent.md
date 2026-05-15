@@ -30,7 +30,13 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
+
+**Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
+or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. Load a skill
+only if its `applies_to.framework` + `applies_to.version` range matches an entry in
+`tech_stack[]`. Skills with no `applies_to` are universal — always load. Log each decision
+with `[Skills]` prefix in `audit_entries[]`.
 
 **`environment-detection` runs FIRST** — before any `npm install` / `pip install` / `brew install` / equivalent. The skill enforces detect-before-install: check `command -v <tool>` and `<tool> --version` for every required runtime, USE the existing installation when version is compatible, prefer fast version managers (nvm / asdf / mise / pyenv) when not, and treat brew as a last resort. Source-built brew installs are the single largest avoidable cost in this stage and have caused 180s timeouts on `brew install node@20` when node was already on `$PATH` via nvm. Log every detection result to `audit_entries[]` with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
 
@@ -40,12 +46,17 @@ Follow `aidlc-rules/aws-aidlc-rule-details/construction/build-and-test.md`.
 For the unit specified in input:
 1. Detect or read build commands (from build files: package.json scripts, pyproject.toml, Makefile, etc.).
 2. Run build → capture exit code + stderr/stdout.
-3. Run tests → capture pass/fail counts, coverage if measured.
-4. On failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
-5. Produce:
+3. **Static validation** — follow `validator-retry` skill Process immediately after build:
+   - Run detected validators (tsc, pyright, cargo check, go vet, eslint)
+   - On errors: feed `errors_text` back, retry up to 3 times
+   - On persistent failure: set `status: blocked`. Do NOT proceed to tests.
+   - On clean: emit `[Validator] clean` and proceed to tests.
+4. Run tests → capture pass/fail counts, coverage if measured.
+5. On test failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
+6. Produce:
    - `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md` — reproducible command sequence
    - `aidlc-docs/construction/build-and-test/<run-id>-build-and-test-summary.md` — results + coverage + failures + remediation
-6. Mark approval gate (`status: needs_human`) so user reviews build/test results before next unit.
+7. Mark approval gate (`status: needs_human`) so user reviews build/test results before next unit.
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/build-test-agent.<unit-name>.output.yaml`.

@@ -59,6 +59,7 @@ This repository extends the upstream AWS AI-DLC with additional capabilities. Al
 | **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
 | **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
 | **Multi-agent orchestrator** | A second workflow that executes the same AI-DLC rules across 13 specialized Claude Code subagents. Adds contract validation, parallel reviewer pool, file-glob locks + AST symbol drift, project-scoped knowledge store, kill/resume, legacy adoption. | Claude Code (uses `Task()` spawning). Other tools fall back to the legacy single-agent flow automatically. |
+| **Hallucination prevention** | 4-piece stack: validator-retry loop, lockfile-aware skill activation, autoskills adapter, drift detector. Eliminates hallucinated APIs and stale framework patterns without maintaining per-framework knowledge. | Orchestrator (validators already present in project) |
 | **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
 
 Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `aidlc-scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `aidlc-scripts/factory_*.py` (runtime).
@@ -729,6 +730,8 @@ auto-installed when the installer runs. Currently ships:
 
 - `code-review-and-quality` — extends the standard review skill with automated
   linting, fixing, building, and testing before the five-axis review
+- `validator-retry` — static type/lint validator with compile-error-feedback retry loop (Piece 1 of the hallucination prevention stack; see below)
+- `environment-detection` — cross-platform detect-before-install discipline for runtimes
 
 **Adding your own custom skills:**
 
@@ -754,6 +757,59 @@ If skills are not installed, each stage rule file contains an **inline fallback 
 | Inception | spec-driven-development, planning-and-task-breakdown, idea-refine, source-driven-development |
 | Construction | incremental-implementation, test-driven-development, code-review-and-quality, debugging-and-error-recovery, security-and-hardening, performance-optimization |
 | Operations | ci-cd-and-automation, shipping-and-launch, documentation-and-adrs |
+
+### Hallucination Prevention Stack
+
+Modern coding models are not reliably trained on the latest framework versions. This fork
+ships a 4-piece stack that eliminates hallucinated APIs and stale patterns **without you
+writing any per-framework knowledge** — the toolchain and community maintain it instead.
+
+| Piece | What it does | Who maintains the knowledge |
+|---|---|---|
+| **1. Validator-retry loop** | After each code-gen slice: runs `tsc --noEmit` / `pyright` / `cargo check` / `go vet` / `eslint`. Feeds compiler errors back to the model (max 3 retries). Blocks on persistent failure. | The toolchain (updated with each framework release) |
+| **2. Lockfile-aware skill activation** | `workspace-scout` parses `package.json`/`pyproject.toml`/`Cargo.toml`/`go.mod` into `tech_stack[]`. Stage agents only inject skills whose `applies_to` semver range covers the pinned version. | The lockfile (updated when you upgrade) |
+| **3. autoskills adapter** | `factory_autoskills.py` fetches community-maintained skills from `skill-sources.yaml`, verifies SHA-256, installs to `.agents/skills/`. | Community (autoskills registry) |
+| **4. Skill drift detector** | `factory_skill_drift.py` queries npm/PyPI/crates.io nightly and flags skills whose version range no longer covers the latest stable. | A scheduled check — you bump one line in `skill-sources.yaml` |
+
+**How the 7 failure modes are solved:**
+
+| Failure mode | Solved by |
+|---|---|
+| Hallucinated APIs | Piece 1 (validator catches them in < 2s) |
+| Outdated framework patterns | Pieces 2 + 3 (route current-version skills) |
+| Invalid migrations | Piece 3 (community `-upgrade` skills) |
+| Broken code generation | Piece 1 (compile-feedback retry) |
+| Dependency/version mismatch | Piece 2 (lockfile is the source of truth) |
+| Context overload from giant prompts | Piece 2 (only inject matching skills) |
+| Unstable behavior between models | Pieces 1 + 4 (validators are deterministic; drift bounds freshness) |
+
+**Usage:**
+
+```bash
+# Install community skills (fill sha256 in skill-sources.yaml first)
+python3 aidlc-scripts/factory_autoskills.py
+
+# Check for stale skills after a framework release
+python3 aidlc-scripts/factory_skill_drift.py --report
+
+# Preview what would be installed
+python3 aidlc-scripts/factory_autoskills.py --dry-run
+```
+
+**Adding a community skill** — add an entry to `skill-sources.yaml`:
+
+```yaml
+sources:
+  - name: nextjs-15
+    url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/nextjs-15/SKILL.md
+    sha256: "<run: curl -sL <url> | shasum -a 256>"
+    applies_to:
+      framework: next
+      version: ">=15.0.0 <16.0.0"
+```
+
+Skills declare `applies_to` frontmatter. Universal skills (no `applies_to`) always load.
+Project-specific skills in `.agents/custom-skills/` override community skills with the same name.
 
 ### Automatic Git Commits on Approvals
 
@@ -823,6 +879,9 @@ This copies:
 - `.aidlc-orchestrator/contracts/` — 20 JSON Schema handoff contracts
 - `.aidlc-orchestrator/budgets/default.yaml` — Per-stage model assignments
 - `aidlc-scripts/factory_{validate,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache,model}.py` — runtime
+- `aidlc-scripts/factory_autoskills.py` — community skill fetcher + SHA-256 verifier
+- `aidlc-scripts/factory_skill_drift.py` — version-range drift detector (npm/PyPI/crates.io)
+- `skill-sources.yaml` — external skill registry (user-customizable; not overwritten on re-install)
 - `.gitignore` entries for `.aidlc-orchestrator/runs/` and `.aidlc-orchestrator/knowledge/`
 - A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
 
@@ -1148,6 +1207,8 @@ AGENTS.md
 .aidlc-orchestrator/budgets/default.yaml
 aidlc-scripts/factory_*.py
 aidlc-scripts/VERSION
+# Hallucination prevention stack
+skill-sources.yaml
 ```
 
 **Optional - Add to `.gitignore` (if needed):**

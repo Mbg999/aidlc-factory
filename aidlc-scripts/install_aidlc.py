@@ -327,6 +327,15 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_slo_check.py",
     "factory_knowledge_promote.py",
     "factory_knowledge_dashboard.py",
+    # Hallucination prevention stack (Piece 3 + Piece 4)
+    "factory_autoskills.py",      # fetch+verify community skills from skill-sources.yaml
+    "factory_skill_drift.py",     # detect skills whose version range lags behind latest stable
+]
+
+# Root-level config files installed once alongside the orchestrator.
+# skill-sources.yaml is user-customizable — never overwrite on re-install (use --force).
+ORCHESTRATOR_ROOT_CONFIGS = [
+    "skill-sources.yaml",
 ]
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
@@ -613,6 +622,19 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         if src_q.exists():
             print(f"  quality doc -> {dst_q.relative_to(target_root)}")
             copy_file(src_q, dst_q, dry_run)
+
+    # Shared Layer 1: root-level config files (e.g. skill-sources.yaml).
+    # Never overwrite existing files unless --force — users customise these.
+    for name in ORCHESTRATOR_ROOT_CONFIGS:
+        src_cfg = repo_root / name
+        dst_cfg = target_root / name
+        if not src_cfg.exists():
+            continue
+        if dst_cfg.exists() and not force:
+            print(f"  {name} already exists — skipping (use --force to overwrite)")
+            continue
+        print(f"  {name} -> {dst_cfg.relative_to(target_root)}")
+        copy_file(src_cfg, dst_cfg, dry_run)
 
     # Per-tool Layer 2: subagents + slash commands + workflow doc pointer
     for tool in tools:
