@@ -60,9 +60,44 @@ When CodeGraph is absent: detect dead code via manual inspection of call sites.
 Severity: `P0` (live but unreachable code shipped) | `P1` (future-cruft) | `P2` (style) | `P3` (nit/preference).
 
 ## Your output
-Same shape as other reviewers, `reviewer: simplifier`. Findings include
-`simplification_pattern` field (e.g. `single-impl-interface`, `dead-code`,
-`pass-through-wrapper`, `over-validation`).
+Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-simplifier.output.yaml`.
+Validate against `reviewer.output.v1.json`.
+
+Produce **exactly** this YAML shape — no extra root keys, no renamed fields:
+
+```yaml
+status: complete          # complete | blocked | failed | needs_human
+reviewer: simplifier      # MUST be exactly "simplifier" — not "reviewer-simplifier"
+findings:
+  - severity: P2          # P0 | P1 | P2 | P3
+    file: src/utils.ts    # relative path
+    line: 12              # integer — single line only, NOT "12-20"
+    simplification_pattern: dead-code   # single-impl-interface | dead-code |
+                                        # pass-through-wrapper | over-validation |
+                                        # unused-generic | single-config-key | future-proofing
+    message: "Short description of the complexity issue"
+    recommendation: "How to simplify it"
+findings_summary:
+  P0_count: 0
+  P1_count: 0
+  P2_count: 1
+  P3_count: 0
+audit_entries:
+  - "reviewer-simplifier: scanned 3 files, 1 finding"  # plain strings only
+skill_compliance:
+  - skill: code-simplification
+    status: PASS
+    evidence: "dead-code + abstraction scan complete"
+  - skill: using-agent-skills
+    status: PASS
+    evidence: "skills loaded"
+```
+
+**FORBIDDEN** — these will fail schema validation and be silently dropped:
+- Root keys: `overall_verdict`, `run_id`, `stage_id`, `summary`, `verdict`, `report`
+- Finding keys: `id`, `title`, `description` (use `message`), `lines` (use `line`)
+- `line` as a string range like `"12-20"` — pick the most relevant single line
+- `audit_entries` items as objects — they must be plain strings
 
 Return: `<status> <output-path>`.
 

@@ -60,12 +60,39 @@ Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to 
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-code.output.yaml`.
 Validate against `reviewer.output.v1.json`.
 
-Required:
-- `status: complete`
-- `reviewer: code-quality`
-- `findings`: array of `{severity, file, line, axis, message, recommendation}`
-- `findings_summary`: `{P0_count, P1_count, P2_count, P3_count}`
-- `audit_entries`, `skill_compliance`
+Produce **exactly** this YAML shape — no extra root keys, no renamed fields:
+
+```yaml
+status: complete          # complete | blocked | failed | needs_human
+reviewer: code-quality    # MUST be exactly "code-quality" — not "reviewer-code"
+findings:
+  - severity: P1          # P0 | P1 | P2 | P3
+    file: src/foo.ts      # relative path
+    line: 42              # integer — single line only, NOT "42-45"
+    axis: correctness     # correctness|maintainability|readability|testing|design
+    message: "Short description of the issue"
+    recommendation: "How to fix it"
+findings_summary:
+  P0_count: 0
+  P1_count: 1
+  P2_count: 0
+  P3_count: 0
+audit_entries:
+  - "reviewer-code: reviewed 3 files, 1 finding"   # plain strings only — NOT objects
+skill_compliance:
+  - skill: code-review-and-quality
+    status: PASS
+    evidence: "five-axis review complete"
+  - skill: using-agent-skills
+    status: PASS
+    evidence: "skills loaded"
+```
+
+**FORBIDDEN** — these will fail schema validation and be silently dropped:
+- Root keys: `overall_verdict`, `run_id`, `stage_id`, `summary`, `verdict`, `report`
+- Finding keys: `id`, `title`, `description` (use `message`), `lines` (use `line`)
+- `line` as a string range like `"42-45"` — pick the most relevant single line
+- `audit_entries` items as objects — they must be plain strings
 
 Return: `<status> <output-path>`.
 

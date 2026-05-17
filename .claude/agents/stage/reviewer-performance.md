@@ -58,8 +58,43 @@ When CodeGraph is absent: trace hot paths via Grep + Read.
 Severity: `P0` (will fail SLO at expected load) | `P1` (degrades at peak) | `P2` (cleanup) | `P3` (info/micro-opt).
 
 ## Your output
-Same shape as other reviewers, `reviewer: performance`. Findings include
-`big_o` or `expected_impact` field.
+Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-performance.output.yaml`.
+Validate against `reviewer.output.v1.json`.
+
+Produce **exactly** this YAML shape — no extra root keys, no renamed fields:
+
+```yaml
+status: complete            # complete | blocked | failed | needs_human
+reviewer: performance       # MUST be exactly "performance" — not "reviewer-performance"
+findings:
+  - severity: P1            # P0 | P1 | P2 | P3
+    file: src/feed.ts       # relative path
+    line: 34                # integer — single line only, NOT "34-40"
+    big_o: "O(n²)"          # include big_o or expected_impact (or both)
+    expected_impact: "degrades at 10k records"
+    message: "Short description of the performance issue"
+    recommendation: "How to fix it"
+findings_summary:
+  P0_count: 0
+  P1_count: 1
+  P2_count: 0
+  P3_count: 0
+audit_entries:
+  - "reviewer-performance: analysed 2 hot paths, 1 finding"  # plain strings only
+skill_compliance:
+  - skill: performance-optimization
+    status: PASS
+    evidence: "hot-path + complexity review complete"
+  - skill: using-agent-skills
+    status: PASS
+    evidence: "skills loaded"
+```
+
+**FORBIDDEN** — these will fail schema validation and be silently dropped:
+- Root keys: `overall_verdict`, `run_id`, `stage_id`, `summary`, `verdict`, `report`
+- Finding keys: `id`, `title`, `description` (use `message`), `lines` (use `line`)
+- `line` as a string range like `"34-40"` — pick the most relevant single line
+- `audit_entries` items as objects — they must be plain strings
 
 Return: `<status> <output-path>`.
 

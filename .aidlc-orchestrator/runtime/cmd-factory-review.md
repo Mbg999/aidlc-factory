@@ -71,7 +71,13 @@ If any step fails (codegraph unavailable, timeout): write an empty cache
 2. **Knowledge queries** (sequential): `mem_search` per reviewer with specific tags; inject top-5.
 3. **Parallel spawn** — ONE message, all `Task()` calls together. Wait for returns.
 4. **Per-reviewer post-processing** (any order): validate → knowledge save → audit append.
-5. **Merge**: `factory_merge_reviews.py <run-id> [--reviewers <active-set>]` → review report.
+5. **Merge**: `factory_merge_reviews.py <run-id> --reviewers <reviewer-names>` → review report.
+   `--reviewers` takes the **`reviewer` field values**, not `stage_id` values:
+   - `reviewer-code` → `code-quality`
+   - `reviewer-security` → `security`
+   - `reviewer-performance` → `performance`
+   - `reviewer-simplifier` → `simplifier`
+   Example: `factory_merge_reviews.py <run-id> --reviewers code-quality security`
 6. **Approval gate**: surface report. On user response:
    - Fixes requested → route units back through `/factory-build`.
    - Approved → auto-commit `docs(review): complete review report`, update state, offer `/factory-ship`.
