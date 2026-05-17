@@ -37,6 +37,10 @@
       "type": "string",
       "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
+    },
+    "codegraph_cache_path": {
+      "type": "string",
+      "description": "Path to pre-computed CodeGraph callers+impact cache for all symbols in the unit (written by Pre-Review Step 0). Reviewers must prefer this over live codegraph_callers/codegraph_impact calls. Absent when CodeGraph is not initialized."
     }
   },
   "additionalProperties": false

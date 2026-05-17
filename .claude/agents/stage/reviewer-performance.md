@@ -38,13 +38,20 @@ I/O on hot paths, allocations inside loops, retry storms without backoff.
 2. For each hot path: complexity analysis (time + space), allocation patterns, I/O patterns.
 3. For each issue: severity, location, expected impact at expected scale, recommendation.
 
-**CodeGraph hot-path tracing** (when `.codegraph/codegraph.db` exists):
-For each hot path:
-1. Run `codegraph_callees <entry_point>` to trace the full call chain depth.
-   This surfaces hidden I/O, hidden allocations, and accidental recursion.
-2. Run `codegraph_callers <bottleneck_symbol>` to confirm how many code paths
-   feed through the bottleneck — `caller_count` becomes `expected_impact_scale`.
+**CodeGraph hot-path tracing — cache-first:**
+
+If `codegraph_cache_path` is set in your input handoff:
+1. Read the JSON cache file produced by Pre-Review Step 0.
+2. For each bottleneck symbol, look up `cache.symbols[<symbol>]`.
+3. Use `caller_count` and `blast_radius` from the cache as `expected_impact_scale` —
+   **do NOT make live `codegraph_callers` / `codegraph_impact` calls for cached symbols**.
+4. `codegraph_callees` is NOT pre-cached (call-chain depth is reviewer-specific);
+   make a live call only for entry-point callees, not for callers/impact.
+5. If a symbol is missing from cache, fall back to a live call and log:
+   `[CodeGraph] cache-miss: <symbol> — live query`
 3. Log: `[CodeGraph] hot-path: <symbol> → <depth> callees, <callers_count> callers`
+
+If `codegraph_cache_path` is absent or the file does not exist: use live calls as before.
 
 When CodeGraph is absent: trace hot paths via Grep + Read.
 

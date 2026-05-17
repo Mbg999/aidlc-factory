@@ -19,8 +19,12 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
+> **build-test-agent already ran lint, build, and tests.** Do NOT repeat Steps 1–4 of the
+> `code-review-and-quality` skill. Start directly at **Step 5 (Five-axis review)**. Your job
+> is conceptual analysis only.
+
 1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `code-review-and-quality`.
-2. **FOLLOW** — Five-axis review process.
+2. **FOLLOW** — Five-axis review process (Step 5 of the skill only — skip automated gates).
 3. **CHECK** — Rationalizations: reject "it works, ship it", "we'll refactor later".
 4. **VERIFY** — Concrete findings: each with `file:line`, severity, axis, recommendation.
 5. **LOG** — `skill_compliance[]` rows.
@@ -33,12 +37,20 @@ For each source file in the predecessor artifacts (code-generator output):
 - Apply the five-axis review.
 - Produce structured findings.
 
-**CodeGraph blast-radius enrichment** (when `.codegraph/codegraph.db` exists):
-For each finding involving a symbol:
-1. Run `codegraph_callers <symbol>` → record `caller_count` on the finding.
-2. Run `codegraph_impact <symbol> --depth 2` → record `blast_radius` on the finding.
-3. **Severity bump rule:** if `blast_radius > 10` AND `kind` is correctness → escalate P2 → P1.
-   Log: `[CodeGraph] severity bump: <symbol> blast_radius=<N> → P2→P1`
+**CodeGraph blast-radius enrichment — cache-first:**
+
+If `codegraph_cache_path` is set in your input handoff:
+1. Read the JSON cache file produced by Pre-Review Step 0.
+2. For each finding involving a symbol, look up `cache.symbols[<symbol>]`.
+3. Use `caller_count` and `blast_radius` from the cache — **do NOT make live
+   `codegraph_callers` / `codegraph_impact` calls for cached symbols**.
+4. If a symbol is missing from the cache, fall back to a single live call and log:
+   `[CodeGraph] cache-miss: <symbol> — live query`
+
+If `codegraph_cache_path` is absent or the file does not exist: use live calls as before.
+
+**Severity bump rule:** if `blast_radius > 10` AND `kind` is correctness → escalate P2 → P1.
+Log: `[CodeGraph] severity bump: <symbol> blast_radius=<N> → P2→P1`
 
 When CodeGraph is absent: skip enrichment, proceed with standard review.
 

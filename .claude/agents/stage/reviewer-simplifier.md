@@ -38,13 +38,22 @@ For each source file in the predecessor:
 3. Look for redundant layers (pass-through wrappers, identity transforms).
 4. Look for over-defensive code (validation past system boundaries).
 
-**CodeGraph dead-code detection** (when `.codegraph/codegraph.db` exists):
-For each exported symbol in the unit:
-1. Run `codegraph_callers <symbol>` — if `caller_count == 0` → flag as dead code.
-   Log: `[CodeGraph] dead-code: <symbol> at <file:line> — 0 callers found`
-2. Run `codegraph_impact <symbol> --depth 1` — if impact tree is empty → confirm dead.
-3. **Severity bump rule:** dead code that is exported (public API) → P1 (not just P2).
-   Log: `[CodeGraph] dead exported symbol: <symbol> blast_radius=0 → P1`
+**CodeGraph dead-code detection — cache-first:**
+
+If `codegraph_cache_path` is set in your input handoff:
+1. Read the JSON cache file produced by Pre-Review Step 0.
+2. For each exported symbol in the unit, look up `cache.symbols[<symbol>]`.
+3. Use `caller_count` and `blast_radius` from the cache — **do NOT make live
+   `codegraph_callers` / `codegraph_impact` calls for cached symbols**.
+   - `caller_count == 0` → flag as dead code candidate.
+   - `blast_radius == 0` → confirms dead (no downstream impact).
+4. If a symbol is missing from cache, fall back to a live call and log:
+   `[CodeGraph] cache-miss: <symbol> — live query`
+
+If `codegraph_cache_path` is absent or the file does not exist: use live calls as before.
+
+**Severity bump rule:** dead code that is exported (public API) → P1 (not just P2).
+Log: `[CodeGraph] dead exported symbol: <symbol> caller_count=0, blast_radius=0 → P1`
 
 When CodeGraph is absent: detect dead code via manual inspection of call sites.
 

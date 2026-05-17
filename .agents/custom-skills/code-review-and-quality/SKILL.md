@@ -16,6 +16,16 @@ spends time on them.
 
 ---
 
+## When called from a reviewer agent
+
+If you are executing as `reviewer-code` (i.e., your role is to emit findings, not to fix),
+**skip Steps 1–4 entirely**. `build-test-agent` already ran lint, build, and tests as part
+of `/factory-build`. Repeating them wastes time and produces no new signal.
+
+Go directly to **Step 5: Five-axis review**.
+
+---
+
 ## Step 1: Detect project type and tools
 
 Read `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, or `CMakeLists.txt`
