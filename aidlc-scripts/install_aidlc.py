@@ -349,9 +349,10 @@ ORCHESTRATOR_ROOT_CONFIGS = [
 # .aidlc-orchestrator/contracts/executor.v1.md.
 ORCHESTRATOR_EXECUTOR_PKG_DIR = Path("aidlc-scripts/executors")
 
-# Phase 3 — quality docs (SLO definitions).
+# Phase 3 — quality docs (SLO definitions + CodeGraph baseline template).
 ORCHESTRATOR_QUALITY_DOCS = [
     Path("aidlc-docs/quality/slos.md"),
+    Path("aidlc-docs/quality/codegraph-baseline.md"),
 ]
 
 # Claude-Code-only artifacts. Per ORCHESTRATOR-PLAN.md §8.4, Task() spawning

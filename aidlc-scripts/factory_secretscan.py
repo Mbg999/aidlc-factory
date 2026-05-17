@@ -51,6 +51,11 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
 TEXT_KEYS = {"body", "message", "recommendation", "description", "evidence", "note", "summary"}
 
 
+def _die(msg: str, code: int = 2) -> None:
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
 def scan_text(text: str) -> list[dict]:
     """Scan a single text string for secrets. Returns list of {pattern, match}."""
     findings: list[dict] = []
@@ -116,7 +121,7 @@ def main() -> None:
             doc = json.loads(path.read_text())
         else:
             _die(f"unsupported extension: {suffix} (expected .yaml/.yml/.json)")
-    except (yaml.YAMLError, json.JSONDecodeError) as e:
+    except (yaml.YAMLError if yaml is not None else (), json.JSONDecodeError) as e:
         _die(f"parse error: {e}")
 
     findings = scan_doc(doc)
@@ -124,14 +129,14 @@ def main() -> None:
     if args.strip and findings:
         text = path.read_text()
         stripped = strip_secrets(text)
-        backup = path.with_suffix(f"{suffix}.original")
+        backup = path.with_name(path.stem + suffix + ".original")
         if backup.exists():
             import time
-            backup = backup.with_suffix(f"{suffix}.original.{int(time.time())}")
-        tmp = path.with_suffix(f"{suffix}.stripped.tmp")
+            backup = path.with_name(path.stem + suffix + f".original.{int(time.time())}")
+        backup.write_text(text)
+        tmp = path.with_name(path.stem + suffix + ".stripped.tmp")
         tmp.write_text(stripped)
         tmp.replace(path)
-        backup.unlink(missing_ok=True)
         print(f"stripped {len(findings)} secret(s) from {path.name} (backup: {backup.name})")
 
     if args.json:

@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -53,11 +54,12 @@ try:
     import yaml
 except ImportError:
     print("missing dependency: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
+    sys.exit(2)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
+_AIDLC_ROOT = Path(os.environ["AIDLC_ROOT"]) if "AIDLC_ROOT" in os.environ else REPO_ROOT
+RUNS_ROOT = _AIDLC_ROOT / ".aidlc-orchestrator" / "runs"
 
 # Tier ordering (higher index = higher tier)
 _TIER_RANK = {"SMALL": 0, "MEDIUM": 1, "LARGE": 2}
@@ -187,7 +189,7 @@ def _apply_to_budget(run_id: str, tier: str, routing: dict) -> None:
 
     tmp = budget_path.with_suffix(".yaml.tmp")
     tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
-    tmp.rename(budget_path)
+    tmp.replace(budget_path)
     print(
         f"[ComplexityGov] Applied tier={tier}: tokens_max={routing['tokens_max']:,}, "
         f"wall_clock_max_min={routing['wall_clock_max_min']}",

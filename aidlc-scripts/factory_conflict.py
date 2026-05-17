@@ -295,6 +295,8 @@ def cmd_release(args: argparse.Namespace) -> None:
                 cleaned += 1
         print(f"CLEANED {cleaned} stale lock(s) (older than {args.older_than}m)")
         return
+    if not args.holder:
+        _die("holder is required unless --stale is set")
     validate_holder(args.holder)
     lock_file = locks_dir / f"{args.holder}.yaml"
     if lock_file.exists():

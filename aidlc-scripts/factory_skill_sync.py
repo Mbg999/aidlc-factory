@@ -185,6 +185,10 @@ def _cleanup_workspace_agents(
         if workspace_dir.resolve() == repo_root.resolve():
             continue
 
+        lock = workspace_dir / "skills-lock.json"
+        if lock.exists() and not dry_run:
+            lock.unlink(missing_ok=True)
+
         ws_agents = workspace_dir / ".agents"
         if not ws_agents.exists():
             continue
@@ -197,10 +201,6 @@ def _cleanup_workspace_agents(
         if ws_agents.exists() and not any(ws_agents.iterdir()):
             if not dry_run:
                 ws_agents.rmdir()
-
-        lock = workspace_dir / "skills-lock.json"
-        if lock.exists() and not dry_run:
-            lock.unlink(missing_ok=True)
 
 
 # ── sync subcommand ───────────────────────────────────────────────────────────

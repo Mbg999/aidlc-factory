@@ -154,7 +154,7 @@ def install_skill(entry: dict, *, dry_run: bool = False) -> dict[str, Any]:
     # download
     try:
         data = _download(url)
-    except urllib.error.URLError as exc:
+    except (urllib.error.URLError, ValueError) as exc:
         result["status"] = "error"
         result["detail"] = f"download failed: {exc}"
         return result
@@ -182,10 +182,19 @@ def install_skill(entry: dict, *, dry_run: bool = False) -> dict[str, Any]:
 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-        result["detail"] = f"written → {target.relative_to(REPO_ROOT)}"
+        try:
+            _rel = target.relative_to(REPO_ROOT)
+        except ValueError:
+            _rel = target
+        _sha_note = f" (sha256: {actual_sha[:8]}…)" if not expected_sha else ""
+        result["detail"] = f"written → {_rel}{_sha_note}"
     else:
         result["status"] = "dry-run"
-        result["detail"] = f"would write → {target.relative_to(REPO_ROOT)}"
+        try:
+            _rel = target.relative_to(REPO_ROOT)
+        except ValueError:
+            _rel = target
+        result["detail"] = f"would write → {_rel}"
 
     return result
 
@@ -205,7 +214,11 @@ def check_skill(entry: dict) -> dict[str, Any]:
 
     if not target.exists():
         result["status"] = "missing"
-        result["detail"] = f"{target.relative_to(REPO_ROOT)} not found"
+        try:
+            _rel = target.relative_to(REPO_ROOT)
+        except ValueError:
+            _rel = target
+        result["detail"] = f"{_rel} not found"
         return result
 
     if not expected_sha:

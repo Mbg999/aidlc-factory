@@ -134,7 +134,7 @@ def load_manifest(run_id: str) -> dict:
     p = manifest_path(run_id)
     if not p.exists():
         _die(f"manifest not found: {p}")
-    return yaml.safe_load(p.read_text())
+    return yaml.safe_load(p.read_text()) or {}
 
 
 def save_manifest_atomic(run_id: str, data: dict) -> None:
@@ -858,7 +858,8 @@ def cmd_adopt_legacy(args: argparse.Namespace) -> None:
                     skipped.append(stage)
 
     repo_slug = args.repo_slug or REPO_ROOT.name.lower().replace(" ", "-")
-    ts = now_iso().replace(":", "").replace("-", "").replace("+0000", "")
+    from datetime import timezone as _tz
+    ts = datetime.now(_tz.utc).strftime("%Y%m%dT%H%M%S")
     run_id = f"legacy-{repo_slug}-{ts}"
     rd = run_dir(run_id, must_exist=False)
     rd.mkdir(parents=True, exist_ok=True)

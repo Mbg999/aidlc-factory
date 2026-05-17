@@ -50,7 +50,13 @@ def _strict_check(doc: dict, doc_path: Path) -> list[str]:
         has_test_artifact = False
         for a in artifacts:
             path = a.get("path", "") if isinstance(a, dict) else ""
-            if "test" in Path(path).parts or path.startswith("test"):
+            stem = Path(path).stem
+            if (
+                any(p in ("test", "tests", "__tests__", "spec") for p in Path(path).parts)
+                or stem.startswith("test_")
+                or stem.endswith("_test")
+                or stem.endswith("_spec")
+            ):
                 has_test_artifact = True
                 break
         if not has_test_artifact:

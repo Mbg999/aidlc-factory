@@ -70,8 +70,8 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
                 entry = per_stage.get("custom-agent")
             if entry and "model" in entry:
                 return entry["model"]
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"WARNING: failed to parse budget config {bp}: {exc}", file=sys.stderr)
 
     return DEFAULT_MODEL
 
