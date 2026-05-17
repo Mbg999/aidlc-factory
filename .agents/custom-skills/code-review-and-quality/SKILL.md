@@ -36,10 +36,101 @@ to determine which tools to use.
 | `package.json` | `npx eslint .` | `npx prettier --write .` | `npm run build` | `npm test` |
 | `pyproject.toml` | `ruff check .` | `ruff format .` | `python -m build` | `pytest` |
 | `Cargo.toml` | `cargo clippy` | `cargo fmt` | `cargo build` | `cargo test` |
-| `go.mod` | `golint` | `go fmt` | `go build ./...` | `go test ./...` |
+| `go.mod` | `golangci-lint run` | `go fmt` | `go build ./...` | `go test ./...` |
 | Unknown | Skip automated gates (log warning) | — | — | — |
 
 If multiple project files exist, run ALL matching linters/builds.
+
+---
+
+## Step 1.5: Bootstrap lint config if absent
+
+Before running any linter, check whether a lint config exists. If not, create one.
+**Do not overwrite existing configs** — this step only runs when the config is missing.
+
+### JavaScript / TypeScript (`package.json` present)
+
+Check for any of: `.eslintrc`, `.eslintrc.js`, `.eslintrc.cjs`, `.eslintrc.json`,
+`.eslintrc.yaml`, `.eslintrc.yml`, `eslint.config.js`, `eslint.config.mjs`,
+or `"eslintConfig"` key in `package.json`.
+
+If none found → create `eslint.config.js` at the project root:
+
+```js
+import js from "@eslint/js";
+export default [
+  js.configs.recommended,
+  { ignores: ["dist/", "node_modules/", "coverage/", "build/"] },
+];
+```
+
+If `typescript` is in `package.json` dependencies/devDependencies, use:
+
+```js
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+export default tseslint.config(
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  { ignores: ["dist/", "node_modules/", "coverage/", "build/"] },
+);
+```
+
+Install missing packages: `npm install --save-dev eslint @eslint/js` (add
+`typescript-eslint` if TypeScript detected).
+
+Check for `.prettierrc`, `.prettierrc.json`, `.prettierrc.js`, `prettier.config.js`,
+or `"prettier"` key in `package.json`. If none found → create `.prettierrc`:
+
+```json
+{ "semi": true, "singleQuote": true, "trailingComma": "es5" }
+```
+
+Log: `[Skill] code-review-and-quality: bootstrapped ESLint config (eslint.config.js)`
+
+---
+
+### Python (`pyproject.toml` present)
+
+Check for `[tool.ruff]` section in `pyproject.toml` or a standalone `ruff.toml`.
+If neither exists → append to `pyproject.toml`:
+
+```toml
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = []
+```
+
+Log: `[Skill] code-review-and-quality: bootstrapped ruff config in pyproject.toml`
+
+---
+
+### Go (`go.mod` present)
+
+Check for `.golangci.yml` or `.golangci.yaml`. If absent → create `.golangci.yml`:
+
+```yaml
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+run:
+  timeout: 5m
+```
+
+Log: `[Skill] code-review-and-quality: bootstrapped golangci-lint config (.golangci.yml)`
+
+---
+
+### Rust (`Cargo.toml` present)
+
+`cargo clippy` works without a config file. No bootstrap needed.
 
 ---
 
@@ -134,11 +225,14 @@ For each finding, label severity: **Critical**, **Nit**, **Optional**, **FYI**.
 
 ## Step 6: Verify lint is clean after changes
 
-If the review finds issues and code is modified to address them, run the
-linter again:
+If the review finds issues and code is modified to address them, re-run the
+linter for the project's stack (same command as Step 2, without `--fix`):
 
 ```bash
-npx eslint . --max-warnings 0
+npx eslint . --max-warnings 0   # JS/TS
+ruff check .                    # Python
+cargo clippy                    # Rust
+golangci-lint run               # Go
 ```
 
 Lint must remain clean after fixes.
