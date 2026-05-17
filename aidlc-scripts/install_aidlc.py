@@ -330,6 +330,9 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     # Hallucination prevention stack (Piece 3 + Piece 4)
     "factory_autoskills.py",      # fetch+verify community skills from skill-sources.yaml
     "factory_skill_drift.py",     # detect skills whose version range lags behind latest stable
+    # Skill sync layer — monorepo-aware autoskills bridge
+    "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
+    "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
     # CodeGraph integration (optional — installed when --with-codegraph is set)
     "factory_codegraph.py",       # install/init/index/status CLI helper for CodeGraph
 ]

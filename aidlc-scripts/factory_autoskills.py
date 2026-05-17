@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""factory_autoskills.py — Fetch and install external skills from skill-sources.yaml.
+"""factory_autoskills.py — Install custom/internal/private skills from skill-sources.yaml.
 
-Consumes a community-maintained registry so YOU don't have to write framework
-knowledge. Verifies SHA-256 before writing to disk — never trusts a URL blindly.
+This script handles skills that are NOT in the public autoskills registry
+(https://github.com/midudev/autoskills). Use it for:
+  - Company-internal or project-specific skills
+  - Skills for frameworks not yet covered by autoskills
+  - Any skill you want to pin to a specific URL + SHA-256
+
+For public framework skills (Next.js, Angular, Express, Vue, etc.),
+use factory_skill_sync.py — it wraps the autoskills CLI and handles
+monorepo workspaces automatically.
+
+Both scripts install to .agents/skills/<name>/ and coexist safely.
 
 Usage:
     python3 aidlc-scripts/factory_autoskills.py            # install/update all
     python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview without writing
-    python3 aidlc-scripts/factory_autoskills.py --skill nextjs-15
+    python3 aidlc-scripts/factory_autoskills.py --skill my-internal-skill
     python3 aidlc-scripts/factory_autoskills.py --check    # verify SHAs of installed skills
 
 Exit codes:
@@ -19,7 +28,6 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -31,6 +39,9 @@ from typing import Any
 REPO_ROOT = Path(__file__).parent.parent
 SOURCES_FILE = REPO_ROOT / "skill-sources.yaml"
 SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
+
+sys.path.insert(0, str(Path(__file__).parent))
+from skill_utils import sha256_file as _sha256_file
 
 
 # ── minimal YAML parser (subset: only what skill-sources.yaml needs) ──────────
@@ -101,6 +112,7 @@ def _parse_yaml_sources(text: str) -> list[dict]:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _sha256(data: bytes) -> str:
+    import hashlib
     return hashlib.sha256(data).hexdigest()
 
 
@@ -163,7 +175,7 @@ def install_skill(entry: dict, *, dry_run: bool = False) -> dict[str, Any]:
 
     # idempotency check
     if not dry_run:
-        if target.exists() and target.read_bytes() == data:
+        if target.exists() and _sha256(target.read_bytes()) == actual_sha:
             result["status"] = "unchanged"
             result["detail"] = "content identical, skipped write"
             return result

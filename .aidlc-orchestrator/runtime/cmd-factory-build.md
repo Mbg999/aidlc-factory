@@ -12,6 +12,34 @@ core-workflow.md): verify audit.md has all Inception entries, state file
 `Current Stage` is correct, `aidlc-docs/construction/plans/` exists, and
 the execution plan is loaded.
 
+## Pre-Build Step 0 — Skill Sync
+
+Runs ONCE before any unit is spawned.
+
+1. **Sync** — install framework skills via autoskills across all workspace dirs:
+   ```bash
+   python3 aidlc-scripts/factory_skill_sync.py sync
+   ```
+   Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
+   On non-zero exit or Node.js missing: log warning and continue — skill failure
+   never blocks a build (universal custom-skills still apply).
+
+2. **Select** — resolve `skill_paths_resolved[]` for all stage input handoffs:
+   ```bash
+   python3 aidlc-scripts/factory_skill_sync.py select --output json
+   ```
+   Parse JSON → store `skill_paths_resolved` in `manifest.yaml` under key
+   `skill_paths_resolved`. Include this list in every subsequent stage input
+   handoff YAML for this run.
+
+3. **Log** to audit.md:
+   ```
+   [Skills] resolved <N> skills: <name-list>
+   [Skills] warnings: <list or "none">
+   ```
+
+---
+
 ## Step A — Compute unit dependency waves
 
 `factory_graph.py compute <run-id> --apply` (Kahn's algorithm over

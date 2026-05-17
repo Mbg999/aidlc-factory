@@ -72,52 +72,52 @@ Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
 avoid token blow-up.
 
-### Step 2.5 — Parse manifest/lockfiles for tech_stack
+### Step 2.5 — Workspace Discovery + Best-Effort Tech Stack
 
-After detecting build/manifest files, parse them to populate `workspace_state.tech_stack[]`.
-This enables lockfile-aware skill activation in downstream agents — they only inject skills
-whose `applies_to` version range matches what the project actually pins.
+Identify all workspace directories in the project (monorepo support) and record
+them in `workspace_state.workspace_dirs[]`. Full tech detection and skill installation
+is deferred to `factory_skill_sync.py` at factory-build time.
 
-Parse in this priority order (first file found per ecosystem wins for a given package):
-
-**npm ecosystem** — read `package.json` `dependencies` + `devDependencies`:
+**Find all workspace directories** (manifest files at depth ≤ 4):
 ```bash
-# Extract all packages with their pinned versions
-node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; Object.entries(d).forEach(([k,v])=>console.log(k,v.replace(/[^~>=]/,'').replace(/[^0-9.]/g,'')))" 2>/dev/null
-# Fallback: read package-lock.json or yarn.lock for resolved versions
+find . \( -name "package.json" -o -name "pyproject.toml" -o -name "Cargo.toml" -o -name "go.mod" \) \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" \
+    -not -path "*/dist/*" \
+    -not -path "*/build/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/target/*" \
+    -not -path "*/.agents/*" \
+    -not -path "*/.claude/*" \
+    -not -path "*/aidlc-docs/*" \
+    -maxdepth 4 \
+    -exec dirname {} \; | sort -u
 ```
-Record `ecosystem: npm` entries for: `next`, `react`, `vue`, `svelte`, `bun`, `vite`,
-`@angular/core`, `nuxt`, `astro`, `remix`.
 
-**Python ecosystem** — read `pyproject.toml` `[tool.poetry.dependencies]` or
-`[project.dependencies]`, or `requirements.txt`:
+Record the resulting directory list as `workspace_state.workspace_dirs[]` using relative
+paths (e.g. `[".","backend","frontend"]`). If only the root is found, default to `["."]`.
+
+Detect monorepo type (for audit only):
 ```bash
-grep -E "^(next|fastapi|django|flask|sqlalchemy|pydantic)" requirements.txt 2>/dev/null
-```
-Record `ecosystem: pip` entries.
-
-**Rust ecosystem** — read `Cargo.toml` `[dependencies]`:
-```bash
-grep -A1 "\[dependencies\]" Cargo.toml 2>/dev/null | grep "="
-```
-Record `ecosystem: cargo` entries.
-
-**Go ecosystem** — read `go.mod` `require` block:
-```bash
-grep -E "^\s+[a-z]" go.mod 2>/dev/null
-```
-Record `ecosystem: go` entries.
-
-**Version normalization**: strip leading `^`, `~`, `>=`, `~=` prefix characters to get
-the pinned baseline version (e.g. `^15.1.0` → `15.1.0`). If a range operator is present
-without a single pinned version, record the lower bound.
-
-Emit one audit entry:
-```
-[Stack] tech_stack: <N> packages detected (next@15.1.0, react@18.3.0, …)
+test -f pnpm-workspace.yaml && echo "pnpm-monorepo"
+node -e "const p=require('./package.json'); console.log(p.workspaces ? 'npm-monorepo' : '')" 2>/dev/null
+test -f deno.json && grep -q "workspaces" deno.json && echo "deno-monorepo"
 ```
 
-If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
+**Best-effort `tech_stack[]`** (top-level manifests only — for audit log):
+Parse only the root `package.json`, `pyproject.toml`, `Cargo.toml`, and `go.mod`.
+Extract direct dependencies and record recognized packages with stripped versions
+(strip leading `^~>=~=` prefixes). This is informational only — full detection runs
+via autoskills at build time.
+
+Emit audit entries:
+```
+[Workspaces] N workspace(s) detected: ., backend/, frontend/
+[Stack] best-effort top-level: express@4.18.2 (npm), @angular/core@17.3.0 (npm)
+        (full stack detection via autoskills runs at factory-build)
+```
+
+If no manifest files found: emit `[Workspaces] no manifest files detected — workspace_dirs: ["."]` and continue.
 
 ### Step 2.6 — CodeGraph awareness
 

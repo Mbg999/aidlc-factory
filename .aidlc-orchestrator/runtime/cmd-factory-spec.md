@@ -18,6 +18,10 @@ Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: w
 ## Step 2 — Resolve skill paths (once per run)
 Find each required SKILL.md: `.agents/custom-skills/<name>/SKILL.md` → `.agents/skills/<name>/SKILL.md` → `~/.agents/skills/<name>/SKILL.md`. Store in `manifest.skill_paths:`. Log `[Skill] MISSING: <name>` if not found (uses inline fallback).
 
+> **Framework skills** (autoskills-installed) are NOT yet available at spec time —
+> they are synced and selected during `/factory-build` Pre-Build Step 0.
+> Spec and plan stages use `.agents/custom-skills/` process skills only.
+
 ## Step 3 — Workspace Scout (inline)
 
 PRIORITY: P2

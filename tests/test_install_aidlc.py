@@ -141,6 +141,18 @@ class TestHallucinationPreventionStack:
     def test_factory_skill_drift_source_exists(self):
         assert (REPO_ROOT / "aidlc-scripts" / "factory_skill_drift.py").exists()
 
+    def test_factory_skill_sync_in_scripts(self):
+        assert "factory_skill_sync.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+
+    def test_skill_utils_in_scripts(self):
+        assert "skill_utils.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+
+    def test_factory_skill_sync_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_skill_sync.py").exists()
+
+    def test_skill_utils_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "skill_utils.py").exists()
+
     def test_validator_retry_skill_exists(self):
         skill_md = REPO_ROOT / ".agents" / "custom-skills" / "validator-retry" / "SKILL.md"
         assert skill_md.exists(), f"validator-retry skill not found at {skill_md}"

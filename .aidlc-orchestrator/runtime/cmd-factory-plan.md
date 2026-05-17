@@ -32,3 +32,6 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
 4. Auto-commit `docs(workflow-planning): complete workflow planning` and update
    state. Present completion + offer `/factory-build <run-id>`.
+
+> **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
+> Plan stages use `.agents/custom-skills/` process skills only.

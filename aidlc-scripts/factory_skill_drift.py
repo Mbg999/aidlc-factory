@@ -21,74 +21,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).parent.parent
-SKILLS_DIRS = [
-    REPO_ROOT / ".agents" / "skills",
-    REPO_ROOT / ".agents" / "custom-skills",
-]
 REPORT_PATH = REPO_ROOT / "aidlc-docs" / "skill-drift-report.md"
 
-
-# ── semver helpers (no dependencies) ─────────────────────────────────────────
-
-_VER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
-
-
-def _parse_ver(v: str) -> tuple[int, int, int] | None:
-    m = _VER_RE.search(v)
-    if not m:
-        return None
-    return int(m.group(1)), int(m.group(2)), int(m.group(3))
-
-
-def _ver_in_range(version: str, semver_range: str) -> bool:
-    """Rudimentary semver range check covering >=X.Y.Z <A.B.C patterns."""
-    ver = _parse_ver(version)
-    if ver is None:
-        return False
-
-    # strip whitespace, split on spaces (each clause is ANDed)
-    clauses = semver_range.strip().split()
-    for clause in clauses:
-        m = re.match(r"([><=!^~]+)([\d.]+)", clause)
-        if not m:
-            continue
-        op, bound_str = m.group(1), m.group(2)
-        bound = _parse_ver(bound_str)
-        if bound is None:
-            continue
-        if op == ">=":
-            if ver < bound:
-                return False
-        elif op == ">":
-            if ver <= bound:
-                return False
-        elif op == "<":
-            if ver >= bound:
-                return False
-        elif op == "<=":
-            if ver > bound:
-                return False
-        elif op == "==" or op == "=":
-            if ver != bound:
-                return False
-        elif op == "^":
-            # compatible release: same major, >= minor.patch
-            if ver[0] != bound[0] or ver < bound:
-                return False
-        elif op == "~":
-            # approximately: same major+minor, >= patch
-            if ver[:2] != bound[:2] or ver < bound:
-                return False
-    return True
+sys.path.insert(0, str(Path(__file__).parent))
+from skill_utils import (
+    SkillInfo,
+    discover_skills,
+    parse_frontmatter,
+    ver_in_range as _ver_in_range,
+)
 
 
 # ── registry queries ──────────────────────────────────────────────────────────
@@ -104,7 +52,9 @@ def _get_url(url: str, timeout: int = 15) -> dict | None:
 
 
 def _latest_npm(package: str) -> str | None:
-    data = _get_url(f"https://registry.npmjs.org/{package}/latest")
+    # URL-encode scoped packages: @scope/name → @scope%2Fname
+    encoded = package.replace("/", "%2F")
+    data = _get_url(f"https://registry.npmjs.org/{encoded}/latest")
     if data:
         return data.get("version")
     return None
@@ -132,6 +82,7 @@ _REGISTRY_FUNCS = {
 
 # npm packages that map to their registry name (framework → npm package)
 _NPM_FRAMEWORK_MAP: dict[str, str] = {
+    # frontend / fullstack
     "next": "next",
     "react": "react",
     "vue": "vue",
@@ -141,7 +92,17 @@ _NPM_FRAMEWORK_MAP: dict[str, str] = {
     "astro": "astro",
     "remix": "@remix-run/react",
     "vite": "vite",
+    "vitest": "vitest",
     "angular": "@angular/core",
+    "@angular/core": "@angular/core",
+    "tailwindcss": "tailwindcss",
+    "typescript": "typescript",
+    # Node.js backends
+    "express": "express",
+    "fastify": "fastify",
+    "koa": "koa",
+    "hono": "hono",
+    "@nestjs/core": "@nestjs/core",
 }
 
 _PYPI_FRAMEWORK_MAP: dict[str, str] = {
@@ -173,81 +134,8 @@ def resolve_latest(framework: str) -> tuple[str, str | None]:
     return "unknown", None
 
 
-# ── SKILL.md frontmatter parser ───────────────────────────────────────────────
-
-def _parse_frontmatter(skill_md: Path) -> dict:
-    """Extract YAML frontmatter from a SKILL.md file (minimal parser)."""
-    text = skill_md.read_text(encoding="utf-8", errors="replace")
-    if not text.startswith("---"):
-        return {}
-
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-
-    fm_text = text[3:end].strip()
-    result: dict = {}
-    current_key: str | None = None
-    nested: dict | None = None
-
-    for line in fm_text.splitlines():
-        stripped = line.lstrip()
-        indent = len(line) - len(stripped)
-
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        if indent == 0:
-            if ":" in stripped:
-                key, _, val = stripped.partition(":")
-                key = key.strip()
-                val = val.strip().strip('"\'')
-                if val:
-                    result[key] = val
-                    current_key = None
-                    nested = None
-                else:
-                    current_key = key
-                    nested = {}
-                    result[key] = nested
-        elif indent >= 2 and nested is not None:
-            key, _, val = stripped.partition(":")
-            nested[key.strip()] = val.strip().strip('"\'')
-
-    return result
-
-
 # ── skill discovery ───────────────────────────────────────────────────────────
-
-@dataclass
-class SkillInfo:
-    name: str
-    path: Path
-    framework: str = ""
-    version_range: str = ""
-    has_applies_to: bool = False
-
-
-def discover_skills(only: str | None = None) -> list[SkillInfo]:
-    skills = []
-    for base in SKILLS_DIRS:
-        if not base.exists():
-            continue
-        for skill_md in base.rglob("SKILL.md"):
-            fm = _parse_frontmatter(skill_md)
-            name = fm.get("name", skill_md.parent.name)
-            if only and name != only:
-                continue
-            applies_to = fm.get("applies_to", {}) if isinstance(fm.get("applies_to"), dict) else {}
-            info = SkillInfo(
-                name=name,
-                path=skill_md,
-                framework=applies_to.get("framework", ""),
-                version_range=applies_to.get("version", ""),
-                has_applies_to=bool(applies_to),
-            )
-            skills.append(info)
-    return skills
+# SkillInfo, discover_skills, and parse_frontmatter are imported from skill_utils.
 
 
 # ── drift check ───────────────────────────────────────────────────────────────
@@ -364,7 +252,7 @@ def main() -> None:
                         help="Write drift-report.md to aidlc-docs/")
     args = parser.parse_args()
 
-    skills = discover_skills(args.skill)
+    skills = discover_skills(REPO_ROOT, args.skill)
     if not skills:
         print("No skills found." if args.skill is None
               else f"Skill '{args.skill}' not found.")

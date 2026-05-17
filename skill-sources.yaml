@@ -1,20 +1,33 @@
-# skill-sources.yaml — External skill registry for autoskills adapter
+# skill-sources.yaml — Custom/internal/private skill registry
 #
-# Usage:
+# PURPOSE: This file is for skills that are NOT in the public autoskills registry
+# (https://github.com/midudev/autoskills). Use it for:
+#   - Company-internal or project-specific skills
+#   - Skills for frameworks not yet covered by the autoskills registry
+#   - Any skill you want to pin to a specific URL + SHA-256
+#
+# For public framework skills (Next.js, Angular, Express, Vue, etc.),
+# use factory_skill_sync.py instead — it wraps the autoskills CLI and handles
+# monorepo workspaces automatically:
+#   python3 aidlc-scripts/factory_skill_sync.py sync
+#
+# Both installers write to .agents/skills/<name>/ and coexist safely.
+#
+# Usage (this file):
 #   python3 aidlc-scripts/factory_autoskills.py            # install/update all
 #   python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview only
-#   python3 aidlc-scripts/factory_autoskills.py --skill nextjs-15
+#   python3 aidlc-scripts/factory_autoskills.py --skill my-internal-skill
 #
 # Format per entry:
 #   name:       unique slug (becomes the directory name under .agents/skills/)
 #   url:        raw URL to the skill's SKILL.md file
-#   sha256:     expected SHA-256 hex digest of the file at `url` (pin for integrity)
-#   applies_to: used by lockfile-aware activation in code-generator and build-test-agent
-#     framework: npm package name / pip package name / cargo crate name
-#     version:   semver range (node-semver syntax)
+#   sha256:     expected SHA-256 hex digest (pin for integrity)
+#   applies_to: optional — used by skill drift detection
+#     framework: npm package / pip package / cargo crate name
+#     version:   semver range
 #
 # To add a skill:
-#   1. Add an entry below with url + sha256 (get sha256 via: curl -sL <url> | sha256sum)
+#   1. Add an entry below with url + sha256 (get sha256: curl -sL <url> | shasum -a 256)
 #   2. Run: python3 aidlc-scripts/factory_autoskills.py --skill <name>
 #   3. Commit the updated skill-sources.yaml and the installed skill file
 

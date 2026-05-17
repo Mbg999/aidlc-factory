@@ -50,6 +50,51 @@ ALL stages complete AND the user is asking a question, requesting a review, or n
 - **Workspace Root**: [Absolute path]
 ```
 
+## Step 2.5: Workspace Discovery
+
+Identify all workspace directories (monorepo support). Run the following to find
+directories containing a manifest file at depth ≤ 4:
+
+```bash
+find . \( -name "package.json" -o -name "pyproject.toml" -o -name "Cargo.toml" -o -name "go.mod" \) \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" \
+    -not -path "*/dist/*" \
+    -not -path "*/build/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/target/*" \
+    -not -path "*/.agents/*" \
+    -not -path "*/aidlc-docs/*" \
+    -maxdepth 4 \
+    -exec dirname {} \; | sort -u
+```
+
+Record the resulting list as workspace directories. If only the root is found,
+record `["."]`. Emit:
+```
+[Workspaces] N workspace(s) detected: ., backend/, frontend/
+```
+
+## Step 2.6: Skill Activation (if Python and Node.js ≥ 22.6.0 available)
+
+Run autoskills across all detected workspaces and install framework skills:
+
+```bash
+python3 aidlc-scripts/factory_skill_sync.py sync
+```
+
+If the script is absent or Node.js < 22.6.0: skip silently and log a warning.
+Universal process skills in `.agents/custom-skills/` always apply regardless.
+
+On completion, emit:
+```
+[Skills] N framework skills installed/updated
+```
+
+For any technology detected by autoskills that has no matching skill, surface
+the warning inline:
+> ⚠ No autoskills skill found for `<technology>`. Universal skills will apply.
+
 ## Step 3: Determine Next Phase
 
 **IF workspace is empty (no existing code)**:

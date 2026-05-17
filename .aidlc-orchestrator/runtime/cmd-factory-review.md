@@ -14,6 +14,9 @@ Post-generation quality gate. **Parallel fan-out:** all reviewers in one
 
 All share `reviewer.input.v1.json` / `reviewer.output.v1.json`.
 
+> **Framework skills** are available here if `/factory-build` ran first (they are stored in
+> `manifest.skill_paths_resolved` after Pre-Build Step 0). Reviewers inherit this list.
+
 ## Flow
 
 1. **Active set** — default all four; constrain to `manifest.reviewer_pool[]` if set.

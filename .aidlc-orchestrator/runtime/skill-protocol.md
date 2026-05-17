@@ -5,9 +5,16 @@ PRIORITY: P4
 Skills are the primary enforcement mechanism for quality and process.
 
 ## Skill locations (search order, first-found wins)
-- `<repo>/.agents/custom-skills/<skill-name>/SKILL.md` (project-specific)
-- `<repo>/.agents/skills/<skill-name>/SKILL.md` (repo-local)
-- `~/.agents/skills/<skill-name>/SKILL.md` (user-global)
+- `<repo>/.agents/custom-skills/<skill-name>/SKILL.md` (project-specific, always committed)
+- `<repo>/.agents/skills/<skill-name>/SKILL.md` (installed by `factory_skill_sync.py sync`)
+- `~/.agents/skills/<skill-name>/SKILL.md` (user-global fallback)
+
+**How `skill_paths_resolved[]` is populated**: at `/factory-build` Pre-Build Step 0,
+`factory_skill_sync.py select` runs autoskills across all workspace directories (monorepo
+support), consolidates framework skills to `.agents/skills/`, then returns the full path
+list. Stages at spec/plan time use `.agents/custom-skills/` only (process skills).
+`factory_autoskills.py` handles private/internal skills from `skill-sources.yaml` and
+coexists with `factory_skill_sync.py` — both write to `.agents/skills/`.
 
 ## Skill anatomy
 Every skill from addyosmani/agent-skills has: **Overview**, **When to Use**,

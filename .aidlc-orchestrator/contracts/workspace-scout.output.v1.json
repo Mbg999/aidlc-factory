@@ -81,7 +81,7 @@
         "reverse_engineering_artifacts_present": { "type": "boolean" },
         "tech_stack": {
           "type": "array",
-          "description": "Pinned framework/library versions parsed from lockfiles. Used by downstream agents for lockfile-aware skill activation.",
+          "description": "Best-effort tech stack from top-level manifests (audit purposes). Full detection is handled by factory_skill_sync.py at factory-build time.",
           "items": {
             "type": "object",
             "required": ["package", "version", "ecosystem"],
@@ -96,6 +96,12 @@
             "additionalProperties": false
           },
           "default": []
+        },
+        "workspace_dirs": {
+          "type": "array",
+          "description": "Relative paths to all detected workspace directories. Used by factory_skill_sync.py to run autoskills in each workspace (monorepo support).",
+          "items": { "type": "string" },
+          "default": ["."]
         },
         "codegraph_state": {
           "type": "object",
