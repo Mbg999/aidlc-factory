@@ -234,67 +234,6 @@ def parse_tools_string(s: str) -> list[str]:
     return out
 
 
-# Tools that write to a top-level shared workflow doc. Tools using their own
-# tool-scoped directory (.kiro, .amazonq, .cursor, .clinerules, .windsurf) are
-# absent — they never collide with anything.
-_TOOL_WORKFLOW_DOC_REL = {
-    "claude": "CLAUDE.md",
-    "opencode": "AGENTS.md",
-    "codex": "AGENTS.md",
-    "other": "AGENTS.md",
-    "copilot": ".github/copilot-instructions.md",
-}
-
-
-# Per-tool install markers — files/dirs that uniquely indicate a tool's install.
-# Used to detect already-installed tools and skip re-installing them. Tools that
-# share AGENTS.md (opencode/codex/other) cannot be distinguished by the root
-# doc alone, so their orchestrator dir is used as a more specific marker.
-# 'other' has no unique marker and is never auto-detected.
-TOOL_INSTALL_MARKERS: dict[str, list[Path]] = {
-    "claude": [Path("CLAUDE.md")],
-    "opencode": [Path(".opencode/agents")],
-    "codex": [Path(".codex/agents")],
-    "copilot": [Path(".github/copilot-instructions.md")],
-    "kiro": [Path(".kiro/steering/aws-aidlc-rules")],
-    "amazonq": [Path(".amazonq/rules/aws-aidlc-rules")],
-    "cursor": [Path(".cursor/rules/ai-dlc-workflow.mdc")],
-    "cline": [Path(".clinerules/core-workflow.md")],
-    "windsurf": [Path(".windsurf/rules/ai-dlc-workflow.md")],
-    "other": [],
-}
-
-
-def detect_installed_tools(target_root: Path) -> set[str]:
-    """Return the set of tools that appear to be already installed in target_root."""
-    installed: set[str] = set()
-    for tool, markers in TOOL_INSTALL_MARKERS.items():
-        if markers and any((target_root / m).exists() for m in markers):
-            installed.add(tool)
-    return installed
-
-
-def check_workflow_doc_conflicts(tools: list[str]) -> None:
-    """Raise ValueError if two selected tools would write to the same workflow doc.
-
-    The orchestrator pointer block differs between e.g. opencode (.opencode/agents/)
-    and codex/other (.claude/agents/), so installing them together produces a
-    broken AGENTS.md (second tool's pointer is silently dropped by the marker
-    idempotency check).
-    """
-    by_doc: dict[str, list[str]] = {}
-    for t in tools:
-        doc = _TOOL_WORKFLOW_DOC_REL.get(t)
-        if doc:
-            by_doc.setdefault(doc, []).append(t)
-    conflicts = {doc: ts for doc, ts in by_doc.items() if len(ts) > 1}
-    if conflicts:
-        lines = [f"  {doc}: {', '.join(ts)}" for doc, ts in conflicts.items()]
-        raise ValueError(
-            "Incompatible tool combination — these tools share workflow doc(s):\n"
-            + "\n".join(lines)
-            + "\nPick one tool per shared doc, or run install_aidlc.py separately for each."
-        )
 
 
 # AIDLC Orchestrator (Phases 0-6) artifacts to install.
@@ -801,123 +740,6 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
     return count
 
 
-def run_install(tool: str, src_rules: Path, src_details: Path, target_root: Path, dry_run: bool) -> None:
-    core_md = src_rules / "core-workflow.md"
-    if not core_md.exists():
-        core_md = src_rules / "core-workflow.md"
-    core_content = core_md.read_text(encoding="utf-8") if core_md.exists() else ""
-
-    if tool == "kiro":
-        dest_rules = target_root / ".kiro" / "steering" / "aws-aidlc-rules"
-        dest_details = target_root / ".kiro" / "aws-aidlc-rule-details"
-        print(f"Installing for Kiro: {dest_rules}")
-        copy_tree(src_rules, dest_rules, dry_run)
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "amazonq":
-        dest_rules = target_root / ".amazonq" / "rules" / "aws-aidlc-rules"
-        dest_details = target_root / ".amazonq" / "aws-aidlc-rule-details"
-        print(f"Installing for Amazon Q Developer: {dest_rules}")
-        copy_tree(src_rules, dest_rules, dry_run)
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "cursor":
-        dest_rules_file = target_root / ".cursor" / "rules" / "ai-dlc-workflow.mdc"
-        frontmatter = textwrap.dedent("""\
-        ---
-        description: "AI-DLC (AI-Driven Development Life Cycle) adaptive workflow for software development"
-        alwaysApply: true
-        ---
-
-        """)
-        print(f"Installing for Cursor: {dest_rules_file}")
-        write_file(dest_rules_file, frontmatter + core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "cline":
-        dest = target_root / ".clinerules" / "core-workflow.md"
-        print(f"Installing for Cline: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "claude":
-        dest = target_root / "CLAUDE.md"
-        print(f"Installing for Claude Code: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "codex":
-        dest = target_root / "AGENTS.md"
-        print(f"Installing for Codex CLI: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "windsurf":
-        dest_rules_file = target_root / ".windsurf" / "rules" / "ai-dlc-workflow.md"
-        print(f"Installing for Windsurf: {dest_rules_file}")
-        write_file(dest_rules_file, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "copilot":
-        dest = target_root / ".github" / "copilot-instructions.md"
-        print(f"Installing for GitHub Copilot: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "opencode":
-        dest = target_root / "AGENTS.md"
-        print(f"Installing for OpenCode: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run, exclude={"update.md"})
-
-    elif tool == "other":
-        dest = target_root / "AGENTS.md"
-        print(f"Installing generic AGENTS.md: {dest}")
-        write_file(dest, core_content, dry_run)
-        dest_details = target_root / ".aidlc-rule-details"
-        copy_tree(src_details, dest_details, dry_run)
-
-    else:
-        raise ValueError(f"Unknown tool: {tool}")
-
-    print("\nInstallation summary: (source -> target)")
-    print(f"  rules: {src_rules} -> {target_root}")
-    print(f"  details: {src_details} -> {target_root}")
-
-    # Copy the tool-specific adapter file into the destination for reference
-    repo_root_adapters = src_rules.parent.parent
-    adapters_dir = repo_root_adapters / "aidlc-rules" / "adapters"
-    adapter_map = {
-        "copilot": "copilot.md",
-        "cursor": "cursor.md",
-        "claude": "claude-code.md",
-        "cline": "cline.md",
-        "other": "generic.md",
-        "kiro": "generic.md",
-        "amazonq": "generic.md",
-        "opencode": "generic.md",
-        "codex": "generic.md",
-        "windsurf": "generic.md",
-    }
-    adapter_file = adapters_dir / adapter_map.get(tool, "generic.md")
-    if adapter_file.exists():
-        if tool == "kiro":
-            adapter_dest = target_root / ".kiro" / "aws-aidlc-rule-details" / "adapters" / adapter_file.name
-        elif tool == "amazonq":
-            adapter_dest = target_root / ".amazonq" / "aws-aidlc-rule-details" / "adapters" / adapter_file.name
-        else:
-            adapter_dest = target_root / ".aidlc-rule-details" / "adapters" / adapter_file.name
-        print(f"Copying adapter: {adapter_file} -> {adapter_dest}")
-        copy_file(adapter_file, adapter_dest, dry_run)
-
-
 
 
 CODEGRAPH_NPM_PACKAGE = "@colbymchenry/codegraph"
@@ -1189,13 +1011,6 @@ def main() -> int:
         else:
             target_root = Path.cwd()
     repo_root = Path(__file__).resolve().parent.parent
-    src_base = Path(args.source) if args.source else repo_root / "aidlc-rules" / "aws-aidlc-rules"
-    src_details = Path(args.source) if args.source else repo_root / "aidlc-rules" / "aws-aidlc-rule-details"
-
-    if not src_base.exists() or not src_details.exists():
-        print("ERROR: Could not find local rule files. Make sure this script is run from the AI-DLC repository or provide --source")
-        print(f"Expected rule dir: {repo_root / 'aidlc-rules' / 'aws-aidlc-rules'}")
-        return 2
 
     if args.tool:
         try:
@@ -1205,46 +1020,6 @@ def main() -> int:
             return 2
     else:
         tools = interactive_choose_tools()
-
-    try:
-        check_workflow_doc_conflicts(tools)
-    except ValueError as e:
-        print(f"ERROR: {e}")
-        return 2
-
-    # Merge mode: skip tools that are already installed, unless --force.
-    if args.force:
-        installed_tools: set[str] = set()
-    else:
-        installed_tools = detect_installed_tools(target_root)
-    already = [t for t in tools if t in installed_tools]
-    pending = [t for t in tools if t not in installed_tools]
-    if already:
-        print(f"Detected existing install for: {', '.join(already)} — skipping (use --force to re-install)")
-    if not pending:
-        print("All selected tools already installed — nothing to do.")
-        return 0
-    tools = pending
-
-    tools_label = ", ".join(f"'{t}'" for t in tools)
-    print(f"Selected tool(s): {tools_label}")
-    if not args.yes:
-        try:
-            resp = input(f"Proceed to install AI-DLC for {tools_label} into {target_root}? [Y/n]: ").strip().lower()
-        except KeyboardInterrupt:
-            print("\nAborted by user")
-            return 1
-        # Default to yes on empty response; only abort on explicit 'no'
-        if resp in ("n", "no"):
-            print("Aborted by user")
-            return 1
-
-    for tool in tools:
-        try:
-            run_install(tool, src_base, src_details, target_root, args.dry_run)
-        except Exception as e:
-            print(f"ERROR during installation for '{tool}':", e)
-            return 3
 
     # Agent skills will be installed by default (no interactive prompt)
 
@@ -1271,7 +1046,8 @@ def main() -> int:
                 return 5
 
         try:
-            install_agent_skills(tool, skills_repo, target_root, args.dry_run)
+            for tool in tools:
+                install_agent_skills(tool, skills_repo, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing agent-skills: {e}")
             return 5

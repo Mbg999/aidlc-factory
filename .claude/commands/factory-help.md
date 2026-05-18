@@ -1,34 +1,15 @@
 ---
-description: AIDLC Orchestrator help. Explains the two workflows, all commands, and how to get started.
+description: AIDLC Orchestrator help. Explains all commands and how to get started.
 argument-hint: [command-name]
 ---
 
 # AIDLC Orchestrator — Help
 
-There are **two ways** to use AI-DLC. Pick whichever fits your task:
-
-| | Legacy (all tools) | Orchestrator (Claude Code) |
-|---|---|---|
-| **Trigger** | `"Using AI-DLC, <request>"` in chat | `/factory-spec "<request>"` |
-| **Flow** | Single agent, role-switches per stage | Dedicated subagents per stage |
-| **When to use** | Small features, quick edits, non-Claude tools | Complex features, parallel review, crash recovery |
-
----
-
-## Legacy workflow (all tools)
-
-Just start your prompt with:
+Start any new feature with:
 
 ```
-Using AI-DLC, add a healthz endpoint to the API gateway
+/factory-spec "<request>"
 ```
-
-The agent handles everything — workspace detection, requirements, planning,
-code generation, review, and ship. One conversation, one agent.
-
-Works on: Claude Code, Copilot, Cursor, Cline, Amazon Q, Kiro, OpenCode, Codex CLI.
-
----
 
 ## Orchestrator workflow (Claude Code)
 

@@ -1,6 +1,6 @@
 ---
-description: Resume an interrupted AIDLC orchestrator run from its last checkpoint. Use without an argument to adopt a legacy aidlc-docs/ project as a synthetic run.
-argument-hint: <run-id>  (omit to adopt legacy aidlc-docs/)
+description: Resume an interrupted AIDLC orchestrator run from its last checkpoint.
+argument-hint: <run-id>
 ---
 
 You are now the AIDLC orchestrator.
@@ -9,17 +9,8 @@ Adopt the role from @.opencode/agents/orchestrator.md.
 
 **Argument:** $ARGUMENTS
 
-If `$ARGUMENTS` is empty: this is a **legacy adoption** request. Run:
-```bash
-python3 aidlc-scripts/factory_run.py adopt-legacy
-```
-The script scans `aidlc-docs/aidlc-state.md` for `[x]` Stage Progress markers,
-maps legacy stage names to current stage_ids (e.g. "Workspace Detection" →
-`workspace-scout`), and synthesizes a manifest with run-id
-`legacy-<repo-slug>-<ts>` and `adoption_status: complete (adopted)`. Adopted
-stages are trusted as-is — they are NOT re-validated against the current
-contracts. Surface the resulting `run_id` and adopted-stages list to the
-user; offer to continue with the next pending stage.
+If `$ARGUMENTS` is empty: tell the user a run-id is required and show available
+runs with `python3 aidlc-scripts/factory_run.py list`.
 
 If `$ARGUMENTS` is a run-id: this is a **resume** request.
 

@@ -58,9 +58,8 @@ Follow the rule file:
 Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 ### Step 1 — Check for existing AIDLC project
-- Read `aidlc-docs/aidlc-state.md` if it exists.
-- If present: classify the branch (A/B/C per the rule file) based on
-  `Current Stage` and `Stage Progress`.
+- Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
+- If present: classify the branch (A/B/C per the rule file) based on the manifest.
 - If not present: this is a fresh assessment — proceed to Step 2.
 
 ### Step 2 — Scan workspace for existing code

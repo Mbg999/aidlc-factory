@@ -1,4 +1,4 @@
-# Replay & Legacy Adoption
+# Resume & Replay
 
 PRIORITY: P3
 
@@ -41,29 +41,6 @@ archived, not deleted.
 The replay archive prefix `.replay-<ts>.yaml` distinguishes archived outputs
 from current handoffs.
 
-## Legacy adoption (`/factory-resume` with no run-id)
-
-Adopts an existing `aidlc-docs/` project (from the legacy single-agent
-workflow) as a synthetic orchestrator run. No re-validation of completed
-artifacts.
-
-1. Read `aidlc-docs/aidlc-state.md` Stage Progress markers.
-2. Map each marker to a canonical stage ID via the alias table in
-   `factory_run.py` (e.g. `Requirements Analysis` → `requirements-analyst`).
-3. Synthesize a `manifest.yaml`:
-   ```yaml
-   run_id: legacy-adopt-<timestamp>
-   project_slug: <slug>
-   current_stage: <first uncompleted stage>
-   completed_stages: [<mapped stages...>]
-   legacy: true
-   ```
-4. Adopted stages are trusted as-is — NOT re-validated. Any stage not
-   present in `aidlc-state.md` markers is treated as unstarted.
-5. Emit `adopt_requested` to `timeline.jsonl`.
-6. Log `[RunManager] Adopted legacy project <slug>: <N> stages mapped` to
-   audit.
-
 ## Atomicity
 
 - `manifest.yaml` writes: POSIX-atomic via write-to-tmpfile-then-rename
@@ -74,4 +51,7 @@ artifacts.
 
 ## Why this is a separate runtime doc
 
-Resume/Replay/Adopt execute in < 5% of runs (loaded on demand). This contrasts with `spawn-loop.md` which is **load-critical** — read on every spawn. Keeping cold paths in separate runtime files shrank unconditionally-loaded kernel context by ~78%.
+Resume/Replay execute in < 5% of runs (loaded on demand). This contrasts
+with `spawn-loop.md` which is **load-critical** — read on every spawn.
+Keeping cold paths in separate runtime files shrank unconditionally-loaded
+kernel context by ~78%.

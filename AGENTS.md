@@ -22,7 +22,7 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 
 | Path | Purpose |
 |------|---------|
-| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Primary workflow rule (copied to target projects as AGENTS.md / CLAUDE.md / etc.) |
+| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules (read by orchestrator stage agents) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Stage rule details (inception / construction / operations / common / extensions) |
 | `.claude/agents/orchestrator.md` | Multi-agent orchestrator (Claude Code only) |
 | `.claude/agents/stage/` | 13 stage subagents |
@@ -41,26 +41,9 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 
 ---
 
-## Two execution models
+## Multi-agent orchestrator (Claude Code only)
 
-### Legacy single-agent (all tools — use this)
-
-Activated by prefixing a request with **"Using AI-DLC, …"**.
-Core rule: `aidlc-rules/aws-aidlc-rules/core-workflow.md`.
-
-Phase flow:
-1. **Workspace Detection** — greenfield vs brownfield
-2. **Reverse Engineering** (brownfield only, no prior artifacts)
-3. **Requirements Analysis** — structured MCQ, produces requirements doc
-4. **Workflow Planning** — Mermaid execution plan
-5. **Construction** — per-unit: Functional Design → Code Gen → Build/Test
-6. **Operations** — deployment/monitoring (placeholder)
-
-All artifacts land in `aidlc-docs/`.
-
-### Multi-agent orchestrator (Claude Code only)
-
-Uses `/factory-*` slash commands. Not available in other tools.
+Uses `/factory-*` slash commands.
 See `.claude/agents/orchestrator.md` and `.aidlc-orchestrator/runtime/index.md`.
 
 ---
@@ -85,8 +68,7 @@ Bundled custom skills in this fork:
 
 - **Contracts are the interface**: stage I/O is defined by JSON Schema in
   `.aidlc-orchestrator/contracts/`. Agent output changes must be reflected in contracts.
-- **Rule files are the single source of truth**: both execution models read
-  `aidlc-rules/aws-aidlc-rule-details/`. No duplicate logic between rule files and agent prompts.
+- **Rule files are the source of truth**: stage agents read `aidlc-rules/aws-aidlc-rule-details/`. No duplicate logic between rule files and agent prompts.
 - **Installer is distribution**: new orchestrator files must be wired into
   `aidlc-scripts/install_aidlc.py` under the correct flag (`--with-orchestrator`,
   `--with-codegraph`, etc.).

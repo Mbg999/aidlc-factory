@@ -13,7 +13,7 @@ prevention, CodeGraph integration, and persistent memory (Engram).
 
 | Path | Purpose |
 |------|---------|
-| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Single-agent workflow (copied to target projects as CLAUDE.md) |
+| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules (read by orchestrator stage agents) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Detailed stage rule files (inception / construction / operations / extensions) |
 | `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands) |
 | `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
@@ -32,14 +32,8 @@ prevention, CodeGraph integration, and persistent memory (Engram).
 
 ---
 
-## Two execution models
+## Multi-agent orchestrator (Claude Code only)
 
-### 1 — Legacy single-agent (all tools)
-Activated when the user says **"Using AI-DLC, …"** in any chat.
-Core rule file: `aidlc-rules/aws-aidlc-rules/core-workflow.md`.
-Artifacts land in `aidlc-docs/`.
-
-### 2 — Multi-agent orchestrator (Claude Code only)
 Activated via `/factory-*` slash commands.
 Entry point: `.claude/agents/orchestrator.md`.
 Runtime spec: `.aidlc-orchestrator/runtime/index.md`.
@@ -51,7 +45,7 @@ Runtime spec: `.aidlc-orchestrator/runtime/index.md`.
 | `/factory-build <run-id>` | Parallel code-gen + build/test with file-glob locks (Phase 5) |
 | `/factory-review <run-id>` | Parallel reviewer pool: code / security / performance / simplifier |
 | `/factory-ship <run-id>` | Release notes, ADRs, CHANGELOG, CI/CD wiring |
-| `/factory-resume [run-id]` | Resume interrupted run; no arg adopts legacy aidlc-docs/ |
+| `/factory-resume <run-id>` | Resume interrupted run from last completed stage |
 | `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage |
 | `/factory-state <run-id>` | Show run status, stage, budget |
 | `/factory-help` | Full command reference |
@@ -127,7 +121,7 @@ This project ships with the AIDLC orchestrator:
 - `/factory-build <run-id>` — layer-parallel code generation with locks + AST checks
 - `/factory-review <run-id>` — parallel reviewer pool
 - `/factory-ship <run-id>` — release notes, ADRs, CI/CD, CHANGELOG
-- `/factory-resume <run-id>` — resume interrupted run (or adopt legacy `aidlc-docs/`)
+- `/factory-resume <run-id>` — resume interrupted run from last completed stage
 - `/factory-replay <run-id> --from <stage>` — re-run from a specific stage
 
 See `.claude/agents/orchestrator.md`, `.aidlc-orchestrator/runtime/index.md`, `.aidlc-orchestrator/contracts/`.

@@ -11,24 +11,15 @@ system.
 
 ---
 
-## 1. Two ways to work
+## 1. How it works
 
-**Legacy mode** — say `"Using AI-DLC, <your request>"` in chat. One agent
-role-switches through all stages. Works on any tool (Copilot, Cursor, Claude, etc.).
-
-**Orchestrator mode** (this system) — use `/factory-spec "<request>"`. A
-dedicated orchestrator agent spawns specialized subagents (scout, analyst,
-code-gen, reviewer, etc.). Claude Code only. Both produce the same artifacts.
+Use `/factory-spec "<request>"`. A dedicated orchestrator agent spawns
+specialized subagents (scout, analyst, code-gen, reviewer, etc.) per stage.
 
 **When to use the orchestrator:**
 - Multi-component features (several files, services, or modules)
 - Brownfield work (needs reverse-engineering existing code)
 - Runs where you want budget caps, crash recovery, or a parallel reviewer pool
-
-**When to use legacy:**
-- Single-file changes, docs, trivial fixes
-- Non-Claude tools
-- You want minimum ceremony
 
 ---
 

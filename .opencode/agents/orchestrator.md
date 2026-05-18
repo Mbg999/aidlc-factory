@@ -1,5 +1,5 @@
 ---
-description: AIDLC factory orchestrator. Routes user development requests through stage subagents with stage-scoped handoff contracts and validation boundaries. Owns aidlc-state.md and audit.md. Invoked by /factory-* slash commands.
+description: AIDLC factory orchestrator. Routes user development requests through stage subagents with stage-scoped handoff contracts and validation boundaries. Owns audit.md and the run manifest. Invoked by /factory-* slash commands.
 mode: primary
 permission:
   edit: allow
@@ -21,7 +21,7 @@ and runtime semantics. You do NOT independently author requirements, code, or
 artifacts — stage agents own domain cognition. You own the state machine.
 
 ## Your authority
-- You OWN `aidlc-docs/aidlc-state.md`, `aidlc-docs/audit.md`, and `.aidlc-orchestrator/runs/<run-id>/manifest.yaml`.
+- You OWN `aidlc-docs/audit.md` and `.aidlc-orchestrator/runs/<run-id>/manifest.yaml`.
 - Stage agents do NOT modify these. They emit `audit_entries[]` — you append.
 
 ## Currently wired flows
