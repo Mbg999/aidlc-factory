@@ -29,6 +29,71 @@ def _make_skill_dir(base: Path, name: str, content: str = "") -> Path:
     return d
 
 
+# ── _remove ───────────────────────────────────────────────────────────────────
+
+class TestRemove:
+    def test_removes_real_directory(self, tmp_path):
+        d = tmp_path / "skill"
+        d.mkdir()
+        (d / "SKILL.md").write_text("content")
+        mod._remove(d)
+        assert not d.exists()
+
+    def test_removes_symlink_to_directory(self, tmp_path):
+        real = tmp_path / "real-skill"
+        real.mkdir()
+        (real / "SKILL.md").write_text("content")
+        link = tmp_path / "link-skill"
+        link.symlink_to(real)
+        mod._remove(link)
+        assert not link.exists()
+        assert real.exists()  # target untouched
+
+    def test_removes_symlink_does_not_touch_target(self, tmp_path):
+        real = tmp_path / "shared"
+        real.mkdir()
+        (real / "SKILL.md").write_text("shared content")
+        link = tmp_path / "alias"
+        link.symlink_to(real)
+        mod._remove(link)
+        assert (real / "SKILL.md").read_text() == "shared content"
+
+    def test_noop_on_nonexistent(self, tmp_path):
+        mod._remove(tmp_path / "does-not-exist")  # must not raise
+
+
+# ── _copy_skill ────────────────────────────────────────────────────────────────
+
+class TestCopySkill:
+    def test_copies_real_directory(self, tmp_path):
+        src = tmp_path / "src" / "react"
+        src.mkdir(parents=True)
+        (src / "SKILL.md").write_text("react content")
+        dest = tmp_path / "dest" / "react"
+        mod._copy_skill(src, dest)
+        assert (dest / "SKILL.md").read_text() == "react content"
+
+    def test_copies_through_symlink(self, tmp_path):
+        real = tmp_path / "real" / "angular"
+        real.mkdir(parents=True)
+        (real / "SKILL.md").write_text("angular content")
+        link = tmp_path / "link" / "angular"
+        link.parent.mkdir()
+        link.symlink_to(real)
+        dest = tmp_path / "dest" / "angular"
+        mod._copy_skill(link, dest)
+        assert (dest / "SKILL.md").read_text() == "angular content"
+
+    def test_copy_preserves_subdirs(self, tmp_path):
+        src = tmp_path / "src" / "vue"
+        (src / "sub").mkdir(parents=True)
+        (src / "SKILL.md").write_text("main")
+        (src / "sub" / "extra.md").write_text("extra")
+        dest = tmp_path / "dest" / "vue"
+        mod._copy_skill(src, dest)
+        assert (dest / "sub" / "extra.md").read_text() == "extra"
+
+
 # ── _check_node ───────────────────────────────────────────────────────────────
 
 class TestCheckNode:
@@ -130,6 +195,42 @@ class TestConsolidate:
         assert installed == 0
         assert skipped == 1
 
+    def test_symlink_src_is_installed_and_removed(self, tmp_path):
+        """autoskills CLI may create symlinks; _consolidate must follow and remove them."""
+        real = tmp_path / "cache" / "angular"
+        real.mkdir(parents=True)
+        (real / "SKILL.md").write_text("---\nname: angular\n---\n")
+        link = tmp_path / "ws" / ".agents" / "skills" / "angular"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(real)
+
+        root_skills = tmp_path / ".agents" / "skills"
+        installed, skipped = mod._consolidate({"angular": link}, root_skills, tmp_path, dry_run=False)
+
+        assert installed == 1
+        assert (root_skills / "angular" / "SKILL.md").exists()
+        assert not link.exists()   # symlink removed
+        assert real.exists()       # original cache untouched
+
+    def test_symlink_src_up_to_date_is_removed(self, tmp_path):
+        """Up-to-date symlink src must be unlinked, not left dangling."""
+        content = "---\nname: vue\n---\n"
+        real = tmp_path / "cache" / "vue"
+        real.mkdir(parents=True)
+        (real / "SKILL.md").write_text(content)
+
+        root_skills = tmp_path / ".agents" / "skills"
+        _make_skill_dir(root_skills, "vue", content)  # already up-to-date
+
+        link = tmp_path / "ws" / ".agents" / "skills" / "vue"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(real)
+
+        installed, skipped = mod._consolidate({"vue": link}, root_skills, tmp_path, dry_run=False)
+
+        assert skipped == 1
+        assert not link.exists()  # symlink cleaned up even when skipped
+
 
 # ── _cleanup_workspace_agents ─────────────────────────────────────────────────
 
@@ -192,6 +293,34 @@ class TestCleanupWorkspaceAgents:
         mod._cleanup_workspace_agents([ws], tmp_path, dry_run=True)
 
         assert skills_dir.exists()
+
+    def test_removes_symlink_skills_dir(self, tmp_path):
+        """autoskills may leave ws/.agents/skills as a symlink; must be unlinked."""
+        ws = tmp_path / "frontend"
+        ws.mkdir()
+        real_skills = tmp_path / "shared-skills"
+        real_skills.mkdir()
+        link = ws / ".agents" / "skills"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(real_skills)
+
+        mod._cleanup_workspace_agents([ws], tmp_path, dry_run=False)
+
+        assert not link.exists()
+        assert real_skills.exists()  # target untouched
+
+    def test_removes_symlink_agents_dir(self, tmp_path):
+        ws = tmp_path / "backend"
+        ws.mkdir()
+        real_agents = tmp_path / "shared-agents"
+        real_agents.mkdir()
+        link = ws / ".agents"
+        link.symlink_to(real_agents)
+
+        mod._cleanup_workspace_agents([ws], tmp_path, dry_run=False)
+
+        assert not link.exists()
+        assert real_agents.exists()
 
 
 # ── cmd_select ────────────────────────────────────────────────────────────────

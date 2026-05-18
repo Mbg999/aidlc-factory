@@ -119,14 +119,32 @@ def _run_autoskills(workspace_dir: Path, dry_run: bool = False) -> list[Path]:
 # ── consolidation helpers ─────────────────────────────────────────────────────
 
 def _copy_skill(src: Path, dest: Path) -> None:
-    """Copy all files from src skill dir to dest, preserving sub-structure."""
+    """Copy all files from src skill dir to dest, preserving sub-structure.
+
+    Follows symlinks so that symlinked skill dirs created by autoskills CLI
+    are read through to their real content.
+    """
+    real_src = src.resolve() if src.is_symlink() else src
     dest.mkdir(parents=True, exist_ok=True)
-    for file in src.rglob("*"):
+    for file in real_src.rglob("*"):
         if file.is_file():
-            rel = file.relative_to(src)
+            rel = file.relative_to(real_src)
             dest_file = dest / rel
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file, dest_file)
+
+
+def _remove(path: Path) -> None:
+    """Remove a path whether it is a directory, a symlink, or a symlink-to-dir.
+
+    shutil.rmtree() raises NotADirectoryError on symlinks in Python 3.12+,
+    which is silently swallowed by ignore_errors=True — leaving the symlink
+    in place. This helper handles both cases explicitly.
+    """
+    if path.is_symlink():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _skill_is_current(src: Path, dest: Path) -> bool:
@@ -161,7 +179,7 @@ def _consolidate(
             print(f"    · {name} [skipped — up-to-date]")
             skipped += 1
             if not dry_run:
-                shutil.rmtree(src, ignore_errors=True)
+                _remove(src)
             continue
 
         if dry_run:
@@ -170,7 +188,7 @@ def _consolidate(
             continue
 
         _copy_skill(src, dest)
-        shutil.rmtree(src, ignore_errors=True)
+        _remove(src)
         print(f"    ✓ {name}")
         installed += 1
 
@@ -194,11 +212,17 @@ def _cleanup_workspace_agents(
             continue
 
         ws_skills = ws_agents / "skills"
-        if ws_skills.exists() and not any(ws_skills.iterdir()):
+        if ws_skills.is_symlink():
+            if not dry_run:
+                ws_skills.unlink()
+        elif ws_skills.exists() and not any(ws_skills.iterdir()):
             if not dry_run:
                 ws_skills.rmdir()
 
-        if ws_agents.exists() and not any(ws_agents.iterdir()):
+        if ws_agents.is_symlink():
+            if not dry_run:
+                ws_agents.unlink()
+        elif ws_agents.exists() and not any(ws_agents.iterdir()):
             if not dry_run:
                 ws_agents.rmdir()
 
