@@ -957,6 +957,49 @@ def _check_node_version(min_major: int) -> tuple[bool, str]:
         return False, "not found"
 
 
+def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
+    """Auto-detect codegraph on PATH and run `codegraph init -i` if .codegraph/ missing.
+
+    This is a lightweight post-install step — does NOT install codegraph, only
+    initializes an existing installation. Silent skip if codegraph not found.
+    """
+    cg_dir = target_root / ".codegraph"
+    if cg_dir.exists():
+        return
+
+    ok, version_str = _check_node_version(CODEGRAPH_NODE_MIN)
+    if not ok:
+        return
+
+    try:
+        result = subprocess.run(
+            ["codegraph", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return
+
+    cg_version = result.stdout.strip()
+    print(f"\n--- CodeGraph detected ({cg_version}) — initializing index ---")
+    if dry_run:
+        print(f"[DRY-RUN] Would run: codegraph init -i in {target_root}")
+        return
+
+    print("  Running codegraph init -i (may take 30s–4min)...")
+    init_result = subprocess.run(
+        ["codegraph", "init", "-i"],
+        cwd=str(target_root),
+    )
+    if init_result.returncode != 0:
+        print("  WARNING: codegraph init -i exited with an error — index may be incomplete.")
+        print(f"  Run manually:  cd {target_root} && codegraph init -i")
+    else:
+        print("  CodeGraph index built successfully.")
+        subprocess.run(["codegraph", "status"], cwd=str(target_root))
+
+
 def install_codegraph(target_root: Path, dry_run: bool) -> None:
     """Install CodeGraph globally via npm and write .mcp.json to target_root.
 
@@ -1315,6 +1358,9 @@ def main() -> int:
         except Exception as e:
             print(f"ERROR installing CodeGraph: {e}")
             print("  CodeGraph is optional — AIDLC will degrade gracefully without it.")
+
+    # --- CodeGraph auto-detect (post-install) ---
+    _auto_init_codegraph(target_root, args.dry_run)
 
     # --- Python venv + dependencies ---
     if args.no_venv:

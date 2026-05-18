@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -522,3 +523,122 @@ class TestCodeGraphIntegration:
             assert "codegraph-aware-exploration" in text, (
                 f"{name}.md does not load codegraph-aware-exploration"
             )
+
+
+# ---------- _auto_init_codegraph ----------
+
+class TestAutoInitCodeGraph:
+    """Unit tests for _auto_init_codegraph()."""
+
+    def test_skip_when_codegraph_dir_exists(self, tmp_path: Path):
+        (tmp_path / ".codegraph").mkdir()
+        install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+    def test_skip_when_node_too_old(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            install_aidlc, "_check_node_version",
+            lambda m: (False, "v16.0.0"),
+        )
+        install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+    def test_skip_when_codegraph_not_on_path(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            install_aidlc, "_check_node_version",
+            lambda m: (True, "v20.0.0"),
+        )
+
+        def _raise(*a, **kw):
+            raise FileNotFoundError("codegraph not found")
+
+        monkeypatch.setattr("subprocess.run", _raise)
+        install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+    def test_skip_when_codegraph_returns_nonzero(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            install_aidlc, "_check_node_version",
+            lambda m: (True, "v20.0.0"),
+        )
+        mock = MagicMock()
+        mock.returncode = 1
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+    def test_dry_run_does_not_init(self, tmp_path: Path, capsys):
+        with (
+            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("subprocess.run") as mock_run,
+        ):
+            mock_version = MagicMock()
+            mock_version.returncode = 0
+            mock_version.stdout = "1.2.3\n"
+            mock_run.return_value = mock_version
+
+            install_aidlc._auto_init_codegraph(tmp_path, dry_run=True)
+
+        captured = capsys.readouterr()
+        assert "[DRY-RUN]" in captured.out
+        assert "codegraph init -i" in captured.out
+
+    def test_init_success_runs_status(self, tmp_path: Path, capsys):
+        with (
+            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("subprocess.run") as mock_run,
+        ):
+            mock_version = MagicMock()
+            mock_version.returncode = 0
+            mock_version.stdout = "1.2.3\n"
+
+            mock_init = MagicMock()
+            mock_init.returncode = 0
+
+            mock_status = MagicMock()
+            mock_status.returncode = 0
+
+            mock_run.side_effect = [mock_version, mock_init, mock_status]
+
+            install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "built successfully" in captured.out
+        assert mock_run.call_count == 3
+
+    def test_init_failure_shows_warning(self, tmp_path: Path, capsys):
+        with (
+            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("subprocess.run") as mock_run,
+        ):
+            mock_version = MagicMock()
+            mock_version.returncode = 0
+            mock_version.stdout = "1.2.3\n"
+
+            mock_init = MagicMock()
+            mock_init.returncode = 1
+
+            mock_run.side_effect = [mock_version, mock_init]
+
+            install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "exited with an error" in captured.out
+        assert "Run manually" in captured.out
+
+    def test_skip_when_subprocess_times_out(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            install_aidlc, "_check_node_version",
+            lambda m: (True, "v20.0.0"),
+        )
+
+        def _raise(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="codegraph", timeout=10)
+
+        monkeypatch.setattr("subprocess.run", _raise)
+        install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
+
+    def test_cli_auto_detect_does_not_crash(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
