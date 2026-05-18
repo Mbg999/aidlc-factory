@@ -2,11 +2,16 @@
 
 PRIORITY: P3
 
-Runs when the Phase 0 Triage Gate returns TINY (score 0–1). Bypasses **ALL** shared primitives — no manifest.yaml, no timeline.jsonl, no audit.md blocks (except one flat line), no lock registry, no knowledge saves, no reviewer pool, no ship stage. The git commit IS the audit trail.
+Runs when `factory_complexity.py` returns `fast_path: true` (tier=TINY) after the
+requirements-analyst completes. TINY requires both classification dimensions to independently
+resolve to their minimum: `scope == "Single File"` AND `complexity == "Trivial"`. Bypasses
+**ALL** shared primitives — no timeline.jsonl, no audit.md blocks (except one flat line), no
+lock registry, no knowledge saves, no reviewer pool, no ship stage. The git commit IS the audit
+trail.
 
 ## Execution
 
-1. Triage already ran — score ≤ 1, tier = TINY.
+1. `factory_complexity.py` already ran — `fast_path: true`, tier = TINY.
 2. Build a minimal code-generator input (no contract validation):
    ```json
    {

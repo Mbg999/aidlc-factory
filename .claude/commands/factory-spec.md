@@ -12,15 +12,6 @@ Adopt the role, authority rules, and Phase 0 sequence defined in
 
 Execute the Phase 0 sequence end-to-end:
 
-0. **Fast-path prefilter (regex, zero token cost)**:
-   - `python3 aidlc-scripts/factory_triage.py --prefilter "$ARGUMENTS"`.
-   - Exit `0` = truly trivial (typo, README, single-file config tweak) → route
-     to FAST_PATH per `runtime/fast-path.md` and skip the full orchestrator.
-   - Exit `10` (the typical case) = proceed with the normal flow. Do NOT make
-     an LLM classification call here — `requirements-analyst` will classify
-     with full context (workspace + request) in Step 4.
-   - Skip Step 0 only if `--tier=<value>` was passed.
-
 1. **Generate run-id** of the form `YYYY-MM-DD-<slug>` and create
    `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
 
@@ -68,8 +59,11 @@ Execute the Phase 0 sequence end-to-end:
 5.5. **Stage-routing decisions** (post-requirements):
    - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply` — reads
      `request_classification` + `project_profile` and computes the actual
-     decisions: `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
+     decisions: `fast_path`, `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
      On failure, default to "run everything" (no skips, all reviewers).
+   - **If `fast_path == true` (tier=TINY)**: route immediately to
+     `runtime/fast-path.md`. Run terminates after fast-path completes or
+     user rejects (rejection escalates to SMALL and re-enters Step 1).
    - `factory_run.py set <run-id>` to persist those fields into manifest.
    - `emit_audit_block` with skip list + reviewer pool + rationale (one line
      each — no abstract tier label needed in user-facing output).

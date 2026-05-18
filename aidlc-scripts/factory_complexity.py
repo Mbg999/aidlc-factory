@@ -2,8 +2,8 @@
 """factory_complexity.py — Complexity Tier Router for the AIDLC Orchestrator.
 
 Reads the requirements-analyst output handoff and assigns a complexity tier
-(SMALL / MEDIUM / LARGE). The orchestrator uses this to skip stages, reduce
-gate count, and cap the token budget — before any downstream agents spawn.
+(TINY / SMALL / MEDIUM / LARGE). The orchestrator uses this to route to
+FAST_PATH (TINY) or skip stages, reduce gate count, and cap the token budget.
 
 Usage
 -----
@@ -17,7 +17,8 @@ Output (stdout)
 ---------------
     JSON object:
     {
-      "tier": "SMALL" | "MEDIUM" | "LARGE",
+      "tier": "TINY" | "SMALL" | "MEDIUM" | "LARGE",
+      "fast_path": true | false,
       "skip_stages": [...],
       "merge_codegen_gate": true | false,
       "reviewer_pool": [...],
@@ -33,13 +34,15 @@ Exit codes
 
 Tier rules
 ----------
+    TINY:   scope == Single File AND complexity == Trivial → FAST_PATH
     SMALL:  scope in {Single File, Single Component}
-            AND complexity in {Trivial, Simple}
+            AND complexity in {Trivial, Simple}  (but not both at TINY level)
     MEDIUM: scope in {Multiple Components}
             OR complexity == Moderate
     LARGE:  scope in {System-wide, Cross-system}
             OR complexity == Complex
     Tie-break: take the higher tier when scope and complexity disagree.
+    TINY is only assigned when BOTH dimensions independently resolve to TINY.
 """
 
 from __future__ import annotations
@@ -62,10 +65,10 @@ _AIDLC_ROOT = Path(os.environ["AIDLC_ROOT"]) if "AIDLC_ROOT" in os.environ else 
 RUNS_ROOT = _AIDLC_ROOT / ".aidlc-orchestrator" / "runs"
 
 # Tier ordering (higher index = higher tier)
-_TIER_RANK = {"SMALL": 0, "MEDIUM": 1, "LARGE": 2}
+_TIER_RANK = {"TINY": 0, "SMALL": 1, "MEDIUM": 2, "LARGE": 3}
 
 _SCOPE_TIER: dict[str, str] = {
-    "Single File": "SMALL",
+    "Single File": "TINY",
     "Single Component": "SMALL",
     "Multiple Components": "MEDIUM",
     "System-wide": "LARGE",
@@ -73,14 +76,23 @@ _SCOPE_TIER: dict[str, str] = {
 }
 
 _COMPLEXITY_TIER: dict[str, str] = {
-    "Trivial": "SMALL",
+    "Trivial": "TINY",
     "Simple": "SMALL",
     "Moderate": "MEDIUM",
     "Complex": "LARGE",
 }
 
 _ROUTING: dict[str, dict] = {
+    "TINY": {
+        "fast_path": True,
+        "skip_stages": ["story-writer", "unit-decomposer", "workflow-planner", "build-test-agent"],
+        "merge_codegen_gate": True,
+        "reviewer_pool": [],
+        "tokens_max": 100_000,
+        "wall_clock_max_min": 10,
+    },
     "SMALL": {
+        "fast_path": False,
         "skip_stages": ["story-writer", "unit-decomposer"],
         "merge_codegen_gate": True,
         "reviewer_pool": ["reviewer-code"],
@@ -88,6 +100,7 @@ _ROUTING: dict[str, dict] = {
         "wall_clock_max_min": 30,
     },
     "MEDIUM": {
+        "fast_path": False,
         "skip_stages": ["story-writer"],
         "merge_codegen_gate": False,
         "reviewer_pool": ["reviewer-code", "reviewer-security", "reviewer-simplifier"],
@@ -95,6 +108,7 @@ _ROUTING: dict[str, dict] = {
         "wall_clock_max_min": 90,
     },
     "LARGE": {
+        "fast_path": False,
         "skip_stages": [],
         "merge_codegen_gate": False,
         "reviewer_pool": [
@@ -158,6 +172,7 @@ def cmd_assess(args: argparse.Namespace) -> None:
     routing = _ROUTING[tier]
     result = {
         "tier": tier,
+        "fast_path": routing["fast_path"],
         "skip_stages": routing["skip_stages"],
         "merge_codegen_gate": routing["merge_codegen_gate"],
         "reviewer_pool": routing["reviewer_pool"],

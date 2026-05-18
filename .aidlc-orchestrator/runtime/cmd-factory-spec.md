@@ -2,11 +2,7 @@
 
 PRIORITY: P2
 
-For `/factory-spec <description>`. Pass `--tier=small` to skip triage.
-
-## Step 0 — Fast-Path Prefilter (regex, zero token cost)
-
-`factory_triage.py --prefilter "<request>"`. Exit `0` = trivial → FAST_PATH per [`fast-path.md`](fast-path.md); exit `10` = proceed with normal flow. **Do NOT make an LLM classification call here** — `requirements-analyst` classifies with full context in Step 4 (its `request_classification` block) and `factory_complexity.py` derives concrete routing decisions from that in Step 4.5. Pre-LLM triage is wasted tokens; the prefilter catches the only case where pre-stage routing pays for itself (truly trivial work that should bypass the whole orchestrator).
+For `/factory-spec <description>`. Pass `--tier=small` to force SMALL tier and skip routing.
 
 ## Step 1 — Init run dir + budget
 ```
@@ -70,11 +66,16 @@ Stage-specific knobs:
 
 ## Step 4.5 — Stage-Routing Decisions (once per run, after Pass 2)
 
-Derive concrete pipeline decisions from `request_classification` + `project_profile`. The abstract tier label is an implementation detail — what matters downstream is `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
+Derive concrete pipeline decisions from `request_classification` + `project_profile`. The tier
+label is persisted for telemetry; what matters downstream is `fast_path`, `skip_stages[]`,
+`reviewer_pool[]`, `merge_codegen_gate`.
 
 1. `factory_complexity.py <run-id> --apply` (on failure default to "run everything": empty skip list, full reviewer pool).
-2. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only). `complexity_tier` is persisted for telemetry but is not the user-facing artifact.
-3. `emit_audit_block` with skip list + reviewer pool + one-line rationale per decision.
+2. Parse JSON output. **If `fast_path == true` (tier=TINY)**: route immediately to
+   [`fast-path.md`](fast-path.md) — do NOT proceed to Step 5 or `/factory-plan`. Run terminates
+   after fast-path completes or user rejects.
+3. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only). `complexity_tier` is persisted for telemetry but is not the user-facing artifact.
+4. `emit_audit_block` with skip list + reviewer pool + one-line rationale per decision.
 
 **Skip enforcement**: for each skipped stage, `emit_audit_block --evt stage_skipped` → append to `manifest.skipped_stages[]` → continue. Do NOT spawn.
 

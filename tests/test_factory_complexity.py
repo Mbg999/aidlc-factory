@@ -18,9 +18,9 @@ import factory_complexity as mod
 # ── _resolve_tier ─────────────────────────────────────────────────────────────
 
 class TestResolveTier:
-    def test_single_file_trivial_is_small(self):
+    def test_single_file_trivial_is_tiny(self):
         tier, _ = mod._resolve_tier("Single File", "Trivial")
-        assert tier == "SMALL"
+        assert tier == "TINY"
 
     def test_single_component_simple_is_small(self):
         tier, _ = mod._resolve_tier("Single Component", "Simple")
@@ -81,6 +81,19 @@ class TestResolveTier:
 # ── routing table ─────────────────────────────────────────────────────────────
 
 class TestRoutingTable:
+    def test_tiny_is_fast_path(self):
+        assert mod._ROUTING["TINY"]["fast_path"] is True
+        assert mod._ROUTING["TINY"]["reviewer_pool"] == []
+
+    def test_non_tiny_are_not_fast_path(self):
+        for tier in ("SMALL", "MEDIUM", "LARGE"):
+            assert mod._ROUTING[tier]["fast_path"] is False
+
+    def test_tier_rank_ordering(self):
+        assert mod._TIER_RANK["TINY"] < mod._TIER_RANK["SMALL"]
+        assert mod._TIER_RANK["SMALL"] < mod._TIER_RANK["MEDIUM"]
+        assert mod._TIER_RANK["MEDIUM"] < mod._TIER_RANK["LARGE"]
+
     def test_small_reviewer_pool(self):
         assert mod._ROUTING["SMALL"]["reviewer_pool"] == ["reviewer-code"]
 
@@ -94,6 +107,7 @@ class TestRoutingTable:
         assert "reviewer-performance" in pool
 
     def test_token_caps_increase_by_tier(self):
+        assert mod._ROUTING["TINY"]["tokens_max"] < mod._ROUTING["SMALL"]["tokens_max"]
         assert mod._ROUTING["SMALL"]["tokens_max"] < mod._ROUTING["MEDIUM"]["tokens_max"]
         assert mod._ROUTING["MEDIUM"]["tokens_max"] < mod._ROUTING["LARGE"]["tokens_max"]
 
@@ -119,14 +133,25 @@ def _run_cli(*args, env_overrides=None) -> subprocess.CompletedProcess:
 
 
 class TestCmdAssess:
-    def test_small_tier_output(self, tmp_path):
-        run_id = "test-small-run"
+    def test_tiny_tier_output(self, tmp_path):
+        run_id = "test-tiny-run"
         runs_root = tmp_path / ".aidlc-orchestrator" / "runs"
         _write_handoff(runs_root / run_id, "Single File", "Trivial")
         r = _run_cli(run_id, env_overrides={"AIDLC_ROOT": str(tmp_path)})
         assert r.returncode == 0, r.stderr
         data = json.loads(r.stdout)
+        assert data["tier"] == "TINY"
+        assert data["fast_path"] is True
+
+    def test_small_tier_output(self, tmp_path):
+        run_id = "test-small-run"
+        runs_root = tmp_path / ".aidlc-orchestrator" / "runs"
+        _write_handoff(runs_root / run_id, "Single File", "Simple")
+        r = _run_cli(run_id, env_overrides={"AIDLC_ROOT": str(tmp_path)})
+        assert r.returncode == 0, r.stderr
+        data = json.loads(r.stdout)
         assert data["tier"] == "SMALL"
+        assert data["fast_path"] is False
 
     def test_large_tier_output(self, tmp_path):
         run_id = "test-large-run"
@@ -157,7 +182,7 @@ class TestCmdAssess:
         run_id = "apply-run"
         runs_root = tmp_path / ".aidlc-orchestrator" / "runs"
         run_dir = runs_root / run_id
-        _write_handoff(run_dir, "Single File", "Trivial")
+        _write_handoff(run_dir, "Single File", "Simple")
         budget = run_dir / "budget.yaml"
         budget.write_text("budget: {}\n")
         r = _run_cli(run_id, "--apply", env_overrides={"AIDLC_ROOT": str(tmp_path)})
@@ -166,6 +191,20 @@ class TestCmdAssess:
         state = yaml.safe_load(budget.read_text())
         assert state["complexity_tier"] == "SMALL"
         assert state["budget"]["tokens_max"] == mod._ROUTING["SMALL"]["tokens_max"]
+
+    def test_apply_writes_budget_yaml_tiny(self, tmp_path):
+        run_id = "apply-tiny-run"
+        runs_root = tmp_path / ".aidlc-orchestrator" / "runs"
+        run_dir = runs_root / run_id
+        _write_handoff(run_dir, "Single File", "Trivial")
+        budget = run_dir / "budget.yaml"
+        budget.write_text("budget: {}\n")
+        r = _run_cli(run_id, "--apply", env_overrides={"AIDLC_ROOT": str(tmp_path)})
+        assert r.returncode == 0
+        import yaml
+        state = yaml.safe_load(budget.read_text())
+        assert state["complexity_tier"] == "TINY"
+        assert state["budget"]["tokens_max"] == mod._ROUTING["TINY"]["tokens_max"]
 
     def test_apply_without_budget_yaml_does_not_crash(self, tmp_path):
         run_id = "no-budget-run"
