@@ -125,3 +125,5 @@ This project ships with the AIDLC orchestrator:
 - `/factory-replay <run-id> --from <stage>` — re-run from a specific stage
 
 See `.claude/agents/orchestrator.md`, `.aidlc-orchestrator/runtime/index.md`, `.aidlc-orchestrator/contracts/`.
+
+Keep parity between .opencode/ and .claude/ files, everytime you change anything in one, do the same for the other.

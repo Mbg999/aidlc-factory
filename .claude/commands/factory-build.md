@@ -16,9 +16,28 @@ Sequence:
 2. **Construction Phase Entry Checkpoint** (per core-workflow.md MANDATORY):
    audit.md has Inception entries; aidlc-state.md Current Stage correct;
     `aidlc-docs/construction/plans/` exists; `<run-id>-execution-plan.md` loaded.
-3. **Topo-sort `manifest.units[]`** by `depends_on` into layers. Layer 0 = no
+3. **Pre-Build Step 0 — Skill Sync** (once, before any unit is spawned):
+   a. Run sync:
+      ```bash
+      python3 aidlc-scripts/factory_skill_sync.py sync
+      ```
+      Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
+      On non-zero exit or Node.js missing: log warning and continue — skill failure
+      never blocks a build (universal custom-skills still apply).
+   b. Run select:
+      ```bash
+      python3 aidlc-scripts/factory_skill_sync.py select --output json
+      ```
+      Parse JSON → store `skill_paths_resolved` list in `manifest.yaml`. Include
+      this list in every subsequent stage input handoff YAML for this run.
+   c. Log to audit.md:
+      ```
+      [Skills] resolved <N> skills: <name-list>
+      [Skills] warnings: <list or "none">
+      ```
+4. **Topo-sort `manifest.units[]`** by `depends_on` into layers. Layer 0 = no
    deps; Layer N = deps all in layers < N. Monolith → single virtual unit.
-4. **For each layer (sequential)**, run the parallel construction protocol:
+5. **For each layer (sequential)**, run the parallel construction protocol:
    a. **Pre-flight per unit (sequential, cheap)** — budget gate, lock acquire
       (`factory_conflict.py acquire`), AST snapshot (Python only), knowledge
       query, build+validate input handoff.
@@ -39,8 +58,8 @@ Sequence:
       release, even on failure.
    e. **Per-unit auto-commits** — `feat(<unit>): generate <unit> code` and
       `build(<unit>): complete build and test`.
-5. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
-6. Present + offer `/factory-review <run-id>`.
+6. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
+7. Present + offer `/factory-review <run-id>`.
 
 Hard rules from @.claude/agents/orchestrator.md apply.
 

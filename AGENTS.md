@@ -109,3 +109,6 @@ Extensions layer additional rules on top of the core workflow. Opt-in files live
 `aidlc-rules/aws-aidlc-rule-details/extensions/`. Each extension has a `*.opt-in.md`
 (presented during Requirements Analysis) and a rules file (loaded when user opts in).
 Extensions without an opt-in file are always enforced.
+
+
+Keep parity between .opencode/ and .claude/ files, everytime you change anything in one, do the same for the other.

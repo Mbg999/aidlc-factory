@@ -28,7 +28,6 @@ Execute the Phase 0 sequence end-to-end:
      shared-primitives step 8 — header-wrapped via timeline timestamps,
      dedupe-guarded)
    - Update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress
-   - Auto-commit (`docs(workspace-detection): complete workspace detection`)
    - If status ≠ `complete`, halt and surface
 
 3.5. **Classify `project_profile` + decide reverse-engineer routing** (per
@@ -54,13 +53,15 @@ Execute the Phase 0 sequence end-to-end:
      questions file
    - Validate → spawn → validate
    - Append audit entries → update state file
-   - Auto-commit (`docs(requirements-analysis): complete requirements analysis`)
 
 6. **Present completion**:
    - Show run_id, run directory path
    - Show `workspace_state` summary (one line)
    - Show `requirements.md` path
    - Show skill compliance summary (PASS/FAIL/N/A per skill, both stages)
+   - Wait for explicit user approval before committing. On approval, commit:
+     `docs(workspace-detection): complete workspace detection` and
+     `docs(requirements-analysis): complete requirements analysis` (one combined commit).
    - Offer next step: `/factory-plan <run-id>` (wired in Phase 1; for now,
      remind the user that Phase 0 stops here)
 

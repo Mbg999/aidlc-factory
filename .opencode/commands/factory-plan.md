@@ -25,8 +25,9 @@ Sequence:
      based on user feedback
 4. **Conditional Unit Decomposer** — fire if `units.length >= 2` from the
    approved planner output OR if requirements call out distinct components.
-5. Append all `audit_entries[]`, update state file, auto-commit
-   `docs(workflow-planning): complete workflow planning`.
-6. Present completion + offer `/factory-build <run-id>`.
+5. Append all `audit_entries[]`, update state file. Present the final plan +
+   decomposition output to the user and wait for explicit approval before committing.
+   On approval, commit `docs(workflow-planning): complete workflow planning`.
+6. Offer `/factory-build <run-id>`.
 
 Hard rules from @.opencode/agents/orchestrator.md apply.

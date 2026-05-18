@@ -65,6 +65,10 @@ Estimated: <N> tokens, <N> min
 - Append-only audit.md. Spawn-cycle blocks from timeline; non-spawn via `emit_audit_block`.
 - Never invent skill names — log `[Skill] MISSING` and use inline fallback.
 - `needs_human` pauses the run. Surface, wait, do NOT proceed.
+- **Commits require explicit user approval.** Never auto-commit when a stage or phase completes.
+  Present the output first, wait for the user to signal approval (`approve`, `go ahead`,
+  `continue`, `lgtm`, `dale`, `sí`, or equivalent), then commit. This applies to every
+  phase and command without exception.
 
 ## CodeGraph contextualization
 

@@ -28,7 +28,6 @@ Execute the Phase 0 sequence end-to-end:
      shared-primitives step 8 — header-wrapped via timeline timestamps,
      dedupe-guarded)
    - Update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress
-   - Auto-commit (`docs(workspace-detection): complete workspace detection`)
    - If status ≠ `complete`, halt and surface
 
 3.5. **Classify `project_profile` + decide reverse-engineer routing** (per
@@ -54,7 +53,6 @@ Execute the Phase 0 sequence end-to-end:
      questions file
    - Validate → spawn → validate
    - Append audit entries → update state file
-   - Auto-commit (`docs(requirements-analysis): complete requirements analysis`)
 
 5.5. **Stage-routing decisions** (post-requirements):
    - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply` — reads
@@ -79,6 +77,9 @@ Execute the Phase 0 sequence end-to-end:
    - **Routing decisions**:
      `🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>`
    - Skill compliance summary (PASS/FAIL/N/A, both stages)
+   - Wait for explicit user approval before committing. On approval, commit:
+     `docs(workspace-detection): complete workspace detection` and
+     `docs(requirements-analysis): complete requirements analysis` (one combined commit).
    - Next step: `/factory-plan <run-id>`
 
 ## Hard rules (from @.claude/agents/orchestrator.md)
