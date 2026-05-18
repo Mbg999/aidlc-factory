@@ -23,14 +23,19 @@ python3 aidlc-scripts/factory_validate.py \
 > `code-review-and-quality` skill. Start directly at **Step 5 (Five-axis review)**. Your job
 > is conceptual analysis only.
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `code-review-and-quality`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, and `code-review-and-quality`. It may also include
+   framework skills propagated from the build phase (e.g., `angular-developer`,
+   `typescript-advanced-types`). Load every skill file present — they sharpen your review
+   for the specific frameworks and idioms in the generated code.
 2. **FOLLOW** — Five-axis review process (Step 5 of the skill only — skip automated gates).
+   Apply framework-skill guidance when reviewing framework-specific constructs (lifecycle hooks,
+   subscription patterns, type narrowing, etc.).
 3. **CHECK** — Rationalizations: reject "it works, ship it", "we'll refactor later".
 4. **VERIFY** — Concrete findings: each with `file:line`, severity, axis, recommendation.
-5. **LOG** — `skill_compliance[]` rows.
+5. **LOG** — `skill_compliance[]` rows — one row per skill loaded, including framework skills.
 6. **BLOCK** — fail → `status: blocked`.
-
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `code-review-and-quality`.
 
 ## Your job
 For each source file in the predecessor artifacts (code-generator output):
