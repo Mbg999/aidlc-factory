@@ -1026,10 +1026,17 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         )
         print(f"  .mcp.json — added 'codegraph' MCP server entry")
 
-    print("\n  CodeGraph installed. Next steps:")
-    print(f"    cd {target_root}")
-    print("    codegraph init -i   # index your project (first-time, ~30s–4min)")
-    print("    codegraph status    # verify the index is live")
+    print("\n  Running codegraph init -i (initial index — may take 30s–4min)...")
+    init_result = subprocess.run(
+        ["codegraph", "init", "-i"],
+        cwd=str(target_root),
+    )
+    if init_result.returncode != 0:
+        print("  WARNING: codegraph init -i exited with an error — index may be incomplete.")
+        print(f"  Run manually:  cd {target_root} && codegraph init -i")
+    else:
+        print("  CodeGraph index built successfully.")
+        subprocess.run(["codegraph", "status"], cwd=str(target_root))
 
 
 def parse_args() -> argparse.Namespace:

@@ -156,6 +156,11 @@ If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native
   `project_type: brownfield`, `next_phase: reverse-engineering`
 - Existing code, current RE artifacts → `project_type: brownfield`, `next_phase: requirements-analysis`
 
+> **MUST NOT override**: This decision is purely mechanical. Do NOT use code quality,
+> documentation level, team familiarity, or any subjective assessment to skip
+> reverse-engineering. If `aidlc-docs/inception/reverse-engineering/` is absent or
+> empty, `next_phase` is always `reverse-engineering` — no exceptions.
+
 ### Step 4 — Create or update aidlc-state.md
 If `aidlc-docs/aidlc-state.md` doesn't exist, create it with the template
 from the rule file (Project Information, Workspace State, Code Location
