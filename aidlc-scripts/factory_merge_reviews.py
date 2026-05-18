@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""factory_merge_reviews.py — merge reviewer pool outputs into review-report.md
+"""factory_merge_reviews.py — merge reviewer pool outputs into <run-id>-review-report.md
 
 Phase 4 of the AIDLC Orchestrator. After the parallel reviewer fan-out, the
 orchestrator calls this script to combine the 4 (or fewer) reviewer output
@@ -16,7 +16,7 @@ Reads (one per active reviewer):
     .aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-simplifier.output.yaml
 
 Writes (default):
-    aidlc-docs/operations/review-report.md
+    aidlc-docs/operations/<run-id>-review-report.md
 
 Skipped reviewers (per Cost Governor exit code 2) can be excluded via
 `--reviewers <list>`.
@@ -109,8 +109,8 @@ def main() -> None:
     p.add_argument("run_id")
     p.add_argument(
         "--output",
-        default="aidlc-docs/operations/review-report.md",
-        help="output path (relative to repo root)",
+        default=None,
+        help="output path (relative to repo root); defaults to aidlc-docs/operations/<run-id>-review-report.md",
     )
     p.add_argument(
         "--reviewers",
@@ -120,6 +120,8 @@ def main() -> None:
         help="active reviewer set (skipped reviewers are excluded)",
     )
     args = p.parse_args()
+    if args.output is None:
+        args.output = f"aidlc-docs/operations/{args.run_id}-review-report.md"
 
     run_dir = RUNS_ROOT / args.run_id / "handoffs"
     if not run_dir.exists():

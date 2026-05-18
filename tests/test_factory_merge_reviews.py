@@ -51,6 +51,38 @@ def test_merge_single_reviewer(env_setup, run_id):
     assert "wrote" in r.stdout
 
 
+def test_default_output_path_uses_run_id(env_setup, run_id):
+    """Default output path must be aidlc-docs/operations/<run-id>-review-report.md."""
+    subprocess.run(
+        [sys.executable, str(SCRIPTS / "factory_run.py"), "init", run_id,
+         "--user-request", "test"],
+        capture_output=True, env={**__import__("os").environ},
+    )
+
+    aidlc_root = Path(__import__("os").environ["AIDLC_ROOT"])
+    handoffs = aidlc_root / ".aidlc-orchestrator" / "runs" / run_id / "handoffs"
+    handoffs.mkdir(parents=True, exist_ok=True)
+
+    import yaml
+    output = {
+        "status": "complete",
+        "reviewer": "code-quality",
+        "findings": [],
+        "findings_summary": {"P0_count": 0, "P1_count": 0, "P2_count": 0, "P3_count": 0},
+        "audit_entries": ["Reviewed all files"],
+        "skill_compliance": [
+            {"skill": "code-standards", "status": "PASS", "evidence": "OK"},
+            {"skill": "security-review", "status": "PASS", "evidence": "OK"},
+        ],
+    }
+    (handoffs / "reviewer-code.output.yaml").write_text(yaml.safe_dump(output))
+
+    r = _run([run_id], env_setup)
+    assert r.returncode == 0, r.stderr
+    expected = aidlc_root / "aidlc-docs" / "operations" / f"{run_id}-review-report.md"
+    assert expected.exists(), f"expected report at {expected}"
+
+
 def test_merge_no_outputs(env_setup, run_id):
     """Merge with no reviewer outputs should exit 1."""
     subprocess.run(
