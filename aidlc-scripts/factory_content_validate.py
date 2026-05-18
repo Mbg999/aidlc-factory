@@ -91,7 +91,7 @@ def _load_handoff_yaml(path: Path) -> dict:
     try:
         import yaml
     except ImportError:
-        _die("pyyaml is required: pip install pyyaml")
+        _die(f"pyyaml is required: {sys.executable} -m pip install pyyaml")
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception as exc:

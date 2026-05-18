@@ -96,7 +96,7 @@ def main() -> None:
     try:
         from jsonschema import Draft7Validator
     except ImportError:
-        _die("missing dependency: pip install jsonschema")
+        _die(f"missing dependency: {sys.executable} -m pip install jsonschema")
 
     schema = json.loads(schema_path.read_text())
 
@@ -105,7 +105,7 @@ def main() -> None:
         try:
             import yaml
         except ImportError:
-            _die("missing dependency: pip install pyyaml")
+            _die(f"missing dependency: {sys.executable} -m pip install pyyaml")
         doc = yaml.safe_load(doc_path.read_text())
     elif suffix == ".json":
         doc = json.loads(doc_path.read_text())

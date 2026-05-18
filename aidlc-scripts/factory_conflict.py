@@ -72,7 +72,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print("missing dependency: pip install pyyaml", file=sys.stderr)
+    print(f"missing dependency: {sys.executable} -m pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
 try:

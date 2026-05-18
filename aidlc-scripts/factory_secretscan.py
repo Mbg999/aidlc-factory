@@ -115,7 +115,7 @@ def main() -> None:
     try:
         if suffix in {".yaml", ".yml"}:
             if yaml is None:
-                _die("missing dependency: pip install pyyaml")
+                _die(f"missing dependency: {sys.executable} -m pip install pyyaml")
             doc = yaml.safe_load(path.read_text())
         elif suffix == ".json":
             doc = json.loads(path.read_text())

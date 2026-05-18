@@ -99,7 +99,7 @@ def _parse_frontmatter(text: str) -> dict:
     try:
         import yaml
     except ImportError:
-        _die("pyyaml is required: pip install pyyaml")
+        _die(f"pyyaml is required: {sys.executable} -m pip install pyyaml")
     try:
         return yaml.safe_load(m.group("body")) or {}
     except Exception:

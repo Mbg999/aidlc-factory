@@ -48,7 +48,7 @@ def _load_yaml_blocks(path: Path) -> list[dict]:
     try:
         import yaml
     except ImportError:
-        _die("pyyaml is required: pip install pyyaml")
+        _die(f"pyyaml is required: {sys.executable} -m pip install pyyaml")
     text = path.read_text(encoding="utf-8")
     blocks: list[dict] = []
     for m in YAML_FENCE_RE.finditer(text):
