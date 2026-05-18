@@ -6,7 +6,7 @@ For `/factory-spec <description>`. Pass `--tier=small` to force SMALL tier and s
 
 ## Step 1 — Init run dir + budget
 ```
-run_id = YYYY-MM-DD-<slug>  # first 3-4 words, hyphenated
+run_id = YYYY-MM-DDTHH-MM-SSZ-<slug>  # UTC timestamp; slug = first 3-4 words, hyphenated
 mkdir -p .aidlc-orchestrator/runs/<run-id>/handoffs
 ```
 Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: workspace-scout, completed_stages: []}`.

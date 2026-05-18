@@ -170,7 +170,7 @@ python3 aidlc-scripts/factory_validate.py \
 ```
 
 Return ONE line to the orchestrator: `<status> <output-handoff-path>`
-(e.g. `complete .aidlc-orchestrator/runs/2026-05-08-auth/handoffs/workspace-scout.output.yaml`)
+(e.g. `complete .aidlc-orchestrator/runs/2026-05-08T14-23-00Z-auth/handoffs/workspace-scout.output.yaml`)
 
 ## What you must NOT do
 - Do not modify `aidlc-docs/audit.md` directly. Emit `audit_entries[]` only.

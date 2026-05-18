@@ -32,7 +32,7 @@ specialized subagents (scout, analyst, code-gen, reviewer, etc.) per stage.
 The orchestrator:
 
 1. **Triages** your request: TINY (Fast Path) or SMALL/MEDIUM/LARGE (full pipeline)
-2. **Generates a run-id** like `2026-05-12-jwt-auth-api-gateway`
+2. **Generates a run-id** like `2026-05-12T14-23-00Z-jwt-auth-api-gateway`
 3. **Spawns workspace-scout** to learn your codebase
 4. **Spawns requirements-analyst** to write a spec (may ask you questions)
 

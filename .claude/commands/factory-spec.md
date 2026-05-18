@@ -12,7 +12,7 @@ Adopt the role, authority rules, and Phase 0 sequence defined in
 
 Execute the Phase 0 sequence end-to-end:
 
-1. **Generate run-id** of the form `YYYY-MM-DD-<slug>` and create
+1. **Generate run-id** of the form `YYYY-MM-DDTHH-MM-SSZ-<slug>` and create
    `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
 
 2. **Resolve skill paths** for `using-agent-skills`, `idea-refine`,

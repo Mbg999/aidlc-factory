@@ -84,7 +84,7 @@ Create Mermaid flowchart showing all phases with EXECUTE/SKIP/COMPLETED status.
 
 ## Step 7: Create Execution Plan Document
 
-Save to `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with (where `<run-id>` is the current run identifier, e.g. `2026-05-12-add-pagination-api`):
+Save to `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with (where `<run-id>` is the current run identifier, e.g. `2026-05-12T14-23-00Z-add-pagination-api`):
 - Analysis summary (scope, impact, risk)
 - Workflow Mermaid visualization
 - Phase checklist with EXECUTE/SKIP + rationale per stage

@@ -50,7 +50,7 @@ Currently: `/factory-build` and `/factory-review` use `Task()`. All others inlin
 ## §3 Manifest.yaml shape
 
 ```yaml
-run_id: YYYY-MM-DD-<slug>; started_at: <ISO8601>; user_request: "<verbatim>"
+run_id: YYYY-MM-DDTHH-MM-SSZ-<slug>; started_at: <ISO8601>; user_request: "<verbatim>"
 current_stage: <stage>; completed_stages: []; project_slug: <repo-slug>
 project_profile: {ui: bool, api: bool, has_legacy: bool}
 skill_paths: {<name>: <resolved path>}
