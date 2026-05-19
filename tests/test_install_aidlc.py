@@ -516,3 +516,196 @@ class TestAutoInitCodeGraph:
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
+
+
+# ---------- Engram integration ----------
+
+class TestEngramIntegration:
+    """Engram setup constants and installer."""
+
+    # --- constants ---
+
+    def test_engram_cli_setup_has_claude(self):
+        assert "claude" in install_aidlc.ENGRAM_CLI_SETUP
+
+    def test_engram_cli_setup_claude_has_two_commands(self):
+        cmds = install_aidlc.ENGRAM_CLI_SETUP["claude"]
+        assert len(cmds) == 2
+        assert cmds[0] == ["claude", "plugin", "marketplace", "add", "Gentleman-Programming/engram"]
+        assert cmds[1] == ["claude", "plugin", "install", "engram"]
+
+    def test_engram_cli_setup_has_opencode(self):
+        assert "opencode" in install_aidlc.ENGRAM_CLI_SETUP
+        assert install_aidlc.ENGRAM_CLI_SETUP["opencode"] == [["engram", "setup", "opencode"]]
+
+    def test_engram_cli_setup_has_codex(self):
+        assert "codex" in install_aidlc.ENGRAM_CLI_SETUP
+        assert install_aidlc.ENGRAM_CLI_SETUP["codex"] == [["engram", "setup", "codex"]]
+
+    def test_engram_mcp_tools_has_cursor(self):
+        assert "cursor" in install_aidlc.ENGRAM_MCP_TOOLS
+
+    def test_engram_mcp_tools_has_windsurf(self):
+        assert "windsurf" in install_aidlc.ENGRAM_MCP_TOOLS
+
+    def test_engram_mcp_entry_shape(self):
+        e = install_aidlc.ENGRAM_MCP_ENTRY
+        assert e["command"] == "engram"
+        assert e["args"] == ["mcp"]
+
+    # --- project config ---
+
+    def test_install_engram_writes_project_config(self, tmp_path: Path):
+        import json
+        project_dir = tmp_path / "my-project"
+        project_dir.mkdir()
+        install_aidlc.install_engram([], project_dir, dry_run=False)
+        config = json.loads((project_dir / ".engram" / "project.json").read_text())
+        assert config["project_name"] == "my-project"
+
+    def test_install_engram_project_name_matches_folder(self, tmp_path: Path):
+        import json
+        project_dir = tmp_path / "awesome-repo"
+        project_dir.mkdir()
+        install_aidlc.install_engram([], project_dir, dry_run=False)
+        config = json.loads((project_dir / ".engram" / "project.json").read_text())
+        assert config["project_name"] == "awesome-repo"
+
+    def test_install_engram_dry_run_no_files(self, tmp_path: Path):
+        project_dir = tmp_path / "my-project"
+        project_dir.mkdir()
+        install_aidlc.install_engram([], project_dir, dry_run=True)
+        assert not (project_dir / ".engram").exists()
+
+    # --- MCP tools ---
+
+    def test_install_engram_mcp_tool_writes_mcp_json(self, tmp_path: Path):
+        import json
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
+        mcp_path = project_dir / ".mcp.json"
+        assert mcp_path.exists()
+        config = json.loads(mcp_path.read_text())
+        assert "engram" in config["mcpServers"]
+        assert config["mcpServers"]["engram"]["command"] == "engram"
+        assert config["mcpServers"]["engram"]["args"] == ["mcp"]
+
+    def test_install_engram_mcp_tool_merges_existing_mcp_json(self, tmp_path: Path):
+        import json
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        mcp_path = project_dir / ".mcp.json"
+        mcp_path.write_text(json.dumps({"mcpServers": {"other": {"command": "other", "args": []}}}))
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
+        config = json.loads(mcp_path.read_text())
+        assert "other" in config["mcpServers"]
+        assert "engram" in config["mcpServers"]
+
+    def test_install_engram_mcp_tool_no_duplicate(self, tmp_path: Path):
+        import json
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
+        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
+        config = json.loads((project_dir / ".mcp.json").read_text())
+        assert list(config["mcpServers"].keys()).count("engram") == 1
+
+    def test_install_engram_mcp_dry_run_no_files(self, tmp_path: Path):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=True)
+        assert not (project_dir / ".mcp.json").exists()
+
+    # --- CLI-native tools ---
+
+    def test_install_engram_cli_tool_runs_commands(self, tmp_path: Path):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            install_aidlc.install_engram(["opencode"], project_dir, dry_run=False)
+        assert mock_run.called
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd == ["engram", "setup", "opencode"]
+
+    def test_install_engram_cli_tool_dry_run_no_subprocess(self, tmp_path: Path):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run") as mock_run:
+            install_aidlc.install_engram(["opencode"], project_dir, dry_run=True)
+        mock_run.assert_not_called()
+
+    def test_install_engram_cli_tool_dry_run_output(self, tmp_path: Path, capsys):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run"):
+            install_aidlc.install_engram(["opencode"], project_dir, dry_run=True)
+        captured = capsys.readouterr()
+        assert "[DRY-RUN]" in captured.out
+        assert "engram setup opencode" in captured.out
+
+    def test_install_engram_cli_tool_handles_not_found(self, tmp_path: Path, capsys):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run", side_effect=FileNotFoundError("not found")):
+            install_aidlc.install_engram(["opencode"], project_dir, dry_run=False)
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "run manually" in captured.out
+
+    def test_install_engram_cli_tool_handles_timeout(self, tmp_path: Path, capsys):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="engram", timeout=60)):
+            install_aidlc.install_engram(["opencode"], project_dir, dry_run=False)
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+
+    def test_install_engram_claude_second_command_skipped_on_first_failure(self, tmp_path: Path):
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1)
+            install_aidlc.install_engram(["claude"], project_dir, dry_run=False)
+        assert mock_run.call_count == 1, "second command must be skipped when first fails"
+
+    # --- CLI flag ---
+
+    def test_cli_with_engram_dry_run_accepted(self, tmp_path: Path):
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--with-engram", "--dry-run",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        assert "Engram" in r.stdout or "engram" in r.stdout.lower()
+
+    def test_cli_with_engram_writes_project_config(self, tmp_path: Path):
+        import json
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "cursor", "--yes", "--no-orchestrator", "--no-venv",
+            "--with-engram",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        config_path = tmp_path / ".engram" / "project.json"
+        assert config_path.exists(), "project config not written"
+        config = json.loads(config_path.read_text())
+        assert config["project_name"] == tmp_path.name
+
+    def test_cli_with_engram_mcp_tool_writes_mcp_json(self, tmp_path: Path):
+        import json
+        _stub_skills(tmp_path)
+        r = _run_cli(
+            "--tool", "cursor", "--yes", "--no-orchestrator", "--no-venv",
+            "--with-engram",
+            "--dest", str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        mcp_path = tmp_path / ".mcp.json"
+        assert mcp_path.exists(), ".mcp.json not written for cursor"
+        config = json.loads(mcp_path.read_text())
+        assert "engram" in config.get("mcpServers", {})

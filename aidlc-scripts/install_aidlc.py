@@ -904,6 +904,92 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         subprocess.run(["codegraph", "status"], cwd=str(target_root))
 
 
+# ─── Engram persistent memory ────────────────────────────────────────────────
+
+# Per-tool engram setup commands (ordered list of token-lists per tool).
+ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
+    "claude": [
+        ["claude", "plugin", "marketplace", "add", "Gentleman-Programming/engram"],
+        ["claude", "plugin", "install", "engram"],
+    ],
+    "opencode": [["engram", "setup", "opencode"]],
+    "codex":    [["engram", "setup", "codex"]],
+}
+
+# MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
+ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
+    {"cursor", "windsurf", "kiro", "cline", "copilot", "amazonq", "other"}
+)
+
+ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
+ENGRAM_PROJECT_CONFIG_RELPATH = Path(".engram") / "project.json"
+
+
+def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
+    """Wire Engram persistent memory for each selected tool.
+
+    CLI-native tools (claude, opencode, codex): runs the tool-specific setup command(s).
+    MCP-based tools (cursor, windsurf, …): merges the engram entry into .mcp.json.
+    Always writes .engram/project.json with project_name = target_root.name.
+    """
+    import json
+
+    print("\n--- Installing Engram persistent memory ---")
+    project_name = target_root.name
+
+    for tool in tools:
+        if tool in ENGRAM_CLI_SETUP:
+            ok = True
+            for cmd in ENGRAM_CLI_SETUP[tool]:
+                if not ok:
+                    break
+                cmd_str = " ".join(cmd)
+                if dry_run:
+                    print(f"[DRY-RUN] Would run: {cmd_str}")
+                else:
+                    print(f"  {cmd_str}")
+                    try:
+                        result = subprocess.run(cmd, timeout=60)
+                        if result.returncode != 0:
+                            print(f"  WARNING: exited {result.returncode} — run manually: {cmd_str}")
+                            ok = False
+                    except FileNotFoundError:
+                        print(f"  WARNING: '{cmd[0]}' not found — run manually: {cmd_str}")
+                        ok = False
+                    except subprocess.TimeoutExpired:
+                        print(f"  WARNING: command timed out — run manually: {cmd_str}")
+                        ok = False
+        elif tool in ENGRAM_MCP_TOOLS:
+            mcp_path = target_root / ".mcp.json"
+            if dry_run:
+                print(f"[DRY-RUN] Would merge engram into {mcp_path.name} ({tool})")
+                continue
+            existing: dict = {}
+            if mcp_path.exists():
+                try:
+                    existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    pass
+            existing.setdefault("mcpServers", {})
+            if "engram" not in existing["mcpServers"]:
+                existing["mcpServers"]["engram"] = ENGRAM_MCP_ENTRY
+                mcp_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+                print(f"  engram -> {mcp_path.name} ({tool})")
+            else:
+                print(f"  .mcp.json already has 'engram' — skipping ({tool})")
+
+    config_path = target_root / ENGRAM_PROJECT_CONFIG_RELPATH
+    if dry_run:
+        print(f"[DRY-RUN] Would write {config_path} with project_name={project_name!r}")
+    else:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps({"project_name": project_name}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  project config -> .engram/project.json (project_name={project_name!r})")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
     p.add_argument("--tool", required=False,
@@ -938,6 +1024,12 @@ def parse_args() -> argparse.Namespace:
                    help="Install CodeGraph (@colbymchenry/codegraph via npm) and write the "
                         "project-local .mcp.json MCP server config. Requires Node >= 18. "
                         "Default: off — CodeGraph is opt-in.")
+    p.add_argument("--with-engram", action="store_true", default=False,
+                   help="Set up Engram persistent memory for the selected tool(s). "
+                        "CLI-native tools (claude, opencode, codex) run the tool-specific setup "
+                        "command; MCP-based tools get an entry in .mcp.json. "
+                        "Always writes .engram/project.json with the repo folder as project_name. "
+                        "Default: off — Engram is opt-in.")
     return p.parse_args()
 
 
@@ -1137,6 +1229,10 @@ def main() -> int:
 
     # --- CodeGraph auto-detect (post-install) ---
     _auto_init_codegraph(target_root, args.dry_run)
+
+    # --- Engram (optional, --with-engram) ---
+    if args.with_engram:
+        install_engram(tools, target_root, args.dry_run)
 
     # --- Python venv + dependencies ---
     if args.no_venv:
