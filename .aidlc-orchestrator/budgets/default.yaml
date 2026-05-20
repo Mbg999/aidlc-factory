@@ -1,12 +1,18 @@
 # AIDLC Orchestrator — Per-Stage Model Assignments
 # Read by factory_model.py to set model_override per stage.
 # Set AIDLC_DEFAULT_MODEL=default to skip model_override entirely.
+#
+# Model shorthands by tool:
+#   Claude Code / OpenCode: sonnet | opus | haiku
+#   Cursor: uses `model: inherit` in agent frontmatter — Cursor manages selection.
+#     Override per-stage via AIDLC_CURSOR_MODEL_<STAGE>=<cursor-model-id>.
 
 concurrency:
   max_parallel: 4
 
 per_stage:
   # Models are Claude Code shorthand (sonnet/opus/haiku).
+  # Cursor ignores these — it uses `model: inherit` in .cursor/agents frontmatter.
   workspace-scout:        { model: "sonnet" }
   reverse-engineer:       { model: "sonnet" }
   requirements-analyst:   { model: "opus" }
