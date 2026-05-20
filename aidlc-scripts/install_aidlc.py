@@ -594,7 +594,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             src_cmds = repo_root / ".opencode" / "commands"
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
-            src_cmds = repo_root / ".claude" / "commands"  # Cursor uses same commands as Claude
+            src_cmds = repo_root / ".cursor" / "commands"
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
