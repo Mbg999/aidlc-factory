@@ -503,6 +503,7 @@ def _tool_agent_dir(tool: str) -> str:
     return {
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
+        "cursor": ".cursor/agents",
         "codex": ".codex/agents",
         "copilot": ".github/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
@@ -513,6 +514,7 @@ def _tool_commands_dir(tool: str) -> str:
     return {
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
+        "cursor": ".cursor/commands",
         "codex": ".codex/commands",
     }.get(tool, ".aidlc-orchestrator/commands")
 
@@ -633,12 +635,16 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         cmd_dir = _tool_commands_dir(tool)
 
         # Source agent/command dirs vary per tool
+        # OpenCode and Cursor have pre-adapted agent files; others use the canonical Claude source
         if tool == "opencode":
             src_agents = repo_root / ".opencode" / "agents"
             src_cmds = repo_root / ".opencode" / "commands"
         elif tool == "copilot":
             src_agents = repo_root / ".github" / "agents"
             src_cmds = None  # Copilot uses skills, not slash commands
+        elif tool == "cursor":
+            src_agents = repo_root / ".cursor" / "agents"
+            src_cmds = repo_root / ".cursor" / "commands"
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
@@ -675,6 +681,12 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 )
             elif tool == "copilot":
                 pointer_block = ORCHESTRATOR_COPILOT_POINTER_BLOCK
+            elif tool == "cursor":
+                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                    ".claude/agents/", ".cursor/agents/"
+                ).replace(
+                    "/factory-", " /orchestrator factory-"
+                )
             else:
                 pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
             update_workflow_doc_pointer(

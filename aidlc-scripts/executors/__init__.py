@@ -15,6 +15,7 @@ from .base import (
 )
 from .claude_code_executor import ClaudeCodeExecutor
 from .opencode_executor import OpenCodeExecutor
+from .cursor_executor import CursorExecutor
 
 __all__ = [
     "StageExecutor",
@@ -25,4 +26,5 @@ __all__ = [
     "Capabilities",
     "ClaudeCodeExecutor",
     "OpenCodeExecutor",
+    "CursorExecutor",
 ]
