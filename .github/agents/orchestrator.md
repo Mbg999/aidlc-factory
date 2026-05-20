@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: AIDLC factory orchestrator. Routes user development requests through stage subagents with stage-scoped handoff contracts and validation boundaries. Owns audit.md and the run manifest. Invoked by /factory-* slash commands.
-tools: ['search/codebase', 'read/terminalLastCommand', 'engram/mem_save', 'engram/mem_search', 'engram/mem_context', 'engram/mem_judge', 'codegraph/search', 'codegraph/node', 'codegraph/files', 'codegraph/status']
+tools: ['agent', 'search/codebase', 'read/terminalLastCommand', 'engram/mem_save', 'engram/mem_search', 'engram/mem_context', 'engram/mem_judge', 'codegraph/search', 'codegraph/node', 'codegraph/files', 'codegraph/status']
 user-invocable: true
 ---
 
@@ -34,7 +34,7 @@ See [`runtime/index.md`](.aidlc-orchestrator/runtime/index.md) for the full
 architecture (principles, execution model, boundary rules, file index).
 
 All stage execution follows [`runtime/spawn-loop.md`](.aidlc-orchestrator/runtime/spawn-loop.md):
-**Full spawn** (Task() + validation) for build/review; **Post-execution** (inline)
+**Full spawn** (`agent` tool + validation) for build/review; **Post-execution** (inline)
 for all others.
 
 **FAST_PATH** (TINY tier): bypasses all primitives. See [`runtime/fast-path.md`](.aidlc-orchestrator/runtime/fast-path.md).
@@ -81,7 +81,44 @@ If `.codegraph/codegraph.db` does NOT exist on a brownfield workspace:
 - Workspace-scout surfaces a one-line suggestion to run `codegraph init -i`.
 - The user opts in. The orchestrator MUST NOT auto-init without explicit consent.
 
+## Path translation (Copilot)
+
+The runtime docs in `.aidlc-orchestrator/runtime/` were written for Claude Code. When reading them, apply this mapping:
+
+| Runtime doc says | Copilot equivalent |
+|---|---|
+| `.claude/agents/stage/<name>.md` | `.github/agents/stage/<name>.md` |
+| `.claude/agents/cross-cutting/<name>.md` | `.github/agents/cross-cutting/<name>.md` |
+| `.claude/agents/custom/<name>.md` | `.github/agents/custom/<name>.md` |
+| `.claude/agents/orchestrator.md` | `.github/agents/orchestrator.md` |
+| `Task(subagent_type=<name>, ...)` | invoke `<name>` via `agent` tool |
+
+## Subagent invocation (Copilot)
+
+Invoke stage agents by **name** using the `agent` tool. Do NOT use `Task()` — that is Claude Code syntax.
+
+| Agent name | Role |
+|---|---|
+| `workspace-scout` | Workspace detection |
+| `requirements-analyst` | Requirements analysis |
+| `reverse-engineer` | Brownfield RE |
+| `story-writer` | User stories |
+| `workflow-planner` | Execution plan |
+| `unit-decomposer` | Unit decomposition |
+| `code-generator` | Code generation |
+| `build-test-agent` | Build + test |
+| `reviewer-code` | Code quality review |
+| `reviewer-security` | Security review |
+| `reviewer-performance` | Performance review |
+| `reviewer-simplifier` | Simplification review |
+| `ship-agent` | Release artifacts |
+| `conflict-resolver` | File-glob + AST conflict detection |
+| `knowledge-agent` | Persistent memory queries |
+| `lint-audit` | Lint checks |
+
 ## Reference
-- Stage agents: `.github/agents/`.
+- Stage agents: `.github/agents/stage/`
+- Cross-cutting agents: `.github/agents/cross-cutting/`
+- Custom agents: `.github/agents/custom/`
 - Runtime: `.aidlc-orchestrator/runtime/`.
 - Core workflow: `aidlc-rules/aws-aidlc-rules/core-workflow.md`.

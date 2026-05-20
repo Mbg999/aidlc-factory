@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC workflow planning (optional stories + execution plan + optional unit decomposition) for an existing run. Phase 1 of the orchestrator.
 ---
 

@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC construction (per-unit code generation + build/test) for an existing run. Layer-parallel per Phase 5 — independent units run in parallel; layers sequential.
 ---
 

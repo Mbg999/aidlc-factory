@@ -1,13 +1,13 @@
 ﻿---
 name: conflict-resolver
-description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT a Task() subagent — orchestrator invokes aidlc-scripts/factory_conflict.py directly.
+description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT a agent tool subagent — orchestrator invokes aidlc-scripts/factory_conflict.py directly.
 tools: ['search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 
 # Conflict Resolver (Phase 5 — active)
 
-> **Architectural note:** the Conflict Resolver is **not** a Task()-spawnable
+> **Architectural note:** the Conflict Resolver is **not** a agent tool-spawnable
 > subagent. It is a *capability* the orchestrator exercises by calling
 > `aidlc-scripts/factory_conflict.py` (CLI) and parsing its exit codes. This file
 > is the canonical spec for HOW the orchestrator integrates conflict
@@ -116,7 +116,7 @@ For each layer of independent units (computed by topo-sort on `depends_on`):
      - mem_search                      (knowledge query)
      - build input handoff             (validate against schema)
 
-3. Parallel spawn — single message with N Task() calls (N ≤ 4):
+3. Parallel spawn — single message with N agent tool calls (N ≤ 4):
      Task(subagent_type="code-generator", prompt=".../<unit-1>.input.yaml")
      Task(subagent_type="code-generator", prompt=".../<unit-2>.input.yaml")
      ...

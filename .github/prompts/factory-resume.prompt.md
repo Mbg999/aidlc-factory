@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Resume an interrupted AIDLC orchestrator run from its last checkpoint.
 ---
 

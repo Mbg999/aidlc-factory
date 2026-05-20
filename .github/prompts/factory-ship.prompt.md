@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC ship stage — release notes, ADRs, CHANGELOG, version proposal, optional CI/CD wiring and migration plan. Final stage of the orchestrator.
 ---
 

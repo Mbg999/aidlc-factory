@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run the AIDLC orchestrator on its own codebase. Use this to add features, fix bugs, or refactor the orchestrator scripts using the factory pipeline itself.
 ---
 

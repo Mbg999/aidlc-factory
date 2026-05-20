@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC product harness — workspace scout + requirements + personas + stories + execution plan. Stops before code generation.
 ---
 

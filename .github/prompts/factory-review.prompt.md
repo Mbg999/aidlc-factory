@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC post-generation reviewer pool (code quality, security, performance, simplification) in parallel. Phase 4 of the orchestrator.
 ---
 
@@ -24,7 +24,7 @@ Sequence:
    For `reviewer-code`: merge `framework_skill_paths` into the handoff's
    `skills_required[]` and `skill_paths_resolved[]` before writing.
    Validate each input against `reviewer.input.v1.json`.
-4. **Parallel spawn** — emit ONE message containing all N (≤4) `Task()` calls.
+4. **Parallel spawn** — invoke all N (≤4) reviewer subagents via the `agent` tool in parallel.
    This is what makes Phase 4 different from Phase 1.
 5. **Sequential post-processing** per reviewer: validate output →
    knowledge save → audit append.

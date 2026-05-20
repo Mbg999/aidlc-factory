@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Re-run an AIDLC orchestrator run from a specific stage. Rolls the manifest back, archives output handoffs, and routes to the chosen stage.
 ---
 

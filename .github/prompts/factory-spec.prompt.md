@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: Run AIDLC inception (workspace detection + requirements analysis) via the orchestrator factory. Phase 0 of the multi-agent orchestrator.
 ---
 
@@ -22,7 +22,7 @@ Steps:
 
 3. **Stage 1 — Workspace Scout**:
    - Write input handoff → validate via `python3 aidlc-scripts/factory_validate.py`
-   - Spawn `workspace-scout` subagent via Task() with the input path as the prompt
+   - Invoke `workspace-scout` as a subagent via the `agent` tool
    - Validate the output handoff
    - Append `audit_entries[]` to `aidlc-docs/audit.md` (per orchestrator.md
      shared-primitives step 8 — header-wrapped via timeline timestamps,
@@ -85,7 +85,7 @@ Steps:
 ## Hard rules (from @.github/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.
 - Never fabricate stage output fields to satisfy schemas.
-- Sequential only — no parallel Task() calls in Phase 0.
+- Sequential only — no parallel `agent` tool calls in Phase 0.
 - audit.md is append-only and orchestrator-owned; timestamps come from
   `timeline.jsonl`, not from agent-supplied strings. Agents emit plain bullet
   `audit_entries[]`; orchestrator wraps with `## <ts> ... START/COMPLETE` headers.

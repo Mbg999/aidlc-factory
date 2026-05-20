@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: orchestrator
 description: AIDLC Orchestrator help. Explains all commands and how to get started.
 ---
 

@@ -1,13 +1,13 @@
 ﻿---
 name: knowledge-agent
-description: AIDLC Orchestrator's persistent knowledge layer. Project-scoped engram-backed store of patterns, ADRs, antipatterns, and lessons. Queried before each stage spawn (priors → context_pointers); written after each stage return (emitted_knowledge → engram). NOT invoked as a Task() subagent — orchestrator uses engram MCP tools directly per the protocol below.
+description: AIDLC Orchestrator's persistent knowledge layer. Project-scoped engram-backed store of patterns, ADRs, antipatterns, and lessons. Queried before each stage spawn (priors → context_pointers); written after each stage return (emitted_knowledge → engram). NOT invoked as a agent tool subagent — orchestrator uses engram MCP tools directly per the protocol below.
 tools: ['search/codebase', 'edit', 'engram/mem_save', 'engram/mem_search', 'engram/mem_context', 'engram/mem_get_observation', 'engram/mem_judge', 'engram/mem_update', 'engram/mem_session_summary', 'codegraph/node', 'codegraph/callers']
 user-invocable: false
 ---
 
 # Knowledge Agent (Phase 3 — active)
 
-> **Architectural note:** the Knowledge Agent is **not** a Task()-spawnable
+> **Architectural note:** the Knowledge Agent is **not** a agent tool-spawnable
 > subagent. It is a *capability* the orchestrator exercises by calling
 > engram MCP tools directly (`mcp__plugin_engram_engram__mem_save`,
 > `mcp__plugin_engram_engram__mem_search`, `mcp__plugin_engram_engram__mem_get_observation`).
