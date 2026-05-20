@@ -588,10 +588,13 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         agent_dir = _tool_agent_dir(tool)
         cmd_dir = _tool_commands_dir(tool)
 
-        # OpenCode has pre-adapted agent files; others use the canonical Claude source
+        # OpenCode and Cursor have pre-adapted agent files; others use the canonical Claude source
         if tool == "opencode":
             src_agents = repo_root / ".opencode" / "agents"
             src_cmds = repo_root / ".opencode" / "commands"
+        elif tool == "cursor":
+            src_agents = repo_root / ".cursor" / "agents"
+            src_cmds = repo_root / ".claude" / "commands"  # Cursor uses same commands as Claude
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
@@ -615,6 +618,12 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     ".claude/agents/", ".opencode/agents/"
                 ).replace(
                     ".claude/commands/", ".opencode/commands/"
+                )
+            elif tool == "cursor":
+                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                    ".claude/agents/", ".cursor/agents/"
+                ).replace(
+                    "/factory-", " /orchestrator factory-"
                 )
             else:
                 pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK

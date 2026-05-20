@@ -126,4 +126,4 @@ This project ships with the AIDLC orchestrator:
 
 See `.claude/agents/orchestrator.md`, `.aidlc-orchestrator/runtime/index.md`, `.aidlc-orchestrator/contracts/`.
 
-Keep parity between .opencode/ and .claude/ files, everytime you change anything in one, do the same for the other.
+Keep parity between .opencode/, .cursor/, and .claude/ files. Every time you change an agent in one, apply the same change to the others. Frontmatter differs per platform (Claude Code uses `model: sonnet/opus/haiku`; OpenCode adds `mode` and `permission`; Cursor uses `model: inherit`, `readonly`, `is_background`) — update body content in all three, but preserve each platform's frontmatter conventions.
