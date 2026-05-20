@@ -326,15 +326,16 @@ ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "\n<!-- AIDLC-ORCHESTRATOR-POINTER -->\n"
     "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
     "This project ships with the AIDLC orchestrator. Agents are in `.github/agents/`;\n"
-    "skills are in `.github/skills/`. Invoke them from Copilot Chat using `#<skill-name>`.\n\n"
-    "- `#factory-spec` — workspace scout + requirements + plan\n"
-    "- `#factory-plan` — decompose plan into per-unit specs\n"
-    "- `#factory-build` — layer-parallel code generation\n"
-    "- `#factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
-    "- `#factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
-    "- `#factory-resume` — resume an interrupted run\n"
-    "- `#factory-replay` — re-run from a specific stage\n"
-    "- `#factory-state` — show run status, stage, budget\n\n"
+    "skills are in `.github/skills/`; prompts (user-invocable commands) are in `.github/prompts/`.\n\n"
+    "Invoke from Copilot Chat by typing `/` and selecting the prompt:\n\n"
+    "- `/factory-spec` — workspace scout + requirements + plan\n"
+    "- `/factory-plan` — decompose plan into per-unit specs\n"
+    "- `/factory-build` — layer-parallel code generation\n"
+    "- `/factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `/factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `/factory-resume` — resume an interrupted run\n"
+    "- `/factory-replay` — re-run from a specific stage\n"
+    "- `/factory-state` — show run status, stage, budget\n\n"
     "Roles, contracts, budgets: `.aidlc-orchestrator/contracts/`, `.aidlc-orchestrator/budgets/default.yaml`.\n\n"
     "**Required VS Code setting** (enables nested subagent spawning):\n"
     "```json\n"
@@ -641,7 +642,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             src_cmds = repo_root / ".opencode" / "commands"
         elif tool == "copilot":
             src_agents = repo_root / ".github" / "agents"
-            src_cmds = None  # Copilot uses skills, not slash commands
+            src_cmds = None  # Copilot uses prompt files, not slash commands
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
             src_cmds = repo_root / ".cursor" / "commands"
@@ -661,13 +662,18 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
                     copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
-        # Copilot: copy skills and write VS Code settings
+        # Copilot: copy skills + prompts and write VS Code settings
         if tool == "copilot":
             src_skills = repo_root / ".github" / "skills"
             dst_skills = target_root / ".github" / "skills"
             if src_skills.exists():
                 print(f"  skills -> .github/skills/")
                 copy_tree(src_skills, dst_skills, dry_run)
+            src_prompts = repo_root / ".github" / "prompts"
+            dst_prompts = target_root / ".github" / "prompts"
+            if src_prompts.exists():
+                print(f"  prompts -> .github/prompts/")
+                copy_tree(src_prompts, dst_prompts, dry_run)
             _install_vscode_copilot_settings(target_root, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)

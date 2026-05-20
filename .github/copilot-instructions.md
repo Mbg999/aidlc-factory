@@ -15,7 +15,7 @@ prevention, CodeGraph integration, and persistent memory (Engram).
 |------|---------|
 | `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules |
 | `aidlc-rules/aws-aidlc-rule-details/` | Detailed stage rule files (inception / construction / operations / extensions) |
-| `.github/skills/orchestrator.md` | Multi-agent orchestrator definition |
+| `.github/agents/orchestrator.md` | Multi-agent orchestrator definition |
 | `.github/skills/` | All stage agents + custom skills (22 total) |
 | `.claude/commands/factory-*.md` | Slash command definitions (Claude Code / OpenCode) |
 | `.aidlc-orchestrator/runtime/` | Runtime architecture docs |
