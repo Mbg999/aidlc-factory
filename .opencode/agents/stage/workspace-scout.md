@@ -75,6 +75,15 @@ Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 - Detect project structure: monolith / microservices / library / empty
 - Identify workspace root (NOT `aidlc-docs/`)
 
+**AIDLC-installed paths are NOT project code — exclude from brownfield detection:**
+- `aidlc-scripts/` — AIDLC factory toolchain
+- `.aidlc-orchestrator/` — AIDLC runtime state
+- `aidlc-docs/` — AIDLC artifacts
+- `.agents/` — AIDLC skills and hooks
+- `requirements.txt` at root when `.aidlc-env` is present (AIDLC dependency file, not project dependency)
+
+If after excluding these paths no source or manifest files remain → `project_type: greenfield`.
+
 Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
 avoid token blow-up.
 
