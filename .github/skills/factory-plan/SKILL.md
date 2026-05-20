@@ -2,9 +2,11 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-plan <run-id>` sequence (see "Phase 1 sequences" in the orchestrator
 spec).
+
+**STOP at every human gate — do NOT run steps back-to-back.** At `status: needs_human`, surface the artifact and wait for user response before continuing.
 
 **Run id:** $ARGUMENTS
 
@@ -27,4 +29,4 @@ Sequence:
    On approval, commit `docs(workflow-planning): complete workflow planning`.
 6. Offer `/factory-build <run-id>`.
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

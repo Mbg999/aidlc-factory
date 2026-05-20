@@ -2,7 +2,7 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **Arguments:** $ARGUMENTS
 
@@ -37,4 +37,4 @@ malformed, refuse with a usage hint and stop.
 **Replay is destructive to the manifest's progress record but non-destructive
 to artifacts.** Old outputs are archived, never deleted.
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

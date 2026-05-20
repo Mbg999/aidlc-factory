@@ -2,8 +2,10 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-ship <run-id>` sequence.
+
+**STOP before committing — do NOT auto-commit.** Present all shipping artifacts to the user and wait for explicit approval before running any git command.
 
 **Run id:** $ARGUMENTS
 
@@ -18,12 +20,13 @@ Sequence:
 5. Append audit entries, update state file:
    `Current Stage: OPERATIONS` (or `CONSTRUCTION - Complete` if user opts
    not to deploy).
-6. Auto-commit `docs(ship): release prep complete`.
+6. Present all artifacts (release notes, ADRs, CHANGELOG, version proposal) to the user.
+   Wait for explicit approval before committing `docs(ship): release prep complete`.
 7. Present final summary:
    - All stages with skill-compliance recap
    - Version proposal + ADR count
    - Release notes path
    - "Ready to push: review the commits before `git push`"
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 **This agent does NOT push tags or remote branches.** User pushes manually.

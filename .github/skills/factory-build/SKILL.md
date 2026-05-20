@@ -2,8 +2,10 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-build <run-id>` sequence (now **layer-parallel** per Phase 5).
+
+**STOP at every human gate — do NOT run layers back-to-back.** At each consolidated approval gate (plan, generated, build+test), surface the results and wait for user approval before continuing.
 
 **Run id:** $ARGUMENTS
 
@@ -53,16 +55,17 @@ Sequence:
       post-processing; consolidated approval gate.
    d. **Release locks** — `factory_conflict.py release` per unit. Always
       release, even on failure.
-   e. **Per-unit auto-commits** — `feat(<unit>): generate <unit> code` and
-      `build(<unit>): complete build and test`.
+   e. **Per-unit commits** — present the unit diff to the user and wait for
+      explicit approval before committing `feat(<unit>): generate <unit> code`
+      and `build(<unit>): complete build and test`. Do NOT auto-commit.
 6. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
 7. Present + offer `/factory-review <run-id>`.
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 
 **Concurrency cap: 4.** If a layer has > 4 units, batch them (4 at a time)
 within the layer.
 
 **Conflict resolution (Phase 5)**: escalation-only. On path collision or
 interface drift, surface to user; user re-plans, manually merges, or cancels.
-Full protocol: `.claude/agents/cross-cutting/conflict-resolver.md`.
+Full protocol: `.github/agents/conflict-resolver.agent.md`.

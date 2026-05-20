@@ -78,6 +78,6 @@ If `.codegraph/codegraph.db` does NOT exist on a brownfield workspace:
 
 ## Reference
 - Plan: [`ORCHESTRATOR-PLAN.md`](ORCHESTRATOR-PLAN.md).
-- Stage agents: `.claude/agents/stage/<name>.md`.
+- Stage agents: `.github/agents/<name>.agent.md`.
 - Runtime: `.aidlc-orchestrator/runtime/`.
 - Core workflow: `aidlc-rules/aws-aidlc-rules/core-workflow.md`.

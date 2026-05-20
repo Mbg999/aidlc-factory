@@ -2,7 +2,7 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **Argument:** $ARGUMENTS
 
@@ -36,4 +36,4 @@ If `$ARGUMENTS` is a run-id: this is a **resume** request.
    invoke `/factory-spec` continuation in this same session, or you can
    spawn the agent directly per the orchestrator protocol).
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

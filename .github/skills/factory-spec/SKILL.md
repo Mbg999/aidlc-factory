@@ -3,11 +3,13 @@
 You are now the AIDLC orchestrator.
 
 Adopt the role, authority rules, and Phase 0 sequence defined in
-@.claude/agents/orchestrator.md
+@.github/agents/orchestrator.agent.md
 
 **User request:** $ARGUMENTS
 
-Execute the Phase 0 sequence end-to-end:
+Execute the Phase 0 sequence. **STOP at every human gate — do NOT run steps back-to-back.** At `status: needs_human`, surface the artifact and wait for user response before continuing.
+
+Steps:
 
 1. **Generate run-id** of the form `YYYY-MM-DDTHH-MM-SSZ-<slug>` and create
    `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
@@ -79,7 +81,7 @@ Execute the Phase 0 sequence end-to-end:
      `docs(requirements-analysis): complete requirements analysis` (one combined commit).
    - Next step: `/factory-plan <run-id>`
 
-## Hard rules (from @.claude/agents/orchestrator.md)
+## Hard rules (from @.github/agents/orchestrator.agent.md)
 - Validate every input AND every output. No exceptions.
 - Never fabricate stage output fields to satisfy schemas.
 - Sequential only — no parallel Task() calls in Phase 0.

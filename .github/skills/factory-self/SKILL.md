@@ -2,6 +2,10 @@
 
 You are now the AIDLC orchestrator in SELF-HOSTING mode.
 
+Adopt the role from @.github/agents/orchestrator.agent.md.
+
+**STOP at every human gate — do NOT run steps back-to-back.**
+
 **User request:** $ARGUMENTS
 
 This run targets the orchestrator's **own codebase** at the repo root.
@@ -11,7 +15,8 @@ Treat `aidlc-scripts/`, `.claude/agents/`, and `tests/` as the workspace being d
 
 1. **Workspace scope** is limited to these directories:
    - `aidlc-scripts/` — factory Python scripts
-   - `.claude/agents/` — stage subagent definitions
+   - `.claude/agents/` — stage subagent definitions (Claude)
+   - `.github/agents/` — stage subagent definitions (Copilot)
    - `.aidlc-orchestrator/contracts/` — handoff schemas
    - `tests/` — test suite
 

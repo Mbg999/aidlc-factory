@@ -2,8 +2,10 @@
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.claude/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-review <run-id>` sequence (now **parallel fan-out** per Phase 4).
+
+**STOP at the approval gate — do NOT auto-commit.** Surface the merged review report and wait for explicit user approval before committing or routing to the next stage.
 
 **Run id:** $ARGUMENTS
 
@@ -30,10 +32,10 @@ Sequence:
    Produces `aidlc-docs/operations/<run-id>-review-report.md`.
 7. Surface report to user. Approval gate:
    - **Fixes requested** → route units back through `/factory-build <run-id>`
-   - **Approved** → auto-commit `docs(review): complete review report`,
-     update state, offer `/factory-ship <run-id>`
+   - **Approved** → ask user for commit approval, then commit
+     `docs(review): complete review report`, update state, offer `/factory-ship <run-id>`
 
-Hard rules from @.claude/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 
 **Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`,
 not sum. Track via `manifest.events[]` timestamps and reviewer `cost.wall_clock_min`.
