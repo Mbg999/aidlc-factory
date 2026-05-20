@@ -483,6 +483,7 @@ def _tool_agent_dir(tool: str) -> str:
     return {
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
+        "cursor": ".cursor/agents",
         "codex": ".codex/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
 
@@ -492,6 +493,7 @@ def _tool_commands_dir(tool: str) -> str:
     return {
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
+        "cursor": ".cursor/commands",
         "codex": ".codex/commands",
     }.get(tool, ".aidlc-orchestrator/commands")
 
