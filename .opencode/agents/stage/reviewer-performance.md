@@ -23,7 +23,10 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`, `secret-knowledge` (Section C: Performance & Diagnostics).
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `performance-optimization`, and
+   `secret-knowledge` (Section C: Performance & Diagnostics). Load every skill file present.
 2. **FOLLOW** — Hot-path + complexity + allocation review.
 3. **CHECK** — Rationalizations: reject "good enough at current scale" without
    a documented current scale.

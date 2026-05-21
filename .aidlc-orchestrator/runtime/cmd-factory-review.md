@@ -73,15 +73,15 @@ If any step fails (codegraph unavailable, timeout): write an empty cache
 Run inline before building reviewer handoffs. Goal: propagate autoskill (framework) context
 from the build phase into `reviewer-code` so it applies framework-specific idioms during review.
 
-**Base skills** (always present, not framework): `using-agent-skills`, `idea-refine`,
-`spec-driven-development`, `incremental-implementation`, `test-driven-development`,
-`code-review-and-quality`, `security-and-hardening`, `performance-optimization`,
-`code-simplification`, `debugging-and-error-recovery`, `source-driven-development`,
-`codegraph-aware-exploration`, `environment-detection`, `validator-retry`.
+**Base skills** are defined by the union of workflow-required skills in
+`aidlc-scripts/install_aidlc.py:WORKFLOW_REQUIRED_SKILLS` and `using-agent-skills`.
+These are the universal process/quality skills that every agent should always load.
+Everything else discovered by `select` is a **framework skill** (conditional, tech-stack-specific).
 
-1. Read `manifest.yaml` → collect `skill_paths` map (keys = skill names, values = resolved paths).
+1. Read `manifest.yaml` → collect `skill_paths_resolved` map (all discovered skills).
 2. Additionally, read all `code-generator.*.output.yaml` handoffs; union their `skill_paths_resolved[]`.
-3. **Framework skills** = any skill NOT in the base skills list above whose SKILL.md exists on disk.
+3. **Framework skills** = any skill NOT in the base set (from `WORKFLOW_REQUIRED_SKILLS`)
+   whose SKILL.md exists on disk.
 4. Store as `framework_skill_paths: {name: path, ...}` in the orchestrator's working state (not
    persisted to manifest — this is ephemeral per review run).
 5. Log: `[Review] Framework skills from build: [<name>, ...]` (empty list is fine — log it anyway).
@@ -93,15 +93,29 @@ If no code-generator handoffs exist (review invoked without a prior build): `fra
 1. **Active set** — default `[reviewer-code, reviewer-security]`; use all four if `--full` flag set; constrain to `manifest.reviewer_pool[]` if set.
 2. **Knowledge queries** (sequential): `mem_search` per reviewer with specific tags; inject top-5.
 2.5. **Build reviewer input handoffs** — for each active reviewer:
-   - Base `skills_required`: reviewer's own base skill + `using-agent-skills` + `codegraph-aware-exploration`.
-   - For `reviewer-code` **only**: append all keys from `framework_skill_paths` to `skills_required[]`
-     and merge `framework_skill_paths` into the handoff's `skill_paths_resolved[]`.
-   - For `reviewer-security`: append any security-relevant framework skills (those whose name
-     contains `security`, `auth`, or `hardening`) from `framework_skill_paths`.
-   - Other reviewers: base skills only.
-   - **Design system**: if `manifest.project_profile.ui == true` AND `manifest.project_profile.design_system_path`
-     is set, inject `design_system_path` into ALL reviewer handoffs so each can run its axis-specific
-     design system review checks.
+
+    a. **Base** `skills_required`: reviewer's own base skill + `using-agent-skills` +
+       `codegraph-aware-exploration`.
+
+    b. **Conditional skills** (per [`project-profile.md`](project-profile.md) §65-78):
+       - Read `manifest.project_profile`.
+       - If `ui: true`, ALL 4 reviewers get `frontend-ui-engineering`, `design-system-composer`,
+         and `ui-constraint-validator` added to `skills_required[]`.
+       - Resolve matching SKILL.md paths → add to `skill_paths_resolved[]`.
+
+    c. **Framework skills from build** (per Pre-Review Step 0.5 above):
+       - `reviewer-code` **only**: append ALL keys from `framework_skill_paths` to
+         `skills_required[]` and merge their paths into `skill_paths_resolved[]`.
+       - `reviewer-security` **only**: append security-relevant framework skills (name contains
+         `security`, `auth`, or `hardening`) from `framework_skill_paths`.
+       - Other reviewers: base + conditional only (no framework skills).
+
+    d. **Filter**: include ONLY paths for skills present in `skills_required[]`. Discard
+       paths for irrelevant skills. Deduplicate if conditional + framework paths overlap.
+
+    e. **Design system**: if `manifest.project_profile.ui == true` AND `manifest.project_profile.design_system_path`
+       is set, inject `design_system_path` into ALL reviewer handoffs so each can run its axis-specific
+       design system review checks.
 3. **Parallel spawn** — ONE message, all `Task()` calls together. Wait for returns.
 4. **Per-reviewer post-processing** (any order): validate → knowledge save → audit append.
 5. **Merge**: `factory_merge_reviews.py <run-id> --reviewers <reviewer-names>` → review report.

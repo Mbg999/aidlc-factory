@@ -799,6 +799,16 @@ python3 aidlc-scripts/factory_skill_drift.py --report
 python3 aidlc-scripts/factory_autoskills.py --dry-run
 ```
 
+### Skill installer scripts
+
+There are two complementary helper scripts to manage skills used by the workflow:
+
+- `aidlc-scripts/factory_autoskills.py`: installs **private or pinned** skills declared in `skill-sources.yaml` by downloading each `SKILL.md`, verifying a pinned `sha256`, and writing them to `.agents/skills/<name>/`. Use this for organization-specific or community-listed skills that you want to pin and verify.
+- `aidlc-scripts/factory_skill_sync.py`: runs the public `autoskills` CLI (`npx autoskills`) across workspace directories, collects the generated skills, and consolidates them into `.agents/skills/`. Use this to detect and install public framework skills automatically across monorepos (requires Node.js / npx).
+
+Use both together: `factory_skill_sync.py` brings in public/community skills detected per-workspace, while `factory_autoskills.py` lets you add and pin internal or third‑party skills not managed by `autoskills`.
+
+
 **Adding a community skill** — add an entry to `skill-sources.yaml`:
 
 ```yaml

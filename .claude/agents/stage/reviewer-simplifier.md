@@ -17,7 +17,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `code-simplification`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, and `code-simplification`. Load every skill file present.
 2. **FOLLOW** — Three-similar-lines-rule, dead-code scan, layer-redundancy review.
 3. **CHECK** — Rationalizations: reject "future flexibility", "we might need this".
 4. **VERIFY** — Concrete: each finding identifies the abstraction, what it abstracts (or doesn't), and the simpler form.

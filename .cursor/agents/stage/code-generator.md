@@ -27,10 +27,15 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills` first, then `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`, `secret-knowledge` (Section F: Shell One-liners). Conditionally
-    load `frontend-ui-engineering` AND `design-system-composer` if `manifest.project_profile.ui == true`
-   and `api-and-interface-design` if `manifest.project_profile.api == true`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `environment-detection`, `incremental-implementation`,
+   `test-driven-development`, `source-driven-development`, `validator-retry`, and
+   `secret-knowledge`. It may also include framework skills propagated from the build
+   phase (e.g., `vue`, `react-best-practices`, `typescript-advanced-types`) and
+   conditional skills from project profile (`frontend-ui-engineering`,
+   `design-system-composer`, `ui-constraint-validator`, `api-and-interface-design`).
+   Load every skill file present.
 2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
    Incremental = thin vertical slices, each green before next.
 3. **CHECK** — Common Rationalizations. Reject "I'll add tests later",

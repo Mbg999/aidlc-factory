@@ -19,7 +19,8 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `shipping-and-launch`,
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
    `git-workflow-and-versioning`, `ci-cd-and-automation`,
    `documentation-and-adrs`, `secret-knowledge` (Section E: DevOps + Section G: Systems). Conditionally `deprecation-and-migration` if
    `manifest.project_profile.has_legacy == true`.

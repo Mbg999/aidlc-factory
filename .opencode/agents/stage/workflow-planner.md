@@ -25,7 +25,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills` first, then `planning-and-task-breakdown`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills` and
+   `planning-and-task-breakdown`. Load every skill file present.
 2. **FOLLOW** — Process steps. The breakdown skill mandates: small units,
    verifiable, with acceptance criteria.
 3. **CHECK** — Walk Rationalizations. Reject "we'll figure it out later".
