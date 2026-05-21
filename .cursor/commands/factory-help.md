@@ -53,6 +53,7 @@ skips all stages and goes directly to code-generator:
 | Command | When to use | What happens |
 |---------|-------------|-------------|
 | `/factory-onboarding` | First time using the orchestrator | Guided tour of the system |
+| `/factory-code-tour` | Onboard a human to any codebase | Architecture map, key flows, conventions, next steps |
 | `/factory-spec "<request>"` | **Start here** for any new feature | Triages your request, spawns scout + analyst |
 | `/factory-plan <run-id>` | After `/factory-spec` completes | Creates execution plan + design units |
 | `/factory-build <run-id>` | After plan is approved | Generates code + runs tests in parallel |
