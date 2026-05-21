@@ -665,7 +665,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
 
         # Copilot: copy skills + prompts and write VS Code settings
         if tool == "copilot":
-            src_skills = repo_root / ".github" / "skills"
+            src_skills = repo_root / ".agents" / "custom-skills"
             dst_skills = target_root / ".github" / "skills"
             if src_skills.exists():
                 print(f"  skills -> .github/skills/")
