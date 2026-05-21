@@ -53,6 +53,18 @@ Focus: business logic & algorithms, domain models, business rules & validation, 
 - `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-domain-entities.md`
 - If UI unit: `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-frontend-components.md`
   - Component hierarchy, props/state, interaction flows, form validation, API integration
+- If UI unit: `aidlc-docs/construction/{unit-name}/functional-design/<run-id>-ui-intent.json`
+  - Semantic UI plan: each needed UI element mapped to a primitive from INDEX.md or a pattern from patterns/
+  - Machine-readable JSON consumed by code-generator's `ui_intent[]` input field
+  - Format:
+    ```json
+    [
+      { "component": "login-form", "pattern": "form-layout" },
+      { "component": "submit-button", "primitive": "Button", "props": { "variant": "primary", "size": "md" } },
+      { "component": "cancel-button", "primitive": "Button", "props": { "variant": "ghost", "size": "md" } },
+      { "component": "email-input", "primitive": "Input", "props": { "variant": "email" } }
+    ]
+    ```
 
 ### Step 6: Present Completion (emoji: 🔧)
 Artifact path: `aidlc-docs/construction/{unit-name}/functional-design/`

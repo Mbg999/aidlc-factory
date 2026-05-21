@@ -59,7 +59,38 @@
       "default": []
     },
     "conflicts_detected": { "type": "array", "default": [] },
-    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] }
+    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "ui_compliance": {
+      "type": "array",
+      "description": "Design system compliance report per UI element. Populated when design_system_path is set.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "element": { "type": "string", "description": "Element identifier (e.g. 'button.save-btn')" },
+          "primitive_used": { "type": "string", "description": "Name of the primitive used" },
+          "token_compliance": { "type": "boolean", "description": "Whether all tokens were correctly used" },
+          "deviations_corrected": {
+            "type": "array",
+            "description": "List of values autocorrected by ui-constraint-validator",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property": { "type": "string" },
+                "element": { "type": "string" },
+                "found": { "type": "string" },
+                "corrected_to": { "type": "string" },
+                "file": { "type": "string" }
+              },
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "screenshot_path": { "type": "string", "description": "Path to captured screenshot (if available)" }
+        },
+        "additionalProperties": false
+      },
+      "default": []
+    }
   },
   "additionalProperties": false
 }

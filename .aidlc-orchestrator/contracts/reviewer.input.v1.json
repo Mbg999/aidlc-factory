@@ -41,6 +41,10 @@
     "codegraph_cache_path": {
       "type": "string",
       "description": "Path to pre-computed CodeGraph callers+impact cache for all symbols in the unit (written by Pre-Review Step 0). Reviewers must prefer this over live codegraph_callers/codegraph_impact calls. Absent when CodeGraph is not initialized."
+    },
+    "design_system_path": {
+      "type": "string",
+      "description": "Path to the design system (relative to repo root, e.g. 'design-system/'). Set when project_profile.ui == true and design-system/ exists at repo root. Null/absent means no design system available."
     }
   },
   "additionalProperties": false

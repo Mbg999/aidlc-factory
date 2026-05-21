@@ -53,6 +53,26 @@ unit, version-bump without rationale, missing migration plan when
 5. **Versioning** → propose semver bump (patch/minor/major) with rationale based on diff scope.
 6. (Conditional) **Migration plan** → if `has_legacy == true`, produce
    `aidlc-docs/operations/<run-id>-migration-plan.md` with deprecation timeline.
+7. (Conditional) **UI example capture** → if `design_system_path` is set:
+   a. Collect all source artifacts from this run's code-generator outputs that contain
+      UI primitives (Button, Stack, Inline, Box, Surface, Text, Input, Icon)
+   b. For each UI artifact, extract the TSX code and run:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_learn.py approve \
+          --component <Primitive> \
+          --code '<extracted-tsx>' \
+          --source <artifact-path> \
+          --run-id <run-id>
+      ```
+   c. After all examples saved, run:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_learn.py update-index
+      ```
+   d. Enforce memory cap:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_resolve.py trim
+      ```
+   e. Log each saved example in `audit_entries[]`
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/ship-agent.output.yaml`.

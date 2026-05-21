@@ -17,6 +17,7 @@ Generate code per unit in two parts:
 - `environment-detection/SKILL.md` — Detect-before-install discipline for language runtimes and package managers. **Key process**: `command -v <tool>` → USE existing if compatible → prefer fast version managers (nvm / asdf / mise) over brew. **Runs FIRST**, before any install command. Avoids 180s `brew install` source-build timeouts when the tool is already on `$PATH`.
 - `incremental-implementation/SKILL.md` — Thin vertical slices: implement → test → verify → commit. **Key process**: one slice at a time, verify before moving to next.
 - `test-driven-development/SKILL.md` — Red-Green-Refactor; test pyramid 80/15/5. **Key process**: write failing test FIRST, then implement, then refactor.
+- `design-system-composer/SKILL.md` *(UI projects only)* — Design-system-driven composition from INDEX.md primitives with token enforcement. **Key process**: never invent primitives, snap to tokens, Figma resilience.
 - `frontend-ui-engineering/SKILL.md` *(UI projects only)* — Component architecture, WCAG 2.1 AA. **Key process**: design system tokens, accessibility from the start.
 - `source-driven-development/SKILL.md` *(frameworks only)* — Base decisions on official docs. **Key process**: cite source for every framework API used, flag unverified patterns.
 - `git-workflow-and-versioning/SKILL.md` — Trunk-based, atomic commits ~100 lines. **Key process**: commit after each slice, meaningful messages.
@@ -108,6 +109,19 @@ Next stage options: Request Changes / Continue to Next Unit or Build & Test
 - **UPDATE CHECKBOXES (BLOCKING)**: Mark `[x]` in the plan file in the SAME response that completes the step. Do NOT move to the next step with any unchecked `[ ]` behind you. If you realize checkboxes were not updated, stop and update them before continuing.
 - **RESPECT DEPENDENCIES**: Only implement when dependencies satisfied
 - **END-OF-UNIT CHECKBOX AUDIT**: Before presenting the unit completion message, scan the plan file for any remaining `[ ]` items in this unit. If any are found, mark them `[x]` or explain why they were skipped. A completion message MUST NOT be presented with open `[ ]` items.
+
+### Design System Compliance (UI projects)
+- Every UI element MUST map to a primitive from `design-system/INDEX.md`
+- Padding, margin, gap MUST use `spacing.*` tokens (4/8/12/16/24/32)
+- Border-radius MUST use `radius.*` tokens (0/3/6/12/9999)
+- Font-size MUST use `font-size.*` tokens (12/14/16/20/24/32/40)
+- Colors MUST use `color.*` semantic tokens, never raw hex
+- Shadows MUST use `elevation.*` tokens
+- NO Tailwind arbitrary values (`px-[13px]`, `rounded-[5px]`, `gap-[7px]`)
+- NO inline style padding/margin/radius/font-size values
+
+**Violation handling**: Each deviation is autocorrected by `ui-constraint-validator`.
+If >3 deviations per code-generation slice: halt with `status: blocked`.
 
 ### Automation-Friendly UI Code
 - Add `data-testid` to ALL interactive elements — this is a **mandatory generation requirement**, not a suggestion

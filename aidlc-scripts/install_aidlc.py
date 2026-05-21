@@ -1065,6 +1065,43 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(
             json.dumps({"project_name": project_name}, indent=2) + "\n",
+
+# ── Design System (optional, --with-design-system) ──────────────────────────
+
+
+DESIGN_SYSTEM_SRCS = frozenset({
+    "design-system",
+    ".agents/custom-skills/design-system-composer",
+    ".agents/custom-skills/ui-constraint-validator",
+})
+
+
+def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> None:
+    """Install design system directory and related skills into target project.
+
+    Copies:
+      - design-system/ (tokens, primitives, patterns, anti-patterns)
+      - .agents/custom-skills/design-system-composer/
+      - .agents/custom-skills/ui-constraint-validator/
+    """
+    print("\n--- Installing Design System ---")
+
+    for src_name in sorted(DESIGN_SYSTEM_SRCS):
+        src = repo_root / src_name
+        dst = target_root / src_name
+        if not src.exists():
+            print(f"  SKIP {src_name} — not found in repo")
+            continue
+        if dry_run:
+            print(f"[DRY-RUN] Would copy {src_name}/ -> {dst.parent}/")
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _rmtree_force(dst)  # clean install
+            copy_tree(src, dst, dry_run=False)
+            print(f"  {src_name}/ -> {dst}")
+
+    print("  Design system installed.")
+
             encoding="utf-8",
         )
         print(f"  project config -> .engram/project.json (project_name={project_name!r})")
@@ -1110,6 +1147,12 @@ def parse_args() -> argparse.Namespace:
                         "command; MCP-based tools get an entry in .mcp.json. "
                         "Always writes .engram/project.json with the repo folder as project_name. "
                         "Default: off — Engram is opt-in.")
+    p.add_argument("--with-design-system", action="store_true", default=True,
+                   help="Install the design system (tokens, primitives, patterns, skills). "
+                        "Copies design-system/ + design-system-composer + ui-constraint-validator skills. "
+                        "Default: install (recommended for UI projects).")
+    p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
+                   help="Skip design system installation.")
     return p.parse_args()
 
 
@@ -1313,6 +1356,14 @@ def main() -> int:
     # --- Engram (optional, --with-engram) ---
     if args.with_engram:
         install_engram(tools, target_root, args.dry_run)
+
+    # --- Design System (optional, --with-design-system / --no-design-system) ---
+    if args.with_design_system:
+        try:
+            install_design_system(repo_root, target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing design system: {e}")
+            print("  Design system is optional — AIDLC will degrade gracefully without it.")
 
     # --- Python venv + dependencies ---
     if args.no_venv:

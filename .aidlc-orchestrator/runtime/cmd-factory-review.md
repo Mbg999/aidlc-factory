@@ -99,6 +99,9 @@ If no code-generator handoffs exist (review invoked without a prior build): `fra
    - For `reviewer-security`: append any security-relevant framework skills (those whose name
      contains `security`, `auth`, or `hardening`) from `framework_skill_paths`.
    - Other reviewers: base skills only.
+   - **Design system**: if `manifest.project_profile.ui == true` AND `manifest.project_profile.design_system_path`
+     is set, inject `design_system_path` into ALL reviewer handoffs so each can run its axis-specific
+     design system review checks.
 3. **Parallel spawn** — ONE message, all `Task()` calls together. Wait for returns.
 4. **Per-reviewer post-processing** (any order): validate → knowledge save → audit append.
 5. **Merge**: `factory_merge_reviews.py <run-id> --reviewers <reviewer-names>` → review report.
@@ -109,5 +112,13 @@ If no code-generator handoffs exist (review invoked without a prior build): `fra
    - `reviewer-simplifier` → `simplifier`
    Example: `factory_merge_reviews.py <run-id> --reviewers code-quality security`
 6. **Approval gate**: surface report. On user response:
-   - Fixes requested → route units back through `/factory-build`.
+   - Fixes requested → route units back through `/factory-build`. If `manifest.project_profile.ui == true`
+     AND `design_system_path` is set, capture the rejection feedback as a design system antipattern:
+     ```bash
+     python3 aidlc-scripts/factory_design_system_learn.py reject \
+         --component <inferred-primitive> \
+         --reason "<user feedback or reviewer finding>" \
+         --source <primary-ui-file> \
+         --run-id <run-id>
+     ```
    - Approved → auto-commit `docs(review): complete review report`, update state, offer `/factory-ship`.

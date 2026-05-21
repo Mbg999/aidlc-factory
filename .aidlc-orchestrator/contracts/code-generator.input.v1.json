@@ -25,6 +25,25 @@
       "type": "string",
       "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
+    },
+    "design_system_path": {
+      "type": "string",
+      "description": "Path to design-system/ root. Set by project-profile when ui=true. Null when no design system exists."
+    },
+    "ui_intent": {
+      "type": "array",
+      "description": "Semantic UI plan from functional design. Each entry maps a needed component to a primitive or pattern.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": { "type": "string", "description": "Name of the UI element (e.g. 'save-button', 'login-form')" },
+          "primitive": { "type": "string", "description": "Design system primitive to use (e.g. 'Button', 'Stack')" },
+          "pattern": { "type": "string", "description": "Pattern from design-system/patterns/ to use (e.g. 'form-layout')" },
+          "props": { "type": "object", "description": "Initial props for the primitive" }
+        },
+        "additionalProperties": false
+      },
+      "default": []
     }
   },
   "additionalProperties": false,

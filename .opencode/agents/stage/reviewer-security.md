@@ -81,6 +81,41 @@ Full guidance: `.opencode/agents/cross-cutting/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
 
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **Accessibility audit** — scan UI files for:
+   - Icon-only Button without `aria-label` → P1 finding
+   - Input without associated `<label>` or `aria-label` → P1 finding
+   - Input in error state without `aria-invalid` or `aria-describedby` → P1 finding
+   - Missing focus management on modals/dialogs (no focus trap) → P1 finding
+   - Escape key not closing modal/dialog → P1 finding
+
+2. **data-testid audit**: Every interactive element MUST have `data-testid`.
+   Missing `data-testid` blocks E2E security testing → P1 finding.
+
+3. **XSS surface audit**: UI primitives like `<Button>` should not render
+   unsanitized user content. If raw HTML elements are used instead of primitives,
+   flag the XSS risk → P1 finding.
+
+Severity guide:
+- P1: missing a11y attributes, missing data-testid, focus trap absent
+- P2: suboptimal aria usage, keyboard support gaps
+
+Findings format (standard):
+```yaml
+- severity: P1
+  file: src/components/Header.tsx
+  line: 23
+  cwe: "CWE-20"
+  owasp: "A04:2021"
+  message: "Icon-only button missing aria-label — screen reader users cannot identify the action"
+  recommendation: "Add aria-label='Open menu' to the icon button"
+```
+
 ## What you must NOT do
 - Do not patch vulnerabilities. Findings only.
 - Do not soft-pedal P0s. If exploitable, mark P0.

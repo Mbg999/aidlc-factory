@@ -100,6 +100,46 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **DOM depth** — scan for excessive nesting of layout primitives:
+   - Stack inside Stack inside Stack (>3 levels) → P2 finding
+   - Inline inside Inline inside Inline (>3 levels) → P2 finding
+   - Box inside Surface inside Box inside Stack (unnecessary wrappers) → P2 finding
+   Each nesting level adds layout calculation cost on every frame.
+
+2. **Inline style re-renders** — scan for inline style objects in JSX:
+   - `style={{ padding: ... }}` in a component body (creates new object every render) → P2 finding
+   - Should use primitive props or static classes instead
+   - Flag raw `style={}` objects, NOT primitive prop-based styling like `<Box padding="md">` which is static
+
+3. **Large Surfaces** — flag Surface or Box components with `overflow` or
+   containing >50 children that lack virtualization → P1 finding if the
+   content list is dynamic.
+
+4. **Layout thrash** — scan for individual element positioning that should
+   use Stack/Inline flow (absolute positioning per element instead of gap) → P2 finding
+
+Severity guide:
+- P1: large lists without virtualization, layout thrash on hot paths
+- P2: excessive DOM depth, inline style objects, individual absolute positioning
+- P3: minor optimization opportunities
+
+Findings format (standard):
+```yaml
+- severity: P2
+  file: src/pages/Dashboard.tsx
+  line: 12
+  big_o: "O(n) layout per render"
+  expected_impact: "Degrades with >100 items — each Stack recalculates layout"
+  message: "4 levels of nested Stack components cause cascading layout recalculation on every content change"
+  recommendation: "Flatten to max 2 levels of Stack. Extract each section into independent Surface cards."
+```
+
 ## What you must NOT do
 - Do not optimize. Findings only.
 - Do not flag style as performance.

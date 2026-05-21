@@ -113,6 +113,13 @@ results = mem_search(
   - `reviewer-*` → query for relevant antipatterns
   - `ship-agent` → query for ADRs to roll into release notes
 
+**Design system cross-reference** — when `manifest.project_profile.ui == true`
+AND `design_system_path` is set, additionally query for examples and antipatterns
+from the design system's knowledge store. For `code-generator`, load relevant
+`examples/` (max 3 per component) and `anti-patterns/live/` entries from
+`context_pointers[]` — these are primitives with human-approved track records
+that the generator should prioritize, and antipatterns it should avoid.
+
 **Result formatting** — each match becomes a context_pointer entry:
 ```
 ### [<kind>] <title>

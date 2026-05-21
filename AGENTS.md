@@ -111,4 +111,4 @@ Extensions layer additional rules on top of the core workflow. Opt-in files live
 Extensions without an opt-in file are always enforced.
 
 
-Keep parity between .opencode/ and .claude/ files, everytime you change anything in one, do the same for the other.
+Keep parity between .opencode/, .cursor, .github and .claude/ files, everytime you change anything in one, do the same for the other.

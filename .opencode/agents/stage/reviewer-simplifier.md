@@ -62,6 +62,42 @@ Same shape as other reviewers, `reviewer: simplifier`. Findings include
 
 Return: `<status> <output-path>`.
 
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **Primitive bypass** — scan for raw HTML that should be a primitive:
+   - Raw `<div>` with padding/radius where `Box` or `Surface` exists → P2 finding
+   - Raw `<button>` where `Button` primitive exists → P2 finding
+   - Manual Stack/Inline via CSS where `Stack`/`Inline` primitives exist → P2 finding
+
+2. **Custom CSS override** — scan for inline or Tailwind arbitrary values
+   where a design token exists:
+   - `px-[13px]` → should be `p-md` or `px-3` (spacing.md=12px) → P2 finding
+   - `rounded-[5px]` → should be `rounded-sm` (radius.sm=3px) → P2 finding
+   - `text-[15px]` → should be `text-body` (font-size.body=14px) → P2 finding
+   - Raw color hex → should be `text-{semantic}` or `bg-{semantic}` → P2 finding
+
+3. **Redundant wrappers** — flag single-child Stack/Inline/Box:
+   - `<Stack><SingleChild /></Stack>` → just render SingleChild → P2 finding
+   - `<Box padding="md"><Surface>...</Surface></Box>` → redundant nesting → P2 finding
+
+Severity guide:
+- P2: bypassing primitives, custom CSS overrides, redundant wrappers
+- P3: cosmetic simplification opportunities
+
+Findings format (standard):
+```yaml
+- severity: P2
+  file: src/components/UserCard.tsx
+  line: 8
+  simplification_pattern: pass-through-wrapper
+  message: "Inline padding value 13px does not match any spacing token — nearest is spacing.md (12px)"
+  recommendation: "Use Box padding='md' or <Box padding='md'> instead of inline style"
+```
+
 ## What you must NOT do
 - Do not refactor. Findings only.
 - Do not flag necessary abstractions just because they're abstractions.
