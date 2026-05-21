@@ -6,11 +6,11 @@ from pathlib import Path
 
 def test_runner_echo():
     repo = Path(__file__).resolve().parents[1]
-    runner = repo / "scripts" / "executors" / "runner.py"
+    runner = repo / "aidlc-scripts" / "executors" / "runner.py"
     payload = {
         "run_folder": str(repo / "runs" / "smoke-exec"),
         "actions": [
-            {"action": "run_script", "script": "scripts/test_scripts/echo.py", "args": ["hello", "world"]}
+            {"action": "run_script", "script": "aidlc-scripts/test_scripts/echo.py", "args": ["hello", "world"]}
         ],
     }
     # Ensure run_folder exists for runner cwd

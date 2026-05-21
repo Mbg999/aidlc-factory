@@ -1,200 +1,90 @@
 # Requirements Analysis (Adaptive)
 
-**Assume the role** of a product owner
+**Role**: Product owner
 
-**Adaptive Phase**: Always executes. Detail level adapts to problem complexity.
-
-**See [depth-levels.md](../common/depth-levels.md) for adaptive depth explanation**
+Always executes. Depth adapts to complexity (see [depth-levels.md](../common/depth-levels.md)).
 
 ## Prerequisites
-- Workspace Detection must be complete
-- Reverse Engineering must be complete (if brownfield)
+- Workspace Detection complete
+- Reverse Engineering complete (if brownfield)
 
-## Agent Skills
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
 
-**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+- `idea-refine/SKILL.md` — Divergent→convergent thinking to explore problem space. **Key process**: explore multiple approaches before converging on one; follow Process steps; check Rationalizations table.
+- `spec-driven-development/SKILL.md` — Write spec (PRD): objectives, scope, constraints, boundaries. **Key process**: produce structured spec covering all areas; follow verification exit criteria.
+- `requirements-intelligence/SKILL.md` — Adaptive elicitation engine. **Key process**: signal scoring → technique routing (ambiguity-detection / socratic / pre-mortem / assumption-mining) → coverage-map enforcement (8 axes: Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) → dedupe + budget. **Gates Step 6** — coverage map must be complete before the question file is written.
 
-- **`idea-refine/SKILL.md`** — Use structured divergent/convergent thinking to explore the problem space before narrowing to requirements. Follow its Process steps and check its Rationalizations table.
-- **`spec-driven-development/SKILL.md`** — Write a spec (PRD) covering objectives, scope, constraints, and boundaries before proceeding. Follow its verification exit criteria.
+**Inline fallback** (if SKILL.md files not installed):
+1. Explore the problem space: list ≥3 possible approaches before choosing one
+2. Write a structured spec: objectives, core features, constraints, boundaries, testing strategy
+3. Verify: spec covers all areas identified in completeness analysis
+4. Do NOT proceed to next stage without a written, reviewable spec artifact
+5. Before writing questions, build an 8-axis coverage table (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) and ensure every axis required at the active depth has ≥1 question. Scan the request for weasel words (`fast`, `scalable`, `secure`, `clean`, `simple`) and convert each into a quantifier MCQ.
 
-If a skill directory does not exist, skip silently and proceed with standard behavior.
-Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Requirements Analysis)`
+## Steps
 
-## Execution Steps
+### Step 1: Load Reverse Engineering Context (if brownfield)
+- Load architecture.md, component-inventory.md, technology-stack.md from `aidlc-docs/inception/reverse-engineering/`
 
-### Step 1: Load Reverse Engineering Context (if available)
+### Step 2: Analyze User Request
 
-**IF brownfield project**:
-- Load `aidlc-docs/inception/reverse-engineering/architecture.md`
-- Load `aidlc-docs/inception/reverse-engineering/component-inventory.md`
-- Load `aidlc-docs/inception/reverse-engineering/technology-stack.md`
-- Use these to understand existing system when analyzing request
+**Classify**:
+- **Clarity**: Clear / Vague / Incomplete
+- **Type**: New Feature | Bug Fix | Refactoring | Upgrade | Migration | Enhancement | New Project
+- **Scope**: Single File | Single Component | Multiple Components | System-wide | Cross-system
+- **Complexity**: Trivial | Simple | Moderate | Complex
 
-### Step 2: Analyze User Request (Intent Analysis)
-
-#### 2.1 Request Clarity
-- **Clear**: Specific, well-defined, actionable
-- **Vague**: General, ambiguous, needs clarification
-- **Incomplete**: Missing key information
-
-#### 2.2 Request Type
-- **New Feature**: Adding new functionality
-- **Bug Fix**: Fixing existing issue
-- **Refactoring**: Improving code structure
-- **Upgrade**: Updating dependencies or frameworks
-- **Migration**: Moving to different technology
-- **Enhancement**: Improving existing feature
-- **New Project**: Starting from scratch
-
-#### 2.3 Initial Scope Estimate
-- **Single File**: Changes to one file
-- **Single Component**: Changes to one component/package
-- **Multiple Components**: Changes across multiple components
-- **System-wide**: Changes affecting entire system
-- **Cross-system**: Changes affecting multiple systems
-
-#### 2.4 Initial Complexity Estimate
-- **Trivial**: Simple, straightforward change
-- **Simple**: Clear implementation path
-- **Moderate**: Some complexity, multiple considerations
-- **Complex**: Significant complexity, many considerations
-
-### Step 3: Determine Requirements Depth
-
-**Based on request analysis, determine depth:**
-
-**Minimal Depth** - Use when:
-- Request is clear and simple
-- No detailed requirements needed
-- Just document the basic understanding
-
-**Standard Depth** - Use when:
-- Request needs clarification
-- Functional and non-functional requirements needed
-- Normal complexity
-
-**Comprehensive Depth** - Use when:
-- Complex project with multiple stakeholders
-- High risk or critical system
-- Detailed requirements with traceability needed
+### Step 3: Determine Depth
+- **Minimal**: request clear & simple
+- **Standard**: needs clarification, normal complexity
+- **Comprehensive**: complex, high-risk, many stakeholders
 
 ### Step 4: Assess Current Requirements
+- Intent statements (logged in audit.md)
+- Existing requirements docs (search workspace)
+- Pasted content or file references
+- Convert non-markdown to markdown as needed
 
-Analyze whatever the user has provided:
-   - Intent statements or descriptions (already logged in audit.md)
-   - Existing requirements documents (search workspace if mentioned)
-   - Pasted content or file references
-   - Convert any non-markdown documents to markdown format 
+### Step 5: Completeness Analysis
 
-### Step 5: Thorough Completeness Analysis
-
-**CRITICAL**: Use comprehensive analysis to evaluate requirements completeness. Default to asking questions when there is ANY ambiguity or missing detail.
-
-**MANDATORY**: Evaluate ALL of these areas and ask questions for ANY that are unclear:
-- **Functional Requirements**: Core features, user interactions, system behaviors
-- **Non-Functional Requirements**: Performance, security, scalability, usability
-- **User Scenarios**: Use cases, user journeys, edge cases, error scenarios
-- **Business Context**: Goals, constraints, success criteria, stakeholder needs
-- **Technical Context**: Integration points, data requirements, system boundaries
-- **Quality Attributes**: Reliability, maintainability, testability, accessibility
-
-**When in doubt, ask questions** - incomplete requirements lead to poor implementations.
+Evaluate ALL areas:
+- Functional requirements
+- Non-functional (performance, security, scalability, usability)
+- User scenarios (use cases, journeys, edge cases)
+- Business context (goals, constraints, success criteria)
+- Technical context (integrations, data needs, boundaries)
+- Quality attributes (reliability, maintainability, testability, accessibility)
 
 ### Step 5.1: Extension Opt-In Prompts
 
-**MANDATORY**: Scan all loaded `*.opt-in.md` files (loaded at workflow start from `extensions/` subdirectories) for an `## Opt-In Prompt` section. For each extension that declares one, include that question in the clarifying questions file created in Step 6. Present each opt-in question in the same language as the user's conversation.
+Scan loaded `*.opt-in.md` files → add their `## Opt-In Prompt` question to the questions file (Step 6).
 
-After receiving answers:
-1. Record each extension's enablement status in `aidlc-docs/aidlc-state.md` under `## Extension Configuration`:
-
+After answers, record in `aidlc-docs/aidlc-state.md`:
 ```markdown
 ## Extension Configuration
 | Extension | Enabled | Decided At |
 |---|---|---|
-| [Extension Name] | [Yes/No] | Requirements Analysis |
+| [Name] | [Yes/No] | Requirements Analysis |
 ```
+For opted-IN: load full rules (strip `.opt-in.md` → `.md`). For opted-OUT: never load.
 
-2. **Deferred Rule Loading**: For each extension the user opted IN, load the full rules file now. The rules file is derived by naming convention: strip `.opt-in.md` from the opt-in filename and append `.md` (e.g., `security-baseline.opt-in.md` → `security-baseline.md`). For extensions the user opted OUT, do NOT load the full rules file.
-
-### Step 6: Generate Clarifying Questions (PROACTIVE APPROACH)
-   - **ALWAYS** create `aidlc-docs/inception/requirements/requirement-verification-questions.md` unless requirements are exceptionally clear and complete
-   - Ask questions about ANY missing, unclear, or ambiguous areas
-   - Focus on functional requirements, non-functional requirements, user scenarios, and business context
-   - Request user to fill in all [Answer]: tags directly in the questions document
-   - If presenting multiple-choice options for answers:
-     - Label the options as A, B, C, D etc.
-     - Ensure options are mutually exclusive and don't overlap
-     - ALWAYS include option for custom response: "X) Other (please describe after [Answer]: tag below)"
-   - Wait for user answers in the document
-   - **MANDATORY**: Analyze ALL answers for ambiguities and create follow-up questions if needed
-   - **MANDATORY**: Keep asking questions until ALL ambiguities are resolved OR user explicitly asks to proceed
+### Step 6: Generate Clarifying Questions
+- ALWAYS create `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` unless exceptionally clear
+- Cover functional, non-functional, user scenarios, business context
+- Use `[Answer]:` tag format; multiple-choice with X) Other
+- Wait for user answers; analyze; follow up if needed
 
 ### ⛔ GATE: Await User Answers
-DO NOT proceed to Step 7 until all questions in requirement-verification-questions.md are answered and validated.
-Present the question file to the user and STOP.
+Do NOT proceed until all questions answered and validated.
 
 ### Step 7: Generate Requirements Document
-   - **PREREQUISITE**: Step 6 gate must be passed — all answers received and analyzed
-   - Create `aidlc-docs/inception/requirements/requirements.md`
-   - Include intent analysis summary at the top:
-     - User request
-     - Request type
-     - Scope estimate
-     - Complexity estimate
-   - Include both functional and non-functional requirements
-   - Incorporate user's answers to clarifying questions
-   - Provide brief summary of key requirements
+- Create `aidlc-docs/inception/requirements/<run-id>-requirements.md`
+- Include: intent analysis, functional + non-functional reqs, user answers incorporated
 
-### Step 8: Update State Tracking
+### Step 8: Update State
+Mark Requirements Analysis complete in `aidlc-docs/aidlc-state.md`.
 
-Update `aidlc-docs/aidlc-state.md`:
-
-```markdown
-## Stage Progress
-### 🔵 INCEPTION PHASE
-- [x] Workspace Detection
-- [x] Reverse Engineering (if applicable)
-- [x] Requirements Analysis
-```
-
-### Step 9: Log and Proceed
-   - Log approval prompt with timestamp in `aidlc-docs/audit.md`
-   - Present completion message in this structure:
-     1. **Completion Announcement** (mandatory): Always start with this:
-
-```markdown
-# 🔍 Requirements Analysis Complete
-```
-
-     2. **AI Summary** (optional): Provide structured bullet-point summary of requirements
-        - Format: "Requirements analysis has identified [project type/complexity]:"
-        - List key functional requirements (bullet points)
-        - List key non-functional requirements (bullet points)
-        - Mention architectural considerations or technical decisions if relevant
-        - DO NOT include workflow instructions ("please review", "let me know", "proceed to next phase", "before we proceed")
-        - Keep factual and content-focused
-     3. **Formatted Workflow Message** (mandatory): Always end with this exact format:
-
-```markdown
-> **📋 <u>**REVIEW REQUIRED:**</u>**  
-> Please examine the requirements document at: `aidlc-docs/inception/requirements/requirements.md`
-
-
-
-> **🚀 <u>**WHAT'S NEXT?**</u>**
->
-> **You may:**
->
-> 🔧 **Request Changes** -  Ask for modifications to the requirements if required based on your review 
-> [IF User Stories will be skipped, add this option:]
-> 📝 **Add User Stories** - Choose to Include **User Stories** stage (currently skipped based on project simplicity)  
-> ✅ **Approve & Continue** - Approve requirements and proceed to **[User Stories/Workflow Planning]**
-
----
-```
-
-**Note**: Include the "Add User Stories" option only when User Stories stage will be skipped. Replace [User Stories/Workflow Planning] with the actual next stage name.
-
-   - Wait for explicit user approval before proceeding
-   - Record approval response with timestamp
-   - Update Requirements Analysis stage complete in aidlc-state.md
+### Step 9: Present Completion (emoji: 🔍)
+Artifact path: `aidlc-docs/inception/requirements/`
+- Log approval with timestamp in audit.md

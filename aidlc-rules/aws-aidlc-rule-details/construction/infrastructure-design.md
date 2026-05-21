@@ -1,23 +1,25 @@
 # Infrastructure Design
 
+## Purpose
+Map logical components to infrastructure services for deployment.
+
 ## Prerequisites
-- Functional Design must be complete for the unit
-- NFR Design recommended (provides logical components to map)
-- Execution plan must indicate Infrastructure Design stage should execute
+- Functional Design complete for unit
+- NFR Design recommended (maps logical components)
+- Execution plan indicates this stage
 
-## Agent Skills
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
 
-**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+- `ci-cd-and-automation/SKILL.md` — Shift Left, feature flags, quality-gate pipeline patterns. **Key process**: design pipeline with quality gates, feature flags for safe rollout.
 
-- **`ci-cd-and-automation/SKILL.md`** — Apply Shift Left, feature flags, and quality gate pipeline patterns when designing deployment infrastructure.
+**Inline fallback** (if SKILL.md files not installed):
+1. Design CI pipeline: lint → test → build → deploy
+2. Include quality gates that block deployment on failures
+3. Plan feature flag strategy for safe rollout
+4. Shift security/testing left (run early in pipeline)
 
-If a skill directory does not exist, skip silently and proceed with standard behavior.
-Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (Infrastructure Design)`
-
-## Overview
-Map logical software components to actual infrastructure choices for deployment environments.
-
-## Steps to Execute
+## Steps
 
 ### Step 1: Analyze Design Artifacts
 - Read functional design from `aidlc-docs/construction/{unit-name}/functional-design/`
@@ -25,84 +27,27 @@ Map logical software components to actual infrastructure choices for deployment 
 - Identify logical components needing infrastructure
 
 ### Step 2: Create Infrastructure Design Plan
-- Generate plan with checkboxes [] for infrastructure design
-- Focus on mapping to actual services (AWS, Azure, GCP, on-premise)
-- Each step should have a checkbox []
+- Map components to services (AWS, Azure, GCP, on-premise)
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-infrastructure-design-plan.md`
 
-### Step 3: Generate Context-Appropriate Questions
-**DIRECTIVE**: Thoroughly analyze the functional and NFR design to identify ALL areas where clarification would improve infrastructure decisions. Be proactive in asking questions to ensure comprehensive infrastructure coverage.
+### Step 3: Generate Questions
 
-**CRITICAL**: Default to asking questions when there is ANY ambiguity or missing detail that could affect infrastructure quality. It's better to ask too many questions than to make incorrect infrastructure assumptions.
+**Question categories**:
+- **Deployment Environment** — cloud provider, environment setup, deployment targets
+- **Compute** — service choices, sizing, scaling requirements
+- **Storage** — database selection, storage patterns, data lifecycle
+- **Messaging** — queuing services, event-driven patterns, async processing
+- **Networking** — load balancing, API gateway, network topology
+- **Monitoring** — observability tooling, alerting, logging
+- **Shared Infrastructure** — sharing strategy, multi-tenancy, resource isolation
 
-**MANDATORY**: Evaluate ALL of the following categories by asking targeted questions about each. For each category, determine applicability based on evidence from the functional and NFR design artifacts -- do not skip categories without explicit justification:
+### Step 4: Collect Answers and Resolve Ambiguities
+*(Per stage-conventions.md protocol)*
 
-- EMBED questions using [Answer]: tag format
-- Focus on ANY ambiguities, missing information, or areas needing clarification
-- Generate questions wherever user input would improve infrastructure decisions
-- **When in doubt, ask the question** - overconfidence leads to poor infrastructure choices
+### Step 5: Generate Artifacts
+- `aidlc-docs/construction/{unit-name}/infrastructure-design/<run-id>-infrastructure-design.md`
+- `aidlc-docs/construction/{unit-name}/infrastructure-design/<run-id>-deployment-architecture.md`
+- If shared infra: `aidlc-docs/construction/<run-id>-shared-infrastructure.md`
 
-**Question categories to evaluate** (consider ALL categories):
-- **Deployment Environment** - Ask about cloud provider preferences, environment setup, and deployment targets
-- **Compute Infrastructure** - Ask about compute service choices, sizing, and scaling requirements
-- **Storage Infrastructure** - Ask about database selection, storage patterns, and data lifecycle needs
-- **Messaging Infrastructure** - Ask about messaging/queuing services, event-driven patterns, and async processing
-- **Networking Infrastructure** - Ask about load balancing, API gateway approach, and network topology
-- **Monitoring Infrastructure** - Ask about observability tooling, alerting strategy, and logging requirements
-- **Shared Infrastructure** - Ask about infrastructure sharing strategy, multi-tenancy, and resource isolation
-
-### Step 4: Store Plan
-- Save as `aidlc-docs/construction/plans/{unit-name}-infrastructure-design-plan.md`
-- Include all [Answer]: tags for user input
-
-### Step 5: Collect and Analyze Answers
-- Wait for user to complete all [Answer]: tags
-- Review for vague or ambiguous responses
-- Add follow-up questions if needed
-
-### Step 6: Generate Infrastructure Design Artifacts
-- Create `aidlc-docs/construction/{unit-name}/infrastructure-design/infrastructure-design.md`
-- Create `aidlc-docs/construction/{unit-name}/infrastructure-design/deployment-architecture.md`
-- If shared infrastructure: Create `aidlc-docs/construction/shared-infrastructure.md`
-
-### Step 7: Present Completion Message
-- Present completion message in this structure:
-     1. **Completion Announcement** (mandatory): Always start with this:
-
-```markdown
-# 🏢 Infrastructure Design Complete - [unit-name]
-```
-
-     2. **AI Summary** (optional): Provide structured bullet-point summary of infrastructure design
-        - Format: "Infrastructure design has mapped [description]:"
-        - List key infrastructure services and components (bullet points)
-        - List deployment architecture decisions and rationale
-        - Mention cloud provider choices and service mappings
-        - DO NOT include workflow instructions ("please review", "let me know", "proceed to next phase", "before we proceed")
-        - Keep factual and content-focused
-     3. **Formatted Workflow Message** (mandatory): Always end with this exact format:
-
-```markdown
-> **📋 <u>**REVIEW REQUIRED:**</u>**  
-> Please examine the infrastructure design at: `aidlc-docs/construction/[unit-name]/infrastructure-design/`
-
-
-
-> **🚀 <u>**WHAT'S NEXT?**</u>**
->
-> **You may:**
->
-> 🔧 **Request Changes** - Ask for modifications to the infrastructure design based on your review  
-> ✅ **Continue to Next Stage** - Approve infrastructure design and proceed to **Code Generation**
-
----
-```
-
-### Step 8: Wait for Explicit Approval
-- Do not proceed until the user explicitly approves the infrastructure design
-- Approval must be clear and unambiguous
-- If user requests changes, update the design and repeat the approval process
-
-### Step 9: Record Approval and Update Progress
-- Log approval in audit.md with timestamp
-- Record the user's approval response with timestamp
-- Mark Infrastructure Design stage complete in aidlc-state.md
+### Step 6: Present Completion (emoji: 🏢)
+Artifact path: `aidlc-docs/construction/{unit-name}/infrastructure-design/`

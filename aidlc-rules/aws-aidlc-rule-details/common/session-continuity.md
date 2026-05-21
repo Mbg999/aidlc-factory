@@ -1,47 +1,35 @@
-# Session Continuity Templates
+# Session Continuity
 
-## Welcome Back Prompt Template
-When a user returns to continue work on an existing AI-DLC project, present this prompt:
+## Welcome Back Template
+When user returns to existing project, present:
+- Project name, current phase, current stage, last completed step, next step
+- Options: A) Continue where left off, B) Review a previous stage
 
-```markdown
-**Welcome back! I can see you have an existing AI-DLC project in progress.**
+## MANDATORY: Session Resumption Rules
 
-Based on your aidlc-state.md, here's your current status:
-- **Project**: [project-name]
-- **Current Phase**: [INCEPTION/CONSTRUCTION/OPERATIONS]
-- **Current Stage**: [Stage Name]
-- **Last Completed**: [Last completed step]
-- **Next Step**: [Next step to work on]
+1. **Always read `aidlc-state.md` first** on resume
+2. **Detect resumption mode** before loading artifacts:
 
-**What would you like to work on today?**
+| `aidlc-state.md` state | User message type | Mode |
+|---|---|---|
+| Stages in progress (not all `[x]`) | Any | **In-Progress Resume** → standard resume below |
+| All stages `[x]` (complete) | New dev request (feature/fix/refactor) | **New Iteration** → return to `workspace-detection.md` Branch B — do NOT resume, do NOT skip workflow |
+| All stages `[x]` (complete) | Question / review / no-dev request | **Review Mode** → present summary, offer options |
 
-A) Continue where you left off ([Next step description])
-B) Review a previous stage ([Show available stages])
+**CRITICAL**: A completed project receiving a new development request MUST go through the full workflow again (Requirements Analysis → ... → Build & Test). Silently skipping stages, skipping skill execution, or skipping artifact generation for a new request is a workflow violation.
 
-[Answer]: 
-```
+3. **Load audit trail**: Read `aidlc-docs/audit.md`. If the Summary header lists archive files, load them when full timeline context is needed (phase transition verification, troubleshooting).
+4. **Load artifacts by stage** before resuming (In-Progress Resume only):
 
-## MANDATORY: Session Continuity Instructions
-1. **Always read aidlc-state.md first** when detecting existing project
-2. **Parse current status** from the workflow file to populate the prompt
-3. **MANDATORY: Load Previous Stage Artifacts** - Before resuming any stage, automatically read all relevant artifacts from previous stages:
-   - **Reverse Engineering**: Read architecture.md, code-structure.md, api-documentation.md
-   - **Requirements Analysis**: Read requirements.md, requirement-verification-questions.md
-   - **User Stories**: Read stories.md, personas.md, story-generation-plan.md
-   - **Application Design**: Read application-design artifacts (components.md, component-methods.md, services.md)
-   - **Design (Units)**: Read unit-of-work.md, unit-of-work-dependency.md, unit-of-work-story-map.md
-   - **Per-Unit Design**: Read functional-design.md, nfr-requirements.md, nfr-design.md, infrastructure-design.md
-   - **Code Stages**: Read all code files, plans, AND all previous artifacts
-4. **Smart Context Loading by Stage**:
-   - **Early Stages (Workspace Detection, Reverse Engineering)**: Load workspace analysis
-   - **Requirements/Stories**: Load reverse engineering + requirements artifacts
-   - **Design Stages**: Load requirements + stories + architecture + design artifacts
-   - **Code Stages**: Load ALL artifacts + existing code files
-5. **Adapt options** based on architectural choice and current phase
-6. **Show specific next steps** rather than generic descriptions
-7. **Log the continuity prompt** in audit.md with timestamp
-8. **Context Summary**: After loading artifacts, provide brief summary of what was loaded for user awareness
-9. **Asking questions**: ALWAYS ask clarification or user feedback questions by placing them in .md files. DO NOT place the multiple-choice questions in-line in the chat session.
+| Current Stage | Load |
+|--------------|------|
+| Reverse Engineering | Workspace analysis |
+| Requirements/Stories | RE artifacts + requirements |
+| Design stages | Requirements + stories + architecture + design |
+| Code stages | ALL artifacts + existing code |
 
-## Error Handling
-If artifacts are missing or corrupted during session resumption, see [error-handling.md](error-handling.md) for guidance on recovery procedures. 
+5. **Validate state matches artifacts** — if mismatch, see [error-handling.md](error-handling.md)
+6. Show specific next steps (not generic descriptions)
+7. After loading, provide brief context summary to user
+8. Log continuity prompt in audit.md
+9. Questions go in `.md` files — never inline in chat

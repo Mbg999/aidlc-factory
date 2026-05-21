@@ -20,24 +20,17 @@ source .venv/bin/activate          # macOS/Linux
 pip install -r requirements.txt
 
 # 4. Run all tests
-python -m pytest scripts/tests/ -q
+python -m pytest aidlc-scripts/tests/ -q
 
-# 5. Explore available skills
-python scripts/subagents/mcp_bridge.py --list-skills
-
-# 6. List available pipelines
-python scripts/subagents/pipeline.py --list
-
-# 7. Run a single agent (dry-run against this repo)
-python scripts/subagents/manager.py code-reviewer '{"path": "."}'
+# 5. Install skills into a target project
+python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 ```
 
 **What to expect:**
 
-- All tests pass in ~1 second (29 tests)
-- `--list-skills` shows skills installed in `~/.agents/skills/`
-- `--list` shows `construction-full` and `review-only` pipelines
-- The `code-reviewer` agent produces a report in `../aidlc-docs/reporting/`
+- All tests pass quickly
+- Skills are installed to `.agents/skills/` in the target project
+- The workflow uses skills defined in stage rule files
 
 ## Tenets
 
@@ -86,11 +79,11 @@ Rules are organized by phase:
 Run the full test suite before submitting:
 
 ```bash
-python -m pytest scripts/tests/ -v
+python -m pytest aidlc-scripts/tests/ -v
 ```
 
-When adding or modifying subagent scripts, add tests to `scripts/tests/test_mcp_bridge_and_pipeline.py`.
 When adding or modifying rule files, verify them against at least one supported coding agent.
+When adding or modifying skills, follow the SKILL.md anatomy documented in `stage-conventions.md`.
 
 ## Reporting Bugs/Feature Requests
 

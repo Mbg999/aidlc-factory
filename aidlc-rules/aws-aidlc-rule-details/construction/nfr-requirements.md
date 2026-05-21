@@ -1,109 +1,52 @@
 # NFR Requirements
 
+## Purpose
+Define non-functional requirements and tech-stack decisions per unit.
+
 ## Prerequisites
-- Functional Design must be complete for the unit
-- Unit functional design artifacts must be available
-- Execution plan must indicate NFR Requirements stage should execute
+- Functional design complete for unit
+- Execution plan indicates this stage
 
-## Agent Skills
+## Agent Skills (MANDATORY — per stage-conventions.md protocol)
+**You MUST load and follow these skills. Skipping is a workflow violation.**
 
-**MANDATORY**: Load and follow these skill workflows from `.agents/skills/` (if installed):
+- `performance-optimization/SKILL.md` — Measure-first: Core Web Vitals targets, profiling, performance budgets. **Key process**: define measurable targets before designing solutions.
+- `security-and-hardening/SKILL.md` — OWASP Top 10 prevention, three-tier boundary system, threat checklist. **Key process**: identify threat surfaces, apply boundary rules.
 
-- **`performance-optimization/SKILL.md`** — Apply measure-first approach: define Core Web Vitals targets, profiling workflows, and performance budgets before making NFR decisions.
-- **`security-and-hardening/SKILL.md`** — Apply OWASP Top 10 prevention and three-tier boundary system when defining security NFRs. Follow its threat awareness checklist.
+**Inline fallback** (if SKILL.md files not installed):
+1. Define measurable NFR targets (response times, throughput, error rates)
+2. Identify security threat surfaces (OWASP Top 10 checklist)
+3. Specify boundary validation rules for each interface
+4. Document performance budgets with specific metrics
 
-If a skill directory does not exist, skip silently and proceed with standard behavior.
-Log skill application in `aidlc-docs/audit.md`: `[Agent-Skill] Applied: <skill-name> (NFR Requirements)`
-
-## Overview
-Determine non-functional requirements for the unit and make tech stack choices.
-
-## Steps to Execute
+## Steps
 
 ### Step 1: Analyze Functional Design
-- Read functional design artifacts from `aidlc-docs/construction/{unit-name}/functional-design/`
-- Understand business logic complexity and requirements
+- Read from `aidlc-docs/construction/{unit-name}/functional-design/`
+- Assess business logic complexity
 
 ### Step 2: Create NFR Requirements Plan
-- Generate plan with checkboxes [] for NFR assessment
-- Focus on scalability, performance, availability, security
-- Each step should have a checkbox []
+- Focus: scalability, performance, availability, security
+- Save to `aidlc-docs/construction/plans/<run-id>-{unit-name}-nfr-requirements-plan.md`
 
-### Step 3: Generate Context-Appropriate Questions
-**DIRECTIVE**: Thoroughly analyze the functional design to identify ALL areas where NFR clarification would improve system quality and architecture decisions. Be proactive in asking questions to ensure comprehensive NFR coverage.
+### Step 3: Generate Questions
 
-**CRITICAL**: Default to asking questions when there is ANY ambiguity or missing detail that could affect system quality. It's better to ask too many questions than to make incorrect NFR assumptions.
+**Question categories**:
+- **Scalability** — expected load, growth patterns, scaling triggers, capacity
+- **Performance** — response times, throughput, latency, benchmarks
+- **Availability** — uptime, disaster recovery, failover, business continuity
+- **Security** — data protection, compliance, auth, authorization, threat models
+- **Tech Stack** — preferences, constraints, existing systems, integrations
+- **Reliability** — error handling, fault tolerance, monitoring, alerting
+- **Maintainability** — code quality, documentation, testing, operations
+- **Usability** — UX, accessibility, interface requirements
 
-- EMBED questions using [Answer]: tag format
-- Focus on ANY ambiguities, missing information, or areas needing clarification
-- Generate questions wherever user input would improve NFR and tech stack decisions
-- **When in doubt, ask the question** - overconfidence leads to poor system quality
+### Step 4: Collect Answers and Resolve Ambiguities
+*(Per stage-conventions.md protocol)*
 
-**Question categories to evaluate** (consider ALL categories):
-- **Scalability Requirements** - Ask about expected load, growth patterns, scaling triggers, and capacity planning
-- **Performance Requirements** - Ask about response times, throughput, latency, and performance benchmarks
-- **Availability Requirements** - Ask about uptime expectations, disaster recovery, failover, and business continuity
-- **Security Requirements** - Ask about data protection, compliance, authentication, authorization, and threat models
-- **Tech Stack Selection** - Ask about technology preferences, constraints, existing systems, and integration requirements
-- **Reliability Requirements** - Ask about error handling, fault tolerance, monitoring, and alerting needs
-- **Maintainability Requirements** - Ask about code quality, documentation, testing, and operational requirements
-- **Usability Requirements** - Ask about user experience, accessibility, and interface requirements
+### Step 5: Generate Artifacts
+- `aidlc-docs/construction/{unit-name}/nfr-requirements/<run-id>-nfr-requirements.md`
+- `aidlc-docs/construction/{unit-name}/nfr-requirements/<run-id>-tech-stack-decisions.md`
 
-### Step 4: Store Plan
-- Save as `aidlc-docs/construction/plans/{unit-name}-nfr-requirements-plan.md`
-- Include all [Answer]: tags for user input
-
-### Step 5: Collect and Analyze Answers
-- Wait for user to complete all [Answer]: tags
-- **MANDATORY**: Carefully review ALL responses for vague or ambiguous answers
-- **CRITICAL**: Add follow-up questions for ANY unclear responses - do not proceed with ambiguity
-- Look for responses like "depends", "maybe", "not sure", "mix of", "somewhere between", "standard", "typical"
-- Create clarification questions file if ANY ambiguities are detected
-- **Do not proceed until ALL ambiguities are resolved**
-
-### Step 6: Generate NFR Requirements Artifacts
-- Create `aidlc-docs/construction/{unit-name}/nfr-requirements/nfr-requirements.md`
-- Create `aidlc-docs/construction/{unit-name}/nfr-requirements/tech-stack-decisions.md`
-
-### Step 7: Present Completion Message
-- Present completion message in this structure:
-     1. **Completion Announcement** (mandatory): Always start with this:
-
-```markdown
-# 📊 NFR Requirements Complete - [unit-name]
-```
-
-     2. **AI Summary** (optional): Provide structured bullet-point summary of NFR requirements
-        - Format: "NFR requirements assessment has identified [description]:"
-        - List key scalability, performance, availability requirements (bullet points)
-        - List security and compliance requirements identified
-        - Mention tech stack decisions and rationale
-        - DO NOT include workflow instructions ("please review", "let me know", "proceed to next phase", "before we proceed")
-        - Keep factual and content-focused
-     3. **Formatted Workflow Message** (mandatory): Always end with this exact format:
-
-```markdown
-> **📋 <u>**REVIEW REQUIRED:**</u>**  
-> Please examine the NFR requirements at: `aidlc-docs/construction/[unit-name]/nfr-requirements/`
-
-
-
-> **🚀 <u>**WHAT'S NEXT?**</u>**
->
-> **You may:**
->
-> 🔧 **Request Changes** - Ask for modifications to the NFR requirements based on your review  
-> ✅ **Continue to Next Stage** - Approve NFR requirements and proceed to **[next-stage-name]**
-
----
-```
-
-### Step 8: Wait for Explicit Approval
-- Do not proceed until the user explicitly approves the NFR requirements
-- Approval must be clear and unambiguous
-- If user requests changes, update the requirements and repeat the approval process
-
-### Step 9: Record Approval and Update Progress
-- Log approval in audit.md with timestamp
-- Record the user's approval response with timestamp
-- Mark NFR Requirements stage complete in aidlc-state.md
+### Step 6: Present Completion (emoji: 📊)
+Artifact path: `aidlc-docs/construction/{unit-name}/nfr-requirements/`

@@ -1,9 +1,10 @@
+
 # Question Format Guide
 
 ## MANDATORY: All Questions Must Use This Format
 
 ### Rule: Never Ask Questions in Chat
-**CRITICAL**: You must NEVER ask questions directly in the chat. ALL questions must be placed in dedicated question files.
+**CRITICAL**: Never ask questions in chat; put all questions in dedicated question files.
 
 ### Question File Format
 
@@ -16,9 +17,10 @@
   - `design-questions.md`
 
 #### Question Structure
-Every question must include meaningful options plus "Other" as the last option:
+Each question: axis tag (HTML comment) + meaningful options + "Other" as last option.
 
 ```markdown
+<!-- axis: Purpose -->
 ## Question [Number]
 [Clear, specific question text]
 
@@ -30,13 +32,14 @@ X) Other (please describe after [Answer]: tag below)
 [Answer]: 
 ```
 
-**CRITICAL**: 
-- "Other" is MANDATORY as the LAST option for every question
-- Only include meaningful options - don't make up options to fill slots
-- Use as many or as few options as make sense (minimum 2 + Other)
+**CRITICAL**:
+- **Axis tag MANDATORY** — every `## Question` must be preceded by `<!-- axis: <AxisName> -->`. Allowed axis names: `Purpose`, `Needs`, `Limits`, `Expectations`, `Context`, `Risks`, `Acceptance`, `Unknowns` (see `.agents/custom-skills/requirements-intelligence/coverage-map.md`). Multi-axis questions (assumption-mining): comma-separated, e.g. `<!-- axis: Needs, Limits, Context -->`.
+- "Other" MANDATORY as the LAST option
+- Only meaningful options — don't invent choices
+- Use as many as needed (minimum 2 + Other)
+- The axis tag is what `aidlc-scripts/factory_content_validate.py requirements` reads to verify coverage-map claims. Untagged questions are invisible to the validator and will cause coverage-map claims to fail.
 
 ### Complete Example
-
 ```markdown
 # Requirements Clarification Questions
 
@@ -141,13 +144,13 @@ C) Maybe
 
 #### Step 1: Create Question File
 ```markdown
-Create aidlc-docs/{phase-name}-questions.md with all questions
+Create aidlc-docs/<run-id>-{phase-name}-questions.md with all questions
 ```
 
 #### Step 2: Inform User
 ```
-"I've created {phase-name}-questions.md with [X] questions. 
-Please answer each question by filling in the letter choice after the [Answer]: tag. 
+"I've created {phase-name}-questions.md with [X] questions.
+Please answer each question by filling in the letter choice after the [Answer]: tag.
 If none of the options match your needs, choose the last option (Other) and describe your preference. Let me know when you're done."
 ```
 
@@ -156,7 +159,7 @@ Wait for user to say "done", "completed", "finished", or similar.
 
 #### Step 4: Read and Analyze
 ```
-Read aidlc-docs/{phase-name}-questions.md
+Read aidlc-docs/<run-id>-{phase-name}-questions.md
 Extract all answers
 Validate completeness
 Proceed with analysis
@@ -167,21 +170,21 @@ Proceed with analysis
 #### Missing Answers
 If any [Answer]: tag is empty:
 ```
-"I noticed Question [X] is not answered. Please provide an answer using one of the letter choices 
+"I noticed Question [X] is not answered. Please provide an answer using one of the letter choices
 for all questions before proceeding."
 ```
 
 #### Invalid Answers
 If answer is not a valid letter choice:
 ```
-"Question [X] has an invalid answer '[answer]'. 
+"Question [X] has an invalid answer '[answer]'.
 Please use only the letter choices provided in the question."
 ```
 
 #### Ambiguous Answers
 If user provides explanation instead of letter:
 ```
-"For Question [X], please provide the letter choice that best matches your answer. 
+"For Question [X], please provide the letter choice that best matches your answer.
 If none match, choose 'Other' and add your description after the [Answer]: tag."
 ```
 
