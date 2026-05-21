@@ -157,8 +157,13 @@ For each plan task (top to bottom):
    - On persistent failure after 3 retries: set `status: blocked` and HALT
    - On clean: emit `[Validator] clean` and continue to next task
 
-   Mark `[x]` in the plan file in the SAME interaction. Do NOT run `git commit`.
+   Mark `[x]` in the construction plan file in the SAME interaction. Do NOT run `git commit`.
    Orchestrator commits after user approval gate.
+
+   If `input.inception_plan_path` is set and `input.inception_task_ids[]` is non-empty:
+   after ALL construction tasks are done (not per-slice), also mark those task IDs `[x]`
+   in the inception plan. Find each line matching `- [ ] **<ID>**` and replace with
+   `- [x] **<ID>**`. Update only lines whose ID appears in `inception_task_ids[]`.
 
 Apply `code-review-and-quality` skill **on yourself** (five-axis self-review)
 when the unit's last task is done. Note the self-review summary in

@@ -43,6 +43,16 @@
       "default": false,
       "description": "Set when >10 corrections made during figma snap — triggers Arqueólogo fallback in code-generator."
     },
+    "inception_plan_path": {
+      "type": "string",
+      "description": "Path to the inception execution plan markdown (aidlc-docs/inception/plans/<run-id>-execution-plan.md). Set by orchestrator so code-generator can tick off inception tasks after unit completion."
+    },
+    "inception_task_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Inception plan task IDs (e.g. ['ING-T4', 'ING-T5']) that belong to this unit. Code-generator marks these [x] in inception_plan_path after all tasks are done."
+    },
     "ui_intent": {
       "type": "array",
       "description": "Semantic UI plan from functional design. Each entry maps a needed component to a primitive or pattern.",

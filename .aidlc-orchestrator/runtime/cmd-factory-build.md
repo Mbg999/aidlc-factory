@@ -74,6 +74,12 @@ For each layer in order:
    - **Filter**: include only paths for skills referenced in `skills_required[]` plus
      context-enrichment skills (`codegraph-aware-exploration`, `context-engineering`).
      Discard paths for skills irrelevant to this stage.
+   - **Inception plan tracking**: set `inception_plan_path` to
+     `aidlc-docs/inception/plans/<run-id>-execution-plan.md` and set
+     `inception_task_ids[]` to the list of task IDs from that plan whose `unit`
+     field matches this unit (e.g. `["ING-T4", "ING-T5"]`). Parse the markdown
+     task list — each task line has the form `- [ ] **<ID>** — <title>` with the
+     unit either in a section header above it or inline as `(unit: <name>)`.
    - Validate against JSON Schema contract (`code-generator.input.v1.json`).
 
 Active set = units that passed all gates.
