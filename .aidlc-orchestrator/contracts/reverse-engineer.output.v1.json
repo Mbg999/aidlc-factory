@@ -18,7 +18,7 @@
         },
         "additionalProperties": false
       },
-      "minItems": 8
+      "minItems": 10
     },
     "audit_entries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 2 },
     "skill_compliance": {

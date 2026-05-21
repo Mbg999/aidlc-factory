@@ -25,7 +25,7 @@ Two modes:
 
 | Mode | Mechanism | Bookkeeping | Validation | Used by |
 |---|---|---|---|---|
-| Full spawn | `Task()` spawn | Full 13-step | JSON Schema | factory-build, factory-review |
+| Full spawn | `Task()` spawn | Full 13-step | JSON Schema | factory-build, factory-review, reverse-engineer |
 | Post-execution | Inline in orchestrator | Steps 0-2, 6-13 | Lightweight | All other stages |
 
 Full spec: [`spawn-loop.md`](spawn-loop.md).
