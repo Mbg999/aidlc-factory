@@ -52,6 +52,63 @@ Exceptions — still use Read for:
 - Build manifests (`package.json`, `Cargo.toml`, `go.mod`)
 - READMEs and documentation files
 
+### Step 2.5 — Tour Generation (invoked by `/factory-code-tour`)
+
+When tour generation is requested, build a dependency-ordered learning sequence using the call graph — the same approach as Understand-Anything's `tour-builder` agent.
+
+**T1 — Find entry points**
+
+Search for root symbols using `codegraph_search` with terms: `main`, `app`, `index`, `init`, `run`, `start`, `cli`, `server`, `handler`, `router`.
+Also use `codegraph_files` to locate files named `main.*`, `app.*`, `index.*`, `__main__.*`, `cli.*`.
+Collect up to 10 candidate entry symbols. If none found, use the largest file by symbol count as root.
+
+**T2 — Build call graph (depth ≤ 3)**
+
+For each entry symbol call `codegraph_callees` (depth 1).
+For each returned callee that is a project symbol (not stdlib/vendor), call `codegraph_callees` again.
+Repeat one more level. Stop when the set exceeds 50 symbols or depth 3.
+Track directed edges: `caller → [callees]`. Skip external dependencies (stdlib, node_modules, site-packages).
+
+**T3 — Topological sort (Kahn's algorithm)**
+
+1. Compute in-degree for every symbol: how many project symbols call it.
+2. Seed queue with symbols whose in-degree is 0 (leaf utilities — nothing project-internal calls them).
+3. Process queue: emit symbol, decrement in-degree of its callees, enqueue callees that reach 0.
+4. Result: symbols ordered from "most fundamental" (no deps) → "entry points" (depend on everything).
+
+**T4 — Group into layers**
+
+Assign each symbol to a layer = its longest path distance from any leaf (BFS from leaves):
+- **Layer 0** — leaf utilities: pure functions, helpers, config loaders, DB connectors
+- **Layer 1** — modules that only call Layer 0
+- **Layer 2+** — progressively higher-level orchestration
+- **Top layer** — entry points and bootstrappers
+
+**T5 — Emit the tour**
+
+Present as ordered stops grouped by layer. Use `codegraph_node` to get a one-line description for each stop (docstring first line, or infer from symbol name + signature):
+
+```
+Tour — N layers, M stops
+
+Layer 0 — Foundations (start here)
+  1. utils/config.py::load()        — loads env config at boot
+  2. utils/db.py::connect()         — initialises connection pool
+
+Layer 1 — Core logic
+  3. auth/tokens.py::sign()         — signs JWT with RS256
+  4. auth/tokens.py::verify()       — verifies and decodes JWT
+
+Layer 2 — Service layer
+  5. services/auth.py::AuthService  — orchestrates login/logout flows
+
+Layer 3 — Entry points (read last)
+  6. api/routes.py::router          — registers all HTTP routes
+  7. main.py::app                   — application bootstrap
+```
+
+**Fallback (CodeGraph not active):** skip Tour Generation entirely; the caller falls back to the manual key-flows description in Step 5.
+
 ### Step 3 — Audit entries
 
 Every stage that runs with CodeGraph active MUST emit at least one `[CodeGraph]`

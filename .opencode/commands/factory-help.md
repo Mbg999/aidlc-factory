@@ -42,6 +42,7 @@ Trivial requests skip all stages:
 | Command | What it does |
 |---------|-------------|
 | `/factory-onboarding` | Guided tour of the system |
+| `/factory-code-tour` | Onboard a human to any codebase |
 | `/factory-spec "<request>"` | **Start here.** Score + spawn stages |
 | `/factory-plan <run-id>` | Execution plan + design units |
 | `/factory-build <run-id>` | Parallel code-gen + build-test |

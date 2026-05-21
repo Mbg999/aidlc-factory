@@ -329,6 +329,7 @@ ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "cross-cutting agents: `.github/agents/cross-cutting/`; orchestrator: `.github/agents/orchestrator.md`;\n"
     "skills: `.github/skills/`; prompts (user-invocable commands): `.github/prompts/`.\n\n"
     "Invoke from Copilot Chat by typing `/` and selecting the prompt:\n\n"
+    "- `/factory-code-tour` — dependency-ordered codebase tour: foundations → entry points\n"
     "- `/factory-spec` — workspace scout + requirements + plan\n"
     "- `/factory-plan` — decompose plan into per-unit specs\n"
     "- `/factory-build` — layer-parallel code generation\n"
@@ -350,6 +351,7 @@ ORCHESTRATOR_CLAUDE_POINTER_BLOCK = (
     "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
     "This project ships with the AIDLC orchestrator. To run the multi-agent factory:\n\n"
     "- `/factory-onboarding` — guided tour of the orchestrator system\n"
+    "- `/factory-code-tour` — guided human tour of any codebase: architecture, key flows, conventions\n"
      "- `/factory-help [command]` — quick command reference\n"
      "- `/factory-state <run-id>` — current stage, next step, budget, timeline\n"
      "- `/factory-self <task>` — run the orchestrator on its own codebase\n"
@@ -1118,7 +1120,7 @@ def ask_orchestrator(tools: list[str]) -> bool:
     degraded = [t for t in tools if t not in ("claude", "opencode", "copilot")]
     if native and not degraded:
         msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
-               f"  Includes: 13 stage subagents, 11 /factory-* slash commands, "
+               f"  Includes: 13 stage subagents, 12 /factory-* slash commands,"
                f"{len(ORCHESTRATOR_FACTORY_SCRIPTS)} factory_*.py scripts,\n"
                f"  executor adapter package (claude-code + opencode), "
                f"20+ JSON schema contracts, default budget policy, quality SLOs.\n"
