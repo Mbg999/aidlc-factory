@@ -322,6 +322,28 @@ ORCHESTRATOR_GITIGNORE_ENTRIES = [
 ]
 ORCHESTRATOR_GITIGNORE_HEADER = "# AIDLC orchestrator runtime state"
 
+ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
+    "\n<!-- AIDLC-ORCHESTRATOR-POINTER -->\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. Stage agents: `.github/agents/stage/`;\n"
+    "cross-cutting agents: `.github/agents/cross-cutting/`; orchestrator: `.github/agents/orchestrator.md`;\n"
+    "skills: `.github/skills/`; prompts (user-invocable commands): `.github/prompts/`.\n\n"
+    "Invoke from Copilot Chat by typing `/` and selecting the prompt:\n\n"
+    "- `/factory-spec` — workspace scout + requirements + plan\n"
+    "- `/factory-plan` — decompose plan into per-unit specs\n"
+    "- `/factory-build` — layer-parallel code generation\n"
+    "- `/factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `/factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `/factory-resume` — resume an interrupted run\n"
+    "- `/factory-replay` — re-run from a specific stage\n"
+    "- `/factory-state` — show run status, stage, budget\n\n"
+    "Roles, contracts, budgets: `.aidlc-orchestrator/contracts/`, `.aidlc-orchestrator/budgets/default.yaml`.\n\n"
+    "**Required VS Code setting** (enables nested subagent spawning):\n"
+    "```json\n"
+    '{ "chat.subagents.allowInvocationsFromSubagents": true }\n'
+    "```\n"
+)
+
 ORCHESTRATOR_CLAUDE_POINTER_MARKER = "<!-- AIDLC-ORCHESTRATOR-POINTER -->"
 ORCHESTRATOR_CLAUDE_POINTER_BLOCK = (
     f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
@@ -485,6 +507,7 @@ def _tool_agent_dir(tool: str) -> str:
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
         "codex": ".codex/agents",
+        "copilot": ".github/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
@@ -506,6 +529,29 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "copilot": target_root / ".github" / "copilot-instructions.md",
     }
     return mapping.get(tool)
+
+
+def _install_vscode_copilot_settings(target_root: Path, dry_run: bool) -> None:
+    """Write/merge .vscode/settings.json with Copilot subagent setting."""
+    import json
+    vscode_settings = target_root / ".vscode" / "settings.json"
+    key = "chat.subagents.allowInvocationsFromSubagents"
+    if dry_run:
+        print(f"[DRY-RUN] Would set {key}=true in {vscode_settings}")
+        return
+    existing: dict = {}
+    if vscode_settings.exists():
+        try:
+            existing = json.loads(vscode_settings.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    if existing.get(key) is True:
+        print(f"  .vscode/settings.json already has {key} — skipping")
+        return
+    existing[key] = True
+    vscode_settings.parent.mkdir(parents=True, exist_ok=True)
+    vscode_settings.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    print(f"  .vscode/settings.json — set {key}=true")
 
 
 def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False) -> None:
@@ -590,10 +636,14 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         agent_dir = _tool_agent_dir(tool)
         cmd_dir = _tool_commands_dir(tool)
 
+        # Source agent/command dirs vary per tool
         # OpenCode and Cursor have pre-adapted agent files; others use the canonical Claude source
         if tool == "opencode":
             src_agents = repo_root / ".opencode" / "agents"
             src_cmds = repo_root / ".opencode" / "commands"
+        elif tool == "copilot":
+            src_agents = repo_root / ".github" / "agents"
+            src_cmds = None  # Copilot uses prompt files, not slash commands
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
             src_cmds = repo_root / ".cursor" / "commands"
@@ -602,15 +652,30 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             src_cmds = repo_root / ".claude" / "commands"
 
         dst_agents = target_root / agent_dir
-        if src_agents.exists():
-            print(f"  subagents -> {agent_dir}/")
+        if src_agents is not None and src_agents.exists():
+            print(f"  agents -> {agent_dir}/")
             copy_tree(src_agents, dst_agents, dry_run)
 
-        dst_cmds = target_root / cmd_dir
-        if src_cmds.exists():
-            print(f"  slash commands -> {cmd_dir}/factory-*.md")
-            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+        if src_cmds is not None:
+            dst_cmds = target_root / cmd_dir
+            if src_cmds.exists():
+                print(f"  slash commands -> {cmd_dir}/factory-*.md")
+                for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                    copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+
+        # Copilot: copy skills + prompts and write VS Code settings
+        if tool == "copilot":
+            src_skills = repo_root / ".agents" / "custom-skills"
+            dst_skills = target_root / ".github" / "skills"
+            if src_skills.exists():
+                print(f"  skills -> .github/skills/")
+                copy_tree(src_skills, dst_skills, dry_run)
+            src_prompts = repo_root / ".github" / "prompts"
+            dst_prompts = target_root / ".github" / "prompts"
+            if src_prompts.exists():
+                print(f"  prompts -> .github/prompts/")
+                copy_tree(src_prompts, dst_prompts, dry_run)
+            _install_vscode_copilot_settings(target_root, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
@@ -621,6 +686,8 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 ).replace(
                     ".claude/commands/", ".opencode/commands/"
                 )
+            elif tool == "copilot":
+                pointer_block = ORCHESTRATOR_COPILOT_POINTER_BLOCK
             elif tool == "cursor":
                 pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
                     ".claude/agents/", ".cursor/agents/"
@@ -1047,8 +1114,8 @@ def parse_args() -> argparse.Namespace:
 def ask_orchestrator(tools: list[str]) -> bool:
     """Prompt user whether to install the AIDLC orchestrator. Default: yes."""
     tools_label = ", ".join(tools)
-    native = [t for t in tools if t in ("claude", "opencode")]
-    degraded = [t for t in tools if t not in ("claude", "opencode")]
+    native = [t for t in tools if t in ("claude", "opencode", "copilot")]
+    degraded = [t for t in tools if t not in ("claude", "opencode", "copilot")]
     if native and not degraded:
         msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
                f"  Includes: 13 stage subagents, 11 /factory-* slash commands, "
