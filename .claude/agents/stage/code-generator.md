@@ -26,7 +26,7 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 ## Skill Execution Protocol
 
 1. **LOAD** — `using-agent-skills` first, then `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`. Conditionally
+   `test-driven-development`, `source-driven-development`, `secret-knowledge` (Section F: Shell One-liners). Conditionally
     load `frontend-ui-engineering` AND `design-system-composer` if `manifest.project_profile.ui == true`
    and `api-and-interface-design` if `manifest.project_profile.api == true`.
 2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
@@ -46,7 +46,7 @@ silent error handling, `# noqa` without justification → `status: needs_human`.
 **Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
 `validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
-`api-and-interface-design*` (* = conditional on profile). When both `design-system-composer`
+`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
 and `ui-constraint-validator` are present, run them as a pipeline:
 `design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
 

@@ -21,7 +21,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
+1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`, `secret-knowledge` (Section A: Security Toolkit + Section D: Web Security).
 2. **FOLLOW** — Threat-model + code-scan + dependency-scan steps.
 3. **CHECK** — Rationalizations: reject "internal only", "low likelihood",
    "performance impact" — every dismissal needs threat-model evidence.
@@ -36,7 +36,7 @@ python3 aidlc-scripts/factory_validate.py \
 user input, missing authn/authz checks, unbounded resource use, weak crypto
 (MD5/SHA1 for security, hardcoded keys, custom crypto) → escalate to P0.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`, `secret-knowledge`.
 
 ## Your job
 1. Threat-model the unit's surface (inputs, trust boundaries, persistence, network, secrets).

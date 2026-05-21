@@ -20,7 +20,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `test-driven-development`, `debugging-and-error-recovery`. Conditionally `browser-testing-with-devtools` if `manifest.project_profile.ui == true`.
+1. **LOAD** — `using-agent-skills`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge` (Section B: CLI Tools + Section E: DevOps + Section F: One-liners). Conditionally `browser-testing-with-devtools` if `manifest.project_profile.ui == true`.
 2. **FOLLOW** — Process steps in order.
 3. **CHECK** — Rationalizations: reject "the test failure isn't related", "it's a flaky test".
 4. **VERIFY** — Concrete: build command output exit codes, test pass/fail counts, coverage if available, debugger session traces if failures.
@@ -31,7 +31,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge`, `validator-retry`, `browser-testing-with-devtools*`.
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. Load a skill

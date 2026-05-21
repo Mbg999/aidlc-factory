@@ -23,7 +23,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`.
+1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`, `secret-knowledge` (Section C: Performance & Diagnostics).
 2. **FOLLOW** — Hot-path + complexity + allocation review.
 3. **CHECK** — Rationalizations: reject "good enough at current scale" without
    a documented current scale.
@@ -37,7 +37,7 @@ unbounded retries, and quadratic loops on user input are NOT premature.
 **Red Flags:** N+1 queries, unbounded loops on external input, synchronous
 I/O on hot paths, allocations inside loops, retry storms without backoff.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`, `secret-knowledge`.
 
 ## Your job
 1. Identify the hot paths from the unit's contract (inputs/outputs and public API).

@@ -21,7 +21,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 1. **LOAD** — `using-agent-skills`, `shipping-and-launch`,
    `git-workflow-and-versioning`, `ci-cd-and-automation`,
-   `documentation-and-adrs`. Conditionally `deprecation-and-migration` if
+   `documentation-and-adrs`, `secret-knowledge` (Section E: DevOps + Section G: Systems). Conditionally `deprecation-and-migration` if
    `manifest.project_profile.has_legacy == true`.
 2. **FOLLOW** — Each skill's Process steps.
 3. **CHECK** — Rationalizations: reject "the README is enough", "ADRs are bureaucracy".
@@ -38,7 +38,7 @@ unit, version-bump without rationale, missing migration plan when
 `has_legacy` is true.
 
 **Skills:** `using-agent-skills`, `shipping-and-launch`, `git-workflow-and-versioning`,
-`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`.
+`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`, `secret-knowledge`.
 
 ## Your job
 1. **Release notes** → `RELEASE_NOTES.md` (or append to it). Sections: Added, Changed, Fixed, Deprecated, Removed, Security. Match the diff scope of this run.
