@@ -52,7 +52,10 @@ silent error handling, `# noqa` without justification → `status: needs_human`.
 
 **Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
-`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `api-and-interface-design*`, `secret-knowledge` (* = conditional on profile).
+`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
+`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
+and `ui-constraint-validator` are present, run them as a pipeline:
+`design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
@@ -116,13 +119,41 @@ Before the first Red/Green/Refactor task, run the CodeGraph pre-flight:
 
 When CodeGraph is absent: skip pre-flight, proceed directly to Red step.
 
+#### Pre-TDD: Load design system (UI units only)
+
+If `input.design_system_path` is set:
+1. Extract needed component types from `input.ui_intent[]` (or infer from the task)
+2. Run:
+   ```bash
+   python3 aidlc-scripts/factory_design_system_resolve.py resolve <types>
+   ```
+3. Load returned files into context — design.md, anatomy.md, do-dont.md, tokens/*.md
+4. Load `design-system-composer/SKILL.md` and `ui-constraint-validator/SKILL.md`
+
+#### Pre-Figma: Snap Figma data (when available)
+
+If `input.has_figma_data` is set AND `input.figma_snapped_path` exists:
+1. Load the snapped Figma data from `input.figma_snapped_path`
+2. In `figma_archaeologist_mode`: extract only text, inputs, and reading order — ignore positions/sizes/colors — and rebuild using `design-system/patterns/`
+3. Otherwise: treat snapped JSON as the UI intent plan — components to build, layout to follow
+4. Log snap correction count in `audit_entries[]`
+
 #### TDD loop
 
 For each plan task (top to bottom):
 1. **Red** — write a failing test
-2. **Green** — minimum code to pass
-3. **Refactor** — clean up, keep green
-4. **Validate** — follow `validator-retry` skill Process:
+2. **Green** — minimum code to pass. If UI task: compose from primitives per `design-system-composer`.
+3. **UI Compile** (UI tasks only) — run the UI compiler pass:
+   - Scan generated TSX/HTML for raw style values
+   - Snap to canonical tokens per `ui-compiler.md` §2
+   - Rewrite to token references
+4. **UI Validate** (UI tasks only) — run `ui-constraint-validator`:
+   - Check spacing, radius, typography, color, elevation
+   - Autocorrect deviations (max 3 per slice)
+   - Log corrections to `ui_compliance[]`
+   - If >3 deviations: set `status: needs_human`, HALT
+5. **Refactor** — clean up, keep green
+6. **Validate** — follow `validator-retry` skill Process:
    - Run detected static validators (tsc, pyright, cargo check, go vet, eslint)
    - On errors: feed `errors_text` back as context, retry up to 3 times
    - On persistent failure after 3 retries: set `status: blocked` and HALT

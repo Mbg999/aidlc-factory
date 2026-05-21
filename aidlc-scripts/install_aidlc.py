@@ -1065,6 +1065,10 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(
             json.dumps({"project_name": project_name}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  project config -> .engram/project.json (project_name={project_name!r})")
+
 
 # ── Design System (optional, --with-design-system) ──────────────────────────
 
@@ -1101,10 +1105,6 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
             print(f"  {src_name}/ -> {dst}")
 
     print("  Design system installed.")
-
-            encoding="utf-8",
-        )
-        print(f"  project config -> .engram/project.json (project_name={project_name!r})")
 
 
 def parse_args() -> argparse.Namespace:

@@ -33,7 +33,7 @@
         },
         "additionalProperties": false
       },
-      "minItems": 5
+      "minItems": 6
     },
     "cost": { "type": "object" },
     "version_proposal": {

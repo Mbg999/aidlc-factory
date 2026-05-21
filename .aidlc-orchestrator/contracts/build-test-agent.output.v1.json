@@ -39,7 +39,7 @@
         },
         "additionalProperties": false
       },
-      "minItems": 5
+      "minItems": 7
     },
     "cost": { "type": "object" },
     "emitted_knowledge": {

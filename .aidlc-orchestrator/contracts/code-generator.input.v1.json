@@ -30,6 +30,19 @@
       "type": "string",
       "description": "Path to design-system/ root. Set by project-profile when ui=true. Null when no design system exists."
     },
+    "has_figma_data": {
+      "type": "boolean",
+      "description": "Set by project-profile when figma/ dir or *.figma.json files exist in the workspace."
+    },
+    "figma_snapped_path": {
+      "type": "string",
+      "description": "Path to figma/snapped.json after figma-snap ran. Absent when has_figma_data is false."
+    },
+    "figma_archaeologist_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set when >10 corrections made during figma snap — triggers Arqueólogo fallback in code-generator."
+    },
     "ui_intent": {
       "type": "array",
       "description": "Semantic UI plan from functional design. Each entry maps a needed component to a primitive or pattern.",

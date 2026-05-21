@@ -22,6 +22,9 @@ Generate code per unit in two parts:
 - `source-driven-development/SKILL.md` *(frameworks only)* — Base decisions on official docs. **Key process**: cite source for every framework API used, flag unverified patterns.
 - `git-workflow-and-versioning/SKILL.md` — Trunk-based, atomic commits ~100 lines. **Key process**: commit after each slice, meaningful messages.
 - `code-review-and-quality/SKILL.md` — Five-axis self-review, change sizing. **Key process**: before presenting to user, self-review on correctness, readability, architecture, security, performance.
+- `codegraph-aware-exploration/SKILL.md` — Use CodeGraph tools (callers, impact, search) before editing existing symbols. **Key process**: blast-radius check before any refactor touching >5 callers.
+- `validator-retry/SKILL.md` — Static validator loop (tsc, pyright, cargo check, eslint). **Key process**: feed errors back as context, retry up to 3 times, HALT on persistent failure.
+- `secret-knowledge/SKILL.md` — Never log, commit, or surface secrets. **Key process**: scan all generated output for tokens/keys before emitting.
 
 **Inline fallback** (if SKILL.md files not installed):
 1. For each code step: write test → implement → run tests → commit (TDD cycle)

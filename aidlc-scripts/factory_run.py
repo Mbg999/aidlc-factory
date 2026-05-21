@@ -430,6 +430,8 @@ def _reconcile_state(run_id: str) -> dict:
 
 def cmd_complete_stage(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
+    manifest.setdefault("completed_stages", [])
+    manifest.setdefault("failed_stages", [])
     if args.stage in manifest["completed_stages"]:
         print(f"stage {args.stage} already complete (idempotent)")
         return
@@ -600,7 +602,7 @@ def _next_stage(manifest: dict) -> str | None:
 
 def cmd_resume(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
-    completed = manifest["completed_stages"]
+    completed = manifest.get("completed_stages", [])
     nxt = _next_stage(manifest)
 
     result: dict = {
@@ -642,6 +644,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
 
 def cmd_replay(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
+    manifest.setdefault("completed_stages", [])
     target = args.from_stage
     if target not in manifest["completed_stages"]:
         _die(f"cannot replay from {target}: not in completed_stages {manifest['completed_stages']}")
@@ -807,12 +810,18 @@ def cmd_tail(args: argparse.Namespace) -> None:
     with p.open() as f:
         for line in f:
             _print_event(line.rstrip("\n"), args.json)
-        while True:
-            line = f.readline()
-            if not line:
-                time.sleep(0.5)
-                continue
-            _print_event(line.rstrip("\n"), args.json)
+        try:
+            while True:
+                line = f.readline()
+                if not line:
+                    if not p.exists():
+                        print(f"[timeline removed: {p}]", file=sys.stderr)
+                        return
+                    time.sleep(0.5)
+                    continue
+                _print_event(line.rstrip("\n"), args.json)
+        except KeyboardInterrupt:
+            return
 
 
 def main() -> None:

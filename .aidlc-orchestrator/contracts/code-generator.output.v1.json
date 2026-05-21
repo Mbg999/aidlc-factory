@@ -35,7 +35,7 @@
         },
         "additionalProperties": false
       },
-      "minItems": 6
+      "minItems": 8
     },
     "cost": { "type": "object" },
     "tests_added": { "type": "integer", "minimum": 0 },

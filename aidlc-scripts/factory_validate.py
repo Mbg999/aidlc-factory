@@ -51,14 +51,18 @@ def _strict_check(doc: dict, doc_path: Path) -> list[str]:
         for a in artifacts:
             path = a.get("path", "") if isinstance(a, dict) else ""
             stem = Path(path).stem
+            name = Path(path).name
             if (
-                any(p in ("test", "tests", "__tests__", "spec") for p in Path(path).parts)
-                or stem.startswith("test_")
-                or stem.endswith("_test")
-                or stem.endswith("_spec")
-            ):
-                has_test_artifact = True
-                break
+                    any(p in ("test", "tests", "__tests__", "spec", "e2e", "cypress") for p in Path(path).parts)
+                    or stem.startswith("test_")
+                    or stem.endswith("_test")
+                    or stem.endswith("_spec")
+                    or ".test." in name
+                    or ".spec." in name
+                    or name == "conftest.py"
+                ):
+                    has_test_artifact = True
+                    break
         if not has_test_artifact:
             issues.append(f"tests_added={tests_added} but no test file found in artifacts")
 

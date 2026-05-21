@@ -78,6 +78,9 @@ def compute_waves(units: list[dict]) -> list[list[str]]:
     """Kahn's algorithm. Returns waves[] or raises ValueError on bad input."""
     names = [u["name"] for u in units]
     name_set = set(names)
+    dupes = [n for n in name_set if names.count(n) > 1]
+    if dupes:
+        raise ValueError(f"duplicate unit names: {dupes}")
 
     deps: dict[str, set[str]] = {}
     for u in units:

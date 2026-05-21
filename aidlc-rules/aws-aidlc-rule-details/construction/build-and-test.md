@@ -22,6 +22,9 @@ Before proceeding to Step 1, verify:
 - `debugging-and-error-recovery/SKILL.md` — Scientific debugging for build/test failures. **Key process**: reproduce → localize → reduce → fix → guard. Stop-the-line rule.
 - `browser-testing-with-devtools/SKILL.md` *(UI projects only)* — DevTools visual/network/console testing. **Key process**: verify with live runtime data, not assumptions.
 - `test-driven-development/SKILL.md` — Test pyramid 80/15/5, mutation testing, coverage thresholds. **Key process**: verify tests actually catch bugs (mutation), not just pass.
+- `codegraph-aware-exploration/SKILL.md` — Use CodeGraph tools (callers, impact, search) before editing existing symbols. **Key process**: blast-radius check before any refactor touching >5 callers.
+- `secret-knowledge/SKILL.md` — Never log, commit, or surface secrets. **Key process**: scan all generated output for tokens/keys before emitting.
+- `validator-retry/SKILL.md` — Static validator loop (tsc, pyright, cargo check, eslint). **Key process**: feed errors back as context, retry up to 3 times, HALT on persistent failure.
 
 **Inline fallback** (if SKILL.md files not installed):
 1. **Environment first**: run `command -v <tool>` and `<tool> --version` for every runtime named in the unit spec.

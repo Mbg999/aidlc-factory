@@ -47,65 +47,20 @@ from skill_utils import sha256_file as _sha256_file
 # ── minimal YAML parser (subset: only what skill-sources.yaml needs) ──────────
 
 def _parse_yaml_sources(text: str) -> list[dict]:
-    """Parse skill-sources.yaml without depending on pyyaml."""
+    """Parse the sources[] list from skill-sources.yaml."""
+    import yaml as _yaml
+    doc = _yaml.safe_load(text) or {}
+    raw = doc.get("sources") or []
     sources: list[dict] = []
-    current: dict | None = None
-    applies_to: dict | None = None
-    in_sources = False
-    in_applies_to = False
-
-    for raw_line in text.splitlines():
-        line = raw_line.rstrip()
-        stripped = line.lstrip()
-
-        # skip blank lines and comments
-        if not stripped or stripped.startswith("#"):
+    for entry in raw:
+        if not isinstance(entry, dict) or "name" not in entry:
             continue
-
-        if stripped == "sources:":
-            in_sources = True
-            continue
-
-        if not in_sources:
-            continue
-
-        indent = len(line) - len(stripped)
-
-        if indent == 2 and stripped.startswith("- name:"):
-            # flush previous entry
-            if current is not None:
-                if applies_to is not None:
-                    current["applies_to"] = applies_to
-                sources.append(current)
-            name_val = stripped[len("- name:"):].strip().strip('"\'')
-            current = {"name": name_val, "url": "", "sha256": ""}
-            applies_to = None
-            in_applies_to = False
-            continue
-
-        if current is None:
-            continue
-
-        if indent == 4:
-            if stripped.startswith("applies_to:"):
-                in_applies_to = True
-                applies_to = {}
-                continue
-            in_applies_to = False
-            key, _, val = stripped.partition(":")
-            current[key.strip()] = val.strip().strip('"\'')
-            continue
-
-        if indent == 6 and in_applies_to and applies_to is not None:
-            key, _, val = stripped.partition(":")
-            applies_to[key.strip()] = val.strip().strip('"\'')
-
-    # flush last entry
-    if current is not None:
-        if applies_to is not None:
-            current["applies_to"] = applies_to
-        sources.append(current)
-
+        sources.append({
+            "name": str(entry.get("name", "")),
+            "url": str(entry.get("url", "")),
+            "sha256": str(entry.get("sha256", "")),
+            **({"applies_to": entry["applies_to"]} if "applies_to" in entry else {}),
+        })
     return sources
 
 

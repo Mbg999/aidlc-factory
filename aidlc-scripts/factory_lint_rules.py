@@ -65,6 +65,9 @@ RULE_SKILL_BLOCK_HEADER_RE = re.compile(r"##\s+Agent\s+Skills\b", re.IGNORECASE)
 # (not real skill names — referenced incidentally in skill block bodies).
 NON_SKILL_IDENTIFIERS = {
     "skill-name", "name", "see", "etc",
+    # lockfile-aware skill loading prose in agent bodies uses these as property names,
+    # not as skill identifiers.
+    "applies_to", "package", "version",
 }
 
 
