@@ -33,7 +33,7 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
 | `aidlc-scripts/factory_*.py` | Runtime Python scripts |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills: code-review-and-quality, validator-retry, environment-detection, codegraph-aware-exploration |
+| `.agents/custom-skills/` | Custom skills: code-review-and-quality, validator-retry, environment-detection, codegraph-aware-exploration, secret-knowledge |
 | `aidlc-docs/` | Generated artifacts from AIDLC runs in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |

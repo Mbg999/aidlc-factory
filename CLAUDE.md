@@ -24,7 +24,7 @@ prevention, CodeGraph integration, and persistent memory (Engram).
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
 | `aidlc-scripts/factory_*.py` | Runtime scripts (run manager, conflict, merge-reviews, validate, telemetry, …) |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, …) |
+| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, …) |
 | `aidlc-docs/` | Generated artifacts from any AIDLC run executed in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
