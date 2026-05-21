@@ -329,7 +329,7 @@ ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "cross-cutting agents: `.github/agents/cross-cutting/`; orchestrator: `.github/agents/orchestrator.md`;\n"
     "skills: `.github/skills/`; prompts (user-invocable commands): `.github/prompts/`.\n\n"
     "Invoke from Copilot Chat by typing `/` and selecting the prompt:\n\n"
-    "- `/factory-code-tour` — guided human tour: architecture, key flows, conventions\n"
+    "- `/factory-code-tour` — dependency-ordered codebase tour: foundations → entry points\n"
     "- `/factory-spec` — workspace scout + requirements + plan\n"
     "- `/factory-plan` — decompose plan into per-unit specs\n"
     "- `/factory-build` — layer-parallel code generation\n"
