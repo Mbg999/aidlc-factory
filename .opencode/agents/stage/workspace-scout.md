@@ -105,7 +105,23 @@ Record `ecosystem: pip` entries.
 
 **Version normalization**: strip `^`, `~`, `>=`, `~=` prefix → pinned baseline version.
 
+**SHAPE — `tech_stack[]` items are OBJECTS, not strings.** Each entry MUST have three
+keys: `package`, `version`, `ecosystem` (enum: `npm|pip|cargo|go|gem|nuget`).
+
+Correct YAML:
+```yaml
+tech_stack:
+  - { package: "next", version: "15.1.0", ecosystem: npm }
+  - { package: "@angular/core", version: "17.3.0", ecosystem: npm }
+```
+Incorrect (will fail validation):
+```yaml
+tech_stack:
+  - "next@15.1.0"          # ❌ string, not object
+```
+
 Emit: `[Stack] tech_stack: <N> packages detected (next@15.1.0, react@18.3.0, …)`
+(The audit-entry above is a HUMAN-READABLE log line — NOT the `tech_stack[]` shape.)
 If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
 
 ### Step 2.6 — CodeGraph awareness
@@ -170,7 +186,18 @@ Required fields:
   minimum: one bullet per finding (project type, code presence, languages, structure),
   skill execution evidence, and any rationalization-rejected entries.
 - `skill_compliance`: one row for `using-agent-skills` with concrete evidence
-- `workspace_state`: full block per the schema
+- `workspace_state`: full block per the schema. `existing_code: <bool>` is REQUIRED
+  (true if any source/manifest file found in Step 2 after exclusions; false for
+  empty workspaces). Do NOT omit it.
+
+**Top-level keys are CLOSED — only emit what the contract allows.**
+The schema sets `additionalProperties: false` at the root. Allowed top-level keys:
+`status`, `artifacts`, `audit_entries`, `skill_compliance`, `workspace_state`,
+`cost`, `emitted_knowledge`, `conflicts_detected`, `locks_to_release`.
+
+Do NOT emit `run_id`, `stage`, `timestamp`, `agent`, or any other runtime metadata
+at the root — those live in `manifest.json`, not the handoff. Emitting them will
+fail validation with `Additional properties are not allowed`.
 
 Then validate before returning:
 ```bash

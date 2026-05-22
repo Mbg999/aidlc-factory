@@ -118,12 +118,31 @@ Extract direct dependencies and record recognized packages with stripped version
 (strip leading `^~>=~=` prefixes). This is informational only — full detection runs
 via autoskills at build time.
 
+**SHAPE — `tech_stack[]` items are OBJECTS, not strings.** Each entry MUST have three
+keys: `package`, `version`, `ecosystem` (enum: `npm|pip|cargo|go|gem|nuget`). Emitting
+strings like `"express@4.18.2"` will fail schema validation.
+
+Correct YAML:
+```yaml
+tech_stack:
+  - { package: "express", version: "4.18.2", ecosystem: npm }
+  - { package: "@angular/core", version: "17.3.0", ecosystem: npm }
+```
+Incorrect (will be rejected):
+```yaml
+tech_stack:
+  - "express@4.18.2"       # ❌ string, not object
+  - "@angular/core@17.3.0" # ❌ string, not object
+```
+
 Emit audit entries:
 ```
 [Workspaces] N workspace(s) detected: ., backend/, frontend/
 [Stack] best-effort top-level: express@4.18.2 (npm), @angular/core@17.3.0 (npm)
         (full stack detection via autoskills runs at factory-build)
 ```
+(The audit-entry strings above are HUMAN-READABLE log lines — they are NOT the
+`tech_stack[]` shape. Keep the two separate.)
 
 If no manifest files found: emit `[Workspaces] no manifest files detected — workspace_dirs: ["."]` and continue.
 
@@ -201,7 +220,18 @@ Required fields:
   minimum: one bullet per finding (project type, code presence, languages, structure),
   skill execution evidence, and any rationalization-rejected entries.
 - `skill_compliance`: one row for `using-agent-skills` with concrete evidence
-- `workspace_state`: full block per the schema
+- `workspace_state`: full block per the schema. `existing_code: <bool>` is REQUIRED
+  (true if any source/manifest file found in Step 2 after exclusions; false for
+  empty workspaces). Do NOT omit it.
+
+**Top-level keys are CLOSED — only emit what the contract allows.**
+The schema sets `additionalProperties: false` at the root. Allowed top-level keys:
+`status`, `artifacts`, `audit_entries`, `skill_compliance`, `workspace_state`,
+`cost`, `emitted_knowledge`, `conflicts_detected`, `locks_to_release`.
+
+Do NOT emit `run_id`, `stage`, `timestamp`, `agent`, or any other runtime metadata
+at the root — those live in `manifest.json`, not the handoff. Emitting them will
+fail validation with `Additional properties are not allowed`.
 
 Then validate before returning:
 ```bash
