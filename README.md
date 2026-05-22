@@ -191,6 +191,89 @@ will create its own `.venv` in the destination automatically.
   - **OpenCode:** `engram setup opencode`
   - **Cursor / GitHub Copilot / others:** the installer writes an `.mcp.json` entry pointing at the `engram` MCP server (install the binary via the [Engram repo](https://github.com/Gentleman-Programming/engram))
 
+### Platform-specific setup
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# Python 3.10+
+brew install python@3.12
+
+# Git (if not already present)
+xcode-select --install
+
+# Node.js 22+ — only needed for CodeGraph (--with-codegraph)
+brew install node@22
+```
+
+</details>
+
+<details>
+<summary><b>Linux — Ubuntu / Debian</b></summary>
+
+```bash
+# Python 3.10+
+sudo apt-get update
+sudo apt-get install -y python3 python3-venv python3-pip
+
+# Git
+sudo apt-get install -y git
+
+# Node.js 22+ — only needed for CodeGraph (--with-codegraph)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install 22 && nvm use 22
+```
+
+</details>
+
+<details>
+<summary><b>Linux — Fedora / RHEL / CentOS</b></summary>
+
+```bash
+# Python 3.10+
+sudo dnf install python3 python3-pip
+
+# Git
+sudo dnf install git
+
+# Node.js 22+ — only needed for CodeGraph (--with-codegraph)
+sudo dnf install nodejs npm        # distro package (check version first)
+# — or via nvm for the latest LTS:
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install 22 && nvm use 22
+```
+
+</details>
+
+<details>
+<summary><b>Windows — PowerShell (run as Administrator)</b></summary>
+
+```powershell
+# Python 3.10+
+winget install Python.Python.3.12
+
+# Git
+winget install Git.Git
+
+# Node.js 22+ — only needed for CodeGraph (--with-codegraph)
+winget install OpenJS.NodeJS.LTS
+```
+
+> [!NOTE]
+> On Windows the installer tries the `py` launcher (Python Launcher for Windows),
+> `python`, and `python3` in that order for virtual-environment creation, so any
+> standard Python 3.10+ install will work.
+>
+> Open a **new** terminal after running `winget` commands so the updated `PATH`
+> takes effect.
+
+</details>
+
+---
+
 ### One-line install
 
 ```bash
