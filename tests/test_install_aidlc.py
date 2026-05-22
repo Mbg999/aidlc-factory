@@ -705,3 +705,176 @@ class TestEngramIntegration:
         assert mcp_path.exists(), ".mcp.json not written for cursor"
         config = json.loads(mcp_path.read_text())
         assert "engram" in config.get("mcpServers", {})
+
+
+# ---------- _venv_python (cross-platform venv executable detection) ----------
+
+class TestVenvPythonDetection:
+    def test_unix_bin_python(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "bin" / "python"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_unix_bin_python3(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "bin" / "python3"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_windows_scripts_python_exe(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "Scripts" / "python.exe"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_windows_scripts_python3_exe(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "Scripts" / "python3.exe"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_returns_none_when_not_found(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        venv.mkdir()
+        assert install_aidlc._venv_python(venv) is None
+
+    def test_unix_preferred_over_windows(self, tmp_path: Path):
+        """bin/python takes precedence over Scripts/python.exe."""
+        venv = tmp_path / ".venv"
+        unix_py = venv / "bin" / "python"
+        win_py = venv / "Scripts" / "python.exe"
+        for p in (unix_py, win_py):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.touch()
+        assert install_aidlc._venv_python(venv) == unix_py
+
+    def test_bin_python3_preferred_over_scripts(self, tmp_path: Path):
+        """bin/python3 takes precedence over Scripts/python.exe."""
+        venv = tmp_path / ".venv"
+        unix_py3 = venv / "bin" / "python3"
+        win_py = venv / "Scripts" / "python.exe"
+        for p in (unix_py3, win_py):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.touch()
+        assert install_aidlc._venv_python(venv) == unix_py3
+
+
+# ---------- _is_windows ----------
+
+class TestIsWindows:
+    def test_returns_bool(self):
+        assert isinstance(install_aidlc._is_windows(), bool)
+
+    def test_consistent_with_platform_module(self):
+        import platform
+        assert install_aidlc._is_windows() == (platform.system() == "Windows")
+
+
+# ---------- update_gitignore — force preserves existing content ----------
+
+class TestUpdateGitignoreForcePreservesContent:
+    def test_force_does_not_overwrite_existing_lines(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text("*.pyc\n__pycache__/\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert "*.pyc" in text
+        assert "__pycache__/" in text
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_new_file_has_no_leading_blank_line(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False,
+        )
+        text = gi.read_text()
+        assert not text.startswith("\n"), "new .gitignore must not start with a blank line"
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_force_new_file_no_leading_blank_line(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert not text.startswith("\n")
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_force_existing_file_has_separator_blank_line(self, tmp_path: Path):
+        """A blank line should separate existing content from the new AIDLC block."""
+        gi = tmp_path / ".gitignore"
+        gi.write_text("*.log\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert "\n\n" in text, "expected blank separator line between sections"
+
+
+# ---------- Windows python_cmds ----------
+
+class TestWindowsPythonCmds:
+    def test_windows_includes_py_launcher(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        called: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            called.append(cmd[0])
+            if cmd[0] == "py":
+                import types
+                r = types.SimpleNamespace(returncode=0)
+                return r
+            raise FileNotFoundError("not found")
+
+        venv_path = Path("/fake/.venv")
+        fake_py = venv_path / "Scripts" / "python.exe"
+        monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: fake_py)
+
+        import types
+        fake_venv_py = types.SimpleNamespace(returncode=0)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                types.SimpleNamespace(returncode=0),  # venv creation (py -m venv)
+                types.SimpleNamespace(returncode=0),  # pip upgrade
+                types.SimpleNamespace(returncode=0),  # pip install -r
+            ]
+            try:
+                install_aidlc.create_venv_and_install_requirements(
+                    Path("/fake"), Path("/fake/requirements.txt"), dry_run=False,
+                )
+            except Exception:
+                pass
+
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd[0] == "py", f"Expected 'py' as first venv cmd on Windows, got {first_cmd[0]!r}"
+
+    def test_non_windows_starts_with_python3(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        import types
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                types.SimpleNamespace(returncode=0),
+                types.SimpleNamespace(returncode=0),
+                types.SimpleNamespace(returncode=0),
+            ]
+            monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: p / "bin" / "python")
+            try:
+                install_aidlc.create_venv_and_install_requirements(
+                    Path("/fake"), Path("/fake/requirements.txt"), dry_run=False,
+                )
+            except Exception:
+                pass
+
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd[0] == "python3", (
+            f"Expected 'python3' as first venv cmd on non-Windows, got {first_cmd[0]!r}"
+        )

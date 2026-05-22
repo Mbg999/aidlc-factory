@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform as _platform
 import shutil
 import sys
 from pathlib import Path
@@ -116,6 +117,23 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     _retry_op(lambda p: p.chmod(0o755), dst)
 
 
+def _is_windows() -> bool:
+    return _platform.system() == "Windows"
+
+
+def _venv_python(venv_path: Path) -> Path | None:
+    """Return the Python executable inside a virtualenv (cross-platform)."""
+    for candidate in (
+        venv_path / "bin" / "python",          # macOS / Linux (canonical)
+        venv_path / "bin" / "python3",          # some Linux distros
+        venv_path / "Scripts" / "python.exe",   # Windows
+        venv_path / "Scripts" / "python3.exe",  # Windows (alt)
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def ensure_target_requirements(repo_root: Path, target_root: Path, dry_run: bool) -> Path | None:
     """Ensure target_root has a requirements.txt, seeding from the source repo if missing.
 
@@ -152,7 +170,8 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
         print(f"[DRY-RUN] Would install requirements from {requirements_path}")
         return
 
-    python_cmds = ["python3", "python"]
+    python_cmds = (["py", "python3", "python"] if _is_windows()
+                   else ["python3", "python"])
     created = False
     last_err: Exception | None = None
     for cmd in python_cmds:
@@ -170,15 +189,16 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
 
     if not created:
         raise EnvironmentError(
-            f"Could not create virtual environment ('python3'/'python' not found or failed): {last_err}"
+            f"Could not create virtual environment: no suitable Python found "
+            f"(tried: {', '.join(python_cmds)}). Last error: {last_err}"
         )
 
-    # Locate python executable inside the venv (Unix vs Windows)
-    venv_python = venv_path / "bin" / "python"
-    if not venv_python.exists():
-        venv_python = venv_path / "Scripts" / "python.exe"
-    if not venv_python.exists():
-        raise EnvironmentError(f"Could not find python executable in virtualenv at {venv_path}")
+    venv_python = _venv_python(venv_path)
+    if venv_python is None:
+        raise EnvironmentError(
+            f"Could not find python executable in virtualenv at {venv_path}. "
+            "Expected bin/python (macOS/Linux) or Scripts/python.exe (Windows)."
+        )
 
     try:
         print("Upgrading pip in virtualenv...")
@@ -445,24 +465,25 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
         print(f"[DRY-RUN] Would update {gi_path} with: {', '.join(entries)}")
         return
 
-    if gi_path.exists() and not force:
-        existing_text = gi_path.read_text()
-        existing_lines = {line.strip() for line in existing_text.splitlines()}
-        new_lines = [e for e in entries if e not in existing_lines]
-        if not new_lines:
-            print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
-            return
-        with gi_path.open("a") as f:
+    existing_text = gi_path.read_text() if gi_path.exists() else ""
+    existing_lines = {line.strip() for line in existing_text.splitlines()}
+    new_lines = [e for e in entries if e not in existing_lines]
+
+    if not force and not new_lines:
+        print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
+        return
+
+    lines_to_write = entries if force else new_lines
+
+    with gi_path.open("a") as f:
+        if existing_text:
             if not existing_text.endswith("\n"):
                 f.write("\n")
-            f.write(f"\n{header}\n")
-            for line in new_lines:
-                f.write(f"{line}\n")
-        print(f"  appended {len(new_lines)} pattern(s) to {gi_path.relative_to(target_root)}")
-    else:
-        content = f"{header}\n" + "\n".join(entries) + "\n"
-        gi_path.write_text(content)
-        print(f"  created {gi_path.relative_to(target_root)} with {len(entries)} pattern(s)")
+            f.write("\n")
+        f.write(f"{header}\n")
+        for line in lines_to_write:
+            f.write(f"{line}\n")
+    print(f"  appended {len(lines_to_write)} pattern(s) to {gi_path.relative_to(target_root)}")
 
 
 def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False) -> None:
@@ -1203,28 +1224,40 @@ def _preflight_specs(args: argparse.Namespace, tools: list[str] | None = None) -
 
     return [
         (
-            "Python", ["python3", "--version"], (3, 10, 0),
+            "Python", [sys.executable, "--version"], (3, 10, 0),
             lambda: True,
             "https://www.python.org/downloads/",
-            ["python3 is required to run the installer and AIDLC factory scripts."],
+            ["Python 3.10+ is required to run the installer and AIDLC factory scripts.",
+             "macOS:          brew install python@3.12  (or: pyenv install 3.12)",
+             "Linux (Debian): sudo apt-get install python3 python3-venv python3-pip",
+             "Linux (RHEL):   sudo dnf install python3 python3-pip",
+             "Windows:        winget install Python.Python.3.12",
+             "All platforms:  https://www.python.org/downloads/"],
         ),
         (
             "Git", ["git", "--version"], None,
             lambda: using_agent_skills,
             "https://git-scm.com/downloads",
-            ["macOS:  xcode-select --install",
-             "Linux:  sudo apt-get install git   (or your distro equivalent)",
-             "Windows: download from https://git-scm.com/downloads"],
+            ["macOS:          xcode-select --install",
+             "Linux (Debian): sudo apt-get install git",
+             "Linux (RHEL):   sudo dnf install git",
+             "Windows:        winget install Git.Git",
+             "All platforms:  https://git-scm.com/downloads"],
         ),
         (
             "Node.js", ["node", "--version"], (22, 6, 0),
             lambda: True,
             "https://nodejs.org/en/download",
-            ["Recommended via nvm:",
+            ["macOS via brew:      brew install node@22",
+             "macOS/Linux via nvm:",
              "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash",
              "  nvm install 22 && nvm use 22",
-             "macOS via brew: brew install node@22",
-             "Required for autoskills (skill sync layer) — Node < 22.6 means lockfile-aware skills will not be installed."],
+             "Linux (Debian):      sudo apt-get install -y nodejs npm",
+             "Linux (RHEL):        sudo dnf install nodejs npm",
+             "Windows via winget:  winget install OpenJS.NodeJS.LTS",
+             "Windows via nvm-win: https://github.com/coreybutler/nvm-windows",
+             "All platforms:       https://nodejs.org/en/download",
+             "Required for autoskills — Node < 22.6 means lockfile-aware skills will not be installed."],
         ),
         (
             "npm", ["npm", "--version"], None,
