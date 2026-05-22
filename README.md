@@ -1,4 +1,10 @@
-# AIDLC — AI-Driven Development Life Cycle
+<p align="center">
+  <img src="assets/images/logo.png" alt="AIDLC-Factory logo" width="260" />
+</p>
+
+<h1 align="center">AIDLC-Factory</h1>
+
+<p align="center"><em>AI-Driven Development Life Cycle — the multi-agent factory.</em></p>
 
 A multi-agent software-development workflow that takes a feature request from
 specification → plan → code → review → ship, with human approval gates between
@@ -73,6 +79,11 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Skills enforcement** — engineering process skills (testing, security, ADRs, etc.) are auto-attached per stage.
 - **Auto-commit on approval** — explicit user approvals trigger git commits with stage-tagged messages.
 - **Kill & resume** — interrupted runs resume from the last completed stage.
+- **Adaptive requirements elicitation** — `requirements-intelligence` routes between four techniques (Socratic probing, ambiguity detection, assumption mining, pre-mortem) based on signals from the request. Enforces an 8-axis coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no dimension goes unasked at the depth the request warrants. Weasel words are flagged and converted to quantifier MCQs; implicit assumptions are surfaced before they become spec bugs.
+- **Design system enforcement** — `design-system-composer` composes UIs exclusively from `design-system/INDEX.md` primitives. After each generation slice `ui-constraint-validator` scans for hardcoded spacing, radius, typography, color, and elevation values and auto-corrects them to the nearest canonical token. Slices with >3 deviations are blocked for human review instead of silently producing non-compliant UI.
+- **API hallucination elimination** — `validator-retry` runs static type-check and linter feedback in a loop after every code-generation unit. Compile errors caused by hallucinated APIs or wrong signatures are fed back to the generator for correction before the stage exits — not caught at runtime or by the user.
+- **Curated, verified tool catalog** — `secret-knowledge` gives every stage agent a reference catalog of CLI tools, security toolkits, performance profilers, and shell one-liners sourced from the Book of Secret Knowledge. Every recommended command passes a verification gate (tool exists, syntax correct, platform-appropriate, no hallucinated URLs) to prevent fabricated tool names from reaching generated scripts.
+- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_autoskills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time.
 
 The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
 Copilot, and OpenCode** — each ships with its own stage subagent tree under

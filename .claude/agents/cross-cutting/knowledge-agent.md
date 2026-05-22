@@ -31,10 +31,10 @@ aidlc/<project-slug>/<kind>/<title-slug>
 - `<title-slug>`: first 4-6 meaningful words of the title, slugified.
 
 Examples:
-- `aidlc/custom-aidlc/pattern/lambda-handler-token-validation`
-- `aidlc/custom-aidlc/antipattern/secrets-in-env`
-- `aidlc/custom-aidlc/adr/auth-uses-asymmetric-jwt`
-- `aidlc/custom-aidlc/lesson/n-plus-one-from-orm-eager-load`
+- `aidlc/aidlc-factory/pattern/lambda-handler-token-validation`
+- `aidlc/aidlc-factory/antipattern/secrets-in-env`
+- `aidlc/aidlc-factory/adr/auth-uses-asymmetric-jwt`
+- `aidlc/aidlc-factory/lesson/n-plus-one-from-orm-eager-load`
 
 ## Knowledge entry shape
 
