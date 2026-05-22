@@ -1,1379 +1,535 @@
-# AI-DLC (AI-Driven Development Life Cycle)
+# AIDLC — AI-Driven Development Life Cycle
 
-**Fork maintenance note:** para mantener esto privado pero actualizado con respecto al repo original, hay que ejecutar lo siguiente en local y despues pushearlo al origin:
-
-```bash
-git remote add upstream https://github.com/awslabs/aidlc-workflows
-git fetch upstream
-git merge upstream/main
-git push
-```
+A multi-agent software-development workflow that takes a feature request from
+specification → plan → code → review → ship, with human approval gates between
+every stage and traceable artifacts at every step.
 
 > [!IMPORTANT]
-> Generative AI can make mistakes. Review all AI-generated output and associated costs before acting on them.
+> Generative AI can make mistakes. Review every AI-generated artifact and
+> associated cost before approving a stage.
 
-AI-DLC is an intelligent software development workflow that adapts to your needs, maintains quality standards, and keeps you in control of the process.
+This repository has its base in **[AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)**
+(v0.2.0) that adds a multi-agent orchestrator, a skills enforcement layer,
+hallucination prevention, CodeGraph integration, persistent memory, and a
+contract-validated stage pipeline. The upstream rules remain unchanged; all
+extensions live in new files.
+
+---
 
 ## Table of Contents
 
-- [Common](#common)
-- [Platform-Specific Setup](#kiro)
-- [Usage](#usage)
-- [Advanced Features (This Fork)](#advanced-features-this-fork)
-  - [Skills-Only Architecture](#skills-only-architecture)
-  - [Automatic Git Commits on Approvals](#automatic-git-commits-on-approvals)
-  - [Multi-Agent Orchestrator (Claude Code)](#multi-agent-orchestrator-claude-code)
-  - [Tool Adapters](#tool-adapters)
-- [Three-Phase Adaptive Workflow](#three-phase-adaptive-workflow)
-- [Key Features](#key-features)
-- [Extensions](#extensions)
-- [Tenets](#tenets)
-- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [What This Is](#what-this-is)
+- [Third-Party Components](#third-party-components)
+- [Slash Commands Reference](#slash-commands-reference)
+- [Installation](#installation)
+- [Repository Layout](#repository-layout)
+- [Adding Custom Skills](#adding-custom-skills)
+- [Adding Custom Agents](#adding-custom-agents)
+- [Configuration](#configuration)
+- [Keeping the Fork in Sync with Upstream](#keeping-the-fork-in-sync-with-upstream)
 - [Troubleshooting](#troubleshooting)
-- [Version Control Recommendations](#version-control-recommendations)
-- [Additional Resources](#additional-resources)
-- [Generated aidlc-docs/ Reference](#generated-aidlc-docs-reference)
-- [Experimental: AI-Assisted Setup (Release Download)](#experimental-ai-assisted-setup-release-download)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
 - [License](#license)
 
 ---
 
-## Common
-
-1. Download the latest release zip file named `ai-dlc-rules-v<release-number>.zip` from the [Releases page](../../releases/latest) to a folder **outside** your project directory (e.g., `~/Downloads`).
-2. Extract the zip. It contains an `aidlc-rules/` folder with two subdirectories:
-   - `aws-aidlc-rules/` — the core AI-DLC workflow rules
-   - `aws-aidlc-rule-details/` — detailed rules conditionally referenced by the core rules
-3. Follow the setup instructions for your coding agent and platform below.
-
-## What's in This Fork
-
-This repository extends the upstream AWS AI-DLC with additional capabilities. All extensions are **opt-in** and copy-paste ready — take only what you need.
-
-| Feature                    | What it is                                                                         | Requires                      |
-| -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
-| **Mandatory Skills**       | Engineering process skills (SKILL.md) are enforced at every stage                  | `.agents/skills/` (installer writes here) |
-| **Tool adapters**          | Setup guides for Copilot, Cursor, Claude Code, Cline                               | None                          |
-| **Multi-cloud security**   | Security rules with AWS + Azure examples                                           | None                          |
-| **Auto-commit on approvals** | Automatically create a git commit when the user approves plans, stages, units, or progresses | Git initialized in workspace |
-| **Multi-agent orchestrator** | A second workflow that executes the same AI-DLC rules across 13 specialized Claude Code subagents. Adds contract validation, parallel reviewer pool, file-glob locks + AST symbol drift, project-scoped knowledge store, kill/resume, legacy adoption. | Claude Code (uses `Task()` spawning). Other tools fall back to the legacy single-agent flow automatically. |
-| **Hallucination prevention** | 4-piece stack: validator-retry loop, lockfile-aware skill activation, autoskills adapter, drift detector. Eliminates hallucinated APIs and stale framework patterns without maintaining per-framework knowledge. | Orchestrator (validators already present in project) |
-| **CodeGraph contextualization** | Pre-indexed semantic code knowledge graph (100% local, MCP-based). Stage agents use `codegraph_search`, `codegraph_callers`, `codegraph_impact`, and `codegraph_callees` for targeted lookups, blast-radius gating, dead-code detection, and hot-path tracing instead of brute-force grep/Read. Benchmarks: 92% fewer tool calls, 71% faster. Graceful degradation when absent. | Node ≥ 18; opt-in via `--with-codegraph` |
-| **Evaluation framework**   | Automated scoring and reporting pipeline                                           | Docker                        |
-
-Core rules (`aidlc-rules/`) are identical in structure to upstream. Fork-specific additions live in `aidlc-scripts/executors/`, `aidlc-rules/adapters/`, `.claude/agents/` (orchestrator + subagents), `.aidlc-orchestrator/contracts/` (handoff schemas), and `aidlc-scripts/factory_*.py` (runtime).
-
-## Persistent Memory (how it works)
-
-This fork includes a simple, pluggable persistent memory system used by developer tools. It is designed for cross-session, multi-developer usage with offline resilience and an optional central backend (Engram).
-
-- Default location: repository root `.aidlc-memory/` (per-developer subfolders). The directory is local by default and is added to `.gitignore` to avoid leaking private notes.
-- Local storage layout:
-  - `developers/<developer_id>/profile.json` — developer profile and preferences
-  - `developers/<developer_id>/episodic.jsonl` — append-only event log (episodic memories)
-  - `developers/<developer_id>/semantic.json` — keyed JSON knowledge store (semantic/procedural memories)
-  - `shared/semantic.json` and `shared/decisions.jsonl` — project-scoped shared knowledge and decisions
-
-- Concurrency: file-level advisory locks (POSIX `flock`) ensure safe concurrent access by multiple agents/processes.
-
-- Backends supported:
-  - Local file-backed (default)
-  - Engram HTTP backend (optional): rich FTS-backed store; configured via `MemoryStore.with_engram(...)` or environment variables (see examples below)
-
-- Read/write semantics:
-  - Writes are "write-through": entries are always written locally; if Engram is configured, the system will also attempt to save to Engram (best-effort).
-  - Reads prefer Engram (full-text search) and fall back to the local store on error.
-
-- Memory types mapping to Engram: `SEMANTIC → decision`, `EPISODIC → discovery`, `PROCEDURAL → pattern`.
-
-- Developer isolation: entries include a `tool_name` like `aidlc-memory:<developer_id>` so observations are scoped per-developer in Engram.
-
-- Memory actions: `remember`, `recall`, `context`, `forget`, `compact`, `share`, `profile`, `list_devs`.
-
-Quick usage examples
-
-Python (local):
-
-```python
-from memory import MemoryStore, MemoryEntry, MemoryType
-
-store = MemoryStore('.aidlc-memory')
-store.remember('alice', 'API uses FastAPI', memory_type=MemoryType.SEMANTIC, tags=['arch'])
-results = store.recall('alice', tags=['arch'])
-```
-
-Enable Engram (optional):
-
-```python
-store = MemoryStore.with_engram('.aidlc-memory', engram_url='http://127.0.0.1:7437', project='aidlc')
-```
-
-Environment variables (used by memory integrations):
+## Quick Start
 
 ```bash
-export AIDLC_MEMORY_BACKEND=engram
-export AIDLC_ENGRAM_URL="http://127.0.0.1:7437"
-export AIDLC_ENGRAM_PROJECT="aidlc"
+# 1. Clone and enter the repo
+git clone <this-fork-url>
+cd <repo>
+
+# 2. Install AIDLC into your target project (Claude Code recommended)
+python3 aidlc-scripts/install_aidlc.py \
+    --tool claude \
+    --dest /path/to/your/project \
+    --with-agent-skills \
+    --with-codegraph \
+    --with-engram
+
+# 3. In your project, start an AIDLC run
+cd /path/to/your/project
+# Inside Claude Code:
+/factory-spec "Build a user authentication service with JWT"
 ```
 
-Realtime sharing notes (for small teams)
-
-For live sharing across a small team (e.g., 5 people), run a central Engram instance and add a small broadcast bridge (WebSocket or Server-Sent Events). Options:
-
-- Simple webhook/HTTP events from the manager
-- Redis Pub/Sub + WS bridge (recommended for reliability)
-- Polling Engram `/search` (simpler, higher latency)
-
-This repo contains the local primitives and the Engram client. A bridge and client UI/CLI are recommended next steps for realtime updates.
-
-Autonomous Memory Workflow
-
-AI-DLC wires the persistent memory into the orchestration so tools can both
-consume and produce persistent knowledge.
-
-- Injection (read): before each stage, a best-effort load from the local memory
-  (`.aidlc-memory/`) provides prior context.
-
-- Emission (write): observations can be persisted via `MemoryStore.remember()`
-  for the active `developer_id` so the knowledge is available for future sessions.
-
-Pipeline behavior
-
-- The workflow uses a skills-only architecture. Each stage references mandatory
-  skills from `.agents/skills/<name>/SKILL.md`. If skill files are not installed,
-  inline fallback processes embedded in stage rule files are used instead.
-
-Privacy and safety
-
-- Local-first: by default the `.aidlc-memory/` folder lives in the repo root and
-  is git-ignored. Use Engram only when you intentionally enable a central
-  backend (`AIDLC_MEMORY_BACKEND=engram`).
-- Sensitive keys (password, token, private, aws, etc.) are redacted from audit records.
-
-Quick run examples
-
-Install AI-DLC for your tool and run skills-driven development:
-
-```bash
-python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
-```
-
-- [Kiro](#kiro)
-- [Amazon Q Developer](#amazon-q-developer-ide-pluginextension)
-- [Cursor IDE](#cursor-ide)
-- [Cline](#cline)
-- [Claude Code](#claude-code)
-- [GitHub Copilot](#github-copilot)
-- [Other Agents](#other-agents)
+The orchestrator will walk you through:
+**Spec → Plan → Code → Review → Ship**, halting at each approval gate.
 
 ---
 
-### Kiro
+## What This Is
 
-AI-DLC uses [Kiro Steering Files](https://kiro.dev/docs/cli/steering/) within your project workspace.  
+The orchestrator is activated through `/factory-*` slash commands and executes
+**13 specialized stage subagents** with:
 
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
+- **Contract-validated handoffs** — every stage input/output is JSON-Schema-validated against `.aidlc-orchestrator/contracts/*.v1.json`.
+- **Parallel-safe codegen** — layered units run in parallel with file-glob locks and Python AST symbol-drift detection.
+- **Parallel reviewer pool** — code / security / performance / simplifier reviewers run concurrently.
+- **Persistent memory** — Engram captures decisions, ADRs, and conventions across sessions.
+- **Codebase intelligence** — CodeGraph provides a semantic knowledge graph for impact analysis and dead-code detection.
+- **Skills enforcement** — engineering process skills (testing, security, ADRs, etc.) are auto-attached per stage.
+- **Auto-commit on approval** — explicit user approvals trigger git commits with stage-tagged messages.
+- **Kill & resume** — interrupted runs resume from the last completed stage.
 
-On macOS/Linux:
-
-```bash
-mkdir -p .kiro/steering
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rules .kiro/steering/
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details .kiro/
-```
-
-On Windows (PowerShell):
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".kiro\steering"
-Copy-Item -Recurse "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules" ".kiro\steering\"
-Copy-Item -Recurse "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details" ".kiro\"
-```
-
-On Windows (CMD):
-
-```cmd
-mkdir .kiro\steering
-xcopy %USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules .kiro\steering\aws-aidlc-rules\ /E /I
-xcopy %USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details .kiro\aws-aidlc-rule-details\ /E /I
-```
-
-Your project should look like:
-
-```text
-<project-root>/
-    ├── .kiro/
-    │     ├── steering/
-    │     │      ├── aws-aidlc-rules/
-    │     ├── aws-aidlc-rule-details/
-```
-
-To verify the rules are loaded:
-
-#### Verify in Kiro IDE
-
-Open the steering files panel and confirm you see an entry for `core-workflow` under `Workspace` as shown in the screenshot below.
-
-<img src="./assets/images/kiro-ide-aidlc-rules-loaded.png?raw=true" alt="AI-DLC Rules in Kiro IDE" width="700" height="450">
-
-We use Kiro IDE in Vibe mode to run the AI-DLC workflow. This ensures that AI-DLC workflow guides the development workflow in Kiro. At times, Kiro may nudge you to switch to spec mode. Select `No` to such prompts to stay in Vibe mode.
-
-<img src="./assets/images/kiro-sdd-nudge.png?raw=true" alt="Staying in Kiro Vibe mode" width="500" height="175">
-
-#### Verify in Kiro CLI
-
-Run `kiro-cli`, then `/context show`, and confirm entries for `.kiro/steering/aws-aidlc-rules`.
-
-<img src="./assets/images/kiro-cli-aidlc-rules-loaded.png?raw=true" alt="AI-DLC Rules in Kiro CLI" width="700" height="660">
+The legacy single-agent AIDLC workflow from upstream still works on every supported tool.
+The multi-agent orchestrator is **Claude Code only** (it relies on the `Task()`
+spawn primitive); other tools fall back to the legacy flow automatically.
 
 ---
 
-### Amazon Q Developer IDE Plugin/Extension
+## Third-Party Components
 
-AI-DLC uses [Amazon Q Rules](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/context-project-rules.html) within your project workspace.
+This fork integrates several upstream and external projects. All are **opt-in**
+at install time.
 
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
-
-On macOS/Linux:
-
-```bash
-mkdir -p .amazonq/rules
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rules .amazonq/rules/
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details .amazonq/
-```
-
-On Windows (PowerShell):
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".amazonq\rules"
-Copy-Item -Recurse "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules" ".amazonq\rules\"
-Copy-Item -Recurse "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details" ".amazonq\"
-```
-
-On Windows (CMD):
-
-```cmd
-mkdir .amazonq\rules
-xcopy %USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules .amazonq\rules\aws-aidlc-rules\ /E /I
-xcopy %USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details .amazonq\aws-aidlc-rule-details\ /E /I
-```
-
-Your project should look like:
-
-```text
-<project-root>/
-    ├── .amazonq/
-    │     ├── rules/
-    │     │     ├── aws-aidlc-rules/
-    │     ├── aws-aidlc-rule-details/
-```
-
-To verify the rules are loaded:
-
-1. In the Amazon Q Chat window, click the `Rules` button in the lower right corner.
-2. Confirm you see entries for `.amazonq/rules/aws-aidlc-rules`.
-
-<img src="./assets/images/q-ide-aidlc-rules-loaded.png?raw=true" alt="AI-DLC Rules in Q Developer IDE plugin" width="700" height="400">
-
----
-
-### Cursor IDE
-
-AI-DLC uses [Cursor Rules](https://cursor.com/docs/context/rules) to implement its intelligent workflow.
-
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
-
-#### Option 1: Project Rules (Recommended)
-
-**Unix/Linux/macOS:**
-
-```bash
-mkdir -p .cursor/rules
-
-cat > .cursor/rules/ai-dlc-workflow.mdc << 'EOF'
----
-description: "AI-DLC (AI-Driven Development Life Cycle) adaptive workflow for software development"
-alwaysApply: true
----
-
-EOF
-cat ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md >> .cursor/rules/ai-dlc-workflow.mdc
-
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".cursor\rules"
-
-$frontmatter = @"
----
-description: "AI-DLC (AI-Driven Development Life Cycle) adaptive workflow for software development"
-alwaysApply: true
----
-
-"@
-$frontmatter | Out-File -FilePath ".cursor\rules\ai-dlc-workflow.mdc" -Encoding utf8
-
-Get-Content "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" | Add-Content ".cursor\rules\ai-dlc-workflow.mdc"
-
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-mkdir .cursor\rules
-
-(
-echo ---
-echo description: "AI-DLC (AI-Driven Development Life Cycle) adaptive workflow for software development"
-echo alwaysApply: true
-echo ---
-echo.
-) > .cursor\rules\ai-dlc-workflow.mdc
-
-type "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" >> .cursor\rules\ai-dlc-workflow.mdc
-
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-#### Option 2: AGENTS.md (Simple Alternative)
-
-**Unix/Linux/macOS:**
-
-```bash
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md ./AGENTS.md
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\AGENTS.md"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\AGENTS.md"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-**Verify Setup:**
-
-1. Open **Cursor Settings → Rules, Commands**
-2. Under **Project Rules**, you should see `ai-dlc-workflow` listed
-3. For `AGENTS.md`, it will be automatically detected and applied
-
-![AI-DLC Rules in Cursor](./assets/images/cursor-ide-aidlc-rules-loaded.png?raw=true "AI-DLC Rules in Cursor")
-
-**Directory Structure (Option 1):**
-
-```text
-<my-project>/
-├── .cursor/
-│   └── rules/
-│       └── ai-dlc-workflow.mdc
-└── .aidlc-rule-details/
-    ├── common/
-    ├── inception/
-    ├── construction/
-    ├── extensions/
-    └── operations/
-```
-
----
-
-### Cline
-
-AI-DLC uses Cline Rules to implement its intelligent workflow.
-
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
-
-#### Option 1: .clinerules Directory (Recommended)
-
-**Unix/Linux/macOS:**
-
-```bash
-mkdir -p .clinerules
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md .clinerules/
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".clinerules"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".clinerules\"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-mkdir .clinerules
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".clinerules\"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-#### Option 2: AGENTS.md (Alternative)
-
-**Unix/Linux/macOS:**
-
-```bash
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md ./AGENTS.md
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\AGENTS.md"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\AGENTS.md"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-**Verify Setup:**
-
-1. In Cline's chat interface, look for the Rules popover under the chat input field
-2. Verify that `core-workflow.md` is listed and active
-3. You can toggle the rule file on/off as needed
-
-![AI-DLC Rules in Cline](./assets/images/cline-ide-aidlc-rules-loaded.png?raw=true "AI-DLC Rules in Cline")
-
-**Directory Structure (Option 1):**
-
-```text
-<my-project>/
-├── .clinerules/
-│   └── core-workflow.md
-├── .aidlc-rule-details/
-│   ├── common/
-│   ├── inception/
-│   ├── construction/
-│   ├── extensions/
-│   └── operations/
-└── aidlc-scripts/
-    └── executors/
-```
-
----
-
-## Python virtual environment (prerequisite)
-
-The installer and factory scripts require Python 3.9+ with `pyyaml` and `jsonschema`.
-Set up a virtual environment before running anything:
-
-**macOS / Linux:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-**Windows (PowerShell):**
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-**Windows (CMD):**
-```cmd
-python -m venv .venv
-.venv\Scripts\activate.bat
-pip install -r requirements.txt
-```
-
-To deactivate the environment later:
-```bash
-deactivate
-```
-
-> If you skip the venv, you'll get `ModuleNotFoundError: No module named 'yaml'` when running the installer. The `requirements.txt` is created automatically by the installer — or you can install manually: `pip install pyyaml jsonschema`.
-
----
-
-### Install script
-
-You can use the bundled installer script to copy the AI-DLC rules and (optionally) agent skills into a project. The script lives at `aidlc-scripts/install_aidlc.py` and supports dry-run and non-interactive modes.
-
-Examples:
-
-```bash
-# Dry-run (shows planned actions, no files written)
-python aidlc-scripts/install_aidlc.py --tool cursor --dry-run
-
-# Install into a specific destination non-interactively
-python aidlc-scripts/install_aidlc.py --tool cursor --dest /path/to/project --yes
-
-# Install with agent skills (RECOMMENDED for full workflow enforcement)
-python aidlc-scripts/install_aidlc.py --tool copilot --dest /path/to/project --yes --with-agent-skills
-```
-
-Key options:
-
-- `--tool`: target agent (one of `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `opencode`, `codex`, `windsurf`, `other`)
-- `--dest`: destination path to install rules into (defaults to current directory; interactive prompt if omitted)
-- `--dry-run`: show planned changes without performing them
-- `--yes`: assume yes for confirmation prompts (useful for scripting / CI)
-- `--with-agent-skills`: install SKILL.md files from github.com/addyosmani/agent-skills
-- `--agent-skills-path`: use a local clone instead of fetching from GitHub
-- `--custom-skills-path <dir>`: install custom/project-specific skills from a directory.
-  Each subdirectory should contain a `SKILL.md`. Installed to `.agents/skills/`,
-  overriding agent-skills with the same name.
-- `--source`: optional path to a local `aidlc-rules` folder to use instead of the packaged rules
-- `--with-codegraph`: install CodeGraph semantic code graph (requires Node ≥ 18). Runs `npm install -g @colbymchenry/codegraph`, writes `.mcp.json` with the MCP server config, adds `.codegraph/` to `.gitignore`, and copies `aidlc-scripts/factory_codegraph.py`
-
-Note: when using `--with-agent-skills`, the installer will install agent skills into the destination project's `.agents/skills/` directory (the canonical location used by the workflow). Without skills installed, the workflow uses inline fallback processes embedded in each stage rule file.
-
-After running the installer, verify the created files for your target tool (for example: `.cursor/rules/ai-dlc-workflow.mdc` for Cursor, `.github/copilot-instructions.md` for Copilot, or `.kiro/steering/aws-aidlc-rules/` for Kiro).
-
----
-
-### Claude Code
-
-AI-DLC uses Claude Code's project memory file (`CLAUDE.md`) to implement its intelligent workflow.
-
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
-
-#### Option 1: Project Root (Recommended)
-
-**Unix/Linux/macOS:**
-
-```bash
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md ./CLAUDE.md
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\CLAUDE.md"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".\CLAUDE.md"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-#### Option 2: .claude Directory
-
-**Unix/Linux/macOS:**
-
-```bash
-mkdir -p .claude
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md .claude/CLAUDE.md
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".claude"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".claude\CLAUDE.md"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-mkdir .claude
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".claude\CLAUDE.md"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-**Verify Setup:**
-
-1. Start Claude Code in your project directory (CLI: `claude` or VS Code extension)
-2. Use the `/config` command to view current configuration
-3. Ask Claude: "What instructions are currently active in this project?"
-
-**Directory Structure (Option 1):**
-
-```text
-<my-project>/
-├── CLAUDE.md
-└── .aidlc-rule-details/
-    ├── common/
-    ├── inception/
-    ├── construction/
-    ├── extensions/
-    └── operations/
-```
-
----
-
-### GitHub Copilot
-
-AI-DLC uses [GitHub Copilot custom instructions](https://code.visualstudio.com/docs/copilot/customization/custom-instructions) to implement its intelligent workflow. The `.github/copilot-instructions.md` file is automatically detected and applied to all chat requests in the workspace.
-
-The commands below assume you extracted the zip to your `Downloads` folder. If you used a different location, replace `Downloads` with your actual folder path.
-
-**Unix/Linux/macOS:**
-
-```bash
-mkdir -p .github
-cp ~/Downloads/aidlc-rules/aws-aidlc-rules/core-workflow.md .github/copilot-instructions.md
-mkdir -p .aidlc-rule-details
-cp -R ~/Downloads/aidlc-rules/aws-aidlc-rule-details/* .aidlc-rule-details/
-```
-
-**Windows PowerShell:**
-
-```powershell
-New-Item -ItemType Directory -Force -Path ".github"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".github\copilot-instructions.md"
-New-Item -ItemType Directory -Force -Path ".aidlc-rule-details"
-Copy-Item "$env:USERPROFILE\Downloads\aidlc-rules\aws-aidlc-rule-details\*" ".aidlc-rule-details\" -Recurse
-```
-
-**Windows CMD:**
-
-```cmd
-mkdir .github
-copy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rules\core-workflow.md" ".github\copilot-instructions.md"
-mkdir .aidlc-rule-details
-xcopy "%USERPROFILE%\Downloads\aidlc-rules\aws-aidlc-rule-details" ".aidlc-rule-details\" /E /I
-```
-
-**Verify Setup:**
-
-1. Open VS Code with your project folder
-2. Open the Copilot Chat panel (Cmd/Ctrl+Shift+I)
-3. Select **Configure Chat** (gear icon) > **Chat Instructions** and verify that `copilot-instructions` is listed
-4. Alternatively, type `/instructions` in the chat input to view active instructions
-
-**Directory Structure:**
-
-```text
-<my-project>/
-├── .github/
-│   └── copilot-instructions.md
-└── .aidlc-rule-details/
-    ├── common/
-    ├── inception/
-    ├── construction/
-    ├── extensions/
-    └── operations/
-```
-
----
-
-### Other Agents
-
-AI-DLC works with any coding agent that supports project-level rules or steering files. The general approach:
-
-1. Place `aws-aidlc-rules/` wherever your agent reads project rules from (consult your agent's documentation).
-2. Place `aws-aidlc-rule-details/` at a sibling level so the rules can reference it.
-
-If your agent has no convention for rules files, place both folders at your project root and point the agent to `aws-aidlc-rules/` as its rules directory.
-
-See `aidlc-rules/adapters/generic.md` for a template you can adapt to any tool.
-
----
-
-## Advanced Features (This Fork)
-
-### Skills-Only Architecture
-
-This fork uses a **skills-only** architecture. There are no scripted subagents or external agent personas. Instead, every workflow stage references mandatory engineering process skills from `.agents/skills/<name>/SKILL.md`.
-
-**Where skills are resolved** (in order, first-found wins):
-
-1. `<project>/.agents/custom-skills/<skill-name>/SKILL.md` (project-specific, highest priority)
-2. `<project>/.agents/skills/<skill-name>/SKILL.md` (installed by script)
-3. `~/.agents/skills/<skill-name>/SKILL.md` (user-global fallback)
-
-Custom skills override agent-skills with the same name — useful for adding
-project-specific tooling (linters, build steps, compliance checks) on top of
-the standard skills.
-
-**Installing agent-skills:**
-
-```bash
-python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
-```
-
-**Bundled custom skills** live at `.agents/custom-skills/` in this repo and are
-auto-installed when the installer runs. Currently ships:
-
-- `code-review-and-quality` — extends the standard review skill with automated
-  linting, fixing, building, and testing before the five-axis review
-- `validator-retry` — static type/lint validator with compile-error-feedback retry loop (Piece 1 of the hallucination prevention stack; see below)
-- `environment-detection` — cross-platform detect-before-install discipline for runtimes
-- `codegraph-aware-exploration` — routes stage agents to CodeGraph MCP tools for targeted symbol lookups, blast-radius gating, dead-code detection, and hot-path tracing; falls back gracefully to grep/Read when `.codegraph/codegraph.db` is absent
-
-**Adding your own custom skills:**
-
-```bash
-# Option 1: Add to this repo under .agents/custom-skills/ (auto-installed)
-mkdir -p .agents/custom-skills/<skill-name>
-# Create .agents/custom-skills/<skill-name>/SKILL.md
-
-# Option 2: Point the installer at an external directory
-python aidlc-scripts/install_aidlc.py --tool claude --custom-skills-path /path/to/my-skills
-```
-
-Each skill directory needs a `SKILL.md` file with frontmatter (`name`,
-`description`). The directory name becomes the skill name.
-Custom skills override agent-skills with the same name.
-
-If skills are not installed, each stage rule file contains an **inline fallback process** so the workflow is never bypassed — it always enforces the skill's steps.
-
-**Skills by workflow phase:**
-
-| Phase | Skills |
-|-------|--------|
-| Inception | spec-driven-development, planning-and-task-breakdown, idea-refine, source-driven-development |
-| Construction | incremental-implementation, test-driven-development, code-review-and-quality, debugging-and-error-recovery, security-and-hardening, performance-optimization |
-| Operations | ci-cd-and-automation, shipping-and-launch, documentation-and-adrs |
-
-### Hallucination Prevention Stack
-
-Modern coding models are not reliably trained on the latest framework versions. This fork
-ships a 4-piece stack that eliminates hallucinated APIs and stale patterns **without you
-writing any per-framework knowledge** — the toolchain and community maintain it instead.
-
-| Piece | What it does | Who maintains the knowledge |
-|---|---|---|
-| **1. Validator-retry loop** | After each code-gen slice: runs `tsc --noEmit` / `pyright` / `cargo check` / `go vet` / `eslint`. Feeds compiler errors back to the model (max 3 retries). Blocks on persistent failure. | The toolchain (updated with each framework release) |
-| **2. Lockfile-aware skill activation** | `workspace-scout` parses `package.json`/`pyproject.toml`/`Cargo.toml`/`go.mod` into `tech_stack[]`. Stage agents only inject skills whose `applies_to` semver range covers the pinned version. | The lockfile (updated when you upgrade) |
-| **3. autoskills adapter** | `factory_autoskills.py` fetches community-maintained skills from `skill-sources.yaml`, verifies SHA-256, installs to `.agents/skills/`. | Community (autoskills registry) |
-| **4. Skill drift detector** | `factory_skill_drift.py` queries npm/PyPI/crates.io nightly and flags skills whose version range no longer covers the latest stable. | A scheduled check — you bump one line in `skill-sources.yaml` |
-
-**How the 7 failure modes are solved:**
-
-| Failure mode | Solved by |
-|---|---|
-| Hallucinated APIs | Piece 1 (validator catches them in < 2s) |
-| Outdated framework patterns | Pieces 2 + 3 (route current-version skills) |
-| Invalid migrations | Piece 3 (community `-upgrade` skills) |
-| Broken code generation | Piece 1 (compile-feedback retry) |
-| Dependency/version mismatch | Piece 2 (lockfile is the source of truth) |
-| Context overload from giant prompts | Piece 2 (only inject matching skills) |
-| Unstable behavior between models | Pieces 1 + 4 (validators are deterministic; drift bounds freshness) |
-
-**Usage:**
-
-```bash
-# Install community skills (fill sha256 in skill-sources.yaml first)
-python3 aidlc-scripts/factory_autoskills.py
-
-# Check for stale skills after a framework release
-python3 aidlc-scripts/factory_skill_drift.py --report
-
-# Preview what would be installed
-python3 aidlc-scripts/factory_autoskills.py --dry-run
-```
-
-### Skill installer scripts
-
-There are two complementary helper scripts to manage skills used by the workflow:
-
-- `aidlc-scripts/factory_autoskills.py`: installs **private or pinned** skills declared in `skill-sources.yaml` by downloading each `SKILL.md`, verifying a pinned `sha256`, and writing them to `.agents/skills/<name>/`. Use this for organization-specific or community-listed skills that you want to pin and verify.
-- `aidlc-scripts/factory_skill_sync.py`: runs the public `autoskills` CLI (`npx autoskills`) across workspace directories, collects the generated skills, and consolidates them into `.agents/skills/`. Use this to detect and install public framework skills automatically across monorepos (requires Node.js / npx).
-
-Use both together: `factory_skill_sync.py` brings in public/community skills detected per-workspace, while `factory_autoskills.py` lets you add and pin internal or third‑party skills not managed by `autoskills`.
-
-
-**Adding a community skill** — add an entry to `skill-sources.yaml`:
-
-```yaml
-sources:
-  - name: nextjs-15
-    url: https://raw.githubusercontent.com/autoskills-community/registry/main/skills/nextjs-15/SKILL.md
-    sha256: "<run: curl -sL <url> | shasum -a 256>"
-    applies_to:
-      framework: next
-      version: ">=15.0.0 <16.0.0"
-```
-
-Skills declare `applies_to` frontmatter. Universal skills (no `applies_to`) always load.
-Project-specific skills in `.agents/custom-skills/` override community skills with the same name.
-
-### Automatic Git Commits on Approvals
-
-When you explicitly approve a plan, a stage completion, a unit construction phase, or ask the workflow to "continue"/"next"/"approve", AI-DLC will automatically stage changes and create a git commit to record the approved artifacts.
-
-- What it does: runs `git add -A && git commit -m "<type>(<scope>): <description>"` to capture all generated artifacts and state updates.
-- Commit format:
-  - `<type>`: `docs` for plans/questions, `feat` for generated code, `build` for build/test artifacts
-  - `<scope>`: stage or unit name in kebab-case (e.g., `requirements-analysis`, `functional-design`)
-  - `<description>`: concise summary (e.g., "approve requirements analysis", "complete auth unit codegen")
-- Non-blocking: If `git` is not available, the repository is not initialized, or there is nothing to commit, AI-DLC logs a warning to `aidlc-docs/audit.md` and continues.
-
-This behavior is controlled by the Approval Protocol in `aidlc-rules/aws-aidlc-rule-details/common/stage-conventions.md`.
-
----
-
-### Multi-Agent Orchestrator (Claude Code)
-
-The orchestrator is a **second execution model** for the AI-DLC workflow. It runs the same rule files (`aidlc-rules/aws-aidlc-rule-details/inception/workspace-detection.md`, `requirements-analysis.md`, `code-generation.md`, …) but through 13 specialized Claude Code subagents instead of a single role-switching agent. The two workflows coexist by design — pick whichever fits the task.
-
-| | Legacy single-agent (`/spec`, `/plan`, …) | Multi-agent orchestrator (`/factory-spec`, …) |
-|---|---|---|
-| Driver | `CLAUDE.md` (= `core-workflow.md`) | `.claude/agents/orchestrator.md` + 13 stage subagents |
-| Tooling support | Copilot / Cursor / Cline / Amazon Q / Kiro / Claude Code | Claude Code only (uses `Task()` spawning) |
-| Execution | One agent, role-switches per stage | One subagent per stage, parallel where possible |
-| State | `aidlc-docs/` (committed) | `aidlc-docs/` + `.aidlc-orchestrator/runs/<run-id>/` (gitignored runtime: manifest, budget, timeline, locks, handoffs) |
-| Reviewer pool | Sequential | Parallel fan-out (code / security / performance / simplifier) |
-| Conflict handling | Manual | File-glob lock registry + Python/TS AST symbol-drift detection |
-| Budget enforcement | None | Pre-flight gate (ok / downshift / skip / halt) + post-flight reconciliation |
-| Knowledge persistence | Implicit (rule files) | engram-backed, project-scoped (`aidlc/<project>/<kind>/<slug>`) |
-| Crash recovery | Re-run | `/factory-resume <run-id>` (kill-and-resume preserves work) |
-| Legacy `aidlc-docs/` projects | Continue as-is | `/factory-resume` (no args) adopts them as a synthetic run |
-
-Both workflows read the **same rule files** — the rule corpus is the single source of truth. Each subagent's system prompt explicitly says "Follow the rule file: `aidlc-rules/aws-aidlc-rule-details/inception/<stage>.md`" and executes its declared steps. Skills (`.agents/skills/<name>/SKILL.md`) are mandatory in both paths.
-
-**When to use which:**
-
-- **Legacy** — small features, single-file changes, doc edits, non-Claude tools, or when you want minimum ceremony.
-- **Orchestrator** — multi-component features (parallel code-gen across units), brownfield refactors (where reverse-engineer adds value), runs you want to resume after a crash, or any time you want a stricter audit trail.
-
-**Slash commands** (Claude Code, after install):
-
-| Command | Stage(s) | Notes |
+| Component | Source | What it provides | How it's installed |
 |---|---|---|---|
-| `/factory-help [command]` | — | Command reference |
-| `/factory-state <run-id>` | — | Show run status, next stage, timeline |
-| `/factory-onboarding` | — | Guided tour of the orchestrator system |
-| `/factory-self <task>` | Full pipeline targeting orchestrator's own codebase | Self-hosting mode |
-| `/factory-spec <feature>` | workspace-scout + (reverse-engineer ask) + requirements-analyst | Phase 0 entrypoint |
-| `/factory-plan <run-id>` | workflow-planner + (optional) unit-decomposer + (optional) story-writer | Phase 1 |
-| `/factory-build <run-id>` | code-generator × N + build-test-agent × N (layer-parallel with locks + AST drift checks) | Phase 5 parallel construction |
-| `/factory-review <run-id>` | reviewer-{code, security, performance, simplifier} in parallel | Phase 4 reviewer pool |
-| `/factory-ship <run-id>` | ship-agent | Release notes, ADRs, CHANGELOG, CI/CD wiring |
-| `/factory-resume <run-id>` | resumes from last checkpoint; with no run-id, adopts legacy `aidlc-docs/` | Phase 6 |
-| `/factory-replay <run-id> --from <stage>` | re-runs from a chosen stage; archives prior outputs as `*.replay-<ts>.yaml` | Phase 6 |
+| **AWS Labs AI-DLC** | [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows) v0.2.0 | Core workflow rules in `aidlc-rules/` — the spec → plan → code → review → ship pipeline that this fork extends | Bundled in `aidlc-rules/` |
+| **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on) |
+| **CodeGraph MCP** | [@colbymchenry/codegraph](https://www.npmjs.com/package/@colbymchenry/codegraph) (npm) | Local semantic code knowledge graph + MCP tools (`codegraph_search`, `codegraph_callers`, `codegraph_impact`, etc.) for 92% fewer tool calls and 71% faster context retrieval | `--with-codegraph` (requires Node ≥ 18) |
+| **Engram** | Local persistent memory (MCP) | Cross-session memory: decisions, conventions, bug fixes, discoveries. Used by stage agents via `mem_save`, `mem_search`, etc. | `--with-engram` |
+| **Claude Code** | Anthropic CLI / IDE extension | The harness for the multi-agent orchestrator. The `Task()` primitive backs every stage spawn. | User-installed; the installer wires `.claude/` configuration |
+| **Custom Skills (this fork)** | `.agents/custom-skills/` | 21 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
+| **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
 
-**Installation:** the orchestrator artifacts ship with the installer. Use the `--with-orchestrator` flag (default yes when interactive):
-
-```bash
-python aidlc-scripts/install_aidlc.py --tool claude --with-orchestrator
-```
-
-This copies:
-
-- `.claude/agents/` — orchestrator + 13 stage subagents + 2 cross-cutting agents (knowledge / conflict-resolver)
-- `.claude/commands/factory-*.md` — 7 slash commands
-- `.aidlc-orchestrator/contracts/` — 20 JSON Schema handoff contracts
-- `.aidlc-orchestrator/budgets/default.yaml` — Per-stage model assignments
-- `aidlc-scripts/factory_{validate,merge_reviews,conflict,run,triage,audit_writes,secretscan,build_cache,model}.py` — runtime
-- `aidlc-scripts/factory_autoskills.py` — community skill fetcher + SHA-256 verifier
-- `aidlc-scripts/factory_skill_drift.py` — version-range drift detector (npm/PyPI/crates.io)
-- `aidlc-scripts/factory_codegraph.py` — CodeGraph status/check/affected-test helper (installed by `--with-codegraph`)
-- `skill-sources.yaml` — external skill registry (user-customizable; not overwritten on re-install)
-- `.gitignore` entries for `.aidlc-orchestrator/runs/`, `.aidlc-orchestrator/knowledge/`, and `.codegraph/` (when CodeGraph is enabled)
-- A pointer block appended to `CLAUDE.md` listing the `/factory-*` commands
-
-For non-Claude tools, the installer still copies the contracts and scripts (they're useful for manual validation) but skips the subagents — those tools run in degraded single-agent mode per `aidlc-rules/adapters/<tool>.md`.
-
-**Design doc:** [`ORCHESTRATOR-PLAN.md`](ORCHESTRATOR-PLAN.md) — phases 0-6, decisions, file layout, run lifecycle, and acceptance criteria. Live integration test findings: [`ORCHESTRATOR-LIVE-TEST-FINDINGS.md`](ORCHESTRATOR-LIVE-TEST-FINDINGS.md).
+> Every external dependency degrades gracefully. The orchestrator still runs
+> if CodeGraph or Engram is missing — those stages just lose the corresponding
+> intelligence.
 
 ---
 
-### Custom Subagents
+## Slash Commands Reference
 
-You can create your own specialized subagents for tasks not covered by the
-built-in stages (linting, compliance checks, legal review, etc.).
+All commands are invoked inside Claude Code. They live in `.claude/commands/`
+and route through the orchestrator agent at `.claude/agents/orchestrator.md`.
 
-**Creating a custom agent** — add a `.md` file to `.claude/agents/custom/` (or
-`.opencode/agents/custom/` for OpenCode) with frontmatter and body instructions:
+| Command | Phase | What it does |
+|---|---|---|
+| `/factory-onboarding` | Setup | Interactive walkthrough of the AIDLC orchestrator. Recommended first command for new users. |
+| `/factory-help` | Setup | Full command reference and getting-started instructions. |
+| `/factory-spec <feature>` | 0. Inception | Workspace detection + adaptive requirements analysis (two-pass — Q&A → spec). Produces `aidlc-docs/<run-id>-requirements.md`. |
+| `/factory-plan <run-id>` | 1. Planning | Generates the execution plan, optional user stories/personas, and per-unit decomposition. |
+| `/factory-product <feature>` | 0–1. Product | Combined run: workspace scout + requirements + personas + stories + execution plan. **Stops before code generation.** Useful for product-only iterations. |
+| `/factory-build <run-id>` | 5. Construction | Per-unit code generation + build/test. Layer-parallel (independent units run concurrently, layers sequential). Includes file-glob locks and AST symbol-drift checks. |
+| `/factory-review <run-id>` | 4. Review | Spawns the parallel reviewer pool: code quality, security, performance, simplification. Merges findings into a single report. |
+| `/factory-ship <run-id>` | 6. Ship | Release notes, ADRs, CHANGELOG, version proposal, optional CI/CD wiring, deprecation/migration plan. |
+| `/factory-state <run-id>` | Utility | Show run status: completed stages, current stage, next steps, budget, any blocking issues. |
+| `/factory-resume <run-id>` | Recovery | Resume an interrupted run from its last checkpoint. |
+| `/factory-replay <run-id> --from <stage>` | Recovery | Re-run from a specific stage. Rolls the manifest back and archives prior output handoffs. |
+| `/factory-code-tour` | Exploration | Dependency-ordered tour of an unfamiliar codebase: foundations → entry points. |
+| `/factory-self` | Meta | Run the AIDLC orchestrator **on its own codebase**. Use this to add features, fix bugs, or refactor the orchestrator scripts themselves. |
+
+A complete spec → ship sequence typically looks like:
+
+```
+/factory-spec "<feature>"        → review + approve requirements
+/factory-plan   <run-id>          → review + approve execution plan
+/factory-build  <run-id>          → review + approve per-unit code
+/factory-review <run-id>          → review + approve findings, apply fixes
+/factory-ship   <run-id>          → release notes + ADRs
+```
+
+---
+
+## Installation
+
+### Prerequisites
+
+- **Python 3.10+** (a `.venv` is created automatically by the installer)
+- **Git** (auto-commit on approval requires a git repo in the destination)
+- **Node ≥ 18** — only if installing CodeGraph (`--with-codegraph`)
+- **Claude Code** — required for the multi-agent orchestrator. Other tools (Kiro, Cursor, Cline, Amazon Q, GitHub Copilot, OpenCode, Codex, Windsurf) fall back to the legacy single-agent flow.
+
+### One-line install
+
+```bash
+python3 aidlc-scripts/install_aidlc.py \
+    --tool claude \
+    --dest /path/to/your/project \
+    --with-agent-skills \
+    --with-codegraph \
+    --with-engram \
+    --yes
+```
+
+### Installer flags
+
+| Flag | Default | What it controls |
+|---|---|---|
+| `--tool <name>` | required | `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `opencode`, `codex`, `windsurf`, `other`. Comma-separate for multiple. |
+| `--dest <path>` | `.` (cwd) | Project to install into. |
+| `--source <path>` | packaged | Override the rules source (advanced). |
+| `--with-agent-skills` | on | Install the 19 engineering-process skills from `addyosmani/agent-skills`. |
+| `--agent-skills-path <path>` | — | Use a local clone instead of cloning fresh. |
+| `--custom-skills-path <path>` | — | Add project-specific skills. Each subdirectory needs a `SKILL.md`. Overrides agent-skills with the same name. |
+| `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator (Claude Code only effective). |
+| `--with-codegraph` | off | Install CodeGraph npm package + write `.mcp.json`. |
+| `--with-engram` | off | Set up Engram persistent memory. CLI tools get the tool-specific command; MCP tools get an `.mcp.json` entry. |
+| `--with-design-system` | on | Install design-system tokens + UI skills. |
+| `--force` | off | Re-install / upgrade. Overwrites orchestrator files; preserves run state (`runs/`, `knowledge/`). |
+| `--no-venv` | off | Skip creating `.venv` and installing `requirements.txt`. |
+| `--dry-run` | off | Print planned actions without writing files. |
+| `--yes` | off | Skip all interactive prompts. |
+
+### What gets installed (Claude Code path)
+
+```
+<project>/
+├── aidlc-rules/                       # Upstream AWS AIDLC workflow rules
+├── .agents/skills/                    # Engineering skills (agent-skills + custom)
+├── .claude/
+│   ├── agents/
+│   │   ├── orchestrator.md            # Multi-agent orchestrator entry point
+│   │   ├── stage/                     # 13 stage subagents
+│   │   ├── cross-cutting/             # conflict-resolver, knowledge-agent
+│   │   └── custom/                    # Your custom agents (commit to repo)
+│   └── commands/                      # 13 /factory-* slash commands
+├── .aidlc-orchestrator/
+│   ├── runtime/                       # Runtime architecture docs
+│   ├── contracts/                     # JSON Schema handoff contracts
+│   ├── budgets/default.yaml           # Per-stage model assignments
+│   ├── runs/                          # Per-run state (gitignored)
+│   └── knowledge/                     # Project-scoped knowledge store (gitignored)
+├── aidlc-scripts/
+│   ├── install_aidlc.py               # The installer itself
+│   ├── factory_run.py                 # Run manager (manifest + timeline)
+│   ├── factory_conflict.py            # File-glob lock + AST drift detection
+│   ├── factory_merge_reviews.py       # Reviewer pool merger
+│   ├── factory_validate.py            # Handoff contract validator
+│   └── factory_*.py                   # ~33 runtime scripts
+├── .codegraph/                        # CodeGraph index (gitignored, regenerated)
+├── .mcp.json                          # MCP server registrations (codegraph, engram)
+├── CLAUDE.md                          # Project instructions (with /factory-* pointers)
+└── .venv/                             # Python virtual environment
+```
+
+### Verify the install
+
+```bash
+# Check orchestrator is wired
+python3 aidlc-scripts/factory_validate.py
+
+# List discovered agents (built-in + custom)
+python3 aidlc-scripts/factory_agent_discover.py list
+
+# Verify autoskills resolver
+python3 aidlc-scripts/factory_autoskills.py --dry-run
+
+# In Claude Code:
+/factory-help
+/factory-onboarding
+```
+
+---
+
+## Repository Layout
+
+| Path | Purpose |
+|---|---|
+| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules read by all stage agents |
+| `aidlc-rules/aws-aidlc-rule-details/` | Detailed per-stage rules (inception / construction / operations / extensions) |
+| `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, Cline, generic) |
+| `.claude/agents/orchestrator.md` | Multi-agent orchestrator entry point |
+| `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
+| `.claude/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
+| `.claude/agents/custom/` | Your custom subagents (auto-discovered) |
+| `.claude/commands/` | 13 `/factory-*` slash command definitions |
+| `.aidlc-orchestrator/runtime/` | Architecture docs (`index.md`, `spawn-loop.md`, `fast-path.md`, `recovery.md`, etc.) |
+| `.aidlc-orchestrator/contracts/` | JSON Schema input/output handoffs per stage |
+| `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments (haiku / sonnet / opus) |
+| `.agents/custom-skills/` | 21 fork-specific skills (highest priority in skill resolution) |
+| `aidlc-scripts/` | ~33 runtime Python scripts (`factory_*.py`) + the installer |
+| `aidlc-scripts/executors/` | Executor adapter implementations per the `executor.v1` contract |
+| `aidlc-docs/` | Generated artifacts from AIDLC runs |
+| `tests/` | Pytest suite (543 tests at time of writing) |
+
+---
+
+## Adding Custom Skills
+
+A **skill** is a reusable, scoped instruction set that stage agents auto-attach.
+Examples: enforce TDD, run a specific linter, follow a security checklist,
+validate design tokens.
+
+### Resolution order
+
+When a stage requests a skill, the resolver checks (first found wins):
+
+1. `.agents/custom-skills/<name>/SKILL.md` — project-specific (highest priority)
+2. `.agents/skills/<name>/SKILL.md` — installed via `--with-agent-skills`
+3. `~/.agents/skills/<name>/SKILL.md` — user-global fallback
+
+### Built-in custom skills (this fork)
+
+| Skill | What it does |
+|---|---|
+| `code-review-and-quality` | Multi-axis code review with auto-fix and build |
+| `validator-retry` | Static type/lint validator with compile-error feedback retry loop — eliminates hallucinated APIs |
+| `codegraph-aware-exploration` | Prefer `codegraph_*` MCP tools over grep/glob when `.codegraph/` exists |
+| `design-system-composer` | Compose UIs from `INDEX.md` primitives; never invent tokens |
+| `ui-constraint-validator` | Scan generated UI for hardcoded values and snap to design tokens |
+| `environment-detection` | Detect-before-install discipline for runtimes and package managers |
+| `requirements-intelligence` | Adaptive elicitation engine for the Requirements Analyst stage |
+| `secret-knowledge` | Curated reference catalog of CLI tools, security toolkits, one-liners |
+| `security-and-hardening` | OWASP-aware security review patterns |
+| `performance-optimization` | Hot-path analysis, allocation review, complexity checks |
+| `test-driven-development` | TDD enforcement: tests first, then code |
+| `documentation-and-adrs` | ADR templates + documentation conventions |
+| `shipping-and-launch` | Release notes, CHANGELOG, version-bump rules |
+| `deprecation-and-migration` | Safe deprecation patterns + migration plans |
+| `debugging-and-error-recovery` | Recovery patterns for failed stages |
+| `git-workflow-and-versioning` | Conventional commits, branch strategy, rebase rules |
+| `ci-cd-and-automation` | CI/CD pipeline patterns |
+| `code-simplification` | Anti-over-engineering review patterns |
+| `spec-driven-development` | Spec-first methodology |
+| `planning-and-task-breakdown` | Decomposition heuristics |
+| `browser-testing-with-devtools` | Chrome DevTools MCP patterns |
+
+### Create a new custom skill
+
+```bash
+mkdir -p .agents/custom-skills/my-skill
+cat > .agents/custom-skills/my-skill/SKILL.md <<'EOF'
+---
+name: my-skill
+description: One-line description used by the resolver to match relevance.
+type: process
+---
+
+# My Skill
+
+## When to use
+- Trigger condition 1
+- Trigger condition 2
+
+## How to apply
+1. Step one
+2. Step two
+
+## Reference
+- Link to internal doc or external standard
+EOF
+```
+
+The skill is picked up automatically on the next stage run. To verify:
+
+```bash
+python3 aidlc-scripts/factory_autoskills.py --dry-run | grep my-skill
+```
+
+### Commit custom skills to the repo
+
+```gitignore
+# In .gitignore — keep these committed
+!.agents/custom-skills/
+```
+
+---
+
+## Adding Custom Agents
+
+Custom agents are subagents the orchestrator can spawn alongside the built-in
+stages. Examples: lint auditor, compliance reviewer, legal-doc checker,
+performance profiler.
+
+### Create a custom agent
 
 ```bash
 mkdir -p .claude/agents/custom
-cat > .claude/agents/custom/my-agent.md << 'EOF'
+cat > .claude/agents/custom/my-agent.md <<'EOF'
 ---
-description: Describe what your agent does
-mode: subagent
-permission:
-  read: allow
-  edit: deny
-  bash: allow
+description: One-line description of what the agent does.
+model: sonnet
 ---
+
 # My Custom Agent
 
-Instructions for what the agent does.
+## Role
+Describe the agent's responsibility.
+
+## Inputs
+- What it reads from the input handoff.
+
+## Outputs
+- What it writes to the output handoff.
+
+## Process
+1. Step one
+2. Step two
 EOF
 ```
 
-The filename (without `.md`) becomes the agent name. OpenCode users also need
-`mode: subagent` and `permission` in frontmatter.
+The filename (without `.md`) becomes the agent name. Frontmatter requirements
+differ per platform:
 
-**Built-in example** — `lint-audit` is shipped in both `.claude/agents/custom/`
-and `.opencode/agents/custom/`. It runs the project's linter and reports
-violations without modifying files.
+- **Claude Code:** `description`, `model` (`haiku` / `sonnet` / `opus`)
+- **OpenCode:** add `mode: subagent` and a `permission` block
+- **Cursor:** `model: inherit`, plus `readonly` / `is_background` flags
 
-**Discover available agents:**
+### Discover and invoke
+
 ```bash
+# List all discovered agents (built-in + custom)
 python3 aidlc-scripts/factory_agent_discover.py list
-python3 aidlc-scripts/factory_agent_discover.py show lint-audit
+
+# Show one agent's metadata
+python3 aidlc-scripts/factory_agent_discover.py show my-agent
 ```
 
-**Using a custom agent** — the orchestrator can spawn any discovered agent
-via the standard `Task()` cycle with generic contracts:
-```yaml
-# Input: .aidlc-orchestrator/contracts/custom-agent.input.v1.json
-# Output: .aidlc-orchestrator/contracts/custom-agent.output.v1.json
+Inside the orchestrator, the agent is spawned with generic contracts at
+`.aidlc-orchestrator/contracts/custom-agent.input.v1.json` and
+`custom-agent.output.v1.json`:
+
+```python
+Task(subagent_type="custom/my-agent", prompt="<input-handoff-yaml-path>")
 ```
 
-```bash
-Task(subagent_type="custom/lint-audit", prompt=".../lint-audit.input.yaml")
-```
+### Default model assignment
 
-Custom agents default to `sonnet` model (configured in `budgets/default.yaml` as
-`custom-agent`). Override by adding an explicit entry for your agent name.
+Custom agents default to `sonnet` (configured in `.aidlc-orchestrator/budgets/default.yaml`
+under the `custom-agent` key). Override per-agent by adding an explicit entry.
 
-**Commit custom agents to the repo:**
+### Built-in custom agent example
+
+`lint-audit` ships in `.claude/agents/custom/` — it runs the project's linter
+and reports violations without modifying files. Use it as a template.
+
+### Commit custom agents to the repo
 
 ```gitignore
-# In .gitignore: keep these committed
-.claude/agents/custom/
-.opencode/agents/custom/
+# In .gitignore — keep these committed
+!.claude/agents/custom/
+!.opencode/agents/custom/
 ```
 
-### Tool Adapters
-
-Adapter files explain how to wire AI-DLC rules into each agentic coding tool. They live in `aidlc-rules/adapters/` and are informational only — the core rules stay unchanged.
-
-| File                                                              | Tool            |
-| ----------------------------------------------------------------- | --------------- |
-| [`adapters/copilot.md`](aidlc-rules/adapters/copilot.md)          | GitHub Copilot  |
-| [`adapters/cursor.md`](aidlc-rules/adapters/cursor.md)            | Cursor          |
-| [`adapters/claude-code.md`](aidlc-rules/adapters/claude-code.md)  | Claude Code     |
-| [`adapters/cline.md`](aidlc-rules/adapters/cline.md)              | Cline           |
-| [`adapters/generic.md`](aidlc-rules/adapters/generic.md)          | Codex CLI, Windsurf, any other agent |
-
-## Environment Variables
-
-- `AIDLC_ROOT` — Optional override for the repo root path used by factory scripts (`aidlc-scripts/factory_*.py`). Defaults to the parent of the `aidlc-scripts/` directory. Example: `AIDLC_ROOT=/path/to/repo python aidlc-scripts/factory_conflict.py ...`
-- `AIDLC_MODEL_<STAGE>` — Override model for a specific stage. Uppercase stage name with dashes → underscores. Example: `AIDLC_MODEL_CODE_GENERATOR=haiku python aidlc-scripts/factory_model.py resolve code-generator`
-
-## Usage
-
-There are two entry points; both run the same AI-DLC rules and produce artifacts under `aidlc-docs/`.
-
-### Legacy single-agent workflow (all tools)
-
-1. Start any software development project by stating your intent starting with the phrase **"Using AI-DLC, ..."** in the chat
-2. AI-DLC workflow automatically activates and guides you from there
-3. Answer structured questions that AI-DLC asks you
-4. Carefully review every plan that AI generates. Provide your oversight and validation
-5. Review the execution plan to see which stages will run
-6. Carefully review the artifacts and approve each stage to maintain control
-7. All the artifacts will be generated in the `aidlc-docs/` directory
-
-### Multi-agent orchestrator (Claude Code only)
-
-Requires installing with `--with-orchestrator` (see [Multi-Agent Orchestrator](#multi-agent-orchestrator-claude-code) above). Then in a Claude Code session at the project root:
-
-1. Invoke `/factory-spec <feature description>` — runs workspace-scout, asks whether to run reverse-engineer (brownfield-with-no-RE-artifacts only), then requirements-analyst (Pass 1 surfaces questions; you answer; Pass 2 writes `requirements.md`).
-2. Invoke `/factory-plan <run-id>` to produce the execution plan and (optionally) decompose into parallel units.
-3. Invoke `/factory-build <run-id>` to run code-generator + build-test-agent layer-parallel under file-glob locks with AST symbol-drift detection.
-4. Invoke `/factory-review <run-id>` to fan out all four reviewers in parallel and merge their findings.
-5. Invoke `/factory-ship <run-id>` for release notes, ADRs, CHANGELOG, optional CI/CD wiring.
-
-If a run crashes mid-flight, `/factory-resume <run-id>` picks up from the last checkpoint. Used without an argument it adopts an existing legacy `aidlc-docs/` project as a synthetic run.
-
-The run-scoped state (manifest, timeline, locks, knowledge-side handoffs) lives in `.aidlc-orchestrator/runs/<run-id>/` and is gitignored. The `aidlc-docs/` artifacts are committed exactly as in the legacy flow.
-
 ---
 
-## Three-Phase Adaptive Workflow
+## Configuration
 
-AI-DLC follows a structured three-phase approach that adapts to your project's complexity:
+### Environment variables
 
-### 🔵 INCEPTION PHASE
+| Variable | Purpose | Example |
+|---|---|---|
+| `AIDLC_ROOT` | Override the repo root used by factory scripts. Defaults to the parent of `aidlc-scripts/`. | `AIDLC_ROOT=/path/to/repo python3 aidlc-scripts/factory_validate.py` |
+| `AIDLC_MODEL_<STAGE>` | Override the model for a specific stage. Uppercase stage name with dashes → underscores. | `AIDLC_MODEL_CODE_GENERATOR=opus` |
 
-Determines **WHAT** to build and **WHY**
+### Per-stage model assignments
 
-- Requirements analysis and validation
-- User story creation (when applicable)
-- Application Design and creating units of work for parallel development
-- Risk assessment and complexity evaluation
+Edit `.aidlc-orchestrator/budgets/default.yaml`:
 
-### 🟢 CONSTRUCTION PHASE
-
-Determines **HOW** to build it
-
-- Detailed component design
-- Code generation and implementation
-- Build configuration and testing strategies
-- Quality assurance and validation
-
-### 🟡 OPERATIONS PHASE
-
-Deployment and monitoring (future)
-
-- Deployment automation and infrastructure
-- Monitoring and observability setup
-- Production readiness validation
-
----
-
-## Key Features
-
-| Feature                   | Description                                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Adaptive Intelligence** | Only executes stages that add value to your specific request                                              |
-| **Context-Aware**         | Analyzes existing codebase and complexity requirements                                                    |
-| **Risk-Based**            | Complex changes get comprehensive treatment, simple changes stay efficient                                |
-| **Question-Driven**       | Structured multiple-choice questions in files, not chat                                                   |
-| **Always in Control**     | Review execution plans and approve each phase                                                             |
-| **Extensible**            | Layer custom rules e.g. security, compliance, and organization-specific rules on top of the core workflow |
-
----
-
-## Extensions
-
-AI-DLC supports an extension system that lets you layer additional rules on top of the core workflow. Extensions are markdown files organized under `aws-aidlc-rule-details/extensions/` and grouped by category (e.g., `security/`, `testing/`).
-
-### How Extensions Work
-
-Each extension consists of two files placed in the same directory:
-
-- A **rules file** (e.g., `security-baseline.md`) containing the extension's rules.
-- An **opt-in file** (e.g., `security-baseline.opt-in.md`) containing a structured multiple-choice question presented to the user during Requirements Analysis.
-
-At workflow start, AI-DLC scans the `extensions/` directory and loads only `*.opt-in.md` files. During Requirements Analysis, it presents each opt-in prompt to the user. When the user opts in, the corresponding rules file is loaded (derived by naming convention: strip `.opt-in.md`, append `.md`). When the user opts out, the rules file is never loaded. Extensions without a matching `*.opt-in.md` file are always enforced.
-
-Once enabled, extension rules are blocking constraints — at each stage, the model verifies compliance before allowing the stage to proceed.
-
-### Built-in Extensions
-
-The `extensions/` directory ships with the following (new extensions may be added over time):
-
-```text
-aws-aidlc-rule-details/
-└── extensions/
-    ├── security/                      # Extension category
-    │   └── baseline/
-    │       ├── security-baseline.md          # Baseline security rules
-    │       └── security-baseline.opt-in.md   # Opt-in prompt
-    └── testing/                       # Extension category
-        └── property-based/
-            ├── property-based-testing.md          # Property-based testing rules
-            └── property-based-testing.opt-in.md   # Opt-in prompt
+```yaml
+stages:
+  workspace-scout:        haiku
+  requirements-analyst:   opus     # Two-pass; needs deep reasoning
+  workflow-planner:       opus
+  story-writer:           sonnet
+  unit-decomposer:        sonnet
+  code-generator:         opus
+  build-test-agent:       sonnet
+  reviewer-code:          sonnet
+  reviewer-security:      opus     # Security misses become incidents
+  reviewer-performance:   sonnet
+  reviewer-simplifier:    sonnet
+  ship-agent:             sonnet
+  custom-agent:           sonnet   # Default for custom agents
 ```
 
-> [!IMPORTANT]
-> The security extension rules are provided as a directional reference for building effective security rules within AI-DLC workflows. Each organization should build, customize, and thoroughly test their own security rules before deploying in production workflows.
+### Auto-commit on approval
 
-### Adding Your Own Extensions
+When the user explicitly approves a stage (signals: `approve`, `go ahead`,
+`continue`, `lgtm`, `dale`, `sí`, etc.), the orchestrator stages and commits
+the produced artifacts with a stage-tagged message. Commits never fire on a
+stage's internal `status: complete` — only on explicit user approval.
 
-You can extend an existing category or create an entirely new one.
-
-1. Create a directory under `extensions/` (e.g., `security/compliance/` or `performance/baseline/`).
-2. Add a **rules file** (e.g., `compliance.md`). Follow the same structure as `security-baseline.md`:
-   - Define each rule as a heading in the format `## Rule <PREFIX-NN>: <Title>` where the prefix is a short category identifier and NN is a sequential number (e.g., `COMPLIANCE-01`, `COMPLIANCE-02`). These IDs are referenced in audit logs and compliance summaries, so they must be unique across all loaded extensions.
-   - Include a **Rule** section describing the requirement.
-   - Include a **Verification** section with concrete checks the model should evaluate.
-3. Add a matching **opt-in file** using the naming convention `<name>.opt-in.md` (e.g., `compliance.opt-in.md`). See `security-baseline.opt-in.md` for the expected format. Omitting this file means the extension is always enforced with no user opt-out.
-4. Rules are blocking by default — if verification criteria are not met, the stage cannot proceed until the finding is resolved.
+To opt out, remove the `auto_commit_on_approval: true` line from
+`.aidlc-orchestrator/runtime/run-manager.md`.
 
 ---
 
-## Tenets
+## Keeping the Fork in Sync with Upstream
 
-These are our core principles to guide our decision making.
+To pull new releases from AWS Labs upstream while keeping this fork's
+extensions:
 
-- **No duplication**. The source of truth lives in one place. If we add support for new tools or formats that require specific files, we generate them from the source rather than maintaining separate copies.
+```bash
+# One-time setup
+git remote add upstream https://github.com/awslabs/aidlc-workflows
 
-- **Methodology first**. AI-DLC is fundamentally a methodology, not a tool. Users shouldn't need to install anything to get started. That said, we're open to convenience tooling (scripts, CLIs) down the road if it helps users adopt or extend the methodology.
+# Pull upstream changes
+git fetch upstream
+git merge upstream/main
+git push origin main
+```
 
-- **Reproducible**. Rules should be clear enough that different models produce similar outcomes. We know models behave differently, but the methodology should minimize variance through explicit guidance.
-
-- **Agnostic**. The methodology works with any IDE, agent, or model. We don't tie ourselves to specific tools or vendors.
-
-- **Human in the loop**. Critical decisions require explicit user confirmation. The agent proposes, the human approves.
-
----
-
-## Prerequisites
-
-Have one of our supported platforms/tools for Assisted AI Coding installed:
-
-| Platform                      | Installation Link                                                                                                                                               |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kiro                          | [Install](https://kiro.dev/)                                                                                                                                    |
-| Kiro CLI                      | [Install](https://kiro.dev/cli/)                                                                                                                                |
-| Amazon Q Developer IDE Plugin | [Install](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/q-in-IDE.html)                                                                               |
-| Cursor IDE                    | [Install](https://cursor.com/)                                                                                                                                  |
-| Cline VS Code Extension       | [Install](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)                                                                           |
-| Claude Code CLI               | [Install](https://github.com/anthropics/claude-code)                                                                                                            |
-| GitHub Copilot                | [Install](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) + [Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
+The merge will only touch `aidlc-rules/` (upstream-owned). Conflicts in
+fork-specific paths (`.claude/`, `.aidlc-orchestrator/`, `aidlc-scripts/`,
+`.agents/custom-skills/`) shouldn't occur — upstream doesn't ship those.
 
 ---
 
 ## Troubleshooting
 
-### General Issues
+### `python3 -m pytest` returns "No tests collected"
 
-| Problem                      | Solution                                                    |
-| ---------------------------- | ----------------------------------------------------------- |
-| Rules not loading            | Check file exists in the correct location for your platform |
-| File encoding issues         | Ensure files are UTF-8 encoded                              |
-| Rules not applied in session | Start a new chat session after file changes                 |
-| Rule details not loading     | Verify `.aidlc-rule-details/` exists with subdirectories    |
-
-### Platform-Specific Issues
-
-#### Kiro
-
-- Use `/context show` in Kiro CLI to verify rules are loaded
-- Check `.kiro/steering/` directory structure
-- Note: Kiro uses `aws-aidlc-rule-details` (not `.aidlc-rule-details/`) under the `.kiro/` directory
-
-#### Amazon Q Developer
-
-- Check `.amazonq/rules/` directory structure
-- Verify rules are listed in the Amazon Q Chat Rules panel
-- Note: Amazon Q uses `aws-aidlc-rule-details` (not `.aidlc-rule-details/`) under the `.amazonq/` directory
-
-#### Cursor
-
-- For "Apply Intelligently", ensure a description is defined in frontmatter
-- Check **Cursor Settings → Rules** to ensure the rule is enabled
-- If rule is too large (>500 lines), split into multiple focused rules
-
-#### Cline
-
-- Check the Rules popover under the chat input field
-- Toggle rule files on/off as needed using the popover UI
-
-#### Claude Code
-
-- Use `/config` command to view current configuration
-- Ask "What instructions are currently active in this project?"
-
-#### GitHub Copilot
-
-- Select **Configure Chat** (gear icon) > **Chat Instructions** to verify instructions are loaded
-- Type `/instructions` in the chat input to view active instruction files
-- Check that `.github/copilot-instructions.md` exists in your workspace root
-
-### File Path Issues on Windows
-
-- Use forward slashes `/` in file paths within markdown files
-- Windows paths with backslashes may not work correctly
-
----
-
-## Version Control Recommendations
-
-**Commit to repository:**
-
-```gitignore
-# These should be version controlled
-CLAUDE.md
-AGENTS.md
-.amazonq/rules/
-.amazonq/aws-aidlc-rule-details/
-.kiro/steering/
-.kiro/aws-aidlc-rule-details/
-.cursor/rules/
-.clinerules/
-.github/copilot-instructions.md
-.aidlc-rule-details/
-.agents/custom-skills/
-```
-
-**Commit to repository (orchestrator, if installed):**
-
-```gitignore
-# Orchestrator definitions are committed (source-of-truth)
-.claude/agents/
-.claude/commands/factory-*.md
-.aidlc-orchestrator/contracts/
-.aidlc-orchestrator/budgets/default.yaml
-aidlc-scripts/factory_*.py
-aidlc-scripts/VERSION
-# Hallucination prevention stack
-skill-sources.yaml
-# CodeGraph MCP server config (commit so all devs use the same server)
-.mcp.json
-```
-
-**Optional - Add to `.gitignore` (if needed):**
-
-```gitignore
-# Local-only settings
-.claude/settings.local.json
-
-# Orchestrator runtime state (per-run; never commit)
-.aidlc-orchestrator/runs/
-.aidlc-orchestrator/knowledge/
-.aidlc-orchestrator/build-cache/
-.aidlc-orchestrator/stats/
-
-# CodeGraph index (local, regenerated from source; do not commit)
-.codegraph/
-```
-
-The installer adds the runtime-state and `.codegraph/` lines to your project's `.gitignore` automatically when you use `--with-orchestrator` / `--with-codegraph`.
-
----
-
-## Generated aidlc-docs/ Reference
-
-For the complete reference of all documentation artifacts generated by the AI-DLC workflow, see [docs/GENERATED_DOCS_REFERENCE.md](docs/GENERATED_DOCS_REFERENCE.md).
-
----
-
-## Experimental: AI-Assisted Setup (Release Download)
-
-> Instead of manually copying files, let your AI agent handle the setup. This is an experimental workflow — currently validated with Kiro, Claude code, Cursor, Antigravity.
->
-> **Note:** This approach requires your agent to have shell access (e.g., Kiro, Claude Code, Cline). For agents without shell access, follow the [Common](#common) setup above.
-
-Paste this prompt into your AI agent:
-
-```text
-Set up AI-DLC in this project by doing the following:
-
-1. Download the latest AI-DLC release:
-   - Use the GitHub API to find the latest release asset URL:
-     curl -sL https://api.github.com/repos/awslabs/aidlc-workflows/releases/latest \
-       | grep -o '"browser_download_url": *"[^"]*"' \
-       | head -1 \
-       | cut -d'"' -f4
-   - Download the zip from that URL to /tmp/aidlc-rules.zip
-   - Extract it: unzip -o /tmp/aidlc-rules.zip -d /tmp/aidlc-release
-   - Copy the aidlc-rules/ folder from the extracted contents into .aidlc at the project root
-   - Clean up: rm -rf /tmp/aidlc-rules.zip /tmp/aidlc-release
-
-2. Create the appropriate rules/steering file for your IDE using the options below.
-   Pick the one that matches the agent you are running in:
-
-   - Kiro IDE or Kiro CLI     → create `.kiro/steering/ai-dlc.md`
-   - Amazon Q Developer       → create `.amazonq/rules/ai-dlc.md`
-   - Antigravity              → create `.agent/rules/ai-dlc.md`
-   - Cursor                   → create `.cursor/rules/ai-dlc.mdc` with frontmatter:
-                                  ---
-                                  description: "AI-DLC workflow"
-                                  alwaysApply: true
-                                  ---
-   - Cline                    → create `.clinerules/ai-dlc.md`
-   - Claude Code              → create `CLAUDE.md`
-   - GitHub Copilot           → create `.github/copilot-instructions.md`
-   - Any other agent          → create `AGENTS.md`
-
-3. The file content should be:
-   When the user invokes AI-DLC, read and follow
-   `.aidlc/aidlc-rules/aws-aidlc-rules/core-workflow.md` to start the workflow.
-
-4. Add `.aidlc` to `.gitignore` unless I explicitly ask you not to.
-
-5. Confirm what file you created and that `.aidlc` is gitignored.
-```
-
-The agent will download the latest release, create the correct config file for your IDE, and gitignore the `.aidlc` directory automatically.
-
-**Updating AI-DLC** — Re-run the prompt above. The agent will download the latest release and overwrite the existing `.aidlc/` folder.
-
----
-
-## Additional Resources
-
-<!-- TODO: Replace this Amplify URL with a permanent/stable URL when available -->
-| Resource                                            | Link                                                                                                                          |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| AI-DLC Method Definition Paper                      | [Paper](https://prod.d13rzhkk8cj2z0.amplifyapp.com/)                                                                          |
-| AI-DLC Methodology Blog                             | [AWS Blog](https://aws.amazon.com/blogs/devops/ai-driven-development-life-cycle/)                                             |
-| AI-DLC Open-source Launch Blog                      | [AWS Blog](https://aws.amazon.com/blogs/devops/open-sourcing-adaptive-workflows-for-ai-driven-development-life-cycle-ai-dlc/) |
-| AI-DLC Example Walkthrough Blog                     | [AWS Blog](https://aws.amazon.com/blogs/devops/building-with-ai-dlc-using-amazon-q-developer/)                                |
-| Amazon Q Developer Documentation                    | [Docs](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/q-in-IDE.html)                                                |
-| Kiro CLI Documentation                              | [Docs](https://kiro.dev/docs/cli/steering/)                                                                                   |
-| Cursor Rules Documentation                          | [Docs](https://cursor.com/docs/context/rules)                                                                                 |
-| Claude Code Documentation                           | [GitHub](https://github.com/anthropics/claude-code)                                                                           |
-| GitHub Copilot Documentation                        | [Docs](https://docs.github.com/en/copilot)                                                                                    |
-| Working with AI-DLC (interaction patterns and tips) | [docs/WORKING-WITH-AIDLC.md](docs/WORKING-WITH-AIDLC.md) |
-| Orchestrator Troubleshooting Guide                  | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)        |
-| Contract Schemas Reference                          | [.aidlc-orchestrator/contracts/REFERENCE.md](.aidlc-orchestrator/contracts/REFERENCE.md) |
-| Contributing Guidelines                             | [CONTRIBUTING.md](CONTRIBUTING.md)                        |
-| Code of Conduct                                     | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)                                                                                      |
-
----
-
-## Contributing
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## Secure Executor & Allowlist (Advanced)
-
-The manager delegates script execution to `aidlc-scripts/executors/runner.py`. By default it
-allows paths under `aidlc-scripts/`, `bin/`, and `.venv/bin/`. To allow additional base paths,
-edit `aidlc-scripts/executors/allowlist.txt` (one path per line, relative to repo root) or
-export `EXECUTOR_ALLOW_BASES` as a colon-separated list.
-
-```text
-# allowlist.txt — relative to repo root
-runs
-packages
-packages/*/workspace
-```
+A shell wrapper may be intercepting `python3`. Invoke the venv binary directly:
 
 ```bash
-export EXECUTOR_ALLOW_BASES="custom_tools:tools/bin"
+./.venv/bin/python -m pytest tests/
 ```
 
-The manager writes audit records to `runs/<run>/`. Review these and
-`aidlc-docs/` before approving any changes that involve script execution in your workspace.
-
-To auto-enable extensions during evaluation:
+### CodeGraph tools time out or return "index not ready"
 
 ```bash
-python3 aidlc-scripts/aidlc-evaluator/scripts/run_evaluation.py \
-    --scenario sci-calc --auto-enable-extensions
+# Re-index the workspace
+codegraph init -i
+
+# Verify status
+codegraph_status   # via MCP inside the agent
 ```
 
-This writes an opt-in state file at `runs/<run>/aidlc-docs/aidlc-state.yaml`.
+### `/factory-resume` says "no run to resume"
 
-## Roadmap
+Runs are stored in `.aidlc-orchestrator/runs/<run-id>/manifest.yaml`. List them:
 
-- [X] Implement skills-only architecture with mandatory enforcement
-- [X] Persistent memory across sessions and users
-- [X] Multi-agent orchestrator (Claude Code): 13 stage subagents + 2 cross-cutting agents, JSON Schema handoff contracts, parallel reviewer pool, file-glob locks + Python/TS AST drift detection, project-scoped engram knowledge store, kill-and-resume, legacy `aidlc-docs/` adoption
-- [ ] Live e2e Phases 1-6 (continue beyond Phase 0 spec → plan → build → review → ship)
-- [ ] Deep TS type-system drift (generics narrowing, conditional types) — needs `tsc --noEmit` or LSP integration
-- [ ] Auto-merge conflict resolution (currently escalation-only)
-- [ ] Mid-flight cancellation for runaway stages (blocked on Claude Code SDK Task() atomicity)
-- [ ] Probably shared memory in real time
-- [X] CodeGraph integration — semantic code knowledge graph (92% fewer tool calls, 71% faster) wired into all stage agents; blast-radius gating, dead-code detection, hot-path tracing; graceful fallback when absent
+```bash
+ls .aidlc-orchestrator/runs/
+python3 aidlc-scripts/factory_run.py list
+```
+
+### Stage spawn fails with "contract validation failed"
+
+The stage produced an output handoff that doesn't validate against its
+`.v1.json` schema. Read the validator output, then either:
+
+- Re-run the stage: `/factory-replay <run-id> --from <stage>`
+- Edit the output handoff manually and re-validate: `python3 aidlc-scripts/factory_validate.py <run-id>`
+
+### Skill not being applied
+
+Check resolution order and the autoskills resolver:
+
+```bash
+python3 aidlc-scripts/factory_autoskills.py --dry-run
+python3 aidlc-scripts/factory_skill_drift.py --report
+```
+
+### Engram memory tools not found
+
+```bash
+# Reinstall with --with-engram
+python3 aidlc-scripts/install_aidlc.py --tool claude --dest . --with-engram --force
+```
+
+---
 
 ## License
 
-This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.
+This library is licensed under the MIT-0 License. See [LICENSE](LICENSE).
+
+The upstream [AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)
+core rules retain their original MIT-0 license. Third-party components
+([`agent-skills`](https://github.com/addyosmani/agent-skills),
+[`codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph), Engram)
+are governed by their respective upstream licenses.
