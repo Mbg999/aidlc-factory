@@ -39,8 +39,15 @@ from skill_utils import discover_skills, find_workspace_dirs, sha256_file
 
 # ── Node.js prerequisite check ────────────────────────────────────────────────
 
-def _check_node() -> bool:
-    """Return True if Node.js >= 22.6.0 is available, False otherwise (non-fatal)."""
+NODE_MIN_VERSION = "22.6.0"
+
+
+def _check_node() -> tuple[bool, str]:
+    """Probe Node.js. Returns (ok, reason). reason is empty when ok=True.
+
+    On skip the reason is a single-line, human-readable explanation that
+    the orchestrator can copy verbatim into audit.md.
+    """
     try:
         result = subprocess.run(
             ["node", "--version"],
@@ -49,16 +56,10 @@ def _check_node() -> bool:
         raw = result.stdout.strip().lstrip("v")
         major = int(raw.split(".")[0]) if raw else 0
         if major < 22:
-            print(
-                f"WARNING: autoskills requires Node.js >= 22.6.0 "
-                f"(found {result.stdout.strip()}). Skill sync skipped.",
-                file=sys.stderr,
-            )
-            return False
-        return True
+            return False, f"Node.js v{raw} detected; autoskills requires >= {NODE_MIN_VERSION}"
+        return True, ""
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, IndexError):
-        print("WARNING: Node.js not found. Skill sync skipped.", file=sys.stderr)
-        return False
+        return False, "Node.js not found on PATH"
 
 
 # ── autoskills runner ─────────────────────────────────────────────────────────
@@ -230,7 +231,14 @@ def _cleanup_workspace_agents(
 # ── sync subcommand ───────────────────────────────────────────────────────────
 
 def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
-    if not _check_node():
+    ok, reason = _check_node()
+    if not ok:
+        # Single source of truth for skip messages — orchestrator copies these
+        # bullets verbatim into audit.md so the user never sees a contradiction
+        # like "synced" while the warning is buried in stderr.
+        print(f"[Sync] SKIPPED — {reason}")
+        print(f"[Sync] WARN: lockfile-aware skills will not be installed for this run")
+        print(f"[Sync] WARN: pre-shipped skills (`.agents/custom-skills/` and `.agents/skills/`) still apply")
         return 0  # graceful degradation — universal skills still apply
 
     workspace_dirs = find_workspace_dirs(repo_root)
@@ -296,10 +304,22 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
 
     skill_paths_resolved = custom_paths + framework_paths
 
+    warnings: list[str] = []
+    node_ok, node_reason = _check_node()
+    if not node_ok:
+        warnings.append(
+            f"autoskills sync was SKIPPED: {node_reason} — "
+            f"lockfile-aware skills are not in this set"
+        )
+    if not framework_paths and node_ok:
+        warnings.append(
+            "no framework skills resolved — autoskills detected no matching technologies"
+        )
+
     result = {
         "skill_paths_resolved": skill_paths_resolved,
         "skill_count": len(skill_paths_resolved),
-        "warnings": [],
+        "warnings": warnings,
     }
 
     if output_format == "json":

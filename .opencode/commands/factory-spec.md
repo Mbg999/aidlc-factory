@@ -62,8 +62,12 @@ Execute the Phase 0 sequence end-to-end:
    - Wait for explicit user approval before committing. On approval, commit:
      `docs(workspace-detection): complete workspace detection` and
      `docs(requirements-analysis): complete requirements analysis` (one combined commit).
-   - Offer next step: `/factory-plan <run-id>` (wired in Phase 1; for now,
-     remind the user that Phase 0 stops here)
+   - **Offer next step (substitute `<run-id>` literally):** run
+     `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+     the ready-to-paste command, OR format manually as `/factory-plan <RUN_ID_LITERAL>`
+     with the actual run_id (e.g. `2026-05-22T10-00-00Z-jwt-auth`).
+     **Never present `<run-id>` literally to the user.**
+     (wired in Phase 1; for now, remind the user that Phase 0 stops here)
 
 ## Hard rules (from @.opencode/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.

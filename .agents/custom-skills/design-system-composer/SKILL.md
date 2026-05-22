@@ -203,6 +203,12 @@ After code generation for each slice:
    `data-testid`. If missing → flag.
 
 4. **Autocorrect**: Run `ui-constraint-validator` skill on all generated UI files.
+   **Precondition:** `tokens/color.md` (and the rest of `tokens/*.md`) must be
+   present and non-empty. If missing, the validator emits `status: blocked` —
+   do NOT proceed with codegen until tokens are resolved. See
+   `ui-constraint-validator/SKILL.md` § 2d for the hard-fail rule and the
+   project-specific snap-table requirement (the hex values in that skill are
+   illustrative, not defaults).
 
 5. **Log deviations**: Add to output `ui_compliance[]`:
    ```json

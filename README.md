@@ -151,6 +151,33 @@ A complete spec → ship sequence typically looks like:
 
 ---
 
+## Working on this repo
+
+If you cloned this repo to **contribute to AIDLC itself** (rather than to
+install AIDLC into another project), bootstrap the dev environment first:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Both `install_aidlc.py` and the test suite rely on packages from
+`requirements.txt`. Without this step you'll see
+`ModuleNotFoundError: No module named 'yaml'` (or similar) on first run.
+
+Then verify the bootstrap:
+
+```bash
+pytest tests/
+```
+
+If green, you're ready to develop. If you're installing AIDLC into a
+*downstream* project, skip ahead to `## Installation` — the installer
+will create its own `.venv` in the destination automatically.
+
+---
+
 ## Installation
 
 ### Prerequisites

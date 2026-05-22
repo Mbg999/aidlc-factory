@@ -86,20 +86,46 @@ Snap rules:
 
 ### 2d. Color validator
 
+**MANDATORY precondition.** Step 1 of this skill MUST have loaded
+`tokens/color.md` via `factory_design_system_resolve.py resolve __tokens__`.
+If `tokens/color.md` is missing or empty, the validator MUST emit
+`status: blocked` with `[UIConstraint] no design tokens — cannot validate`
+in `audit_entries[]` and STOP. Do NOT fall back to the example mapping below.
+
 Search for raw hex values in `color`, `background`, `background-color`, `border-color`.
 
-Known hex mapping (from `tokens/color.md`):
+**Build the snap table from the project's `tokens/color.md` for every run.**
+The mapping below is an **ILLUSTRATIVE EXAMPLE** of the table's shape — these
+specific hex values apply ONLY to projects that use the default Tailwind
+palette. For any other project (custom brand colors, Material, Radix, etc.),
+derive a fresh table from `tokens/color.md` and use THOSE values. Do NOT use
+the values below as defaults.
+
+Example shape (illustrative — re-derive per project):
+| Raw hex (project-specific) | Replace with |
+|----------------------------|--------------|
+| `<project_primary_700_to_900>`         | `color.brand.primary` |
+| `<project_danger_500_to_700>`          | `color.semantic.danger` |
+| `<project_success_500_to_700>`         | `color.semantic.success` |
+| `<project_warning_500_to_600>`         | `color.semantic.warning` |
+| `<project_text_dark>`                  | `color.neutral.text-primary` |
+| `<project_text_muted>`                 | `color.neutral.text-secondary` |
+| `<project_surface>`                    | `color.neutral.surface` |
+| `<project_border>`                     | `color.neutral.border` |
+| `<project_bg>`                         | `color.neutral.bg` |
+
+Worked example (default Tailwind palette ONLY — do not copy):
 | Raw hex | Replace with |
 |---------|--------------|
-| `#2563EB`, `#1D4ED8`, `#1E40AF`, any blue-700+ | `color.brand.primary` |
-| `#EF4444`, `#DC2626`, `#B91C1C` | `color.semantic.danger` |
-| `#10B981`, `#059669`, `#047857` | `color.semantic.success` |
-| `#F59E0B`, `#D97706` | `color.semantic.warning` |
-| `#111827`, `#1F2937`, `#374151` | `color.neutral.text-primary` |
-| `#6B7280`, `#9CA3AF` | `color.neutral.text-secondary` |
-| `#F9FAFB` | `color.neutral.surface` |
-| `#E5E7EB` | `color.neutral.border` |
-| `#FFFFFF` | `color.neutral.bg` |
+| `#2563EB`, `#1D4ED8`, `#1E40AF` (blue-600..800) | `color.brand.primary` |
+| `#EF4444`, `#DC2626`, `#B91C1C` (red-500..700) | `color.semantic.danger` |
+| `#10B981`, `#059669`, `#047857` (emerald-500..700) | `color.semantic.success` |
+| `#F59E0B`, `#D97706` (amber-500..600) | `color.semantic.warning` |
+| `#111827`, `#1F2937`, `#374151` (gray-900..700) | `color.neutral.text-primary` |
+| `#6B7280`, `#9CA3AF` (gray-500..400) | `color.neutral.text-secondary` |
+| `#F9FAFB` (gray-50) | `color.neutral.surface` |
+| `#E5E7EB` (gray-200) | `color.neutral.border` |
+| `#FFFFFF` (white) | `color.neutral.bg` |
 
 ### 2e. Elevation validator
 

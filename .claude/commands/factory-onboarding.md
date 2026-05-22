@@ -3,6 +3,12 @@ description: Walk through the AIDLC orchestrator system. Learn how runs work, wh
 argument-hint: (no arguments needed)
 ---
 
+> **PRESENT THE FOLLOWING SECTIONS IN FULL TO THE USER.**
+> Do not summarize. Do not assume the user has seen this before.
+> Render every numbered section (1 through 8) as written, including code blocks
+> and tables. After section 8 ("Self-hosting"), wait for the user to ask a
+> follow-up question — do not auto-suggest a next command.
+
 # 🏭 AIDLC Orchestrator — Onboarding
 
 This guide walks through the multi-agent factory. If you just want to ship

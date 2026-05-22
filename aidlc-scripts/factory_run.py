@@ -289,40 +289,52 @@ def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> 
 
 
 def cmd_emit_audit_block(args: argparse.Namespace) -> None:
-    # Validate evt.
+    # Aggregate all validation errors so callers see the full requirement set
+    # in a single failure instead of fixing one missing arg at a time.
+    errors: list[str] = []
+
+    # evt is the dispatch key — if it's unknown, downstream rules are meaningless,
+    # so fail fast on that single error.
     if args.evt not in AUDIT_BLOCK_EVT_VOCABULARY:
         valid = ", ".join(sorted(AUDIT_BLOCK_EVT_VOCABULARY))
         _die(f"unknown evt: {args.evt!r}. Valid evt vocabulary: {valid}")
     rules = AUDIT_BLOCK_EVT_VOCABULARY[args.evt]
 
-    # Validate phase.
-    if args.phase not in VALID_PHASES:
-        _die(f"invalid phase: {args.phase!r}. Valid phases: {', '.join(VALID_PHASES)}")
+    if not args.phase:
+        errors.append(
+            f"--phase is required (one of: {', '.join(VALID_PHASES)})"
+        )
+    elif args.phase not in VALID_PHASES:
+        errors.append(
+            f"invalid phase: {args.phase!r}. Valid phases: {', '.join(VALID_PHASES)}"
+        )
 
-    # Validate stage if required.
+    if not args.label:
+        errors.append("--label is required")
+
     if rules["required_stage"] and not args.stage:
-        _die(f"evt {args.evt!r} requires --stage")
+        errors.append(f"evt {args.evt!r} requires --stage")
 
-    # Validate at least one bullet.
     if not args.bullet:
-        _die(f"at least one --bullet is required")
+        errors.append("at least one --bullet is required")
 
-    # Validate required fields and parse them.
     fields: dict = {}
     for kv in args.field or []:
         k, v = _parse_field(kv)
         fields[k] = v
     for required in rules["required_fields"]:
         if required not in fields:
-            _die(f"evt {args.evt!r} requires --field {required}=<value>")
+            errors.append(f"evt {args.evt!r} requires --field {required}=<value>")
+
+    if errors:
+        joined = "\n  - ".join(errors)
+        _die(
+            f"emit_audit_block invocation has {len(errors)} problem(s):\n  - {joined}"
+        )
 
     # Validate run exists (unless --ts is provided — retry semantics).
     if not args.ts:
         run_dir(args.run_id, must_exist=True)  # _die's if not found
-
-    # Validate label.
-    if not args.label:
-        _die("--label is required")
 
     # Determine ts: either explicit (retry) or fresh emit.
     if args.ts:
@@ -557,8 +569,43 @@ def _print_latency(run_id: str, manifest: dict) -> None:
     print("\n".join(lines))
 
 
+# Stage → next slash command. Higher stages in PHASE_ORDER override lower
+# ones so we always offer the deepest unmet phase. Single source of truth so
+# orchestrator prompts don't have to format `<run-id>` themselves.
+_NEXT_COMMAND_RULES = [
+    # (stages that, when completed, mean we're past this phase, next-command)
+    ({"workspace-scout", "requirements-analyst"}, "/factory-plan"),
+    ({"story-writer", "workflow-planner", "unit-decomposer"}, "/factory-build"),
+    ({"code-generator", "build-test-agent"}, "/factory-review"),
+    ({"reviewer-code", "reviewer-security", "reviewer-performance", "reviewer-simplifier"}, "/factory-ship"),
+]
+
+
+def _next_command(run_id: str, manifest: dict) -> str | None:
+    """Return the next-step slash command with run_id literally substituted.
+
+    Returns None when the run is finished (post ship-agent) or no progress
+    has been made yet.
+    """
+    completed = set(manifest.get("completed_stages", []))
+    if "ship-agent" in completed:
+        return None
+    # walk rules deepest-first so we offer the deepest unmet next-cmd
+    for stages, next_cmd in reversed(_NEXT_COMMAND_RULES):
+        if completed & stages:
+            return f"{next_cmd} {run_id}"
+    return None
+
+
 def cmd_status(args: argparse.Namespace) -> None:
     manifest = load_manifest(args.run_id)
+    if args.next_cmd:
+        nxt = _next_command(args.run_id, manifest)
+        if nxt:
+            print(nxt)
+        else:
+            print("", end="")  # silent — run finished or not started
+        return
     if args.latency:
         _print_latency(args.run_id, manifest)
         return
@@ -866,9 +913,9 @@ def main() -> None:
     p_eab.add_argument("--evt", required=True,
         help="one of: " + ", ".join(sorted(AUDIT_BLOCK_EVT_VOCABULARY)))
     p_eab.add_argument("--stage", help="stage_id (required for most evts)")
-    p_eab.add_argument("--phase", required=True,
+    p_eab.add_argument("--phase",
         help="one of: " + ", ".join(VALID_PHASES))
-    p_eab.add_argument("--label", required=True,
+    p_eab.add_argument("--label",
         help="block label, e.g. 'User Decision (workflow-planner)'")
     p_eab.add_argument("--field", action="append",
         help="evt-required fields: decision=, reason=, summary= (per evt)")
@@ -883,6 +930,8 @@ def main() -> None:
     p_status.add_argument("--json", action="store_true")
     p_status.add_argument("--latency", action="store_true",
                           help="print approval gate latency breakdown")
+    p_status.add_argument("--next-cmd", dest="next_cmd", action="store_true",
+                          help="print the next /factory-* slash command with run_id literally substituted; empty when run is finished")
     p_status.set_defaults(func=cmd_status)
 
     p_resume = sub.add_parser("resume")

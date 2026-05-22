@@ -28,7 +28,11 @@ Sequence:
 7. Surface report to user. Approval gate:
    - **Fixes requested** → route units back through `/factory-build <run-id>`
    - **Approved** → auto-commit `docs(review): complete review report`,
-     update state, offer `/factory-ship <run-id>`
+     update state, then **offer next step (substitute `<run-id>` literally):**
+     run `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd`
+     to get the ready-to-paste command, OR format manually as
+     `/factory-ship <RUN_ID_LITERAL>` with the actual run_id.
+     **Never present `<run-id>` literally to the user.**
 
 Hard rules from @.opencode/agents/orchestrator.md apply.
 

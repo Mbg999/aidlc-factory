@@ -1150,7 +1150,188 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
+    p.add_argument("--skip-preflight", action="store_true",
+                   help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
+                        "Use only if you know what you're doing — missing prereqs will "
+                        "surface as cryptic errors later in the install.")
     return p.parse_args()
+
+
+TOOL_DESCRIPTIONS = {
+    "cursor":   "Cursor editor — writes to .cursor/agents/ and .cursor/commands/",
+    "claude":   "Claude Code CLI — writes to .claude/agents/ and .claude/commands/",
+    "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
+    "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
+    "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
+}
+
+
+# ── Preflight prerequisite gate ──────────────────────────────────────────────
+
+
+def _parse_semver(raw: str) -> tuple[int, ...] | None:
+    """Extract a leading semver-ish tuple from a version string. None on failure."""
+    import re
+    m = re.search(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", raw)
+    if not m:
+        return None
+    return tuple(int(x) if x else 0 for x in m.groups())
+
+
+def _probe_version(cmd: list[str]) -> tuple[bool, str]:
+    """Run cmd and return (found, raw-version-string). found=False on any failure."""
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False, "not found"
+    if result.returncode != 0:
+        return False, "not found"
+    out = (result.stdout or result.stderr or "").strip().splitlines()
+    return (True, out[0]) if out else (True, "")
+
+
+# Each entry: (display_name, probe_cmd, min_version_tuple_or_None,
+#              required_when_predicate, install_url, install_hints[])
+def _preflight_specs(args: argparse.Namespace, tools: list[str] | None = None) -> list[tuple]:
+    """Build the preflight probe list. `tools` is the resolved tool list — when
+    None, conditional probes that depend on tool selection are skipped (caller
+    must run a second preflight pass after interactive tool selection)."""
+    tools = tools or []
+    with_engram = bool(getattr(args, "with_engram", False))
+    with_codegraph = bool(getattr(args, "with_codegraph", False))
+    using_agent_skills = bool(getattr(args, "with_agent_skills", True)) and not getattr(args, "agent_skills_path", None)
+
+    return [
+        (
+            "Python", ["python3", "--version"], (3, 10, 0),
+            lambda: True,
+            "https://www.python.org/downloads/",
+            ["python3 is required to run the installer and AIDLC factory scripts."],
+        ),
+        (
+            "Git", ["git", "--version"], None,
+            lambda: using_agent_skills,
+            "https://git-scm.com/downloads",
+            ["macOS:  xcode-select --install",
+             "Linux:  sudo apt-get install git   (or your distro equivalent)",
+             "Windows: download from https://git-scm.com/downloads"],
+        ),
+        (
+            "Node.js", ["node", "--version"], (22, 6, 0),
+            lambda: True,
+            "https://nodejs.org/en/download",
+            ["Recommended via nvm:",
+             "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash",
+             "  nvm install 22 && nvm use 22",
+             "macOS via brew: brew install node@22",
+             "Required for autoskills (skill sync layer) — Node < 22.6 means lockfile-aware skills will not be installed."],
+        ),
+        (
+            "npm", ["npm", "--version"], None,
+            lambda: True,
+            "https://nodejs.org/en/download",
+            ["npm ships with Node.js — install Node 22+ and npm comes with it."],
+        ),
+        (
+            "Claude Code CLI", ["claude", "--version"], None,
+            lambda: with_engram and "claude" in tools,
+            "https://docs.claude.com/claude-code",
+            ["macOS via brew: brew install anthropic/claude/claude",
+             "Or follow the official install at https://docs.claude.com/claude-code",
+             "Required because you selected --with-engram with the 'claude' tool."],
+        ),
+        (
+            "Engram CLI", ["engram", "--version"], None,
+            lambda: with_engram and "opencode" in tools,
+            "https://github.com/Gentleman-Programming/engram",
+            ["Follow the install instructions at https://github.com/Gentleman-Programming/engram",
+             "Required because you selected --with-engram with the 'opencode' tool."],
+        ),
+        (
+            "CodeGraph CLI", ["codegraph", "--version"], None,
+            lambda: with_codegraph,
+            "https://www.npmjs.com/package/@colbymchenry/codegraph",
+            ["After Node 22+ is installed:",
+             "  npm install -g @colbymchenry/codegraph",
+             "Required because you passed --with-codegraph."],
+        ),
+    ]
+
+
+PREFLIGHT_EXIT_CODE = 9
+
+
+def preflight_check(args: argparse.Namespace, tools: list[str] | None = None, label: str = "") -> int:
+    """Probe required tools BEFORE writing anything. Exit 9 on any failure.
+
+    Honours --dry-run by printing the checklist but never returning non-zero.
+    Honours --skip-preflight by returning 0 immediately.
+
+    `tools`: when None, conditional probes (claude/engram/codegraph CLIs) are
+    skipped. Call this function a SECOND time with the resolved tools list
+    once interactive tool selection completes.
+    `label`: short suffix appended to the header so multi-pass invocations are
+    distinguishable in output (e.g. "core" / "tool-specific").
+    """
+    if getattr(args, "skip_preflight", False):
+        print(f"--- Preflight check skipped (--skip-preflight){' — ' + label if label else ''} ---")
+        return 0
+
+    header = "--- Preflight check (prerequisites)"
+    if label:
+        header += f" — {label}"
+    header += " ---"
+    print(f"\n{header}")
+    specs = _preflight_specs(args, tools)
+    failures: list[tuple] = []
+    for name, cmd, min_v, required_when, url, hints in specs:
+        if not required_when():
+            print(f"  {name:18s} [skipped — not required for this install]")
+            continue
+        ok, raw = _probe_version(cmd)
+        if not ok:
+            failures.append((name, "missing", min_v, url, hints, raw))
+            print(f"  {name:18s} ❌ {raw}")
+            continue
+        if min_v is None:
+            print(f"  {name:18s} ✅ {raw}")
+            continue
+        parsed = _parse_semver(raw)
+        if parsed is None or parsed < min_v:
+            failures.append((name, "version_too_old", min_v, url, hints, raw))
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  {name:18s} ❌ {raw} (need >= {min_v_str})")
+        else:
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  {name:18s} ✅ {raw} (>= {min_v_str})")
+
+    if not failures:
+        print("  All prerequisites satisfied.\n")
+        return 0
+
+    if args.dry_run:
+        print(f"\n[DRY-RUN] {len(failures)} prerequisite(s) would block this install — continuing dry-run.\n")
+        return 0
+
+    print()
+    print("=" * 70)
+    print(f"❌ Cannot proceed — {len(failures)} prerequisite(s) missing.")
+    print("=" * 70)
+    for name, kind, min_v, url, hints, raw in failures:
+        print()
+        if kind == "missing":
+            print(f"  Missing: {name}")
+        else:
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  Outdated: {name} — detected {raw}, need >= {min_v_str}")
+        print(f"  Docs:    {url}")
+        for h in hints:
+            print(f"    {h}")
+    print()
+    print("Fix the failures above, then re-run this installer.")
+    print("(To bypass at your own risk, re-run with --skip-preflight.)")
+    print()
+    return PREFLIGHT_EXIT_CODE
 
 
 def ask_orchestrator(tools: list[str]) -> bool:
@@ -1158,22 +1339,42 @@ def ask_orchestrator(tools: list[str]) -> bool:
     tools_label = ", ".join(tools)
     native = [t for t in tools if t in ("claude", "opencode", "copilot")]
     degraded = [t for t in tools if t not in ("claude", "opencode", "copilot")]
+
+    print()
+    print("Install the AIDLC orchestrator?")
+    print(f"Target tool(s): {tools_label}")
+    print()
+    print("What it is:")
+    print("  The multi-agent factory that turns one feature request into a full")
+    print("  spec -> plan -> code -> tests -> reviews -> ship pipeline, driven")
+    print("  by specialized AI subagents with budgets and quality gates.")
+    print()
+    print("Without it:")
+    print("  AIDLC works in single-agent mode (you drive each stage manually).")
+    print("With it:")
+    print("  /factory-spec \"<feature>\" runs the whole pipeline for you.")
+
     if native and not degraded:
-        msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
-               f"  Includes: 13 stage subagents, 12 /factory-* slash commands,"
-               f"{len(ORCHESTRATOR_FACTORY_SCRIPTS)} factory_*.py scripts,\n"
-               f"  executor adapter package (claude-code + opencode), "
-               f"20+ JSON schema contracts, default budget policy, quality SLOs.\n"
-               f"  [Y/n]: ")
-    else:
+        print()
+        print("You get:")
+        print(f"  - 13 stage subagents and 12 /factory-* slash commands")
+        print(f"  - {len(ORCHESTRATOR_FACTORY_SCRIPTS)} factory_*.py scripts")
+        print(f"  - executor adapter package (claude-code + opencode)")
+        print(f"  - 20+ JSON schema contracts, default budget policy, quality SLOs")
+    elif degraded:
         deg_label = ", ".join(degraded)
-        msg = (f"Install the AIDLC orchestrator infrastructure for {tools_label}?\n"
-               f"  You'll get the factory_*.py scripts and contracts (usable for manual validation).\n"
-               f"  Subagent spawning is Claude Code only — for {deg_label} the multi-agent factory\n"
-               f"  runs in degraded mode (single-agent role-switching) per ORCHESTRATOR-PLAN.md §8.4.\n"
-               f"  [Y/n]: ")
+        print()
+        print("Note:")
+        print(f"  Native subagent spawning is Claude Code only.")
+        print(f"  For {deg_label} the factory runs in degraded mode")
+        print(f"  (single-agent role-switching) per ORCHESTRATOR-PLAN.md section 8.4.")
+        print(f"  You still get all factory_*.py scripts and contracts.")
+
+    print()
+    print("Recommended: yes.")
+    print("Example: press Enter to accept, type 'n' to skip.")
     try:
-        resp = input(msg).strip().lower()
+        resp = input("Install orchestrator? [Y/n]: ").strip().lower()
     except KeyboardInterrupt:
         return False
     return resp not in ("n", "no")
@@ -1182,46 +1383,89 @@ def ask_orchestrator(tools: list[str]) -> bool:
 def interactive_choose_tools() -> list[str]:
     """Prompt user to select one or more tools (comma-separated indices)."""
     choices = list(VALID_TOOLS)
-    print("Select the agentic coding tool(s) to install AI-DLC for:")
-    print("(One number, or comma-separated for multiple — e.g. '5,7')")
+    print()
+    print("Which agentic coding tool(s) do you use?")
+    print("AIDLC will install the integration files for each tool you select.")
+    print()
     for i, c in enumerate(choices, 1):
-        print(f" {i}) {c}")
+        desc = TOOL_DESCRIPTIONS.get(c, "")
+        print(f"  {i}) {c:9s} {desc}")
+    print()
+    print("Pick one number, or comma-separated for multiple.")
+    print("Examples:")
+    print("  '2'    -> Claude Code only")
+    print("  '2,4'  -> Claude Code + OpenCode")
     while True:
-        v = input("Enter number(s): ").strip()
+        try:
+            v = input("Your choice: ").strip()
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            sys.exit(1)
         if not v:
+            print("  Please enter a number from 1 to {}. Example: '2'.".format(len(choices)))
             continue
         try:
             indices = [int(x.strip()) - 1 for x in v.split(",") if x.strip()]
-            if indices and all(0 <= idx < len(choices) for idx in indices):
-                seen: set[str] = set()
-                out: list[str] = []
-                for idx in indices:
-                    name = choices[idx]
-                    if name not in seen:
-                        seen.add(name)
-                        out.append(name)
-                return out
-        except Exception:
-            pass
-        print("Invalid selection, try again")
+        except ValueError:
+            print(f"  That doesn't look right — enter numbers only (you entered: {v!r}).")
+            print(f"  Example: '2' or '2,4'.")
+            continue
+        if not indices:
+            print(f"  No numbers found in {v!r}. Example: '2' or '2,4'.")
+            continue
+        out_of_range = [i + 1 for i in indices if i < 0 or i >= len(choices)]
+        if out_of_range:
+            print(f"  Out of range: {out_of_range}. Valid: 1-{len(choices)}.")
+            continue
+        seen: set[str] = set()
+        out: list[str] = []
+        for idx in indices:
+            name = choices[idx]
+            if name not in seen:
+                seen.add(name)
+                out.append(name)
+        return out
+
+
+def _prompt_destination() -> Path:
+    """Prompt for install destination with examples + current-dir default."""
+    cwd = Path.cwd()
+    print()
+    print("Where should AIDLC be installed?")
+    print("This is the root of the project you want to add AIDLC to.")
+    print()
+    print("Examples:")
+    print("  .                           current directory")
+    print("  ~/projects/my-app           absolute path with home expansion")
+    print(f"  {cwd}   full absolute path")
+    print()
+    while True:
+        try:
+            resp = input(f"Destination [default: {cwd}]: ").strip().strip("'\"")
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            sys.exit(1)
+        if not resp:
+            return cwd
+        try:
+            return Path(resp).expanduser().resolve()
+        except (OSError, RuntimeError) as e:
+            print(f"  Could not resolve {resp!r}: {e}. Try again.")
 
 
 def main() -> int:
     args = parse_args()
-    # Determine destination root: prefer --dest, otherwise ask interactively
+
+    # Pass 1 — core preflight (python/git/node/npm + any conditional probes
+    # whose required_when() can be resolved from --tool/--with-* flags alone).
+    rc = preflight_check(args, tools=None, label="core")
+    if rc != 0:
+        return rc
+
     if args.dest:
         target_root = Path(args.dest).expanduser().resolve()
     else:
-        # prompt for destination path (default: current directory)
-        try:
-            resp = input(f"Destination path (default: {Path.cwd()}): ").strip().strip("'\"")
-        except KeyboardInterrupt:
-            print("\nAborted by user")
-            return 1
-        if resp:
-            target_root = Path(resp).expanduser().resolve()
-        else:
-            target_root = Path.cwd()
+        target_root = _prompt_destination()
     repo_root = Path(__file__).resolve().parent.parent
 
     if args.tool:
@@ -1232,6 +1476,14 @@ def main() -> int:
             return 2
     else:
         tools = interactive_choose_tools()
+
+    # Pass 2 — tool-conditional preflight. If the user picked --tool
+    # interactively (no CLI flag), conditional probes for claude / engram /
+    # codegraph CLIs need to fire NOW that tools are resolved.
+    if not args.tool:
+        rc = preflight_check(args, tools=tools, label="tool-specific")
+        if rc != 0:
+            return rc
 
     # Agent skills will be installed by default (no interactive prompt)
 

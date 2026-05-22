@@ -25,11 +25,28 @@ Sequence:
    - Output's `status: needs_human` is expected — surface `<run-id>-execution-plan.md`
      to user, wait for approval, log answer to audit, re-spawn or proceed
      based on user feedback
+3.5. **Pre-mortem visibility check (defensive guard).** Inspect
+   `workflow-planner.output.yaml` and append the following audit_entries
+   on contract violation:
+   - If `skill_compliance[]` row for `requirements-intelligence` is MISSING:
+     `[PlanPreMortem] missing — workflow-planner contract violation: no requirements-intelligence row in skill_compliance`
+   - If row present but no `[PlanPreMortem] …` bullet in audit_entries:
+     `[PlanPreMortem] orphan compliance row — workflow-planner emitted skill_compliance without matching audit_entry`
+   Continue execution — these guards log the violation without halting.
 4. **Conditional Unit Decomposer** — fire if `units.length >= 2` from the
    approved planner output OR if requirements call out distinct components.
 5. Append all `audit_entries[]`, update state file. Present the final plan +
    decomposition output to the user and wait for explicit approval before committing.
    On approval, commit `docs(workflow-planning): complete workflow planning`.
-6. Offer `/factory-build <run-id>`.
+
+   **User-facing summary MUST include a `Pre-mortem:` line populated from
+   `workflow-planner.output.skill_compliance[].requirements-intelligence`:**
+   - `Pre-mortem: PASS — <N> plan-risk question(s)`  (when status=PASS)
+   - `Pre-mortem: N/A — <evidence>`                  (when status=N/A)
+   - `Pre-mortem: MISSING — workflow-planner contract violation` (when absent)
+6. **Offer next step (substitute `<run-id>` literally):** Run
+   `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+   the ready-to-paste command, OR format manually as `/factory-build <RUN_ID_LITERAL>`
+   with the actual run_id. **Never present `<run-id>` literally to the user.**
 
 Hard rules from @.github/agents/orchestrator.md apply.

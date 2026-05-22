@@ -80,7 +80,12 @@ Steps:
    - Wait for explicit user approval before committing. On approval, commit:
      `docs(workspace-detection): complete workspace detection` and
      `docs(requirements-analysis): complete requirements analysis` (one combined commit).
-   - Next step: `/factory-plan <run-id>`
+   - **Next step (substitute `<run-id>` with the actual id):** Run
+     `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+     the ready-to-paste command, OR format manually as
+     `/factory-plan <RUN_ID_LITERAL>` with the actual run_id
+     (e.g. `2026-05-22T10-00-00Z-jwt-auth`).
+     **Never present `<run-id>` literally to the user.**
 
 ## Hard rules (from @.github/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.
