@@ -526,10 +526,16 @@ python3 aidlc-scripts/install_aidlc.py --tool claude --dest . --with-engram --fo
 
 ## License
 
-This library is licensed under the MIT-0 License. See [LICENSE](LICENSE).
+This project is licensed under the **Apache License, Version 2.0**. See
+[`LICENSE`](LICENSE).
 
-The upstream [AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)
-core rules retain their original MIT-0 license. Third-party components
-([`agent-skills`](https://github.com/addyosmani/agent-skills),
-[`codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph), Engram)
-are governed by their respective upstream licenses.
+Portions of this work derive from [AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)
+(Copyright Amazon.com, Inc. or its affiliates) originally distributed under
+the MIT No Attribution License. Those portions remain available under MIT-0;
+the combined work is distributed under Apache-2.0 as permitted by MIT-0.
+
+Third-party components ([`agent-skills`](https://github.com/addyosmani/agent-skills),
+[`codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph), Engram,
+Claude Code) are governed by their respective upstream licenses.
+
+Full third-party attribution and modification notes are in [`NOTICES.md`](NOTICES.md).
