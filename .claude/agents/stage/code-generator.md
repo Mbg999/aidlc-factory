@@ -78,21 +78,35 @@ Follow these rule files in order:
 5. `aidlc-rules/aws-aidlc-rule-details/construction/code-generation.md`
 
 ### Sub-stage 1: Plan
-Check `input.merged_plan_generate`. Two paths:
+
+> **HARD RULE — read this first.** When `fast_path` is NOT true, the plan
+> file at
+> `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
+> MUST be written to disk AND MUST appear in `artifacts[]` with `kind: plan`.
+> `merged_plan_generate: true` removes the *approval gate* — it does NOT
+> remove the *plan file*. The orchestrator now validates this with
+> `factory_validate.py --strict`; if the artifact or the file is missing,
+> the unit is rejected and surfaced as blocked before the next gate. Do not
+> rationalize skipping the plan because the work feels small — only the
+> `fast_path: true` input authorizes a no-plan run.
+
+Check `input.merged_plan_generate`. Two paths (both write the plan file):
 
 **Standard path** (`merged_plan_generate: false` or absent):
-Produce `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
-with task checkboxes per the construction rules. Each task is a thin slice.
-Emit `status: needs_human` with `sub_stage: plan` after the plan is written.
-**HALT.** The orchestrator will surface the plan, get approval, and re-spawn
-you with `context_pointers[]` indicating approval.
+Produce the plan file at the path above with task checkboxes per the
+construction rules. Each task is a thin slice. Add the file to
+`artifacts[]` as `{path: <plan-path>, kind: "plan"}`. Emit
+`status: needs_human` with `sub_stage: plan` after the plan is written.
+**HALT.** The orchestrator will surface the plan, get approval, and
+re-spawn you with `context_pointers[]` indicating approval.
 
 **Merged path** (`merged_plan_generate: true` — SMALL tier):
-Produce the same plan file, then **immediately proceed to code generation
-without halting**. Write the plan inline in `audit_entries[]` as a summary
-block before the first task. Emit `status: needs_human` with
-`sub_stage: generated` (not `plan`) when all tasks are done — the plan and
-code are presented together for a single approval gate.
+Produce the same plan file at the same path AND add it to `artifacts[]`
+the same way, then **immediately proceed to code generation without
+halting**. Write the plan inline in `audit_entries[]` as a summary block
+before the first task. Emit `status: needs_human` with `sub_stage: generated`
+(not `plan`) when all tasks are done — the plan and code are presented
+together for a single approval gate.
 
 ### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
 

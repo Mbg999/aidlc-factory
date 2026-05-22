@@ -45,10 +45,13 @@ Sequence:
       `plan` → `generated` → `approved`. For each:
         - Request N parallel `code-generator` subagent delegations (N = active set, ≤ 4)
         - Wait for all
-        - Per-unit post-processing: validate output, AST drift check
+        - Per-unit post-processing: validate output **with `--strict`**
+          (`factory_validate.py code-generator.output.v1.json <handoff> --strict`
+          — enforces plan-artifact existence on disk for non-fast_path runs;
+          catches silent skip of construction plan), AST drift check
           (`factory_conflict.py check-symbols`), budget deduct, knowledge save,
           audit append
-        - Surface any drift conflicts BEFORE the approval gate
+        - Surface any drift conflicts OR strict-validation failures BEFORE the approval gate
         - Consolidated approval gate (plan + generated only)
    c. **Build & Test parallel** — request N parallel `build-test-agent` delegations;
       per-unit post-processing; consolidated approval gate.

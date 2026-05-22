@@ -91,9 +91,21 @@ Active set = units that passed all gates.
 ### B.2 — Code generator (three sub-stages, parallel per sub_stage)
 Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
 1. Parallel `Task(subagent_type="code-generator", ...)` in ONE message (≤ 4).
-2. Wait for all returns. Per-unit post-processing (any order): validate output →
-   AST drift check → knowledge save → audit append.
-3. If AST drift conflict written, surface BEFORE approval gate.
+2. Wait for all returns. Per-unit post-processing (any order):
+   - **Validate output (strict)** — for every returned output handoff:
+     ```bash
+     python3 aidlc-scripts/factory_validate.py \
+         .aidlc-orchestrator/contracts/code-generator.output.v1.json \
+         <output-handoff-path> --strict
+     ```
+     `--strict` is MANDATORY: it enforces that any non-fast_path output with
+     `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
+     that the plan file actually exists on disk. This catches the silent-skip
+     failure where an agent claims `generated` without writing the construction
+     plan, which breaks downstream stages. On exit≠0: mark unit `blocked`, log
+     stderr to audit.md, DO NOT advance the unit, surface BEFORE the gate.
+   - AST drift check → knowledge save → audit append.
+3. If AST drift conflict OR strict-validation failure written, surface BEFORE approval gate.
 4. Approval gate: surface ALL units. User can approve all, reject specific units
    (re-plan with revised context), or cancel layer.
 
