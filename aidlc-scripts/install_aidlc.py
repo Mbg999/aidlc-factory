@@ -3,7 +3,7 @@
 install_aidlc.py
 
 Simple installer to copy AI-DLC rule files into the chosen agent integration
-location (Kiro, Amazon Q, Cursor, Cline, Claude Code, GitHub Copilot, Other).
+location (Cursor, Claude Code, GitHub Copilot, OpenCode, Other).
 
 Optionally fetches and installs engineering process skills from
 https://github.com/addyosmani/agent-skills.
@@ -11,7 +11,7 @@ https://github.com/addyosmani/agent-skills.
 Usage examples:
   python aidlc-scripts/install_aidlc.py --tool cursor
   python aidlc-scripts/install_aidlc.py --tool copilot --yes
-  python aidlc-scripts/install_aidlc.py --tool kiro --dry-run
+  python aidlc-scripts/install_aidlc.py --tool claude --dry-run
   python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 """
 from __future__ import annotations
@@ -206,8 +206,8 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 
 VALID_TOOLS = (
-    "kiro", "amazonq", "cursor", "cline", "claude",
-    "copilot", "opencode", "codex", "windsurf", "other",
+    "cursor", "claude",
+    "copilot", "opencode", "other",
 )
 
 
@@ -508,7 +508,6 @@ def _tool_agent_dir(tool: str) -> str:
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
-        "codex": ".codex/agents",
         "copilot": ".github/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
 
@@ -519,7 +518,6 @@ def _tool_commands_dir(tool: str) -> str:
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
-        "codex": ".codex/commands",
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -993,12 +991,11 @@ ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
         ["claude", "plugin", "install", "engram"],
     ],
     "opencode": [["engram", "setup", "opencode"]],
-    "codex":    [["engram", "setup", "codex"]],
 }
 
 # MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
 ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
-    {"cursor", "windsurf", "kiro", "cline", "copilot", "amazonq", "other"}
+    {"cursor", "copilot", "other"}
 )
 
 ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
@@ -1008,8 +1005,8 @@ ENGRAM_PROJECT_CONFIG_RELPATH = Path(".engram") / "project.json"
 def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
     """Wire Engram persistent memory for each selected tool.
 
-    CLI-native tools (claude, opencode, codex): runs the tool-specific setup command(s).
-    MCP-based tools (cursor, windsurf, …): merges the engram entry into .mcp.json.
+    CLI-native tools (claude, opencode): runs the tool-specific setup command(s).
+    MCP-based tools (cursor, copilot, …): merges the engram entry into .mcp.json.
     Always writes .engram/project.json with project_name = target_root.name.
     """
     import json
@@ -1143,7 +1140,7 @@ def parse_args() -> argparse.Namespace:
                         "Default: off — CodeGraph is opt-in.")
     p.add_argument("--with-engram", action="store_true", default=False,
                    help="Set up Engram persistent memory for the selected tool(s). "
-                        "CLI-native tools (claude, opencode, codex) run the tool-specific setup "
+                        "CLI-native tools (claude, opencode) run the tool-specific setup "
                         "command; MCP-based tools get an entry in .mcp.json. "
                         "Always writes .engram/project.json with the repo folder as project_name. "
                         "Default: off — Engram is opt-in.")

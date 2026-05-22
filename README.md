@@ -40,9 +40,10 @@ extensions live in new files.
 git clone <this-fork-url>
 cd <repo>
 
-# 2. Install AIDLC into your target project (Claude Code recommended)
+# 2. Install AIDLC into your target project
+#    --tool accepts: claude, cursor, copilot, opencode, other (comma-separate for multiple)
 python3 aidlc-scripts/install_aidlc.py \
-    --tool claude \
+    --tool <claude|cursor|copilot|opencode> \
     --dest /path/to/your/project \
     --with-agent-skills \
     --with-codegraph \
@@ -50,7 +51,7 @@ python3 aidlc-scripts/install_aidlc.py \
 
 # 3. In your project, start an AIDLC run
 cd /path/to/your/project
-# Inside Claude Code:
+# Inside your agentic coding tool (Claude Code, Cursor, Copilot Chat, or OpenCode):
 /factory-spec "Build a user authentication service with JWT"
 ```
 
@@ -73,9 +74,12 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Auto-commit on approval** — explicit user approvals trigger git commits with stage-tagged messages.
 - **Kill & resume** — interrupted runs resume from the last completed stage.
 
-The legacy single-agent AIDLC workflow from upstream still works on every supported tool.
-The multi-agent orchestrator is **Claude Code only** (it relies on the `Task()`
-spawn primitive); other tools fall back to the legacy flow automatically.
+The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
+Copilot, and OpenCode** — each ships with its own stage subagent tree under
+`.claude/agents/`, `.cursor/agents/`, `.github/agents/`, and `.opencode/agents/`
+respectively, and the installer wires the matching slash-command / prompt
+directory for that tool. `--tool other` falls back to the legacy single-agent
+workflow from upstream.
 
 ---
 
@@ -90,7 +94,7 @@ at install time.
 | **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on) |
 | **CodeGraph MCP** | [@colbymchenry/codegraph](https://www.npmjs.com/package/@colbymchenry/codegraph) (npm) | Local semantic code knowledge graph + MCP tools (`codegraph_search`, `codegraph_callers`, `codegraph_impact`, etc.) for 92% fewer tool calls and 71% faster context retrieval | `--with-codegraph` (requires Node ≥ 18) |
 | **Engram** | Local persistent memory (MCP) | Cross-session memory: decisions, conventions, bug fixes, discoveries. Used by stage agents via `mem_save`, `mem_search`, etc. | `--with-engram` |
-| **Claude Code** | Anthropic CLI / IDE extension | The harness for the multi-agent orchestrator. The `Task()` primitive backs every stage spawn. | User-installed; the installer wires `.claude/` configuration |
+| **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, or `.opencode/`) |
 | **Custom Skills (this fork)** | `.agents/custom-skills/` | 21 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
 | **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
 
@@ -102,8 +106,11 @@ at install time.
 
 ## Slash Commands Reference
 
-All commands are invoked inside Claude Code. They live in `.claude/commands/`
-and route through the orchestrator agent at `.claude/agents/orchestrator.md`.
+Commands are invoked from inside your agentic coding tool (Claude Code, Cursor,
+GitHub Copilot, or OpenCode). They live in the tool-specific commands directory
+(`.claude/commands/`, `.cursor/commands/`, `.github/prompts/`, or
+`.opencode/commands/`) and route through the orchestrator agent under that
+tool's agents directory (`<tool>/agents/orchestrator.md`).
 
 | Command | Phase | What it does |
 |---|---|---|
@@ -140,13 +147,17 @@ A complete spec → ship sequence typically looks like:
 - **Python 3.10+** (a `.venv` is created automatically by the installer)
 - **Git** (auto-commit on approval requires a git repo in the destination)
 - **Node ≥ 18** — only if installing CodeGraph (`--with-codegraph`)
-- **Claude Code** — required for the multi-agent orchestrator. Other tools (Kiro, Cursor, Cline, Amazon Q, GitHub Copilot, OpenCode, Codex, Windsurf) fall back to the legacy single-agent flow.
+- **An agentic coding tool** — Claude Code, Cursor, GitHub Copilot, or OpenCode. The multi-agent orchestrator runs natively on any of these. `--tool other` falls back to the legacy single-agent workflow.
+- **Engram** — required for persistent cross-session memory. Install per your tool:
+  - **Claude Code:** `claude plugin marketplace add Gentleman-Programming/engram && claude plugin install engram`
+  - **OpenCode:** `engram setup opencode`
+  - **Cursor / GitHub Copilot / others:** the installer writes an `.mcp.json` entry pointing at the `engram` MCP server (install the binary via the [Engram repo](https://github.com/Gentleman-Programming/engram))
 
 ### One-line install
 
 ```bash
 python3 aidlc-scripts/install_aidlc.py \
-    --tool claude \
+    --tool <claude|cursor|copilot|opencode> \
     --dest /path/to/your/project \
     --with-agent-skills \
     --with-codegraph \
@@ -158,13 +169,13 @@ python3 aidlc-scripts/install_aidlc.py \
 
 | Flag | Default | What it controls |
 |---|---|---|
-| `--tool <name>` | required | `kiro`, `amazonq`, `cursor`, `cline`, `claude`, `copilot`, `opencode`, `codex`, `windsurf`, `other`. Comma-separate for multiple. |
+| `--tool <name>` | required | `cursor`, `claude`, `copilot`, `opencode`, `other`. Comma-separate for multiple. |
 | `--dest <path>` | `.` (cwd) | Project to install into. |
 | `--source <path>` | packaged | Override the rules source (advanced). |
 | `--with-agent-skills` | on | Install the 19 engineering-process skills from `addyosmani/agent-skills`. |
 | `--agent-skills-path <path>` | — | Use a local clone instead of cloning fresh. |
 | `--custom-skills-path <path>` | — | Add project-specific skills. Each subdirectory needs a `SKILL.md`. Overrides agent-skills with the same name. |
-| `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator (Claude Code only effective). |
+| `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator. Effective for `claude`, `cursor`, `copilot`, `opencode`. |
 | `--with-codegraph` | off | Install CodeGraph npm package + write `.mcp.json`. |
 | `--with-engram` | off | Set up Engram persistent memory. CLI tools get the tool-specific command; MCP tools get an `.mcp.json` entry. |
 | `--with-design-system` | on | Install design-system tokens + UI skills. |
@@ -173,19 +184,31 @@ python3 aidlc-scripts/install_aidlc.py \
 | `--dry-run` | off | Print planned actions without writing files. |
 | `--yes` | off | Skip all interactive prompts. |
 
-### What gets installed (Claude Code path)
+### What gets installed
+
+The tree below uses Claude Code paths as an example. The agent + commands
+directories vary per `--tool`:
+
+| Tool | Agents dir | Commands / prompts dir | Workflow doc |
+|---|---|---|---|
+| `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` |
+| `cursor` | `.cursor/agents/` | `.cursor/commands/` | — |
+| `copilot` | `.github/agents/` | `.github/prompts/` (+ `.github/skills/`, `.vscode/settings.json`) | `.github/copilot-instructions.md` |
+| `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` |
+
+Everything outside the per-tool block is shared across all four tools.
 
 ```
 <project>/
 ├── aidlc-rules/                       # Upstream AWS AIDLC workflow rules
 ├── .agents/skills/                    # Engineering skills (agent-skills + custom)
-├── .claude/
+├── <tool>/                            # Per-tool orchestrator wiring (see table above)
 │   ├── agents/
 │   │   ├── orchestrator.md            # Multi-agent orchestrator entry point
 │   │   ├── stage/                     # 13 stage subagents
 │   │   ├── cross-cutting/             # conflict-resolver, knowledge-agent
 │   │   └── custom/                    # Your custom agents (commit to repo)
-│   └── commands/                      # 13 /factory-* slash commands
+│   └── commands/ (or prompts/)        # 13 /factory-* slash commands or prompt files
 ├── .aidlc-orchestrator/
 │   ├── runtime/                       # Runtime architecture docs
 │   ├── contracts/                     # JSON Schema handoff contracts
@@ -201,7 +224,6 @@ python3 aidlc-scripts/install_aidlc.py \
 │   └── factory_*.py                   # ~33 runtime scripts
 ├── .codegraph/                        # CodeGraph index (gitignored, regenerated)
 ├── .mcp.json                          # MCP server registrations (codegraph, engram)
-├── CLAUDE.md                          # Project instructions (with /factory-* pointers)
 └── .venv/                             # Python virtual environment
 ```
 
@@ -217,7 +239,7 @@ python3 aidlc-scripts/factory_agent_discover.py list
 # Verify autoskills resolver
 python3 aidlc-scripts/factory_autoskills.py --dry-run
 
-# In Claude Code:
+# Inside your agentic coding tool (Claude Code, Cursor, Copilot Chat, OpenCode):
 /factory-help
 /factory-onboarding
 ```
@@ -230,12 +252,13 @@ python3 aidlc-scripts/factory_autoskills.py --dry-run
 |---|---|
 | `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules read by all stage agents |
 | `aidlc-rules/aws-aidlc-rule-details/` | Detailed per-stage rules (inception / construction / operations / extensions) |
-| `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, Cline, generic) |
-| `.claude/agents/orchestrator.md` | Multi-agent orchestrator entry point |
-| `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
-| `.claude/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
-| `.claude/agents/custom/` | Your custom subagents (auto-discovered) |
-| `.claude/commands/` | 13 `/factory-*` slash command definitions |
+| `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, OpenCode, generic) |
+| `.claude/`, `.cursor/`, `.github/`, `.opencode/` | Per-tool agent + commands trees (kept in parity — same orchestrator, stages, and cross-cutting agents; frontmatter differs per tool) |
+| `<tool>/agents/orchestrator.md` | Multi-agent orchestrator entry point |
+| `<tool>/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
+| `<tool>/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
+| `<tool>/agents/custom/` | Your custom subagents (auto-discovered) |
+| `<tool>/commands/` (or `.github/prompts/`) | 13 `/factory-*` slash command / prompt definitions |
 | `.aidlc-orchestrator/runtime/` | Architecture docs (`index.md`, `spawn-loop.md`, `fast-path.md`, `recovery.md`, etc.) |
 | `.aidlc-orchestrator/contracts/` | JSON Schema input/output handoffs per stage |
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments (haiku / sonnet / opus) |
@@ -336,9 +359,12 @@ performance profiler.
 
 ### Create a custom agent
 
+Replace `<tool>` with your tool's agents directory: `.claude/agents`,
+`.cursor/agents`, `.github/agents`, or `.opencode/agents`.
+
 ```bash
-mkdir -p .claude/agents/custom
-cat > .claude/agents/custom/my-agent.md <<'EOF'
+mkdir -p <tool>/agents/custom
+cat > <tool>/agents/custom/my-agent.md <<'EOF'
 ---
 description: One-line description of what the agent does.
 model: sonnet
@@ -362,11 +388,16 @@ EOF
 ```
 
 The filename (without `.md`) becomes the agent name. Frontmatter requirements
-differ per platform:
+differ per tool:
 
 - **Claude Code:** `description`, `model` (`haiku` / `sonnet` / `opus`)
-- **OpenCode:** add `mode: subagent` and a `permission` block
 - **Cursor:** `model: inherit`, plus `readonly` / `is_background` flags
+- **GitHub Copilot:** `description`, `tools` allowlist
+- **OpenCode:** add `mode: subagent` and a `permission` block
+
+If you want the same custom agent available in every tool, drop a copy under
+each tool's `agents/custom/` directory (the file body can be identical; only
+frontmatter differs).
 
 ### Discover and invoke
 
@@ -393,14 +424,17 @@ under the `custom-agent` key). Override per-agent by adding an explicit entry.
 
 ### Built-in custom agent example
 
-`lint-audit` ships in `.claude/agents/custom/` — it runs the project's linter
-and reports violations without modifying files. Use it as a template.
+`lint-audit` ships in each tool's `agents/custom/` directory (`.claude/`,
+`.cursor/`, `.github/`, `.opencode/`) — it runs the project's linter and
+reports violations without modifying files. Use it as a template.
 
 ### Commit custom agents to the repo
 
 ```gitignore
 # In .gitignore — keep these committed
 !.claude/agents/custom/
+!.cursor/agents/custom/
+!.github/agents/custom/
 !.opencode/agents/custom/
 ```
 
@@ -518,8 +552,8 @@ python3 aidlc-scripts/factory_skill_drift.py --report
 ### Engram memory tools not found
 
 ```bash
-# Reinstall with --with-engram
-python3 aidlc-scripts/install_aidlc.py --tool claude --dest . --with-engram --force
+# Reinstall with --with-engram (substitute your tool: claude, cursor, copilot, opencode)
+python3 aidlc-scripts/install_aidlc.py --tool <tool> --dest . --with-engram --force
 ```
 
 ---
@@ -536,6 +570,7 @@ the combined work is distributed under Apache-2.0 as permitted by MIT-0.
 
 Third-party components ([`agent-skills`](https://github.com/addyosmani/agent-skills),
 [`codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph), Engram,
-Claude Code) are governed by their respective upstream licenses.
+and the supported agentic coding tools — Claude Code, Cursor, GitHub Copilot,
+OpenCode) are governed by their respective upstream licenses.
 
 Full third-party attribution and modification notes are in [`NOTICES.md`](NOTICES.md).

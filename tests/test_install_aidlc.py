@@ -538,15 +538,11 @@ class TestEngramIntegration:
         assert "opencode" in install_aidlc.ENGRAM_CLI_SETUP
         assert install_aidlc.ENGRAM_CLI_SETUP["opencode"] == [["engram", "setup", "opencode"]]
 
-    def test_engram_cli_setup_has_codex(self):
-        assert "codex" in install_aidlc.ENGRAM_CLI_SETUP
-        assert install_aidlc.ENGRAM_CLI_SETUP["codex"] == [["engram", "setup", "codex"]]
-
     def test_engram_mcp_tools_has_cursor(self):
         assert "cursor" in install_aidlc.ENGRAM_MCP_TOOLS
 
-    def test_engram_mcp_tools_has_windsurf(self):
-        assert "windsurf" in install_aidlc.ENGRAM_MCP_TOOLS
+    def test_engram_mcp_tools_has_copilot(self):
+        assert "copilot" in install_aidlc.ENGRAM_MCP_TOOLS
 
     def test_engram_mcp_entry_shape(self):
         e = install_aidlc.ENGRAM_MCP_ENTRY
@@ -606,8 +602,8 @@ class TestEngramIntegration:
         import json
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
-        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
-        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
         config = json.loads((project_dir / ".mcp.json").read_text())
         assert list(config["mcpServers"].keys()).count("engram") == 1
 
