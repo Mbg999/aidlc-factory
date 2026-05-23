@@ -54,7 +54,7 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
 `validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
 `api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`

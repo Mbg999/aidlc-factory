@@ -42,7 +42,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge`, `validator-retry`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge`, `validator-retry`, `browser-testing-with-devtools*`.
 
 **Lockfile-aware skill loading:** Before loading any framework skill, read `manifest.workspace_state.tech_stack[]`.
 Load a skill only if its `applies_to.framework` + `applies_to.version` range matches an entry in `tech_stack[]`.

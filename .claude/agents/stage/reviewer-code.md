@@ -25,7 +25,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
    `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, and `code-review-and-quality`. It may also include
+   `codegraph-aware-exploration`, `library-docs-with-context7`, and `code-review-and-quality`. It may also include
    framework skills propagated from the build phase (e.g., `angular-developer`,
    `typescript-advanced-types`). Load every skill file present — they sharpen your review
    for the specific frameworks and idioms in the generated code.

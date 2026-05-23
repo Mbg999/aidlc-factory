@@ -80,7 +80,9 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Design system enforcement** — `design-system-composer` composes UIs exclusively from `design-system/INDEX.md` primitives. After each generation slice `ui-constraint-validator` scans for hardcoded spacing, radius, typography, color, and elevation values and auto-corrects them to the nearest canonical token. Slices with >3 deviations are blocked for human review instead of silently producing non-compliant UI.
 - **API hallucination elimination** — `validator-retry` runs static type-check and linter feedback in a loop after every code-generation unit. Compile errors caused by hallucinated APIs or wrong signatures are fed back to the generator for correction before the stage exits — not caught at runtime or by the user.
 - **Curated, verified tool catalog** — `secret-knowledge` gives every stage agent a reference catalog of CLI tools, security toolkits, performance profilers, and shell one-liners sourced from the Book of Secret Knowledge. Every recommended command passes a verification gate (tool exists, syntax correct, platform-appropriate, no hallucinated URLs) to prevent fabricated tool names from reaching generated scripts.
-- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_custom_skills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time.
+- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_custom_skills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time. Node ≥ 22.12 is auto-bootstrapped via `fnm`, `volta`, or `nvm` when missing; the sync silently degrades if no Node manager is available, so it never blocks a run.
+- **Library doc grounding (Context7 MCP)** — the installer ships a project-local MCP server entry for [Context7](https://github.com/upstash/context7), and a `library-docs-with-context7` custom skill routes every framework / SDK / CLI / cloud-service question through Context7's `resolve-library-id` → `query-docs` two-call protocol before falling back to WebFetch, WebSearch, or training-data recall. The skill is wired into `code-generator`, `build-test-agent`, and `reviewer-code` so subagents inherit the directive (MCP `instructions` blocks are session-level only).
+- **Browser testing (Chrome DevTools MCP)** — the installer ships a project-local MCP server entry for [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp), giving the `browser-testing-with-devtools` skill a real driver for click / fill / screenshot / Lighthouse / network-trace operations during build-test and review stages.
 
 The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
 Copilot, and OpenCode** — each ships with its own stage subagent tree under
@@ -102,6 +104,8 @@ at install time.
 | **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on) |
 | **CodeGraph MCP** | [@colbymchenry/codegraph](https://www.npmjs.com/package/@colbymchenry/codegraph) (npm) | Local semantic code knowledge graph + MCP tools (`codegraph_search`, `codegraph_callers`, `codegraph_impact`, etc.) for 92% fewer tool calls and 71% faster context retrieval | `--with-codegraph` (requires Node ≥ 18) |
 | **Engram** | Local persistent memory (MCP) | Cross-session memory: decisions, conventions, bug fixes, discoveries. Used by stage agents via `mem_save`, `mem_search`, etc. | `--with-engram` |
+| **Context7 MCP** | [upstash/context7](https://github.com/upstash/context7) | Version-aware library / SDK / CLI documentation. Two-call protocol: `resolve-library-id` → `query-docs`. Subagents reach it via the `library-docs-with-context7` skill. | Bundled. The installer copies per-tool MCP configs (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `opencode.json`) referencing `npx -y @upstash/context7-mcp`. |
+| **Chrome DevTools MCP** | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Real Chrome driver for click / fill / screenshot / Lighthouse / network-trace / performance-trace from any stage agent. Backs the `browser-testing-with-devtools` skill. | Bundled in the same per-tool MCP configs (`npx -y chrome-devtools-mcp@latest`). |
 | **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, or `.opencode/`) |
 | **Custom Skills (this fork)** | `.agents/custom-skills/` | 21 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
 | **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
@@ -181,7 +185,8 @@ will create its own `.venv` in the destination automatically.
 
 - **Python 3.10+** (a `.venv` is created automatically by the installer)
 - **Git** (auto-commit on approval requires a git repo in the destination)
-- **Node ≥ 18** — only if installing CodeGraph (`--with-codegraph`)
+- **Node ≥ 18** — only if installing CodeGraph (`--with-codegraph`). The bundled Context7 and Chrome DevTools MCP servers run via `npx` and inherit your tool's Node runtime at use-time (no install-time check).
+- **Node ≥ 22.12 — optional, auto-bootstrapped** for `autoskills` framework-skill sync. If your system Node is older, `factory_skill_sync.py` tries `fnm`, `volta`, and `nvm` in that order (and runs `nvm install 22` once if nvm is available but Node 22 is missing). If no Node version manager is found, the sync silently skips — pre-shipped skills still apply.
 - **An agentic coding tool** — Claude Code, Cursor, GitHub Copilot, or OpenCode. The multi-agent orchestrator runs natively on any of these. `--tool other` falls back to the legacy single-agent workflow.
 - **Engram** — required for persistent cross-session memory. Install per your tool:
   - **Claude Code:** `claude plugin marketplace add Gentleman-Programming/engram && claude plugin install engram`
@@ -307,12 +312,14 @@ python3 aidlc-scripts/install_aidlc.py \
 The tree below uses Claude Code paths as an example. The agent + commands
 directories vary per `--tool`:
 
-| Tool | Agents dir | Commands / prompts dir | Workflow doc |
-|---|---|---|---|
-| `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` |
-| `cursor` | `.cursor/agents/` | `.cursor/commands/` | — |
-| `copilot` | `.github/agents/` | `.github/prompts/` (+ `.github/skills/`, `.vscode/settings.json`) | `.github/copilot-instructions.md` |
-| `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` |
+| Tool | Agents dir | Commands / prompts dir | Workflow doc | MCP config |
+|---|---|---|---|---|
+| `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` | `.mcp.json` (`mcpServers`) |
+| `cursor` | `.cursor/agents/` | `.cursor/commands/` | — | `.cursor/mcp.json` (`mcpServers`) |
+| `copilot` | `.github/agents/` | `.github/prompts/` (+ `.github/skills/`, `.vscode/settings.json`) | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
+| `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
+
+Each MCP config registers two locally-run, npx-driven servers: `@upstash/context7-mcp` (library docs) and `chrome-devtools-mcp@latest` (browser driver). The installer never overwrites an existing config — use `--force` to replace.
 
 Everything outside the per-tool block is shared across all four tools.
 
@@ -341,7 +348,10 @@ Everything outside the per-tool block is shared across all four tools.
 │   ├── factory_validate.py            # Handoff contract validator
 │   └── factory_*.py                   # ~33 runtime scripts
 ├── .codegraph/                        # CodeGraph index (gitignored, regenerated)
-├── .mcp.json                          # MCP server registrations (codegraph, engram)
+├── .mcp.json                          # MCP server registrations (claude: context7, chrome-devtools, codegraph, engram)
+├── .cursor/mcp.json                   # Same servers, Cursor format (when --tool cursor)
+├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot)
+├── opencode.json                      # Same servers, OpenCode format (when --tool opencode)
 └── .venv/                             # Python virtual environment
 ```
 
@@ -409,6 +419,7 @@ When a stage requests a skill, the resolver checks (first found wins):
 | `code-review-and-quality` | Multi-axis code review with auto-fix and build |
 | `validator-retry` | Static type/lint validator with compile-error feedback retry loop — eliminates hallucinated APIs |
 | `codegraph-aware-exploration` | Prefer `codegraph_*` MCP tools over grep/glob when `.codegraph/` exists |
+| `library-docs-with-context7` | Route every library / SDK / CLI / cloud-service question through the Context7 MCP server (`resolve-library-id` → `query-docs`) before WebFetch, WebSearch, or training-data recall. Wired into `code-generator`, `build-test-agent`, `reviewer-code`. |
 | `design-system-composer` | Compose UIs from `INDEX.md` primitives; never invent tokens |
 | `ui-constraint-validator` | Scan generated UI for hardcoded values and snap to design tokens |
 | `environment-detection` | Detect-before-install discipline for runtimes and package managers |
