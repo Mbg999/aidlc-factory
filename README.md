@@ -14,11 +14,8 @@ every stage and traceable artifacts at every step.
 > Generative AI can make mistakes. Review every AI-generated artifact and
 > associated cost before approving a stage.
 
-This repository has its base in **[AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)**
-(v0.2.0) that adds a multi-agent orchestrator, a skills enforcement layer,
-hallucination prevention, CodeGraph integration, persistent memory, and a
-contract-validated stage pipeline. The upstream rules remain unchanged; all
-extensions live in new files.
+This repository is based on **[AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)** (v0.1.8), taking its inception -> construction -> operations flow as a reference, AIDLC-Factory adds a multi-agent orchestrator, a skills application layer,
+hallucination prevention, quality gates, CodeGraph integration, persistent memory with Engram, a contract-validated stage pipeline, and much more!
 
 ---
 
