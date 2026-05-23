@@ -6,7 +6,7 @@
   "required": ["status", "unit_name", "build_status", "tests_total", "tests_passing", "tests_failing", "artifacts", "audit_entries", "skill_compliance"],
   "properties": {
     "status": { "type": "string", "enum": ["complete", "blocked", "failed", "needs_human"] },
-    "unit_name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "build_status": { "type": "string", "enum": ["success", "failed"] },
     "tests_total": { "type": "integer", "minimum": 0 },
     "tests_passing": { "type": "integer", "minimum": 0 },

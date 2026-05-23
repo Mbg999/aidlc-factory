@@ -5,11 +5,11 @@
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "unit_name", "skills_required", "skill_paths_resolved"],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "stage_id": { "const": "code-generator" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Includes execution-plan and (if decomposed) the unit spec" },
-    "unit_name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "unit_spec_path": { "type": "string", "description": "Path to unit spec YAML. Required for non-fast-path code generation." },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 4, "default": ["using-agent-skills", "incremental-implementation", "test-driven-development", "source-driven-development"] },
     "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },

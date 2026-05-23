@@ -13,7 +13,7 @@
   "properties": {
     "run_id": {
       "type": "string",
-      "pattern": "^[a-z0-9-]+$",
+      "pattern": "^[a-zA-Z0-9-]+$",
       "description": "Lower-kebab run identifier, e.g. 2026-05-08T14-23-00Z-auth-rewrite"
     },
     "stage_id": { "const": "workspace-scout" },

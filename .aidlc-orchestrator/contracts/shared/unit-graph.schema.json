@@ -14,7 +14,7 @@
         "description": "A single wave — units in this array can be spawned in parallel.",
         "items": {
           "type": "string",
-          "pattern": "^[a-z0-9-_]+$",
+          "pattern": "^[a-zA-Z0-9-_]+$",
           "description": "Unit name as declared in unit-decomposer output."
         },
         "minItems": 1,

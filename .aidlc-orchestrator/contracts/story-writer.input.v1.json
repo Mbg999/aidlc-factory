@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "skills_required", "skill_paths_resolved"],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "stage_id": { "const": "story-writer" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
