@@ -66,11 +66,14 @@ or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For e
 that declares `applies_to` frontmatter, only load it if:
   1. `applies_to.framework` matches a `package` in `tech_stack[]`, AND
   2. the skill's `applies_to.version` semver range covers the pinned `version` in `tech_stack[]`.
-Skills with no `applies_to` are universal — always load them. Log each decision with `[Skills]` prefix.
+Skills with no `applies_to` are universal — always load them. Log each decision:
+```
+[Skills] nextjs-15 LOADED — next@15.1.0 in range >=15.0.0 <16.0.0
+[Skills] nextjs-14 SKIPPED — next@15.1.0 outside range >=14.0.0 <15.0.0
+[Skills] environment-detection LOADED — universal (no applies_to)
+```
 
-**`environment-detection` runs FIRST** — before any code that requires a runtime, package manager,
-or build tool. Check `command -v <tool>` for every dependency; USE the existing installation when
-compatible. Log `[Env]` entries to `audit_entries[]` before any install command runs.
+**`environment-detection` runs FIRST** — before any code that requires a runtime, package manager, or build tool. Check `command -v <tool>` for every dependency named in the unit spec; USE the existing installation when compatible. Avoid `brew install` unless no version manager is present (it compiles from source by default and is the largest avoidable cost). Log `[Env]` entries to `audit_entries[]` before any install command runs.
 
 ## Your job
 Follow these rule files in order:

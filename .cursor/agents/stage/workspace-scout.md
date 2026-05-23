@@ -98,7 +98,7 @@ find . \( -name "package.json" -o -name "pyproject.toml" -o -name "Cargo.toml" -
     -not -path "*/.venv/*" \
     -not -path "*/target/*" \
     -not -path "*/.agents/*" \
-    -not -path "*/.claude/*" \
+    -not -path "*/.cursor/*" \
     -not -path "*/aidlc-docs/*" \
     -maxdepth 4 \
     -exec dirname {} \; | sort -u

@@ -104,7 +104,7 @@ Populate `emitted_knowledge[]` when:
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
 
-Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`. Don't emit
+Full guidance: `.cursor/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
 
 ## What you must NOT do

@@ -65,9 +65,8 @@ Follow the rule file:
 Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 ### Step 1 — Check for existing AIDLC project
-- Read `aidlc-docs/aidlc-state.md` if it exists.
-- If present: classify the branch (A/B/C per the rule file) based on
-  `Current Stage` and `Stage Progress`.
+- Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
+- If present: classify the branch (A/B/C per the rule file) based on the manifest.
 - If not present: this is a fresh assessment — proceed to Step 2.
 
 ### Step 2 — Scan workspace for existing code
@@ -88,41 +87,71 @@ If after excluding these paths no source or manifest files remain → `project_t
 Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
 avoid token blow-up.
 
-### Step 2.5 — Parse manifest/lockfiles for tech_stack
+### Step 2.5 — Workspace Discovery + Best-Effort Tech Stack
 
-After detecting build/manifest files, parse them to populate `workspace_state.tech_stack[]`.
-This enables lockfile-aware skill activation in downstream agents.
+Identify all workspace directories in the project (monorepo support) and record
+them in `workspace_state.workspace_dirs[]`. Full tech detection and skill installation
+is deferred to `factory_skill_sync.py` at factory-build time.
 
-**npm** — `package.json` `dependencies` + `devDependencies`:
-Record `ecosystem: npm` entries for: `next`, `react`, `vue`, `svelte`, `bun`, `vite`, `@angular/core`, `nuxt`, `astro`, `remix`.
+**Find all workspace directories** (manifest files at depth ≤ 4):
+```bash
+find . \( -name "package.json" -o -name "pyproject.toml" -o -name "Cargo.toml" -o -name "go.mod" \) \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" \
+    -not -path "*/dist/*" \
+    -not -path "*/build/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/target/*" \
+    -not -path "*/.agents/*" \
+    -not -path "*/.opencode/*" \
+    -not -path "*/aidlc-docs/*" \
+    -maxdepth 4 \
+    -exec dirname {} \; | sort -u
+```
 
-**Python** — `pyproject.toml` or `requirements.txt`:
-Record `ecosystem: pip` entries.
+Record the resulting directory list as `workspace_state.workspace_dirs[]` using relative
+paths (e.g. `[".","backend","frontend"]`). If only the root is found, default to `["."]`.
 
-**Rust** — `Cargo.toml` `[dependencies]`: Record `ecosystem: cargo` entries.
+Detect monorepo type (for audit only):
+```bash
+test -f pnpm-workspace.yaml && echo "pnpm-monorepo"
+node -e "const p=require('./package.json'); console.log(p.workspaces ? 'npm-monorepo' : '')" 2>/dev/null
+test -f deno.json && grep -q "workspaces" deno.json && echo "deno-monorepo"
+```
 
-**Go** — `go.mod` `require` block: Record `ecosystem: go` entries.
-
-**Version normalization**: strip `^`, `~`, `>=`, `~=` prefix → pinned baseline version.
+**Best-effort `tech_stack[]`** (top-level manifests only — for audit log):
+Parse only the root `package.json`, `pyproject.toml`, `Cargo.toml`, and `go.mod`.
+Extract direct dependencies and record recognized packages with stripped versions
+(strip leading `^~>=~=` prefixes). This is informational only — full detection runs
+via autoskills at build time.
 
 **SHAPE — `tech_stack[]` items are OBJECTS, not strings.** Each entry MUST have three
-keys: `package`, `version`, `ecosystem` (enum: `npm|pip|cargo|go|gem|nuget`).
+keys: `package`, `version`, `ecosystem` (enum: `npm|pip|cargo|go|gem|nuget`). Emitting
+strings like `"express@4.18.2"` will fail schema validation.
 
 Correct YAML:
 ```yaml
 tech_stack:
-  - { package: "next", version: "15.1.0", ecosystem: npm }
+  - { package: "express", version: "4.18.2", ecosystem: npm }
   - { package: "@angular/core", version: "17.3.0", ecosystem: npm }
 ```
-Incorrect (will fail validation):
+Incorrect (will be rejected):
 ```yaml
 tech_stack:
-  - "next@15.1.0"          # ❌ string, not object
+  - "express@4.18.2"       # ❌ string, not object
+  - "@angular/core@17.3.0" # ❌ string, not object
 ```
 
-Emit: `[Stack] tech_stack: <N> packages detected (next@15.1.0, react@18.3.0, …)`
-(The audit-entry above is a HUMAN-READABLE log line — NOT the `tech_stack[]` shape.)
-If no manifest files found: emit `[Stack] no manifest files — tech_stack: []` and continue.
+Emit audit entries:
+```
+[Workspaces] N workspace(s) detected: ., backend/, frontend/
+[Stack] best-effort top-level: express@4.18.2 (npm), @angular/core@17.3.0 (npm)
+        (full stack detection via autoskills runs at factory-build)
+```
+(The audit-entry strings above are HUMAN-READABLE log lines — they are NOT the
+`tech_stack[]` shape. Keep the two separate.)
+
+If no manifest files found: emit `[Workspaces] no manifest files detected — workspace_dirs: ["."]` and continue.
 
 ### Step 2.6 — CodeGraph awareness
 
@@ -136,14 +165,18 @@ test -f .codegraph/codegraph.db && echo "indexed" || echo "not-indexed"
 codegraph status --json 2>/dev/null
 ```
 Parse the JSON output and populate `workspace_state.codegraph_state`:
-- `indexed: true`, `nodes: <N>`, `files: <N>`, `backend: "native" | "wasm"`
+- `indexed: true`
+- `nodes: <node_count from status>`
+- `files: <file_count from status>`
+- `backend: "native" | "wasm"` (from status; default `"native"` if absent)
 
 Emit: `[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm`
 If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native install recommended`.
 
 **If NOT indexed AND `project_type == brownfield`:**
-Emit: `[Suggest] codegraph init -i would reduce reverse-engineer token usage by ~90% on this brownfield project`
-Set `codegraph_state: { indexed: false }` in `workspace_state`.
+- Emit: `[Suggest] codegraph init -i would reduce reverse-engineer token usage by ~90% on this brownfield project`
+- Surface suggestion to user in the workspace_state completion message (orchestrator will relay).
+- Set `codegraph_state: { indexed: false }` in `workspace_state`.
 
 **If NOT indexed AND `project_type == greenfield`:**
 Set `codegraph_state: { indexed: false }` in `workspace_state`.
@@ -153,6 +186,11 @@ Set `codegraph_state: { indexed: false }` in `workspace_state`.
 - Existing code, no `aidlc-docs/inception/reverse-engineering/` artifacts →
   `project_type: brownfield`, `next_phase: reverse-engineering`
 - Existing code, current RE artifacts → `project_type: brownfield`, `next_phase: requirements-analysis`
+
+> **MUST NOT override**: This decision is purely mechanical. Do NOT use code quality,
+> documentation level, team familiarity, or any subjective assessment to skip
+> reverse-engineering. If `aidlc-docs/inception/reverse-engineering/` is absent or
+> empty, `next_phase` is always `reverse-engineering` — no exceptions.
 
 ### Step 4 — Create or update aidlc-state.md
 If `aidlc-docs/aidlc-state.md` doesn't exist, create it with the template

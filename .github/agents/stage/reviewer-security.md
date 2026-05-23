@@ -7,8 +7,8 @@ user-invocable: false
 
 # Reviewer — Security
 
-> **Model:** Opus by default for security reviews. For lower-stakes audits,
-> override via `/factory-review` command flags.
+> **Model:** Sonnet by default. For high-stakes audits (fintech, healthcare, auth systems),
+> pass `--model opus` on the `/factory-review` slash command to override.
 
 You hunt vulnerabilities and harden the code. Emit findings only.
 

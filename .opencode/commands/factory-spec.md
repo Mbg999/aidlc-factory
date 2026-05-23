@@ -54,10 +54,32 @@ Execute the Phase 0 sequence end-to-end:
    - Validate → spawn → validate
    - Append audit entries → update state file
 
+5.5. **Stage-routing decisions** (post-requirements):
+     Run complexity analysis and adjust the execution plan:
+     ```bash
+     python3 aidlc-scripts/factory_complexity.py <run-id> --apply
+     ```
+     This computes `fast_path`, `skip_stages[]`, `reviewer_pool[]`, and `merge_codegen_gate`.
+
+     - `fast_path: true` → code generator runs in FAST_PATH mode (no plan approval gate).
+     - `skip_stages[]` → the orchestrator will skip those stages entirely.
+     - `reviewer_pool[]` → the orchestrator will only spawn reviewers in this pool
+       (default: all reviewers). An empty pool = all reviewers.
+     - `merge_codegen_gate` → merged plan+codegen approval gate for SMALL-tier units.
+
+     Route to `runtime/fast-path.md` when fast_path is true.
+
+     Emit audit block:
+     ```
+     🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>
+     ```
+
 6. **Present completion**:
    - Show run_id, run directory path
    - Show `workspace_state` summary (one line)
    - Show `requirements.md` path
+   - Show **Routing decisions**:
+     `🎚 Routing: skip [<skip_stages>] · reviewers [<reviewer_pool>] · merge plan+codegen: <merge_codegen_gate>`
    - Show skill compliance summary (PASS/FAIL/N/A per skill, both stages)
    - Wait for explicit user approval before committing. On approval, commit:
      `docs(workspace-detection): complete workspace detection` and

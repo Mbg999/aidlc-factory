@@ -42,6 +42,10 @@ Sequence:
    - `Pre-mortem: PASS — <N> plan-risk question(s)`  (when status=PASS)
    - `Pre-mortem: N/A — <evidence>`                  (when status=N/A)
    - `Pre-mortem: MISSING — workflow-planner contract violation` (when absent)
+
+   - **Pre-mortem visibility mandate:** The `[PlanPreMortem]` audit entry MUST be surfaced
+     to the user in the completion message. Never omit this line. The user must see it.
+
 6. **Offer next step (substitute `<run-id>` literally):** Run
    `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
    the ready-to-paste command, OR format manually as `/factory-build <RUN_ID_LITERAL>`

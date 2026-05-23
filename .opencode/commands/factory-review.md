@@ -12,9 +12,15 @@ Adopt the role from @.opencode/agents/orchestrator.md and execute the
 
 Sequence:
 1. Read `manifest.yaml`. Refuse if construction isn't complete.
+1.5. **Collect framework skills from build** (Pre-Review Step 0.5 per
+   `runtime/cmd-factory-review.md`): read `manifest.skill_paths` + all
+   `code-generator.*.output.yaml` handoffs; extract skills not in the base set.
+   Store as `framework_skill_paths`. Log the list even if empty.
 2. **Sequential knowledge queries** per active reviewer; build per-reviewer
    input handoff under `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-<x>.input.yaml`
    with reviewer-specific tags and top-5 priors injected into `context_pointers[]`.
+   For `reviewer-code`: merge `framework_skill_paths` into the handoff's
+   `skills_required[]` and `skill_paths_resolved[]` before writing.
    Validate each input against `reviewer.input.v1.json`.
 4. **Parallel spawn** — emit ONE message containing all N (≤4) `Task()` calls.
    This is what makes Phase 4 different from Phase 1.

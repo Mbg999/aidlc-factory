@@ -239,7 +239,7 @@ Populate `emitted_knowledge[]` in your output when:
   format.
 
 The schema is in `code-generator.output.v1.json`. Full guidance:
-`.claude/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
+`.cursor/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
 emit. Bad priors poison future runs more than missing priors slow them.
 
 ## What you must NOT do
