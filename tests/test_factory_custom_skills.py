@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "aidlc-scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import factory_autoskills as mod
+import factory_custom_skills as mod
 
 
 # ── _parse_yaml_sources ───────────────────────────────────────────────────────

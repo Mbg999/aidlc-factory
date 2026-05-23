@@ -14,9 +14,9 @@
 # Both installers write to .agents/skills/<name>/ and coexist safely.
 #
 # Usage (this file):
-#   python3 aidlc-scripts/factory_autoskills.py            # install/update all
-#   python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview only
-#   python3 aidlc-scripts/factory_autoskills.py --skill my-internal-skill
+#   python3 aidlc-scripts/factory_custom_skills.py            # install/update all
+#   python3 aidlc-scripts/factory_custom_skills.py --dry-run  # preview only
+#   python3 aidlc-scripts/factory_custom_skills.py --skill my-internal-skill
 #
 # Format per entry:
 #   name:       unique slug (becomes the directory name under .agents/skills/)
@@ -28,7 +28,7 @@
 #
 # To add a skill:
 #   1. Add an entry below with url + sha256 (get sha256: curl -sL <url> | shasum -a 256)
-#   2. Run: python3 aidlc-scripts/factory_autoskills.py --skill <name>
+#   2. Run: python3 aidlc-scripts/factory_custom_skills.py --skill <name>
 #   3. Commit the updated skill-sources.yaml and the installed skill file
 
 sources:

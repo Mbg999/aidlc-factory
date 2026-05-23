@@ -287,7 +287,7 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_knowledge_promote.py",
     "factory_knowledge_dashboard.py",
     # Hallucination prevention stack (Piece 3 + Piece 4)
-    "factory_autoskills.py",      # fetch+verify community skills from skill-sources.yaml
+    "factory_custom_skills.py",      # fetch+verify community skills from skill-sources.yaml
     "factory_skill_drift.py",     # detect skills whose version range lags behind latest stable
     # Skill sync layer — monorepo-aware autoskills bridge
     "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
@@ -301,6 +301,17 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
 ORCHESTRATOR_ROOT_CONFIGS = [
     "skill-sources.yaml",
 ]
+
+# Per-tool MCP config files (Context7 + Chrome DevTools, locally-run via npx).
+# Each tool reads its MCP servers from a different path/format, so we ship one
+# config per tool and let the installer place only the relevant one.
+# User-customizable — never overwrite on re-install (use --force).
+ORCHESTRATOR_TOOL_MCP_CONFIGS = {
+    "claude":   Path(".mcp.json"),
+    "cursor":   Path(".cursor/mcp.json"),
+    "copilot":  Path(".vscode/mcp.json"),
+    "opencode": Path("opencode.json"),
+}
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
 # Shipped to every consumer; the active adapter is picked at runtime per
@@ -697,6 +708,19 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 print(f"  prompts -> .github/prompts/")
                 copy_tree(src_prompts, dst_prompts, dry_run)
             _install_vscode_copilot_settings(target_root, dry_run)
+
+        # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
+        # skip if destination already exists unless --force.
+        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+        if mcp_rel is not None:
+            src_mcp = repo_root / mcp_rel
+            dst_mcp = target_root / mcp_rel
+            if src_mcp.exists():
+                if dst_mcp.exists() and not force:
+                    print(f"  {mcp_rel} already exists — skipping (use --force to overwrite)")
+                else:
+                    print(f"  mcp config -> {mcp_rel}")
+                    copy_file(src_mcp, dst_mcp, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:

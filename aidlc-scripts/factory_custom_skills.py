@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""factory_autoskills.py — Install custom/internal/private skills from skill-sources.yaml.
+"""factory_custom_skills.py — Install custom/internal/private skills from skill-sources.yaml.
 
 This script handles skills that are NOT in the public autoskills registry
 (https://github.com/midudev/autoskills). Use it for:
@@ -14,10 +14,10 @@ monorepo workspaces automatically.
 Both scripts install to .agents/skills/<name>/ and coexist safely.
 
 Usage:
-    python3 aidlc-scripts/factory_autoskills.py            # install/update all
-    python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview without writing
-    python3 aidlc-scripts/factory_autoskills.py --skill my-internal-skill
-    python3 aidlc-scripts/factory_autoskills.py --check    # verify SHAs of installed skills
+    python3 aidlc-scripts/factory_custom_skills.py            # install/update all
+    python3 aidlc-scripts/factory_custom_skills.py --dry-run  # preview without writing
+    python3 aidlc-scripts/factory_custom_skills.py --skill my-internal-skill
+    python3 aidlc-scripts/factory_custom_skills.py --check    # verify SHAs of installed skills
 
 Exit codes:
     0  all skills installed/verified OK
@@ -72,7 +72,7 @@ def _sha256(data: bytes) -> str:
 
 
 def _download(url: str, timeout: int = 30) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "factory_autoskills/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "factory_custom_skills/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read()
 

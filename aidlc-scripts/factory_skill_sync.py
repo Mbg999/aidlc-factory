@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -37,35 +38,132 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 from skill_utils import discover_skills, find_workspace_dirs, sha256_file
 
 
-# ── Node.js prerequisite check ────────────────────────────────────────────────
+# ── Node.js resolution ────────────────────────────────────────────────────────
+#
+# autoskills (the upstream Node CLI) requires Node >= 22.12.0. If the system
+# Node satisfies that, we use it directly. Otherwise we try a chain of node
+# version managers (fnm → volta → nvm) to source a compatible Node without
+# asking the user to install anything globally. If none of those work we skip
+# silently — autoskills is best-effort, never blocking.
 
-NODE_MIN_VERSION = "22.6.0"
+NODE_MIN_VERSION = "22.12.0"
+_NODE_MIN_TUPLE = (22, 12, 0)
 
 
-def _check_node() -> tuple[bool, str]:
-    """Probe Node.js. Returns (ok, reason). reason is empty when ok=True.
+def _parse_node_version(version_str: str) -> tuple[int, int, int] | None:
+    """Parse 'v22.12.0' / '22.12.0' / '22.12' / '22' → (major, minor, patch).
 
-    On skip the reason is a single-line, human-readable explanation that
-    the orchestrator can copy verbatim into audit.md.
+    Returns None if the string can't be parsed.
     """
+    raw = version_str.strip().lstrip("v")
+    if not raw:
+        return None
+    parts = raw.split(".")
+    try:
+        nums = [int(p) for p in parts[:3]]
+    except ValueError:
+        return None
+    while len(nums) < 3:
+        nums.append(0)
+    return (nums[0], nums[1], nums[2])
+
+
+def _meets_min(version_str: str) -> bool:
+    parsed = _parse_node_version(version_str)
+    return parsed is not None and parsed >= _NODE_MIN_TUPLE
+
+
+def _probe_node(cmd: list[str], *, timeout: int = 30) -> str | None:
+    """Run `<cmd> node --version` and return version string if it succeeds."""
     try:
         result = subprocess.run(
-            ["node", "--version"],
-            capture_output=True, text=True, timeout=10,
+            cmd + ["node", "--version"],
+            capture_output=True, text=True, timeout=timeout,
         )
-        raw = result.stdout.strip().lstrip("v")
-        major = int(raw.split(".")[0]) if raw else 0
-        if major < 22:
-            return False, f"Node.js v{raw} detected; autoskills requires >= {NODE_MIN_VERSION}"
-        return True, ""
-    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, IndexError):
-        return False, "Node.js not found on PATH"
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def _probe_shell(shell_cmd: str, *, timeout: int = 180) -> str | None:
+    """Run a bash login shell command, expect Node version on last line."""
+    try:
+        result = subprocess.run(
+            ["bash", "-lc", shell_cmd],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    # Last non-empty line is the version (other lines may be nvm noise)
+    lines = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+    return lines[-1] if lines else None
+
+
+# Sentinel returned by _resolve_node_runner to signal "wrap commands in a
+# bash login shell with nvm sourced". _run_autoskills knows how to handle it.
+_NVM_SHELL_SENTINEL = "__NVM_SHELL__"
+
+
+def _resolve_node_runner() -> tuple[list[str], str] | None:
+    """Find a way to invoke `npx` with Node >= 22.12.0.
+
+    Returns (prefix, source_label) or None.
+
+    Resolution order (fastest first):
+      1. System `node` already on PATH at correct version → prefix = []
+      2. fnm    → prefix = ["fnm", "exec", "--using=22", "--"]
+      3. volta  → prefix = ["volta", "run", "--node", "22"]
+      4. nvm    → prefix = [_NVM_SHELL_SENTINEL, "<path to nvm.sh>"]
+                  (handled specially by _run_autoskills)
+    """
+    # 1. System node
+    version = _probe_node([])
+    if version and _meets_min(version):
+        return [], f"system node {version}"
+
+    # 2. fnm — binary, fast to probe
+    if shutil.which("fnm"):
+        version = _probe_node(["fnm", "exec", "--using=22", "--"])
+        if version and _meets_min(version):
+            return ["fnm", "exec", "--using=22", "--"], f"fnm ({version})"
+
+    # 3. volta — binary, fast to probe
+    if shutil.which("volta"):
+        version = _probe_node(["volta", "run", "--node", "22"])
+        if version and _meets_min(version):
+            return ["volta", "run", "--node", "22"], f"volta ({version})"
+
+    # 4. nvm — shell function; must be sourced. Will install Node 22 if absent.
+    nvm_dir = os.environ.get("NVM_DIR") or str(Path.home() / ".nvm")
+    nvm_sh = Path(nvm_dir) / "nvm.sh"
+    if nvm_sh.exists():
+        print(f"[Sync] bootstrapping Node 22 via nvm ({nvm_sh})…")
+        bootstrap = (
+            f'export NVM_DIR="{nvm_dir}" && '
+            f'source "{nvm_sh}" && '
+            f'nvm install 22 >/dev/null 2>&1 && '
+            f'nvm use 22 >/dev/null 2>&1 && '
+            f'node --version'
+        )
+        version = _probe_shell(bootstrap, timeout=300)
+        if version and _meets_min(version):
+            return [_NVM_SHELL_SENTINEL, str(nvm_sh)], f"nvm ({version})"
+
+    return None
 
 
 # ── autoskills runner ─────────────────────────────────────────────────────────
 
-def _run_autoskills(workspace_dir: Path, dry_run: bool = False) -> list[Path]:
-    """Run `npx --yes autoskills --yes` in workspace_dir.
+def _run_autoskills(
+    workspace_dir: Path,
+    runner_prefix: list[str],
+    dry_run: bool = False,
+) -> list[Path]:
+    """Run `npx --yes autoskills --yes` in workspace_dir using the resolved runner.
 
     Returns the list of skill directories created/updated by autoskills.
     """
@@ -77,19 +175,32 @@ def _run_autoskills(workspace_dir: Path, dry_run: bool = False) -> list[Path]:
         return []
 
     try:
-        result = subprocess.run(
-            ["npx", "--yes", "autoskills", "--yes"],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
+        if runner_prefix and runner_prefix[0] == _NVM_SHELL_SENTINEL:
+            nvm_sh = runner_prefix[1]
+            nvm_dir = os.environ.get("NVM_DIR") or str(Path(nvm_sh).parent)
+            shell_cmd = (
+                f'export NVM_DIR="{nvm_dir}" && '
+                f'source "{nvm_sh}" && '
+                f'nvm use 22 >/dev/null 2>&1 && '
+                f'npx --yes autoskills --yes'
+            )
+            result = subprocess.run(
+                ["bash", "-lc", shell_cmd],
+                cwd=workspace_dir,
+                capture_output=True, text=True, timeout=180,
+            )
+        else:
+            result = subprocess.run(
+                runner_prefix + ["npx", "--yes", "autoskills", "--yes"],
+                cwd=workspace_dir,
+                capture_output=True, text=True, timeout=180,
+            )
     except subprocess.TimeoutExpired:
         print("TIMEOUT")
         print(f"    WARNING: autoskills timed out in {workspace_dir}", file=sys.stderr)
         return []
     except FileNotFoundError:
-        print("SKIP (npx not found)")
+        print("SKIP (runner not found)")
         return []
 
     if result.returncode != 0:
@@ -231,15 +342,13 @@ def _cleanup_workspace_agents(
 # ── sync subcommand ───────────────────────────────────────────────────────────
 
 def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
-    ok, reason = _check_node()
-    if not ok:
-        # Single source of truth for skip messages — orchestrator copies these
-        # bullets verbatim into audit.md so the user never sees a contradiction
-        # like "synced" while the warning is buried in stderr.
-        print(f"[Sync] SKIPPED — {reason}")
-        print(f"[Sync] WARN: lockfile-aware skills will not be installed for this run")
-        print(f"[Sync] WARN: pre-shipped skills (`.agents/custom-skills/` and `.agents/skills/`) still apply")
-        return 0  # graceful degradation — universal skills still apply
+    runner = _resolve_node_runner()
+    if runner is None:
+        # Silent skip — autoskills is best-effort, never blocking. Pre-shipped
+        # skills (`.agents/custom-skills/` and `.agents/skills/`) still apply.
+        return 0
+    runner_prefix, runner_label = runner
+    print(f"[Sync] using {runner_label}")
 
     workspace_dirs = find_workspace_dirs(repo_root)
     labels = ", ".join(
@@ -251,7 +360,7 @@ def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
     # Run autoskills in each workspace; first-seen-per-name wins
     all_found: dict[str, Path] = {}
     for workspace_dir in workspace_dirs:
-        for skill_dir in _run_autoskills(workspace_dir, dry_run=dry_run):
+        for skill_dir in _run_autoskills(workspace_dir, runner_prefix, dry_run=dry_run):
             name = skill_dir.name
             if name not in all_found:
                 all_found[name] = skill_dir
@@ -305,13 +414,13 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
     skill_paths_resolved = custom_paths + framework_paths
 
     warnings: list[str] = []
-    node_ok, node_reason = _check_node()
-    if not node_ok:
+    node_runner = _resolve_node_runner()
+    if node_runner is None:
         warnings.append(
-            f"autoskills sync was SKIPPED: {node_reason} — "
-            f"lockfile-aware skills are not in this set"
+            f"autoskills sync was SKIPPED: no Node >= {NODE_MIN_VERSION} available "
+            f"(tried system node, fnm, volta, nvm) — lockfile-aware skills are not in this set"
         )
-    if not framework_paths and node_ok:
+    elif not framework_paths:
         warnings.append(
             "no framework skills resolved — autoskills detected no matching technologies"
         )

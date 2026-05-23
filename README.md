@@ -83,7 +83,7 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Design system enforcement** — `design-system-composer` composes UIs exclusively from `design-system/INDEX.md` primitives. After each generation slice `ui-constraint-validator` scans for hardcoded spacing, radius, typography, color, and elevation values and auto-corrects them to the nearest canonical token. Slices with >3 deviations are blocked for human review instead of silently producing non-compliant UI.
 - **API hallucination elimination** — `validator-retry` runs static type-check and linter feedback in a loop after every code-generation unit. Compile errors caused by hallucinated APIs or wrong signatures are fed back to the generator for correction before the stage exits — not caught at runtime or by the user.
 - **Curated, verified tool catalog** — `secret-knowledge` gives every stage agent a reference catalog of CLI tools, security toolkits, performance profilers, and shell one-liners sourced from the Book of Secret Knowledge. Every recommended command passes a verification gate (tool exists, syntax correct, platform-appropriate, no hallucinated URLs) to prevent fabricated tool names from reaching generated scripts.
-- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_autoskills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time.
+- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_custom_skills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time.
 
 The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
 Copilot, and OpenCode** — each ships with its own stage subagent tree under
@@ -358,7 +358,7 @@ python3 aidlc-scripts/factory_validate.py
 python3 aidlc-scripts/factory_agent_discover.py list
 
 # Verify autoskills resolver
-python3 aidlc-scripts/factory_autoskills.py --dry-run
+python3 aidlc-scripts/factory_custom_skills.py --dry-run
 
 # Inside your agentic coding tool (Claude Code, Cursor, Copilot Chat, OpenCode):
 /factory-help
@@ -460,7 +460,7 @@ EOF
 The skill is picked up automatically on the next stage run. To verify:
 
 ```bash
-python3 aidlc-scripts/factory_autoskills.py --dry-run | grep my-skill
+python3 aidlc-scripts/factory_custom_skills.py --dry-run | grep my-skill
 ```
 
 ### Commit custom skills to the repo
@@ -666,7 +666,7 @@ The stage produced an output handoff that doesn't validate against its
 Check resolution order and the autoskills resolver:
 
 ```bash
-python3 aidlc-scripts/factory_autoskills.py --dry-run
+python3 aidlc-scripts/factory_custom_skills.py --dry-run
 python3 aidlc-scripts/factory_skill_drift.py --report
 ```
 

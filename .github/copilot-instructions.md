@@ -87,7 +87,7 @@ python aidlc-scripts/install_aidlc.py --tool claude --dry-run
 
 # Validate / audit scripts
 python3 aidlc-scripts/factory_validate.py
-python3 aidlc-scripts/factory_autoskills.py --dry-run
+python3 aidlc-scripts/factory_custom_skills.py --dry-run
 python3 aidlc-scripts/factory_skill_drift.py --report
 ```
 

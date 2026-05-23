@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """skill_utils.py — Shared utilities for AIDLC skill management scripts.
 
-Used by: factory_skill_sync.py, factory_skill_drift.py, factory_autoskills.py
+Used by: factory_skill_sync.py, factory_skill_drift.py, factory_custom_skills.py
 """
 
 from __future__ import annotations

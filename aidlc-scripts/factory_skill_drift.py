@@ -216,7 +216,7 @@ def _write_report(results: list[DriftResult], path: Path) -> None:
                   "| Skill | Framework | Range | Latest | Action |\n",
                   "|---|---|---|---|---|\n"]
         for r in stale:
-            action = f"Bump range or run `factory_autoskills.py --skill {r.skill.name}`"
+            action = f"Bump range or run `factory_custom_skills.py --skill {r.skill.name}`"
             lines.append(
                 f"| {r.skill.name} | {r.skill.framework} ({r.ecosystem}) "
                 f"| `{r.skill.version_range}` | {r.latest} | {action} |\n"

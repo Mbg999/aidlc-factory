@@ -98,7 +98,7 @@ Key env vars:
 |-------|-----------|
 | Validator-retry | `tsc --noEmit` / `pyright` / `cargo check` after each code slice; feeds errors back (max 3 retries) |
 | Lockfile-aware skills | `workspace-scout` parses lockfiles; only injects skills matching pinned versions |
-| Autoskills | `factory_autoskills.py` fetches community skills with SHA-256 verification |
+| Autoskills | `factory_custom_skills.py` fetches community skills with SHA-256 verification |
 | Skill drift detector | `factory_skill_drift.py` flags skills whose version range no longer covers latest stable |
 
 ---

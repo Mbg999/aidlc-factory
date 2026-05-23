@@ -53,8 +53,8 @@ class TestParseToolsString:
 class TestHallucinationPreventionStack:
     """Piece 3 + Piece 4 scripts must be registered in installer constants."""
 
-    def test_factory_autoskills_in_scripts(self):
-        assert "factory_autoskills.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+    def test_factory_custom_skills_in_scripts(self):
+        assert "factory_custom_skills.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
 
     def test_factory_skill_drift_in_scripts(self):
         assert "factory_skill_drift.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
@@ -65,8 +65,8 @@ class TestHallucinationPreventionStack:
     def test_skill_sources_yaml_exists_in_repo(self):
         assert (REPO_ROOT / "skill-sources.yaml").exists()
 
-    def test_factory_autoskills_source_exists(self):
-        assert (REPO_ROOT / "aidlc-scripts" / "factory_autoskills.py").exists()
+    def test_factory_custom_skills_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_custom_skills.py").exists()
 
     def test_factory_skill_drift_source_exists(self):
         assert (REPO_ROOT / "aidlc-scripts" / "factory_skill_drift.py").exists()
