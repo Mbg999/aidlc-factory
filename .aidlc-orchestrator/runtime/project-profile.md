@@ -89,7 +89,7 @@ Workspace Scout detected:
   - reverse_engineering_artifacts_present: false
 
 Running `reverse-engineer` first produces:
-  - aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md
+  - aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md  (MUST substitute actual run_id)
   - architecture.md, code-structure.md, api-docs.md, component-inventory.md
   - interaction-diagrams.md, tech-stack.md, dependencies.md
 

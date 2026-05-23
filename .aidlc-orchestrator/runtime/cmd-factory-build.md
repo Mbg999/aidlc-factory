@@ -128,7 +128,7 @@ python3 aidlc-scripts/factory_conflict.py release <run-id> code-generator:<unit>
 
 ## Step C — After all layers
 - Set `Current Stage: CONSTRUCTION - Complete`.
-- Present per-unit summary + offer `/factory-review <run-id>`.
+- Present per-unit summary + offer `/factory-review <run-id>` (MUST substitute the actual run_id for `<run-id>`).
 
 ## Concurrency cap
 Phase 5 honors cap of 4. Batch >4 units within a layer; lock acquire+release per batch.
