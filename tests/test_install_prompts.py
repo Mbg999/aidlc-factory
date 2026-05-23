@@ -74,36 +74,7 @@ class TestInteractiveChooseTools:
         assert result == ["claude", "opencode"]
 
 
-# ── ask_orchestrator ──────────────────────────────────────────────────────────
-
-
-class TestAskOrchestrator:
-    def test_native_tools_show_benefits(self, capsys, monkeypatch):
-        monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
-        assert M.ask_orchestrator(["claude"]) is True
-        out = capsys.readouterr().out
-        assert "Install the AIDLC orchestrator?" in out
-        assert "What it is:" in out
-        assert "Without it:" in out
-        assert "With it:" in out
-        assert "spec -> plan -> code" in out
-        assert "Recommended: yes" in out
-        assert "Example:" in out
-
-    def test_degraded_mode_explanation(self, capsys, monkeypatch):
-        monkeypatch.setattr("sys.stdin", io.StringIO("\n"))  # default = yes
-        M.ask_orchestrator(["other"])
-        out = capsys.readouterr().out
-        assert "degraded mode" in out
-        assert "single-agent role-switching" in out
-
-    def test_explicit_no_returns_false(self, monkeypatch):
-        monkeypatch.setattr("sys.stdin", io.StringIO("n\n"))
-        assert M.ask_orchestrator(["claude"]) is False
-
-    def test_default_enter_returns_true(self, monkeypatch):
-        monkeypatch.setattr("sys.stdin", io.StringIO("\n"))
-        assert M.ask_orchestrator(["claude"]) is True
+# ── ask_orchestrator was removed — orchestrator is always installed ──────────────
 
 
 # ── _prompt_destination ───────────────────────────────────────────────────────
@@ -151,12 +122,7 @@ class TestLanguageHygiene:
         for token in self.SPANISH_TOKENS:
             assert token not in out, f"Spanish token {token!r} found in tool selector"
 
-    def test_orchestrator_english_only(self, capsys, monkeypatch):
-        monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
-        M.ask_orchestrator(["claude"])
-        out = capsys.readouterr().out.lower()
-        for token in self.SPANISH_TOKENS:
-            assert token not in out, f"Spanish token {token!r} found in ask_orchestrator"
+
 
     def test_destination_english_only(self, capsys, monkeypatch):
         monkeypatch.setattr("sys.stdin", io.StringIO("\n"))
