@@ -953,6 +953,12 @@ def main() -> None:
     p_tail.add_argument("--json", action="store_true")
     p_tail.set_defaults(func=cmd_tail)
 
+    p_timeline = sub.add_parser("timeline", help="print timeline events (alias for tail)")
+    p_timeline.add_argument("run_id")
+    p_timeline.add_argument("--follow", "-f", action="store_true")
+    p_timeline.add_argument("--json", action="store_true")
+    p_timeline.set_defaults(func=cmd_tail)
+
     args = p.parse_args()
     args.func(args)
 
