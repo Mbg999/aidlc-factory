@@ -11,6 +11,9 @@ from harness_engine import DesignSystemHarness, SemanticIntent
 from harness_adapters.source.figma import FigmaAdapter
 from harness_adapters.source.raw_json import RawJsonAdapter
 from harness_adapters.framework.react import ReactAdapter
+from harness_adapters.framework.angular import AngularAdapter
+from harness_adapters.framework.flutter import FlutterAdapter
+from harness_adapters.framework.html import HtmlAdapter
 from factory_drift_detect import create_snapshot, diff_structural
 
 
@@ -172,24 +175,50 @@ class TestFigmaToReactPipeline:
         assert "export function Button" in code
 
 
-# ── 6.2: Stitch/snap -> SemanticIntent -> multiple frameworks ──────────
+# ── 6.2: SemanticIntent -> multiple frameworks ─────────────────────────
 
 class TestMultiFrameworkPipeline:
     """Same SemanticIntent rendered to different framework outputs."""
 
-    def test_semantic_intent_react(self, harness: DesignSystemHarness):
+    @pytest.fixture
+    def shared_intent(self, harness: DesignSystemHarness) -> SemanticIntent:
         intent = harness.compose_intent(
             ["Button", "Input"],
-            layout_hint=[{"type": "stack", "gap": "md", "padding": "lg", "children": []}],
+            layout_hint=[{
+                "type": "stack", "gap": "md", "padding": "lg",
+                "children": [
+                    {"type": "box", "children": [{"label": "SubmitBtn"}]},
+                    {"type": "box", "children": [{"label": "EmailField"}]},
+                ],
+            }],
         )
         intent.components[0].update({"label": "SubmitBtn", "variant": "primary", "size": "md"})
         intent.components[1].update({"label": "EmailField"})
+        return intent
 
-        adapter = ReactAdapter()
-        code = adapter.render(intent)
+    def test_react(self, shared_intent: SemanticIntent):
+        code = ReactAdapter().render(shared_intent)
         assert "export function SubmitBtn" in code
         assert "export function EmailField" in code
         assert "export function PageLayout" in code
+
+    def test_angular(self, shared_intent: SemanticIntent):
+        code = AngularAdapter().render(shared_intent)
+        assert "SubmitBtnComponent" in code
+        assert "EmailFieldComponent" in code
+        assert "@Component" in code
+
+    def test_flutter(self, shared_intent: SemanticIntent):
+        code = FlutterAdapter().render(shared_intent)
+        assert "SubmitBtn" in code
+        assert "EmailField" in code
+        assert "import 'package:flutter/material.dart'" in code
+
+    def test_html(self, shared_intent: SemanticIntent):
+        code = HtmlAdapter().render(shared_intent)
+        assert "submit-btn" in code or "SubmitBtn" in code
+        assert "<style>" in code
+        assert "<body>" in code
 
 
 # ── 6.3: Bad Figma (no Auto Layout) -> archaeologist -> output usable ─

@@ -117,13 +117,13 @@ modelo semántico se convierta en un cuello de botella.
 
 **Objetivo**: Extraer la lógica compartida de V1 a un engine agnóstico.
 
-| Item | Descripción | Criterio de éxito |
-|------|-------------|-------------------|
-| 1.1 | `SemanticIntent` model en JSON Schema (`contracts/harness/semantic-intent.v1.json`) | Schema publicado, 3 ejemplos válidos |
-| 1.2 | `DesignSystemHarness` clase en `src/harness/engine.py` | Carga tokens desde `design-system/tokens/`, valida cobertura (4 de 5 categorías), emite `quality_score` |
-| 1.3 | `validate_tokens()` — reglas universales | ¿Spacing multiplos de 4? ¿Radius tokens documentados? ¿Colores semánticos vs raw? |
-| 1.4 | `compose_intent()` — de componentes a SemanticIntent | Reemplaza Step 3 de `design-system-composer/SKILL.md` |
-| 1.5 | `project-profile.md` actualizado | `tech_stack` → `framework` detectado, adapter seleccionado automáticamente |
+| Item | Descripción | Criterio de éxito | Estado |
+|------|-------------|-------------------|--------|
+| 1.1 | `SemanticIntent` model en JSON Schema (`contracts/harness/semantic-intent.v1.json`) | Schema publicado, 3 ejemplos válidos | ✅ |
+| 1.2 | `DesignSystemHarness` clase en `aidlc-scripts/harness_engine.py` | Carga tokens desde `design-system/tokens/`, valida cobertura (4 de 5 categorías), emite `quality_score` | ✅ |
+| 1.3 | `validate_tokens()` — reglas universales | Spacing multiplos de 4, radius documentados, colores semánticos vs raw | ✅ |
+| 1.4 | `compose_intent()` — de componentes a SemanticIntent | Reemplaza Step 3 de `design-system-composer/SKILL.md` | ✅ |
+| 1.5 | `project-profile.md` actualizado | `tech_stack` → `framework` detectado, adapter seleccionado automáticamente | ✅ |
 
 **Anti-governanza**: El engine valida pero NO bloquea. Emite `warnings[]` y
 `suggestions[]`. El code-generator decide si detenerse. Solo >5 warnings
@@ -141,13 +141,13 @@ DesignSourceAdapter (src/harness/adapters/source/base.py)
 └── RawJsonAdapter   (src/harness/adapters/source/raw_json.py)
 ```
 
-| Item | Descripción | Criterio de éxito |
-|------|-------------|-------------------|
-| 2.1 | `BaseAdapter` con `fetch()`, `snap()`, `score()`, `archaeologist()` | Interface deﬁnida en `base.py`, tests de contrato |
-| 2.2 | `FigmaAdapter` — refactor de `factory_design_system_snap.py` | Misma salida que V1, + tests |
-| 2.3 | `StitchAdapter` — refactor de `factory_stitch_snap.py` | Misma salida que V1, + tests |
-| 2.4 | `quality_score()` en cada adapter | Figma sin Auto Layout → 0.2; Stitch con DESIGN.md → 0.9 |
-| 2.5 | `RawJsonAdapter` | Cualquier JSON con keys `padding`, `cornerRadius`, etc. → snap |
+| Item | Descripción | Criterio de éxito | Estado |
+|------|-------------|-------------------|--------|
+| 2.1 | `BaseAdapter` con `fetch()`, `snap()`, `score()`, `archaeologist()` | Interface definida en `base.py`, tests de contrato | ✅ |
+| 2.2 | `FigmaAdapter` — refactor de `factory_design_system_snap.py` | Misma salida que V1, + tests | ✅ |
+| 2.3 | `StitchAdapter` — refactor de `factory_stitch_snap.py` | Misma salida que V1, + tests | ✅ |
+| 2.4 | `quality_score()` en cada adapter | Figma sin Auto Layout → 0.2; Stitch con DESIGN.md → 0.9 | ✅ |
+| 2.5 | `RawJsonAdapter` | Cualquier JSON con keys `padding`, `cornerRadius`, etc. → snap | ✅ |
 
 **Anti-governanza**: Si `score()` es bajo (< 0.4), el logger dice
 `[DS] Low quality input (0.2) — archaeologist mode auto-activated`. Sin
@@ -157,14 +157,14 @@ fricción, sin gates.
 
 **Objetivo**: Traducir `SemanticIntent` a código real en cada tecnología.
 
-| Item | Descripción | Criterio de éxito |
-|------|-------------|-------------------|
-| 3.1 | `FrameworkAdapter` base en `src/harness/adapters/framework/base.py` | `render(intent) → code`, `validate(code) → ComplianceReport` |
-| 3.2 | `ReactAdapter` — JSX + Tailwind/CSS-in-JS | Reemplaza el actual `ui-compiler.md` §1-4 |
-| 3.3 | `AngularAdapter` — templates + componentes | Componente Angular generado desde el mismo intento |
-| 3.4 | `FlutterAdapter` — Widget tree | Widget tree desde el mismo intento |
-| 3.5 | `HtmlAdapter` — HTML semántico + CSS classes | Fallback universal para cualquier proyecto web |
-| 3.6 | `ui-constraint-validator` V2 | Valida sobre `SemanticIntent`, no sobre sintaxis. Busca desviaciones en modelo, no cadenas de texto |
+| Item | Descripción | Criterio de éxito | Estado |
+|------|-------------|-------------------|--------|
+| 3.1 | `FrameworkAdapter` base en `aidlc-scripts/harness_adapters/framework/base.py` | `render(intent) -> code`, `validate(code) -> ComplianceReport` | ✅ |
+| 3.2 | `ReactAdapter` — JSX + Tailwind/CSS-in-JS | Reemplaza el actual `ui-compiler.md` S1-4 | ✅ |
+| 3.3 | `AngularAdapter` — templates + componentes | Componente Angular generado desde el mismo intento | ✅ |
+| 3.4 | `FlutterAdapter` — Widget tree | Widget tree desde el mismo intento | ✅ |
+| 3.5 | `HtmlAdapter` — HTML semantico + CSS classes | Fallback universal para cualquier proyecto web | ✅ |
+| 3.6 | `ui-constraint-validator` V2 | Valida sobre `SemanticIntent`, no sobre sintaxis | ✅ |
 
 **Anti-governanza**: Cada adapter se autoveriﬁca con `validate()`. Sin
 validación cruzada, sin procesos manuales. `framework_props` escape hatch
@@ -174,13 +174,13 @@ para lo que no cubre el modelo.
 
 **Objetivo**: Implementar el `visual-feedback.md` de verdad.
 
-| Item | Descripción | Criterio de éxito |
-|------|-------------|-------------------|
-| 4.1 | `factory_drift_detect.py` | Screenshot (Playwright) → diff con baseline (pixelmatch) → `DiffReport` |
-| 4.2 | Baseline manager | Guarda/recupera screenshots por `component+variant` en `design-system/screenshots/` |
-| 4.3 | Pipeline hook en `build-test-agent` | Si `ui: true` y Playwright disponible, captura screenshot post-build |
-| 4.4 | Drift gate con umbral configurable | `diff > 5%` → log; `diff > 15%` → `needs_human` con diff image |
-| 4.5 | Knowledge reinforcement | Approval → `factory_design_system_learn.py approve` conectado en ship-agent |
+| Item | Descripción | Criterio de éxito | Estado |
+|------|-------------|-------------------|--------|
+| 4.1 | `factory_drift_detect.py` | Screenshot (Playwright) -> diff con baseline (pixelmatch) -> `DiffReport` | ✅ |
+| 4.2 | Baseline manager | Guarda/recupera screenshots por `component+variant` en `design-system/screenshots/` | ✅ |
+| 4.3 | Pipeline hook en `build-test-agent` | Si `ui: true` y Playwright disponible, captura screenshot post-build | ⬜ |
+| 4.4 | Drift gate con umbral configurable | `diff > 5%` -> log; `diff > 15%` -> `needs_human` con diff image | ⬜ |
+| 4.5 | Knowledge reinforcement | Approval -> `factory_design_system_learn.py approve` conectado en ship-agent | ⬜ |
 
 **Anti-governanza**: Drift nunca bloquea por defecto. Solo log. Umbral
 `needs_human` conﬁgurable en `project-profile.md`. Sin Playwright → skip
@@ -190,12 +190,12 @@ silencioso.
 
 **Objetivo**: Completar las 7 primitivas faltantes sin trabajo manual tedioso.
 
-| Item | Descripción | Criterio de éxito |
-|------|-------------|-------------------|
-| 5.1 | `factory_primitive_gen.py generate <name>` | Genera `design.md`, `anatomy.md`, `do-dont.md` desde template |
-| 5.2 | Templates multi-framework | `--style web` vs `--style flutter` → output distinto |
-| 5.3 | Batch: `generate --all-missing` | Completa Stack, Inline, Box, Input, Text, Surface, Icon en 1 comando |
-| 5.4 | Eliminar `queprueba/design-system/` | Duplicado fantasma |
+| Item | Descripción | Criterio de éxito | Estado |
+|------|-------------|-------------------|--------|
+| 5.1 | `factory_primitive_gen.py generate <name>` | Genera `design.md`, `anatomy.md`, `do-dont.md` desde template | ✅ |
+| 5.2 | Templates multi-framework | `--style web` vs `--style flutter` -> output distinto | ✅ |
+| 5.3 | Batch: `generate --all-missing` | Completa Stack, Inline, Box, Input, Text, Surface, Icon en 1 comando | ✅ |
+| 5.4 | Eliminar `queprueba/design-system/` | Duplicado fantasma — ya no existe | ✅ |
 
 **Anti-governanza**: Templates sensatos con override total. Se editan a mano
 si no sirven. Sin validación obligatoria post-generación.
@@ -204,14 +204,13 @@ si no sirven. Sin validación obligatoria post-generación.
 
 **Objetivo**: Tests que cubren el pipeline completo, no solo unitarios.
 
-| Item | Descripción |
-|------|-------------|
-| 6.1 | Test: Figma JSON → snap → SemanticIntent → React code |
-| 6.2 | Test: Figma JSON → snap → SemanticIntent → Angular code |
-| 6.3 | Test: Stitch HTML → snap → SemanticIntent → Flutter code |
-| 6.4 | Test: Bad Figma (sin Auto Layout) → archaeologist → output usable |
-| 6.5 | Test: Drift detection → diff report |
-| 6.6 | Test: Quality score — token set incompleto → score bajo |
+| Item | Descripción | Estado |
+|------|-------------|--------|
+| 6.1 | Test: Figma JSON -> snap -> SemanticIntent -> React code | ✅ |
+| 6.2 | Test: Same SemanticIntent -> Angular / Flutter / HTML code | ✅ |
+| 6.3 | Test: Bad Figma (sin Auto Layout) -> archaeologist -> output usable | ✅ |
+| 6.4 | Test: Drift detection -> diff report | ✅ |
+| 6.5 | Test: Quality score -> token set incompleto -> score bajo | ✅ |
 
 ---
 
@@ -292,7 +291,7 @@ Cada fase es independiente y shippeable. No hay "big bang".
 | Métrica | Objetivo | Cómo se mide |
 |---------|----------|--------------|
 | Tiempo de generación UI por slice | < 5s overhead sobre V1 | CI benchmark |
-| Frameworks soportados en ship | 4 (React, Angular, Flutter, Html) | Adapters implementados + tests |
+| Frameworks soportados en ship | 4 (React, Angular, Flutter, Html) | Adapters implementados + tests | ✅ 4/4 |
 | Tests de integración | 12 | `pytest tests/ --harness` |
 | Drift detection rate | > 80% | Diff contra baseline en CI |
 | Primitivas completas | 8/8 | `resolve list --json` |

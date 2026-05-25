@@ -42,6 +42,22 @@ from typing import Any
 
 # ── Public types ─────────────────────────────────────────────────────────────
 
+DEFAULT_WARNING_THRESHOLD = 5.0
+DEFAULT_BLOCKING_THRESHOLD = 15.0
+DRIFT_THRESHOLD_ENV_VAR = "AIDLC_DRIFT_THRESHOLD"
+
+
+def _resolve_thresholds(
+    warning_threshold: float | None,
+    blocking_threshold: float | None,
+) -> tuple[float, float]:
+    env = os.environ.get(DRIFT_THRESHOLD_ENV_VAR, "")
+    parts = env.split(",") if env else []
+    wt = warning_threshold or (float(parts[0]) if len(parts) >= 1 else DEFAULT_WARNING_THRESHOLD)
+    bt = blocking_threshold or (float(parts[1]) if len(parts) >= 2 else DEFAULT_BLOCKING_THRESHOLD)
+    return wt, bt
+
+
 @dataclass
 class DriftReport:
     passed: bool
@@ -53,6 +69,7 @@ class DriftReport:
     current_path: str | None = None
     warnings: list[str] = field(default_factory=list)
     score: float = 1.0
+    needs_human: bool = False
 
 
 @dataclass
@@ -137,7 +154,12 @@ def create_snapshot(
 
 # ── Structural diff ──────────────────────────────────────────────────────────
 
-def diff_structural(baseline: CodeSnapshot, current: CodeSnapshot) -> DriftReport:
+def diff_structural(
+    baseline: CodeSnapshot,
+    current: CodeSnapshot,
+    warning_threshold: float | None = None,
+    blocking_threshold: float | None = None,
+) -> DriftReport:
     changes: list[dict] = []
     token_changes: list[dict] = []
     warnings: list[str] = []
@@ -202,16 +224,23 @@ def diff_structural(baseline: CodeSnapshot, current: CodeSnapshot) -> DriftRepor
     total_factors = len(changes) + len(token_changes)
     score = max(0.0, 1.0 - total_factors * 0.15)
 
+    wt, bt = _resolve_thresholds(warning_threshold, blocking_threshold)
+    diff_pct = round((1 - score) * 100, 1)
+    needs_human = diff_pct >= bt
+
     if total_factors > 0:
         warnings.append(f"Drift detected: {len(changes)} structural, {len(token_changes)} token changes")
+    if needs_human:
+        warnings.append(f"High structural drift ({diff_pct}%) — needs human review")
 
     return DriftReport(
-        passed=total_factors == 0,
-        diff_percentage=round((1 - score) * 100, 1),
+        passed=diff_pct < wt,
+        diff_percentage=diff_pct,
         structural_changes=changes,
         token_changes=token_changes,
         warnings=warnings,
         score=round(score, 2),
+        needs_human=needs_human,
     )
 
 
@@ -257,6 +286,8 @@ def diff_visual(
     baseline_path: str | Path,
     current_path: str | Path,
     output_dir: str | Path,
+    warning_threshold: float | None = None,
+    blocking_threshold: float | None = None,
 ) -> DriftReport:
     """Compare two screenshots using pixel comparison.
     
@@ -329,10 +360,14 @@ def diff_visual(
             current_path=str(c_path),
         )
 
-    passed = diff_percentage < 5.0
+    wt, bt = _resolve_thresholds(warning_threshold, blocking_threshold)
+    passed = diff_percentage < wt
+    needs_human = diff_percentage >= bt
     warnings: list[str] = []
-    if diff_percentage >= 15.0:
-        warnings.append(f"High drift ({diff_percentage}%) — needs human review")
+    if needs_human:
+        warnings.append(f"High visual drift ({diff_percentage}%) — needs human review")
+    elif not passed:
+        warnings.append(f"Visual drift detected ({diff_percentage}%) — above warning threshold ({wt}%)")
 
     return DriftReport(
         passed=passed,
@@ -342,6 +377,7 @@ def diff_visual(
         current_path=str(c_path),
         warnings=warnings,
         score=round(max(0, 1 - diff_percentage / 100), 2),
+        needs_human=needs_human,
     )
 
 
@@ -410,6 +446,10 @@ def main() -> int:
     ds_p = subparsers.add_parser("diff-structural", help="Compare two snapshots")
     ds_p.add_argument("--baseline", required=True, help="Baseline snapshot JSON")
     ds_p.add_argument("--current", required=True, help="Current snapshot JSON")
+    ds_p.add_argument("--warning-threshold", type=float, default=None,
+                      help=f"Warning threshold %% (default: {DEFAULT_WARNING_THRESHOLD}, env: {DRIFT_THRESHOLD_ENV_VAR})")
+    ds_p.add_argument("--blocking-threshold", type=float, default=None,
+                      help=f"Blocking threshold %% (default: {DEFAULT_BLOCKING_THRESHOLD}, env: {DRIFT_THRESHOLD_ENV_VAR})")
 
     # diff-visual
     dv_p = subparsers.add_parser("diff-visual", help="Screenshot + pixel diff")
@@ -417,6 +457,10 @@ def main() -> int:
     dv_p.add_argument("--current", required=True, help="Current screenshot PNG")
     dv_p.add_argument("--output-dir", default="design-system/screenshots/diff",
                       help="Diff output directory")
+    dv_p.add_argument("--warning-threshold", type=float, default=None,
+                      help=f"Warning threshold %% (default: {DEFAULT_WARNING_THRESHOLD}, env: {DRIFT_THRESHOLD_ENV_VAR})")
+    dv_p.add_argument("--blocking-threshold", type=float, default=None,
+                      help=f"Blocking threshold %% (default: {DEFAULT_BLOCKING_THRESHOLD}, env: {DRIFT_THRESHOLD_ENV_VAR})")
 
     # capture
     cap_p = subparsers.add_parser("capture", help="Take a screenshot (Playwright)")
@@ -448,11 +492,12 @@ def main() -> int:
         c_data = json.loads(Path(args.current).read_text(encoding="utf-8"))
         baseline = CodeSnapshot.from_dict(b_data)
         current = CodeSnapshot.from_dict(c_data)
-        report = diff_structural(baseline, current)
+        report = diff_structural(baseline, current, args.warning_threshold, args.blocking_threshold)
         print(json.dumps(asdict(report), indent=2))
 
     elif args.command == "diff-visual":
-        report = diff_visual(args.baseline, args.current, args.output_dir)
+        report = diff_visual(args.baseline, args.current, args.output_dir,
+                             args.warning_threshold, args.blocking_threshold)
         print(json.dumps(asdict(report), indent=2))
 
     elif args.command == "capture":

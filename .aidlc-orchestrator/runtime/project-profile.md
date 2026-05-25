@@ -20,6 +20,20 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 - `workspace_state.reverse_engineering_artifacts_present == true`, OR
 - the user_request matches `/migrat|refactor|deprecat|legacy|rewrite|port/i`
 
+**`framework`** — when `ui: true`, resolve from `workspace_state.tech_stack[]`:
+1. Read `tech_stack[]` and check each entry's `package` field:
+   | Package pattern | Framework | Adapter |
+   |---|---|---|
+   | `react`, `next` | `react` | `ReactAdapter` |
+   | `@angular/core`, `angular` | `angular` | `AngularAdapter` |
+   | `vue`, `nuxt` | `vue` | `VueAdapter` (falls back to HtmlAdapter) |
+   | `svelte`, `sveltekit` | `svelte` | `SvelteAdapter` (falls back to HtmlAdapter) |
+   | `flutter` (from `pubspec.yaml`) | `flutter` | `FlutterAdapter` |
+   | none of the above | `html` | `HtmlAdapter` (universal fallback) |
+2. If multiple UI frameworks found (e.g. React + Angular in monorepo): use the one with the most references, emit `[Orchestrator] Multiple frameworks detected, selected <framework> by majority`
+3. If none found and `ui: true`: default to `html` (universal fallback)
+4. Set `framework = <detected>` in project_profile
+
 **`design_system_path`** — when `ui: true`:
 1. Check if `design-system/` exists at repo root
 2. If yes: set `design_system_path = "design-system/"`
@@ -74,6 +88,7 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 
 **Inject into downstream handoffs:**
 When building input handoffs for code-generator, reviewers, build-test-agent, and ship-agent, add:
+- `framework` from the resolved value (when `ui: true`)
 - `design_system_path` from the resolved value
 - `has_figma_data` from the resolved value
 - `figma_snapped_path` when figma snapping ran
@@ -88,11 +103,12 @@ When building input handoffs for code-generator, reviewers, build-test-agent, an
 python3 aidlc-scripts/factory_run.py set <run-id> \
     --field project_profile.ui=<true|false> \
     --field project_profile.api=<true|false> \
-    --field project_profile.has_legacy=<true|false>
+    --field project_profile.has_legacy=<true|false> \
+    --field project_profile.framework=<detected|none>
 ```
 
 **Audit**: append a single bullet to the NEXT stage's audit block (NOT a standalone header):
-`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>`
+`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>, framework=<detected>`
 
 ## Conditional-skill injection (downstream consumer)
 
