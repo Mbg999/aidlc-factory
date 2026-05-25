@@ -121,6 +121,12 @@ from the design system's knowledge store. For `code-generator`, load relevant
 `context_pointers[]` — these are primitives with human-approved track records
 that the generator should prioritize, and antipatterns it should avoid.
 
+**Stitch cross-reference** — when `manifest.project_profile.has_stitch_data == true`,
+additionally query for Stitch-related priors:
+- Stitch DESIGN.md token mappings (from `design-system/tokens/stitch-*.md`)
+- Previous Stitch-to-token snap corrections (antipatterns from chaotic Stitch output)
+- Stitch screen -> primitive mapping patterns
+
 **Result formatting** — each match becomes a context_pointer entry:
 ```
 ### [<kind>] <title>

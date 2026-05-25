@@ -96,95 +96,155 @@ For each UI element needed:
 
 ---
 
-## Step 5: Prohibir geometría absoluta de Figma
+## Step 5: Ban Figma Absolute Geometry
 
-Cuando los datos provienen de Figma (directa o indirectamente), aplicar estas reglas:
+When data comes from Figma (directly or indirectly), apply these rules:
 
 ```
-REGLAS ESTRICTAS:
-- NUNCA usar position: absolute, top, left, right, bottom basado en coordenadas de Figma
-- EXCEPCIÓN ÚNICA: tooltips, modales, popovers (elementos flotantes intencionales)
-- En lugar de coordenadas: reconstruir el flujo visual con Stack (vertical) e Inline (horizontal)
-- Ignorar la agrupación de capas del diseñador — usar orden de lectura (arriba→abajo, izquierda→derecha)
-- Si el Figma no usa Auto Layout: tratar cada elemento como parte de un flujo secuencial, no como un canvas absoluto
+STRICT RULES:
+- NEVER use position: absolute, top, left, right, bottom based on Figma coordinates
+- ONLY EXCEPTION: tooltips, modals, popovers (intentionally floating elements)
+- Instead of coordinates: reconstruct the visual flow with Stack (vertical) and Inline (horizontal)
+- Ignore the designer's layer grouping — use reading order (top→bottom, left→right)
+- If Figma does not use Auto Layout: treat each element as part of a sequential flow, not an absolute canvas
 ```
 
-**Fundamento**: Figma sin Auto Layout produce coordenadas XY flotantes. Replicarlas
-destruye la responsividad. Stack/Inline reconstruyen el flujo correcto.
+**Rationale**: Figma without Auto Layout produces floating XY coordinates.
+Replicating them destroys responsiveness. Stack/Inline rebuild the correct flow.
 
 ---
 
-## Step 6: Triaje de componentes por similitud
+## Step 6: Component Triage by Similarity
 
-Cuando Figma no usa instancias oficiales de componentes, aplicar este algoritmo:
+When Figma does not use official component instances, apply this algorithm:
 
 ```
-ALGORITMO DE TRIAJE (orden de preferencia):
-1. ¿Es instancia oficial?
-   → El nodo Figma refiere a un ID de componente conocido
-   → Usar la primitiva equivalente sin cuestionar
+TRIAGE ALGORITHM (preference order):
+1. Is it an official instance?
+   → The Figma node refers to a known component ID
+   → Use the equivalent primitive without question
 
-2. ¿Se comporta como algo conocido? (Heurísticas)
-   → Texto 1 línea + fondo contrastado + dimensiones pequeñas (< 60px height)
-     → TRATAR COMO: Button (ignorar vector raw)
-   → Borde visible + padding + hijos en vertical
-     → TRATAR COMO: Stack
-   → Borde visible + padding + hijos en horizontal
-     → TRATAR COMO: Inline
-   → Input type + label + borde
-     → TRATAR COMO: Input (usar anatomy.md, ignorar raw Figma)
-   → Texto largo + sin fondo + sin borde
-     → TRATAR COMO: Text (con variant apropiada)
+2. Does it behave like something known? (Heuristics)
+   → Single-line text + contrasted background + small dimensions (< 60px height)
+     → TREAT AS: Button (ignore raw vector)
+   → Visible border + padding + vertical children
+     → TREAT AS: Stack
+   → Visible border + padding + horizontal children
+     → TREAT AS: Inline
+   → Input type + label + border
+     → TREAT AS: Input (use anatomy.md, ignore raw Figma)
+   → Long text + no background + no border
+     → TREAT AS: Text (with appropriate variant)
 
-3. ¿Nada coincide?
-   → Componer de primitivas existentes, ignorar todos los estilos custom
-   → Usar patterns/ como blueprint de layout
+3. Nothing matches?
+   → Compose from existing primitives, ignore all custom styles
+   → Use patterns/ as layout blueprint
 
-4. DESTRUIR ESTILOS CUSTOM:
-   → Si el nodo intenta CSS que no existe en INDEX.md (e.g. border-radius: 7, padding: 11)
-   → Forzar la primitiva más cercana con sus tokens correctos
-   → NO preservar valores "artísticos" del diseñador si no están en el token set
+4. DESTROY CUSTOM STYLES:
+   → If the node uses CSS that does not exist in INDEX.md (e.g. border-radius: 7, padding: 11)
+   → Force the nearest primitive with its correct tokens
+   → Do NOT preserve the designer's "artistic" values if they are not in the token set
 ```
 
 ---
 
-## Step 7: Modo "Arqueólogo" (Fallback para Figma caótico)
+## Step 7: "Archaeologist" Mode (Fallback for Chaotic Figma)
 
-Si los datos de Figma son un espagueti de capas sin estructura reconocible:
+If the Figma data is a tangle of layers with no recognizable structure:
 
 ```
-CUANDO ACTIVAR:
-- Auto Layout ausente en todos los nodos
-- Coordenadas superpuestas (elementos en la misma XY)
-- Sin instancias de componentes reconocibles
-- Más de 50% de los valores necesitan corrección
+WHEN TO ACTIVATE:
+- Auto Layout absent in all nodes
+- Overlapping coordinates (elements at the same XY)
+- No recognizable component instances
+- More than 50% of values need correction
 
-PROTOCOLO:
-1. EXTRAER SOLO:
-   - Texto visible de cada nodo
-   - Inputs requeridos (placeholders, tipos)
-   - Orden de lectura (Y ascendente, luego X ascendente)
+PROTOCOL:
+1. EXTRACT ONLY:
+   - Visible text from each node
+   - Required inputs (placeholders, types)
+   - Reading order (ascending Y, then ascending X)
 
-2. IGNORAR COMPLETAMENTE:
-   - Posiciones absolutas (top, left)
-   - Tamaños de contenedor (width, height)
-   - Colores específicos
+2. IGNORE COMPLETELY:
+   - Absolute positions (top, left)
+   - Container dimensions (width, height)
+   - Specific colors
    - Paddings, margins, gaps
-   - Bordes, radios de esquina
-   - Sombras, efectos
+   - Borders, corner radii
+   - Shadows, effects
 
-3. GENERAR DESDE CERO usando design-system/patterns/:
-   - Seleccionar el patrón que mejor se ajuste a los contenidos extraídos
-   - El layout lo dicta el patrón, no Figma
-   - Todos los valores visuales vienen de tokens/
+3. GENERATE FROM SCRATCH using design-system/patterns/:
+   - Select the pattern that best fits the extracted content
+   - The pattern dictates the layout, not Figma
+   - All visual values come from tokens/
 
-4. PRIORIDAD: funcionalidad sobre fidelidad visual
-   - Los textos e inputs son correctos
-   - El layout puede diferir del Figma original
-   - El diseñador corrige el Figma, no al revés
+4. PRIORITY: functionality over visual fidelity
+   - Text and inputs are correct
+   - Layout may differ from original Figma
+   - The designer fixes the Figma, not the other way around
 ```
 
-**Esto convierte a Figma en un "plano de ideas" — el sistema local construye la UI real.**
+**This turns Figma into an "idea sketch" — the local system builds the real UI.**
+
+---
+
+## Step 8: Google Stitch Integration
+
+When data comes from Google Stitch (directly or indirectly), apply these
+additional rules:
+
+```
+STITCH RULES:
+1. Stitch generates HTML/CSS as output — do NOT use Stitch's generated HTML
+   directly. Extract the INTENT (layout, hierarchy, content) and
+   rebuild with local primitives.
+
+2. Value snapping: Stitch may generate raw styles (padding: 13px,
+   border-radius: 5px). Run factory_stitch_snap.py snap-file to
+   correct them to tokens.
+
+3. DESIGN.md: If Stitch exported a DESIGN.md, load the imported tokens
+   from design-system/tokens/stitch-*.md as additional valid tokens.
+   These tokens coexist with native ones — use the nearest token.
+
+4. Do not trust Stitch code: Stitch generated HTML may use
+   arbitrary classnames, non-semantic nested divs, and inline styles.
+   Rebuild from scratch using the visual hierarchy as reference.
+
+5. Intent priority over code:
+   - Stitch TEXT and CONTENT is correct (reflects what the user asked for)
+   - Stitch LAYOUT is a suggestion (rebuild with Stack/Inline)
+   - Stitch CSS is suspect (always pass through snap + composer)
+```
+
+**Rationale**: Stitch is excellent for rapid ideation, but its technical output
+does not follow our conventions for primitives, tokens, or accessibility. We
+take the visual intent and discard the generated code.
+
+---
+
+## Step 9: Stitch DESIGN.md Import
+
+When the pipeline detects a `stitch/DESIGN.md` (Stitch 2.0 design system
+definition), load the imported tokens:
+
+```
+IMPORTED TOKENS:
+- design-system/tokens/stitch-spacing.md    → Stitch spacing tokens
+- design-system/tokens/stitch-radius.md     → Stitch radius tokens
+- design-system/tokens/stitch-typography.md → Stitch typography tokens
+- design-system/tokens/stitch-color.md      → Stitch color tokens
+
+RULES:
+1. Imported tokens are COMPLEMENTARY to native ones
+2. If an imported token duplicates a native one (same value), use the native
+3. If an imported token introduces a NEW value, it is available for use
+4. NEVER use raw values from DESIGN.md without snapping (may be floats)
+5. Prefer native tokens over imported ones when there is a conflict
+```
+
+**This allows Stitch projects to bring their visual identity without
+compromising the local design system's consistency.**
 
 ---
 

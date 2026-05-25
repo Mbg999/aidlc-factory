@@ -82,3 +82,61 @@ Who can modify tokens:
 Who can approve to `examples/`:
 - Only the `ship-agent` via the visual feedback loop
 - Human approval required before any example is saved
+
+---
+
+## §5 Google Stitch Integration
+
+Google Stitch is a supported design source alongside Figma. Stitch generates
+UI designs and frontend code from text prompts via Gemini 2.5 Pro. Its output
+(HTML/CSS) is snapped to design system tokens before the LLM processes it.
+
+### Detection
+
+The pipeline detects Stitch data via:
+- `stitch/` directory at repo root
+- `.stitch-project.json` (created by Stitch MCP workspace persistence)
+- `*.stitch.json` files anywhere in the workspace
+
+### Pipeline integration
+
+```
+Stitch export (HTML / CSS / DESIGN.md)
+    ↓
+factory_stitch_snap.py snap-file --input stitch/export.html
+    ↓
+Token-snapped output → code-generator input (stitch_snapped_path)
+    ↓
+Design-system-composer skill (§8 Stitch integration)
+    ↓
+ui-constraint-validator (post-processing)
+```
+
+### DESIGN.md import
+
+Stitch 2.0's DESIGN.md defines a project's visual design system. When present,
+our pipeline imports these tokens into `design-system/tokens/stitch-*.md` via
+`factory_stitch_snap.py snap-design`. These imported tokens are loaded alongside
+native tokens by `factory_design_system_resolve.py`.
+
+### MCP server
+
+The pipeline can optionally use the Stitch MCP server
+(`@_davideast/stitch-mcp`) to fetch designs programmatically:
+- `get_screen_code` — fetch HTML code for a Stitch screen
+- `get_screen_image` — fetch screenshot
+- `build_site` — build full site from Stitch project
+- `extract_design_context` — extract design tokens from screens
+
+The MCP server is registered in the project's `.mcp.json` (or per-tool config)
+and managed via `factory_stitch_mcp.py doctor|config`.
+
+### When to use vs Figma
+
+| Aspect | Figma | Stitch |
+|--------|-------|--------|
+| Input type | Manual design exports | AI-generated designs from prompts |
+| Data format | Figma JSON nodes (coordinates, fills) | HTML/CSS, DESIGN.md |
+| Snap target | `factory_design_system_snap.py` | `factory_stitch_snap.py` |
+| Best for | Existing designs, pixel-perfect specs | Rapid ideation, prompt-to-UI |
+| Archaeologist mode | Shared (same §7 fallback) | Shared (same §7 fallback) |

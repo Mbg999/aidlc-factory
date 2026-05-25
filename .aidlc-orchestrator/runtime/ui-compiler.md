@@ -83,11 +83,11 @@ per-framework. When the framework is unknown, use the generic primitive output.
 
 ---
 
-## §5 Input Snapping — Pre-processing de Figma
+## §5 Input Snapping — Figma Pre-processing
 
-Cuando los datos provienen de Figma, se ejecuta `factory_design_system_snap.py`
-**ANTES** de que el LLM vea los datos. Esto asegura que Claude nunca reciba valores
-caóticos (13.4px, colores sin variable, coordenadas absolutas).
+When data comes from Figma, `factory_design_system_snap.py` runs
+**BEFORE** the LLM sees the data. This ensures Claude never receives chaotic
+values (13.4px, colors without variables, absolute coordinates).
 
 ### Pipeline
 
@@ -96,25 +96,83 @@ Figma JSON raw
     ↓
 factory_design_system_snap.py snap-file --input figma.json
     ↓
-JSON limpio (solo tokens, sin raw values)
+Clean JSON (tokens only, no raw values)
     ↓
-LLM compone con primitivas
+LLM composes with primitives
     ↓
 ui-constraint-validator (post-processing)
 ```
 
-### Qué hace el snap
+### What the snap does
 
-| Valor raw Figma | Token resultante | Método |
+| Raw Figma value | Resulting token | Method |
 |----------------|------------------|--------|
-| `padding: 13.4px` | `spacing.md` (12px) | Nearest-neighbor con distancia euclídea |
-| `border-radius: 4.2px` | `radius.sm` (3px) | Nearest-neighbor, tolerancia ±2px |
-| `font-size: 15px` | `font-size.body` (14px) | Nearest-neighbor en set {12,14,16,20,24,32,40} |
-| `color: #3c83f6` | `color.brand.primary` | Mapa de hex → token conocido |
-| `itemSpacing: 7` | `spacing.sm` (8px) | Snap spacing |
+| `padding: 13.4px` | `spacing.md` (12px) | Nearest-neighbor with Euclidean distance |
+| `border-radius: 4.2px` | `radius.sm` (3px) | Nearest-neighbor, ±2px tolerance |
+| `font-size: 15px` | `font-size.body` (14px) | Nearest-neighbor in set {12,14,16,20,24,32,40} |
+| `color: #3c83f6` | `color.brand.primary` | Hex → known token map |
+| `itemSpacing: 7` | `spacing.sm` (8px) | Spacing snap |
 
-### Cuándo se ejecuta
+### When it runs
 
-- Siempre que `project_profile.ui == true` Y hay datos de Figma en el input
-- Inyectado por `project-profile.md` como paso previo al code-generator
-- El script reporta cuántas correcciones hizo — si >10, sugiere modo "Arqueólogo"
+- Whenever `project_profile.ui == true` AND Figma data is present in the input
+- Injected by `project-profile.md` as a step before the code-generator
+- The script reports how many corrections it made — if >10, it suggests "Archaeologist" mode
+
+---
+
+## §6 Input Snapping — Google Stitch
+
+Google Stitch generates UI designs as HTML/CSS from text prompts. Its
+style values (padding, radius, colors, sizes) must be mapped to the
+design system's canonical tokens before the LLM uses them for code generation.
+
+### Pipeline
+
+```
+Stitch export HTML / CSS / DESIGN.md
+    ↓
+factory_stitch_snap.py snap-file --input stitch/export.html
+    ↓
+Clean JSON (tokens only, no raw values) + corrected HTML
+    ↓
+LLM composes with primitives
+    ↓
+ui-constraint-validator (post-processing)
+```
+
+### What the snap does
+
+| Raw Stitch value | Resulting token | Method |
+|-----------------|------------------|--------|
+| `padding: 13px` | `spacing.md` (12px) | Nearest-neighbor |
+| `border-radius: 5px` | `radius.sm` (3px) | Nearest-neighbor, ±2px tolerance |
+| `font-size: 15px` | `font-size.body` (14px) | Nearest-neighbor in set {12,14,16,20,24,32,40} |
+| `color: #3c83f6` | `color.brand.primary` | Hex → known token map |
+| `gap: 7px` | `spacing.sm` (8px) | Spacing snap |
+
+### Stitch DESIGN.md Import
+
+Stitch 2.0 can export a `DESIGN.md` that defines the project's visual tokens.
+The snap imports these tokens into `design-system/tokens/stitch-*.md`:
+
+```
+DESIGN.md token definitions
+    ↓
+factory_stitch_snap.py snap-design --input stitch/DESIGN.md
+    ↓
+design-system/tokens/stitch-spacing.md
+design-system/tokens/stitch-radius.md
+design-system/tokens/stitch-typography.md
+design-system/tokens/stitch-color.md
+```
+
+These imported tokens coexist with the native tokens — the resolver loads them
+alongside the other files in `tokens/`.
+
+### When it runs
+
+- Whenever `project_profile.ui == true` AND `has_stitch_data == true`
+- Injected by `project-profile.md` as a step before the code-generator
+- If `stitch/DESIGN.md` exists, it is automatically imported to tokens
+- More than 10 corrections triggers `stitch_archaeologist_mode`

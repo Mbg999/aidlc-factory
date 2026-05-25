@@ -24,27 +24,77 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 |------|---------|
 | `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules (read by orchestrator stage agents) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Stage rule details (inception / construction / operations / common / extensions) |
-| `.claude/agents/orchestrator.md` | Multi-agent orchestrator (Claude Code only) |
-| `.claude/agents/stage/` | 13 stage subagents |
+| `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands) |
+| `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
 | `.claude/agents/cross-cutting/` | conflict-resolver, knowledge-agent |
 | `.claude/commands/factory-*.md` | Factory slash command definitions |
-| `.aidlc-orchestrator/runtime/` | Runtime architecture docs |
-| `.aidlc-orchestrator/contracts/` | JSON Schema handoff contracts (stage I/O) |
+| `.aidlc-orchestrator/runtime/` | Runtime architecture docs (index, spawn-loop, fast-path, recovery, …) |
+| `.aidlc-orchestrator/contracts/` | JSON Schema handoff contracts for every stage I/O |
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
-| `aidlc-scripts/factory_*.py` | Runtime Python scripts |
+| `aidlc-scripts/factory_*.py` | Runtime Python scripts (run manager, conflict, merge-reviews, validate, telemetry, incl. stitch_snap, stitch_mcp, …) |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills: code-review-and-quality, validator-retry, environment-detection, codegraph-aware-exploration, secret-knowledge |
-| `aidlc-docs/` | Generated artifacts from AIDLC runs in this repo |
+| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, …) |
+| `aidlc-docs/` | Generated artifacts from any AIDLC run executed in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
-| `docs/` | Supporting docs (WORKING-WITH-AIDLC, TROUBLESHOOTING) |
+| `docs/` | Supporting documentation (WORKING-WITH-AIDLC, TROUBLESHOOTING, …) |
 
 ---
 
 ## Multi-agent orchestrator (Claude Code only)
 
-Uses `/factory-*` slash commands.
-See `.claude/agents/orchestrator.md` and `.aidlc-orchestrator/runtime/index.md`.
+Activated via `/factory-*` slash commands.
+Entry point: `.claude/agents/orchestrator.md`.
+Runtime spec: `.aidlc-orchestrator/runtime/index.md`.
+
+| Command | What it does |
+|---------|-------------|
+| `/factory-spec <feature>` | Workspace scout + requirements analysis (Phase 0) |
+| `/factory-plan <run-id>` | Execution plan + optional unit decomposition (Phase 1) |
+| `/factory-build <run-id>` | Parallel code-gen + build/test with file-glob locks (Phase 5) |
+| `/factory-review <run-id>` | Parallel reviewer pool: code / security / performance / simplifier |
+| `/factory-ship <run-id>` | Release notes, ADRs, CHANGELOG, CI/CD wiring |
+| `/factory-resume <run-id>` | Resume interrupted run from last completed stage |
+| `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage |
+| `/factory-state <run-id>` | Show run status, stage, budget |
+| `/factory-help` | Full command reference |
+
+Stage execution modes: **Full spawn** (`Task()` + JSON Schema validation) for build/review;
+**post-execution inline** for all other stages. See `runtime/spawn-loop.md`.
+
+---
+
+## CodeGraph
+
+CodeGraph builds a semantic knowledge graph of codebases for faster, smarter code exploration.
+
+### If `.codegraph/` exists in the project
+
+**NEVER call `codegraph_explore` or `codegraph_context` directly in the main session.** These tools return large amounts of source code that fills up main session context. Instead, ALWAYS spawn an Explore agent for any exploration question (e.g., "how does X work?", "explain the Y system", "where is Z implemented?").
+
+**When spawning Explore agents**, include this instruction in the prompt:
+
+> This project has CodeGraph initialized (.codegraph/ exists). Use `codegraph_explore` as your PRIMARY tool — it returns full source code sections from all relevant files in one call.
+>
+> **Rules:**
+> 1. Follow the explore call budget in the `codegraph_explore` tool description — it scales automatically based on project size.
+> 2. Do NOT re-read files that codegraph_explore already returned source code for. The source sections are complete and authoritative.
+> 3. Only fall back to grep/glob/read for files listed under "Additional relevant files" if you need more detail, or if codegraph returned no results.
+
+**The main session may only use these lightweight tools directly** (for targeted lookups before making edits, not for exploration):
+
+| Tool | Use For |
+|------|---------|
+| `codegraph_search` | Find symbols by name |
+| `codegraph_callers` / `codegraph_callees` | Trace call flow |
+| `codegraph_impact` | Check what's affected before editing |
+| `codegraph_node` | Get a single symbol's details |
+
+### If `.codegraph/` does NOT exist
+
+At the start of a session, ask the user if they'd like to initialize CodeGraph:
+
+"I notice this project doesn't have CodeGraph initialized. Would you like me to run `codegraph init -i` to build a code knowledge graph?"
 
 ---
 
@@ -61,6 +111,8 @@ Bundled custom skills in this fork:
 - `validator-retry` — static type/lint validation with compile-error-feedback loop
 - `environment-detection` — detect runtimes before installing
 - `codegraph-aware-exploration` — routes exploration to CodeGraph MCP tools
+- `design-system-composer` — composes UI from approved primitives, enforces tokens (Figma + Stitch)
+- `ui-constraint-validator` — validates hardcoded spacing/radius/typography/color against tokens
 
 ---
 
@@ -112,3 +164,5 @@ Extensions without an opt-in file are always enforced.
 
 
 Keep parity between .opencode/, .cursor, .github and .claude/ files, everytime you change anything in one, do the same for the other.
+Skills provide specialized instructions and workflows for specific tasks.
+Use the skill tool to load a skill when a task matches its description.

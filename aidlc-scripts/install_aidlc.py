@@ -292,6 +292,11 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_design_system_snap.py",    # snap raw Figma values to canonical design tokens
     "factory_design_system_resolve.py", # lazy-load design system files for matching components
     "factory_design_system_learn.py",   # learn from approved/rejected UI output
+    # Google Stitch integration (AI design tool input snapping, MCP registry)
+    "factory_stitch_snap.py",   # snap Stitch HTML/CSS/DESIGN.md output to canonical design tokens
+    "factory_stitch_mcp.py",    # Stitch MCP registry, health check, config fragment
+    # Figma MCP integration (official Figma Remote MCP + community fallback)
+    "factory_figma_mcp.py",     # Figma MCP registry, health check, config fragment
     # Skill sync layer — monorepo-aware autoskills bridge
     "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
     "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
@@ -537,6 +542,41 @@ def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, d
         print(f"  created {claude_md_path.name} with orchestrator pointer")
 
 
+def _filter_mcp_config(config_path: Path, with_stitch: bool, with_figma: bool, dry_run: bool) -> None:
+    """Remove unselected MCP server entries from a copied config file.
+
+    Handles all config formats:
+      - .mcp.json / .cursor/mcp.json: { "mcpServers": { ... } }
+      - .vscode/mcp.json:              { "servers": { ... } }
+      - opencode.json:                 { "mcp": { ... } }
+    """
+    if not config_path.exists():
+        return
+    if dry_run:
+        return
+    import json
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+
+    # Find the servers dict (varies by format)
+    servers: dict | None = None
+    for key in ("mcpServers", "servers", "mcp"):
+        if key in data and isinstance(data[key], dict):
+            servers = data[key]
+            break
+    if servers is None:
+        return
+
+    if not with_stitch and "stitch" in servers:
+        del servers["stitch"]
+    if not with_figma and "figma" in servers:
+        del servers["figma"]
+
+    config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def _tool_agent_dir(tool: str) -> str:
     """Return the agent directory for the given tool."""
     return {
@@ -589,7 +629,7 @@ def _install_vscode_copilot_settings(target_root: Path, dry_run: bool) -> None:
     print(f"  .vscode/settings.json — set {key}=true")
 
 
-def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False) -> None:
+def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False, args: argparse.Namespace | None = None) -> None:
     """Install AIDLC Orchestrator (Phases 0-6) artifacts for one or more tools.
 
     Layers:
@@ -724,6 +764,13 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 else:
                     print(f"  mcp config -> {mcp_rel}")
                     copy_file(src_mcp, dst_mcp, dry_run)
+                    # Filter out unselected MCP servers (Stitch, Figma)
+                    _filter_mcp_config(
+                        dst_mcp,
+                        with_stitch=bool(args and args.with_stitch_mcp),
+                        with_figma=bool(args and args.with_figma_mcp),
+                        dry_run=dry_run,
+                    )
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
@@ -1177,6 +1224,12 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
+    p.add_argument("--with-stitch-mcp", action="store_true", default=False,
+                   help="Install Google Stitch MCP server config (@_davideast/stitch-mcp). "
+                        "Default: skip (opt-in — requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
+    p.add_argument("--with-figma-mcp", action="store_true", default=False,
+                   help="Install Figma MCP server config (official Figma Remote MCP + community fallback). "
+                        "Default: skip (opt-in — requires Figma account, OAuth or FIGMA_API_KEY).")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
                         "Use only if you know what you're doing — missing prereqs will "
@@ -1504,6 +1557,22 @@ def main() -> int:
         if rc != 0:
             return rc
 
+    # --- Stitch MCP (opt-in, interactive when no CLI flag set) ---
+    if not args.with_stitch_mcp and not args.tool:
+        print()
+        resp = input("Install Google Stitch MCP server? (y/N): ").strip().lower()
+        args.with_stitch_mcp = resp in ("y", "yes", "sí", "dale")
+        if args.with_stitch_mcp:
+            print("  Stitch MCP will be installed (requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
+
+    # --- Figma MCP (opt-in, interactive when no CLI flag set) ---
+    if not args.with_figma_mcp and not args.tool:
+        print()
+        resp = input("Install Figma MCP server? (y/N): ").strip().lower()
+        args.with_figma_mcp = resp in ("y", "yes", "sí", "dale")
+        if args.with_figma_mcp:
+            print("  Figma MCP will be installed (requires Figma account, OAuth or FIGMA_API_KEY).")
+
     # Agent skills will be installed by default (no interactive prompt)
 
     # --- Agent Skills integration ---
@@ -1594,7 +1663,7 @@ def main() -> int:
 
     # --- AIDLC Orchestrator (always installed — mandatory for full workflow) ---
     try:
-        install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force)
+        install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force, args=args)
     except Exception as e:
         print(f"ERROR installing orchestrator: {e}")
         return 6

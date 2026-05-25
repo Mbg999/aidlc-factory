@@ -43,12 +43,44 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
    `figma_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
    `design-system-composer` skill §7.
 
+**`has_stitch_data`** — when `ui: true`:
+1. Check if `stitch/` directory exists OR any `*.stitch.json` files exist in the workspace
+2. Check if `.stitch-project.json` exists (created by Stitch MCP workspace persistence)
+3. Check `workspace-scout.output.yaml.workspace_state` for stitch references in `project_structure`
+4. If yes: set `has_stitch_data = true`
+5. If no: set `has_stitch_data = false`
+
+**Stitch MCP setup** — when `has_stitch_data == true`:
+1. Before code-generator runs, run health check:
+   ```bash
+   python3 aidlc-scripts/factory_stitch_mcp.py doctor
+   ```
+2. If healthy, optionally fetch Stitch designs for pre-processing:
+   ```bash
+   python3 aidlc-scripts/factory_stitch_snap.py snap-file \
+       --input stitch/export.html \
+       --output stitch/snapped.json
+   ```
+3. Set `stitch_snapped_path = "stitch/snapped.json"` in the code-generator input
+4. If Stitch DESIGN.md is present:
+   ```bash
+   python3 aidlc-scripts/factory_stitch_snap.py snap-design \
+       --input stitch/DESIGN.md \
+       --repo-root <repo-root>
+   ```
+5. The snap script reports correction count. If >10 corrections, set flag
+   `stitch_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
+   `design-system-composer` skill §7 (same fallback as Figma).
+
 **Inject into downstream handoffs:**
 When building input handoffs for code-generator, reviewers, build-test-agent, and ship-agent, add:
 - `design_system_path` from the resolved value
 - `has_figma_data` from the resolved value
 - `figma_snapped_path` when figma snapping ran
 - `figma_archaeologist_mode` when >10 corrections
+- `has_stitch_data` from the resolved value
+- `stitch_snapped_path` when stitch snapping ran
+- `stitch_archaeologist_mode` when >10 corrections
 - `skills_required[]` adds `frontend-ui-engineering`, `design-system-composer`, AND `ui-constraint-validator` when `ui: true`
 
 **Persist:**

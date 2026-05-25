@@ -109,6 +109,8 @@ at install time.
 | **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, or `.opencode/`) |
 | **Custom Skills (this fork)** | `.agents/custom-skills/` | 21 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
 | **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
+| **Google Stitch MCP** | [@_davideast/stitch-mcp](https://www.npmjs.com/package/@_davideast/stitch-mcp) (npm) | AI design-to-code: 15+ tools for design extraction, project management, dark mode, responsive variants. Backs the `design-system-composer` skill. | `--with-stitch-mcp` (requires Node ≥ 18, gcloud auth, `GOOGLE_CLOUD_PROJECT`) |
+| **Figma MCP** | Official Figma Remote MCP at https://mcp.figma.com/mcp + community fallback `figma-mcp` (npm) | Design-to-code MCP bridge: 16+ tools (`get_design_context`, `use_figma`, `generate_figma_design`, etc.) for reading designs, extracting tokens, generating components. Backs the `design-system-composer` skill. | `--with-figma-mcp` (requires OAuth or `FIGMA_API_KEY`) |
 
 > Every external dependency degrades gracefully. The orchestrator still runs
 > if CodeGraph or Engram is missing — those stages just lose the corresponding
@@ -302,6 +304,8 @@ python3 aidlc-scripts/install_aidlc.py \
 | `--with-codegraph` | off | Install CodeGraph npm package + write `.mcp.json`. |
 | `--with-engram` | off | Set up Engram persistent memory. CLI tools get the tool-specific command; MCP tools get an `.mcp.json` entry. |
 | `--with-design-system` | on | Install design-system tokens + UI skills. |
+| `--with-stitch-mcp` | off | Install Google Stitch MCP server config (`@_davideast/stitch-mcp`). Requires Node ≥ 18, gcloud auth, and `GOOGLE_CLOUD_PROJECT`. |
+| `--with-figma-mcp` | off | Install Figma MCP server config (official Figma Remote MCP + community fallback). Requires Figma account, OAuth or `FIGMA_API_KEY`. |
 | `--force` | off | Re-install / upgrade. Overwrites orchestrator files; preserves run state (`runs/`, `knowledge/`). |
 | `--no-venv` | off | Skip creating `.venv` and installing `requirements.txt`. |
 | `--dry-run` | off | Print planned actions without writing files. |
@@ -319,7 +323,7 @@ directories vary per `--tool`:
 | `copilot` | `.github/agents/` | `.github/prompts/` (+ `.github/skills/`, `.vscode/settings.json`) | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
 | `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
 
-Each MCP config registers two locally-run, npx-driven servers: `@upstash/context7-mcp` (library docs) and `chrome-devtools-mcp@latest` (browser driver). The installer never overwrites an existing config — use `--force` to replace.
+Each MCP config always registers `@upstash/context7-mcp` (library docs) and `chrome-devtools-mcp@latest` (browser driver). When `--with-stitch-mcp` is set, the Google Stitch MCP entry (`@_davideast/stitch-mcp`) is added. When `--with-figma-mcp` is set, the Figma MCP entry (official HTTP remote or community stdio fallback) is added. The installer never overwrites an existing config — use `--force` to replace.
 
 Everything outside the per-tool block is shared across all four tools.
 
@@ -346,11 +350,13 @@ Everything outside the per-tool block is shared across all four tools.
 │   ├── factory_conflict.py            # File-glob lock + AST drift detection
 │   ├── factory_merge_reviews.py       # Reviewer pool merger
 │   ├── factory_validate.py            # Handoff contract validator
-│   └── factory_*.py                   # ~33 runtime scripts
+│   ├── factory_stitch_mcp.py          # Google Stitch MCP registry & health check
+│   ├── factory_figma_mcp.py           # Figma MCP registry & health check
+│   └── factory_*.py                   # ~35 runtime scripts
 ├── .codegraph/                        # CodeGraph index (gitignored, regenerated)
-├── .mcp.json                          # MCP server registrations (claude: context7, chrome-devtools, codegraph, engram)
+├── .mcp.json                          # MCP server registrations (claude: context7, chrome-devtools, stitch, figma, codegraph, engram)
 ├── .cursor/mcp.json                   # Same servers, Cursor format (when --tool cursor)
-├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot)
+├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot; figma uses stdio fallback)
 ├── opencode.json                      # Same servers, OpenCode format (when --tool opencode)
 └── .venv/                             # Python virtual environment
 ```
@@ -391,10 +397,10 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 | `.aidlc-orchestrator/contracts/` | JSON Schema input/output handoffs per stage |
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments (haiku / sonnet / opus) |
 | `.agents/custom-skills/` | 21 fork-specific skills (highest priority in skill resolution) |
-| `aidlc-scripts/` | ~33 runtime Python scripts (`factory_*.py`) + the installer |
+| `aidlc-scripts/` | ~35 runtime Python scripts (`factory_*.py`) + the installer; includes `factory_stitch_mcp.py` (Google Stitch MCP) and `factory_figma_mcp.py` (Figma MCP) |
 | `aidlc-scripts/executors/` | Executor adapter implementations per the `executor.v1` contract |
 | `aidlc-docs/` | Generated artifacts from AIDLC runs |
-| `tests/` | Pytest suite (543 tests at time of writing) |
+| `tests/` | Pytest suite (650+ tests at time of writing) |
 
 ---
 
