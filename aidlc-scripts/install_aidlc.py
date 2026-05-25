@@ -1207,23 +1207,24 @@ def _parse_semver(raw: str) -> tuple[int, ...] | None:
 
 def _probe_version(cmd: list[str]) -> tuple[bool, str]:
     """Run cmd and return (found, raw-version-string). found=False on any failure."""
-    # Windows: if the command is a .ps1/.cmd script, subprocess.run may not
-    # find it through PATHEXT. Fall back to PowerShell invocation.
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        if _is_windows():
-            pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
-            try:
-                result = subprocess.run(pwsh_cmd, capture_output=True, text=True, timeout=10)
-            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-                return False, "not found"
-        else:
-            return False, "not found"
-    if result.returncode != 0:
-        return False, "not found"
-    out = (result.stdout or result.stderr or "").strip().splitlines()
-    return (True, out[0]) if out else (True, "")
+    # Windows: many tools (npm, codegraph, …) are .cmd or .ps1 scripts that
+    # subprocess.run(CreateProcess) cannot launch directly. Use PowerShell
+    # as the primary strategy on Windows; direct subprocess as fallback.
+    attempts: list[list[str]] = [cmd]
+    if _is_windows():
+        pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
+        attempts = [pwsh_cmd, cmd]
+
+    for candidate in attempts:
+        try:
+            result = subprocess.run(candidate, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                out = (result.stdout or result.stderr or "").strip().splitlines()
+                return (True, out[0]) if out else (True, "")
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            continue
+
+    return False, "not found"
 
 
 # Each entry: (display_name, probe_cmd, min_version_tuple_or_None,
