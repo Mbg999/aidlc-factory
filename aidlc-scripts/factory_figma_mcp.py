@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -159,7 +160,7 @@ def _probe_remote(result: dict) -> dict:
 
     try:
         proc = subprocess.run(
-            [curl, "-s", "-o", "/dev/null", "-w", "%{http_code}",
+            [curl, "-s", "-o", os.devnull, "-w", "%{http_code}",
              "--max-time", "10", FIGMA_MCP_REMOTE_URL],
             capture_output=True, text=True, timeout=15,
         )

@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 CONFLICT_PY = SCRIPTS / "factory_conflict.py"
@@ -149,3 +150,49 @@ def test_check_wave(env_setup, run_id):
     data = json.loads(r.stdout)
     assert data["safe"] is False
     assert len(data["collisions"]) == 1
+
+
+def test_acquire_run_lock_with_fcntl():
+    """_acquire_run_lock works with fcntl available."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("factory_conflict", CONFLICT_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    import tempfile
+    lock_path = Path(tempfile.mktemp(suffix=".lock"))
+    try:
+        # Should not raise with fcntl available on macOS/Linux
+        mod._acquire_run_lock(lock_path)
+    except Exception as e:
+        pytest.fail(f"_acquire_run_lock raised: {e}")
+    finally:
+        lock_path.unlink(missing_ok=True)
+
+
+def test_acquire_run_lock_no_fcntl_fallback_noop():
+    """_acquire_run_lock does not crash when neither fcntl nor msvcrt exist."""
+    import importlib.util
+    import builtins
+
+    original_import = builtins.__import__
+
+    def _no_fcntl_import(name, *args, **kwargs):
+        if name in ("fcntl", "msvcrt"):
+            raise ImportError(f"no {name} (simulated)")
+        return original_import(name, *args, **kwargs)
+
+    spec = importlib.util.spec_from_file_location("factory_conflict_lockless", CONFLICT_PY)
+    mod = importlib.util.module_from_spec(spec)
+    with patch.object(builtins, "__import__", _no_fcntl_import):
+        spec.loader.exec_module(mod)
+
+    import tempfile
+    lock_path = Path(tempfile.mktemp(suffix=".lock"))
+    try:
+        # Should return without doing anything (no-op fallback)
+        mod._acquire_run_lock(lock_path)
+    except Exception as e:
+        pytest.fail(f"_acquire_run_lock raised with no lock modules: {e}")
+    finally:
+        lock_path.unlink(missing_ok=True)

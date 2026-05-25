@@ -180,6 +180,21 @@ def _is_stale(lock: dict, older_than_min: float | None = None) -> bool:
     return elapsed > ttl
 
 
+def _acquire_run_lock(lock_path: Path) -> None:
+    try:
+        import fcntl
+    except ImportError:
+        try:
+            import msvcrt
+        except ImportError:
+            return
+        with lock_path.open("a") as lf:
+            msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    with lock_path.open("a") as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+
+
 def cmd_acquire(args: argparse.Namespace) -> None:
     validate_holder(args.holder)
     rd = run_dir(args.run_id)
@@ -187,18 +202,8 @@ def cmd_acquire(args: argparse.Namespace) -> None:
     locks_dir.mkdir(parents=True, exist_ok=True)
 
     # Serialize acquire with a per-run lock file to prevent TOCTOU races
-    _acquire_lock = rd / ".acquire.lock"
-    try:
-        import fcntl
-    except ImportError:
-        fcntl = None  # type: ignore[assignment]  # Windows — no flock available
-
-    if fcntl is None:
-        _do_acquire(args, rd, locks_dir)
-    else:
-        with _acquire_lock.open("a") as lf:
-            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
-            _do_acquire(args, rd, locks_dir)
+    _acquire_run_lock(rd / ".acquire.lock")
+    _do_acquire(args, rd, locks_dir)
 
 
 def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:

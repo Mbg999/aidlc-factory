@@ -103,6 +103,23 @@ class TestDoctor:
         assert result["overall"] == "ok"
         assert result["endpoint"]["ok"] is True
 
+    @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")
+    @patch("factory_figma_mcp.subprocess.run")
+    def test_remote_curl_no_dev_null_arg(self, mock_run, *_):
+        """Bug 6 regression: uses os.devnull instead of hardcoded /dev/null."""
+        mock_run.return_value = MagicMock(stdout="200\n", returncode=0)
+        with patch.object(mod, "os") as mock_os:
+            mock_os.devnull = "/dev/null"
+            mod.doctor(mode="remote")
+        args = mock_run.call_args[0][0]
+        # Must use os.devnull, not a hardcoded "/dev/null" string
+        assert "-o" in args
+        idx = args.index("-o")
+        assert idx + 1 < len(args)
+        assert args[idx + 1] == "/dev/null", (
+            f"-o points to {args[idx + 1]}, expected /dev/null"
+        )
+
     @patch("factory_figma_mcp._check_node", return_value=(True, "v20.11.0"))
     @patch("factory_figma_mcp._check_npx", return_value=True)
     @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")

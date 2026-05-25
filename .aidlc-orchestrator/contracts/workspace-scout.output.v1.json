@@ -90,7 +90,7 @@
               "version": { "type": "string" },
               "ecosystem": {
                 "type": "string",
-                "enum": ["npm", "pip", "cargo", "go", "gem", "nuget"]
+                "description": "Best-effort ecosystem identifier (e.g. npm, pip, maven, gradle, yarn, pnpm, composer)"
               }
             },
             "additionalProperties": false

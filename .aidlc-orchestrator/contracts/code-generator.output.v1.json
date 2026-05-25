@@ -4,6 +4,16 @@
   "title": "Code Generator — Output Contract (v1)",
   "type": "object",
   "required": ["status", "unit_name", "sub_stage", "artifacts", "audit_entries", "skill_compliance"],
+  "allOf": [
+    {
+      "if": { "properties": { "fast_path": { "const": true } } },
+      "then": { "properties": { "skill_compliance": { "minItems": 2 } } }
+    },
+    {
+      "if": { "properties": { "fast_path": { "const": false } } },
+      "then": { "properties": { "skill_compliance": { "minItems": 8 } } }
+    }
+  ],
   "properties": {
     "status": { "type": "string", "enum": ["complete", "blocked", "failed", "needs_human"] },
     "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
@@ -34,9 +44,9 @@
           "evidence": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
-      },
-      "minItems": 8
+      }
     },
+    "fast_path": { "type": "boolean", "description": "True when running in FAST_PATH mode (TINY complexity tier), which loads fewer skills" },
     "cost": { "type": "object" },
     "tests_added": { "type": "integer", "minimum": 0 },
     "tests_passing": { "type": "integer", "minimum": 0 },

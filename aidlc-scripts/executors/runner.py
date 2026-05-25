@@ -23,8 +23,12 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _venv_bin() -> str:
+    return ".venv/bin" if sys.platform != "win32" else ".venv\\Scripts"
+
+
 def _allowed_bases() -> list[Path]:
-    bases = [REPO_ROOT / "aidlc-scripts", REPO_ROOT / "bin", REPO_ROOT / ".venv" / "bin"]
+    bases = [REPO_ROOT / "aidlc-scripts", REPO_ROOT / "bin", REPO_ROOT / _venv_bin()]
 
     # Allow additional paths from environment variable (colon-separated)
     extra = os.environ.get("EXECUTOR_ALLOW_BASES")
