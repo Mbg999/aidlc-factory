@@ -177,7 +177,7 @@ def cmd_apply(args: argparse.Namespace) -> None:
     if source == "-":
         data = json.loads(sys.stdin.read())
     else:
-        data = json.loads(Path(source).read_text())
+        data = json.loads(Path(source).read_text(encoding="utf-8"))
     tier, pipeline, exit_code = classification_to_tier(data)
     result = {
         "tier": tier,

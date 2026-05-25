@@ -26,8 +26,7 @@
           "expected_impact": { "type": "string", "description": "Performance only" },
           "simplification_pattern": {
             "type": "string",
-            "description": "Simplifier only",
-            "enum": ["single-impl-interface", "dead-code", "pass-through-wrapper", "over-validation", "unused-generic", "single-config-key", "future-proofing"]
+            "description": "Simplifier only. Known patterns: single-impl-interface, dead-code, pass-through-wrapper, over-validation, unused-generic, single-config-key, future-proofing"
           },
           "message": { "type": "string", "minLength": 1 },
           "recommendation": { "type": "string", "minLength": 1 }

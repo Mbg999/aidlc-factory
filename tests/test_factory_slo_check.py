@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -139,7 +140,7 @@ def test_expired_ack_no_longer_clears_breach(fake_repo: Path):
 
 
 def test_missing_slos_file_exits_3(tmp_path: Path):
-    result = _run(tmp_path, "--quality-report", "/dev/null")
+    result = _run(tmp_path, "--quality-report", os.devnull)
     assert result.returncode == 3
 
 

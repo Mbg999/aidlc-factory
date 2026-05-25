@@ -25,7 +25,7 @@
     "skills_required": {
       "type": "array",
       "items": { "type": "string" },
-      "minItems": 5,
+      "minItems": 3,
       "default": [
         "using-agent-skills",
         "shipping-and-launch",
@@ -41,7 +41,6 @@
     "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
     "model_override": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
     }
   },

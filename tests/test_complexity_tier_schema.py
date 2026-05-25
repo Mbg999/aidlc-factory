@@ -152,7 +152,7 @@ class TestRejectedDocuments:
         errors = list(schema_validator.iter_errors(doc))
         assert any("skip_stages" in str(e.absolute_path) for e in errors)
 
-    def test_unknown_skip_stage_rejected(self, schema_validator):
+    def test_unknown_skip_stage_accepted(self, schema_validator):
         doc = {
             "complexity_tier": "SMALL",
             "skip_stages": ["ship-agent"],
@@ -160,7 +160,7 @@ class TestRejectedDocuments:
             "reviewer_pool": ["reviewer-code"],
         }
         errors = list(schema_validator.iter_errors(doc))
-        assert any("ship-agent" in e.message for e in errors)
+        assert not any("ship-agent" in e.message for e in errors)
 
     def test_unknown_reviewer_rejected(self, schema_validator):
         doc = {

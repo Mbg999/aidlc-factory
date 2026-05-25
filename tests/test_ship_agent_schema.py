@@ -53,10 +53,9 @@ def _make_doc(n_skills: int, **overrides) -> dict:
 
 
 class TestMinItems:
-    def test_4_skills_base_passes(self, validator):
-        """4 core skills (using-agent-skills, shipping-and-launch,
-        documentation-and-adrs, ci-cd-and-automation)."""
-        doc = _make_doc(n_skills=4)
+    def test_6_skills_base_passes(self, validator):
+        """6 core skills match ship-agent unconditional skills."""
+        doc = _make_doc(n_skills=6)
         errors = list(validator.iter_errors(doc))
         assert not errors, [e.message for e in errors]
 

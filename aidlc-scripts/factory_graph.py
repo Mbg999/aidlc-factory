@@ -67,7 +67,7 @@ def _load_units(run_id: str) -> list[dict]:
             f"unit-decomposer output not found: {p}\n"
             "Run unit-decomposer stage before calling factory_graph.py."
         )
-    raw = yaml.safe_load(p.read_text()) or {}
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     units = raw.get("units_decomposed")
     if not units:
         _die(f"units_decomposed missing or empty in {p}")
@@ -122,13 +122,13 @@ def _apply_to_manifest(run_id: str, waves: list[list[str]]) -> None:
     if not mp.exists():
         _die(f"manifest not found: {mp} (run factory_run.py init first)")
 
-    state = yaml.safe_load(mp.read_text()) or {}
+    state = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
     state["unit_waves"] = waves
     state["unit_wave_count"] = len(waves)
     state["unit_max_parallelism"] = max((len(w) for w in waves), default=0)
 
     tmp = mp.with_suffix(".yaml.tmp")
-    tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
+    tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False), encoding="utf-8")
     tmp.rename(mp)
     print(
         f"[UnitGraph] Applied {len(waves)} wave(s), "
@@ -160,7 +160,7 @@ def cmd_show(args: argparse.Namespace) -> None:
     mp = _manifest_path(args.run_id)
     if not mp.exists():
         _die(f"manifest not found: {mp}")
-    state = yaml.safe_load(mp.read_text()) or {}
+    state = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
     waves = state.get("unit_waves") or []
     print(json.dumps({
         "run_id": args.run_id,

@@ -116,9 +116,9 @@ def main() -> None:
         if suffix in {".yaml", ".yml"}:
             if yaml is None:
                 _die(f"missing dependency: {sys.executable} -m pip install pyyaml")
-            doc = yaml.safe_load(path.read_text())
+            doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         elif suffix == ".json":
-            doc = json.loads(path.read_text())
+            doc = json.loads(path.read_text(encoding="utf-8"))
         else:
             _die(f"unsupported extension: {suffix} (expected .yaml/.yml/.json)")
     except (yaml.YAMLError if yaml is not None else (), json.JSONDecodeError) as e:
@@ -127,15 +127,15 @@ def main() -> None:
     findings = scan_doc(doc)
 
     if args.strip and findings:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         stripped = strip_secrets(text)
         backup = path.with_name(path.stem + suffix + ".original")
         if backup.exists():
             import time
             backup = path.with_name(path.stem + suffix + f".original.{int(time.time())}")
-        backup.write_text(text)
+        backup.write_text(text, encoding="utf-8")
         tmp = path.with_name(path.stem + suffix + ".stripped.tmp")
-        tmp.write_text(stripped)
+        tmp.write_text(stripped, encoding="utf-8")
         tmp.replace(path)
         print(f"stripped {len(findings)} secret(s) from {path.name} (backup: {backup.name})")
 

@@ -253,13 +253,13 @@ def snap_figma_node(node: dict, spacing: list[int], radius: list[int],
 def _load_color_map(path: str | None, repo_root: Path) -> dict[str, str]:
     """Load color map from the design system token file or from a JSON argument."""
     if path:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
 
     # Try to auto-load from design-system
     color_file = repo_root / DESIGN_SYSTEM_DIR / "tokens" / "color.md"
     if color_file.exists():
-        text = color_file.read_text()
+        text = color_file.read_text(encoding="utf-8")
         color_map: dict[str, str] = {}
         for line in text.splitlines():
             # Match: | `color.token` | #HEX | description |
@@ -311,7 +311,7 @@ def main() -> int:
     if args.color_map_json:
         color_map = json.loads(args.color_map_json)
     elif args.color_map:
-        with open(args.color_map) as f:
+        with open(args.color_map, encoding="utf-8") as f:
             color_map = json.loads(f)
     else:
         color_map = _load_color_map(None, repo_root)
@@ -341,7 +341,7 @@ def main() -> int:
             return 1
 
         try:
-            node = json.loads(input_path.read_text())
+            node = json.loads(input_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
             print(f"ERROR: Invalid JSON in {input_path}: {e}", file=sys.stderr)
             return 1
@@ -374,7 +374,7 @@ def main() -> int:
         output_json = json.dumps(output, indent=2)
 
         if args.output:
-            Path(args.output).write_text(output_json)
+            Path(args.output).write_text(output_json, encoding="utf-8")
             print(f"Snapped -> {args.output} ({len(output['corrections'])} corrections)")
         else:
             print(output_json)

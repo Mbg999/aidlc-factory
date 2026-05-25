@@ -28,7 +28,6 @@
     },
     "model_override": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use. Falls back to tool default."
     }
   },

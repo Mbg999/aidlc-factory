@@ -25,6 +25,7 @@ Generate code per unit in two parts:
 - `codegraph-aware-exploration/SKILL.md` — Use CodeGraph tools (callers, impact, search) before editing existing symbols. **Key process**: blast-radius check before any refactor touching >5 callers.
 - `validator-retry/SKILL.md` — Static validator loop (tsc, pyright, cargo check, eslint). **Key process**: feed errors back as context, retry up to 3 times, HALT on persistent failure.
 - `secret-knowledge/SKILL.md` — Never log, commit, or surface secrets. **Key process**: scan all generated output for tokens/keys before emitting.
+- `library-docs-with-context7/SKILL.md` — Fetch library documentation and code examples via Context7. **Key process**: query context7_resolve-library-id + context7_query-docs when the unit spec names frameworks. Reduces hallucinated APIs.
 
 **Inline fallback** (if SKILL.md files not installed):
 1. For each code step: write test → implement → run tests → commit (TDD cycle)

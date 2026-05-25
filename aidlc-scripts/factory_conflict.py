@@ -150,7 +150,7 @@ def _list_locks(rd: Path) -> list[dict]:
         return []
     locks = []
     for f in sorted(locks_dir.glob("*.yaml")):
-        data = yaml.safe_load(f.read_text())
+        data = yaml.safe_load(f.read_text(encoding="utf-8"))
         if isinstance(data, dict) and "holder" in data:
             locks.append(data)
         else:
@@ -245,7 +245,7 @@ def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:
             "resolved_by": None,
         }
         (conflicts_dir / f"{cid}.yaml").write_text(
-            yaml.safe_dump(record, sort_keys=False)
+            yaml.safe_dump(record, sort_keys=False), encoding="utf-8"
         )
         print(json.dumps({
             "granted": False,
@@ -265,7 +265,7 @@ def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:
     # Merge globs if holder already holds locks (Bug 10 fix)
     merged_globs = list(args.globs)
     if lock_file.exists():
-        existing = yaml.safe_load(lock_file.read_text()) or {}
+        existing = yaml.safe_load(lock_file.read_text(encoding="utf-8")) or {}
         existing_globs = existing.get("globs", [])
         existing_mode = existing.get("mode", "write")
         if existing_mode != args.mode:
@@ -280,7 +280,7 @@ def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:
     }
     if args.ttl_minutes is not None:
         lock_data["ttl_minutes"] = args.ttl_minutes
-    lock_file.write_text(yaml.safe_dump(lock_data, sort_keys=False))
+    lock_file.write_text(yaml.safe_dump(lock_data, sort_keys=False), encoding="utf-8")
     print(json.dumps({
         "granted": True,
         "holder": args.holder,
@@ -301,7 +301,7 @@ def cmd_release(args: argparse.Namespace) -> None:
     if args.stale:
         cleaned = 0
         for f in sorted(locks_dir.glob("*.yaml")):
-            lock = yaml.safe_load(f.read_text()) or {}
+            lock = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
             if _is_stale(lock, older_than_min=args.older_than):
                 f.unlink()
                 cleaned += 1
@@ -611,7 +611,7 @@ def _snapshot_one(path: Path) -> dict:
     suffix = path.suffix
     if suffix == ".py":
         try:
-            return {"symbols": extract_symbols(path.read_text()), "lang": "python", "captured_at": now_iso()}
+            return {"symbols": extract_symbols(path.read_text(encoding="utf-8")), "lang": "python", "captured_at": now_iso()}
         except SyntaxError as e:
             return {"syntax_error": str(e), "lang": "python"}
     ts_lang = _TS_EXT_MAP.get(suffix)
@@ -638,7 +638,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
     for f in args.files:
         snapshot[f] = _snapshot_one(REPO_ROOT / f)
     (snap_dir / f"{args.holder}.yaml").write_text(
-        yaml.safe_dump(snapshot, sort_keys=False)
+        yaml.safe_dump(snapshot, sort_keys=False), encoding="utf-8"
     )
     parseable = sum(1 for v in snapshot.values() if "symbols" in v)
     by_lang: dict[str, int] = {}
@@ -658,7 +658,7 @@ def cmd_check_symbols(args: argparse.Namespace) -> None:
             f"no baseline snapshot for {args.holder}; call `snapshot` first",
             code=2,
         )
-    baseline = yaml.safe_load(snap_file.read_text()) or {}
+    baseline = yaml.safe_load(snap_file.read_text(encoding="utf-8")) or {}
 
     drifts: list[dict] = []
     for f in args.files:
@@ -671,7 +671,7 @@ def cmd_check_symbols(args: argparse.Namespace) -> None:
         baseline_lang = baseline[f].get("lang", "python")
         try:
             if suffix == ".py":
-                current = extract_symbols(path.read_text())
+                current = extract_symbols(path.read_text(encoding="utf-8"))
             elif suffix in _TS_EXT_MAP:
                 if not _TS_AVAILABLE:
                     drifts.append({"file": f, "kind": "tree_sitter_unavailable"})
@@ -730,7 +730,7 @@ def cmd_check_symbols(args: argparse.Namespace) -> None:
         "resolution": None,
         "resolved_by": None,
     }
-    (conflicts_dir / f"{cid}.yaml").write_text(yaml.safe_dump(record, sort_keys=False))
+    (conflicts_dir / f"{cid}.yaml").write_text(yaml.safe_dump(record, sort_keys=False), encoding="utf-8")
     print(json.dumps({
         "drift": True,
         "conflict": True,
@@ -769,7 +769,7 @@ def cmd_check_wave(args: argparse.Namespace) -> None:
     manifest_path = rd / "manifest.yaml"
     if not manifest_path.exists():
         _die(f"manifest not found: {manifest_path}")
-    manifest = yaml.safe_load(manifest_path.read_text()) or {}
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
     waves = manifest.get("unit_waves") or []
     if args.wave_idx < 0 or args.wave_idx >= len(waves):
         _die(
@@ -786,7 +786,7 @@ def cmd_check_wave(args: argparse.Namespace) -> None:
             missing.append(unit)
             unit_locks[unit] = []
             continue
-        doc = yaml.safe_load(input_path.read_text()) or {}
+        doc = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
         unit_locks[unit] = list(doc.get("locks_required") or [])
 
     collisions: list[dict] = []
@@ -834,7 +834,7 @@ def cmd_conflicts(args: argparse.Namespace) -> None:
         return
     records = []
     for f in sorted(conflicts_dir.glob("*.yaml")):
-        records.append(yaml.safe_load(f.read_text()))
+        records.append(yaml.safe_load(f.read_text(encoding="utf-8")))
     if args.json:
         print(json.dumps(records, indent=2))
         return

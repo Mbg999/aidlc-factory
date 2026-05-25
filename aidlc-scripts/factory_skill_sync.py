@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """factory_skill_sync.py — Sync skills from autoskills across all workspace dirs.
 
+Requires: POSIX OS with bash and nvm installed. Does not support Windows (nvm is inherently POSIX).
+
 Two subcommands:
 
   sync   Run `npx autoskills --yes` in every workspace directory, then

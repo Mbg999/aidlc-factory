@@ -230,7 +230,7 @@ The schema sets `additionalProperties: false` at the root. Allowed top-level key
 `cost`, `emitted_knowledge`, `conflicts_detected`, `locks_to_release`.
 
 Do NOT emit `run_id`, `stage`, `timestamp`, `agent`, or any other runtime metadata
-at the root — those live in `manifest.json`, not the handoff. Emitting them will
+at the root — those live in `manifest.yaml`, not the handoff. Emitting them will
 fail validation with `Additional properties are not allowed`.
 
 Then validate before returning:

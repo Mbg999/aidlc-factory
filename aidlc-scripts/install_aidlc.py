@@ -453,13 +453,13 @@ def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> No
         return
 
     if req_path.exists():
-        existing_text = req_path.read_text()
+        existing_text = req_path.read_text(encoding="utf-8")
         existing_pkgs = {pkg_name(line) for line in existing_text.splitlines() if line.strip() and not line.strip().startswith("#")}
         new_lines = [d for d in deps if pkg_name(d) not in existing_pkgs]
         if not new_lines:
             print(f"  requirements.txt already lists AIDLC deps — no changes")
             return
-        with req_path.open("a") as f:
+        with req_path.open("a", encoding="utf-8") as f:
             if not existing_text.endswith("\n"):
                 f.write("\n")
             f.write("\n# AIDLC orchestrator (factory scripts)\n")
@@ -468,7 +468,7 @@ def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> No
         print(f"  appended {len(new_lines)} dep(s) to {req_path.relative_to(target_root)}")
     else:
         content = "# AIDLC orchestrator (factory scripts)\n" + "\n".join(deps) + "\n"
-        req_path.write_text(content)
+        req_path.write_text(content, encoding="utf-8")
         print(f"  created {req_path.relative_to(target_root)} with {len(deps)} dep(s)")
 
 
@@ -484,7 +484,7 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
         print(f"[DRY-RUN] Would update {gi_path} with: {', '.join(entries)}")
         return
 
-    existing_text = gi_path.read_text() if gi_path.exists() else ""
+    existing_text = gi_path.read_text(encoding="utf-8") if gi_path.exists() else ""
     existing_lines = {line.strip() for line in existing_text.splitlines()}
     new_lines = [e for e in entries if e not in existing_lines]
 
@@ -494,7 +494,7 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
 
     lines_to_write = entries if force else new_lines
 
-    with gi_path.open("a") as f:
+    with gi_path.open("a", encoding="utf-8") as f:
         if existing_text:
             if not existing_text.endswith("\n"):
                 f.write("\n")
@@ -1704,7 +1704,8 @@ def main() -> int:
                 print("  You can install deps manually:  pip install -r requirements.txt")
             except RuntimeError as e:
                 print(f"WARNING: {e}")
-                print("  You can retry manually:  .venv/bin/pip install -r requirements.txt")
+                _pip_venv = ".venv/bin/pip" if sys.platform != "win32" else ".venv\\Scripts\\pip"
+                print(f"  You can retry manually:  {_pip_venv} install -r requirements.txt")
 
     # --- CodeGraph init (last step — runs after everything else) ---
     if args.with_codegraph:

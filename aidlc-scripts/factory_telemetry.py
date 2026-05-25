@@ -245,7 +245,7 @@ def _redundancy_score(sections: list[dict], n: int = 6) -> dict[str, float]:
 
 
 def hot_path_report(md_path: Path) -> dict:
-    text = md_path.read_text()
+    text = md_path.read_text(encoding="utf-8")
     sections = parse_h2_sections(text)
     redundancy = _redundancy_score(sections)
     rows = []
@@ -331,7 +331,7 @@ def cmd_hot_path(args: argparse.Namespace) -> None:
         if not out_path.is_absolute():
             out_path = (DEFAULT_REPO_ROOT / out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(report, indent=2))
+        out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(f"\nJSON report written to: {out_path}", file=sys.stderr)
 
 
@@ -353,7 +353,7 @@ def _read_timeline(timeline_path: Path) -> list[dict]:
     if not timeline_path.exists():
         return []
     events: list[dict] = []
-    for line in timeline_path.read_text().splitlines():
+    for line in timeline_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
@@ -514,7 +514,7 @@ def _discover_one_root(repo_root: Path) -> list[dict]:
     out: list[dict] = []
     for manifest_path in sorted(rr.glob("*/manifest.yaml")):
         try:
-            manifest = yaml.safe_load(manifest_path.read_text()) or {}
+            manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
         except (yaml.YAMLError, OSError):
             continue
         run_dir = manifest_path.parent
@@ -583,7 +583,7 @@ def cmd_discover(args: argparse.Namespace) -> None:
         if not out_path.is_absolute():
             out_path = (DEFAULT_REPO_ROOT / out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(runs, indent=2))
+        out_path.write_text(json.dumps(runs, indent=2), encoding="utf-8")
         print(f"wrote {len(runs)} runs to {out_path}", file=sys.stderr)
     # Human table
     print(f"DISCOVERED {len(runs)} run(s) across {len(set(r['repo_root'] for r in runs))} repo root(s):")
@@ -677,7 +677,7 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
                 print(f"skipping: no manifest.yaml at {path}", file=sys.stderr)
                 continue
             try:
-                manifest = yaml.safe_load(mp.read_text()) or {}
+                manifest = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
             except (yaml.YAMLError, OSError):
                 continue
             events = _read_timeline(path / "timeline.jsonl")
@@ -699,7 +699,7 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
         if not out_path.is_absolute():
             out_path = (DEFAULT_REPO_ROOT / out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(agg, indent=2))
+        out_path.write_text(json.dumps(agg, indent=2), encoding="utf-8")
         print(f"wrote aggregate to {out_path}", file=sys.stderr)
     # Human table
     print(f"AGGREGATE across {sum(t['run_count'] for t in agg.values())} run(s), {len(agg)} tier(s):")
@@ -870,7 +870,7 @@ def cmd_report(args: argparse.Namespace) -> None:
     if not out_path.is_absolute():
         out_path = (repo_root / out_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(md)
+    out_path.write_text(md, encoding="utf-8")
     print(f"baseline report written to: {out_path}")
 
     if args.json:
@@ -884,7 +884,7 @@ def cmd_report(args: argparse.Namespace) -> None:
             "hot_path": hp,
             "discovered_runs": runs,
             "aggregate": agg,
-        }, indent=2))
+        }, indent=2), encoding="utf-8")
         print(f"JSON snapshot written to: {json_path}")
 
 
