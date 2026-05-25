@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 RUN_PY = SCRIPTS / "factory_run.py"
 
@@ -258,3 +260,134 @@ def test_next_command_cli_with_real_manifest(env_setup, run_id):
     assert result.stdout.strip() == f"/factory-plan {run_id}"
     # Critical: literal run_id present, no `<run-id>` placeholder leaking
     assert "<run-id>" not in result.stdout
+
+
+# ── _flock / _acquire_lock / _release_lock (Bug B regression) ────────────────
+
+import threading
+
+
+class TestFlock:
+    def test_acquire_release_no_error(self, tmp_path):
+        """Basic acquire + release should not raise on any platform."""
+        lockfile = tmp_path / "test.lock"
+        lf = lockfile.open("a")
+        _factory_run_mod._acquire_lock(lf)
+        _factory_run_mod._release_lock(lf)
+        lf.close()
+
+    def test_context_manager_acquires_and_releases(self, tmp_path):
+        """The _flock CM should acquire on enter and release on exit."""
+        path = tmp_path / "target.txt"
+        with _factory_run_mod._flock(path):
+            path.write_text("locked write")
+        assert path.read_text() == "locked write"
+
+    def test_mutual_exclusion(self, tmp_path):
+        """Two concurrent writers under _flock must not interleave writes."""
+        path = tmp_path / "shared.txt"
+        barrier = threading.Barrier(2, timeout=10)
+        results: list[str] = []
+
+        def writer(letter: str, count: int):
+            barrier.wait()
+            for _ in range(count):
+                with _factory_run_mod._flock(path):
+                    content = path.read_text() if path.exists() else ""
+                    path.write_text(content + letter)
+
+        t1 = threading.Thread(target=writer, args=("A", 50))
+        t2 = threading.Thread(target=writer, args=("B", 50))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        text = path.read_text()
+        assert len(text) == 100
+        assert text.count("A") == 50
+        assert text.count("B") == 50
+
+    def test_dedupe_prevents_duplicate_blocks(self, tmp_path):
+        """_append_audit_block should not write the same phase+label twice."""
+        saved_docs = _factory_run_mod.AIDLC_DOCS
+        _factory_run_mod.AIDLC_DOCS = tmp_path / "aidlc-docs"
+        try:
+            audit = _factory_run_mod.AIDLC_DOCS / "audit.md"
+            first = _factory_run_mod._append_audit_block(
+                "2026-05-25T10:00:00", "INCEPTION - Planning", "ComplexityGov", ["skip=story-writer"],
+            )
+            assert first is True
+            assert audit.exists()
+            second = _factory_run_mod._append_audit_block(
+                "2026-05-25T10:00:00", "INCEPTION - Planning", "ComplexityGov", ["skip=story-writer"],
+            )
+            assert second is False
+        finally:
+            _factory_run_mod.AIDLC_DOCS = saved_docs
+
+    def test_chronology_violation_dies(self, tmp_path):
+        """An older timestamp after a newer one should trigger _die (sys.exit)."""
+        saved_docs = _factory_run_mod.AIDLC_DOCS
+        _factory_run_mod.AIDLC_DOCS = tmp_path / "aidlc-docs"
+        try:
+            _factory_run_mod._append_audit_block(
+                "2026-05-25T10:01:00", "INCEPTION - Build", "CodeGen", ["feat: done"],
+            )
+            with pytest.raises(SystemExit):
+                _factory_run_mod._append_audit_block(
+                    "2026-05-25T10:00:00", "INCEPTION - Build", "CodeGen", ["cannot go back"],
+                )
+        finally:
+            _factory_run_mod.AIDLC_DOCS = saved_docs
+
+    # ── import-failure fallback paths ──────────────────────────────────────
+
+    def test_fcntl_unavailable_falls_through(self, tmp_path):
+        """When fcntl is removed from sys.modules, _acquire_lock should
+        fall through to msvcrt (or no-op on macOS) without raising."""
+        lockfile = tmp_path / "test.lock"
+        lf = lockfile.open("a")
+        saved = sys.modules.pop("fcntl", None)
+        try:
+            _factory_run_mod._acquire_lock(lf)
+            _factory_run_mod._release_lock(lf)
+        finally:
+            if saved is not None:
+                sys.modules["fcntl"] = saved
+        lf.close()
+
+    def test_both_fcntl_and_msvcrt_unavailable_falls_through(self, tmp_path):
+        """When both locking modules are absent, the no-op path must not
+        raise. This is the WASM / exotic-platform safety net."""
+        lockfile = tmp_path / "test.lock"
+        lf = lockfile.open("a")
+        saved_fcntl = sys.modules.pop("fcntl", None)
+        saved_msvcrt = sys.modules.pop("msvcrt", None)
+        try:
+            _factory_run_mod._acquire_lock(lf)
+            _factory_run_mod._release_lock(lf)
+        finally:
+            if saved_fcntl is not None:
+                sys.modules["fcntl"] = saved_fcntl
+            if saved_msvcrt is not None:
+                sys.modules["msvcrt"] = saved_msvcrt
+        lf.close()
+
+    def test_append_audit_block_still_works_without_fcntl(self, tmp_path):
+        """The end-to-end audit write must work even when fcntl is absent."""
+        saved_docs = _factory_run_mod.AIDLC_DOCS
+        _factory_run_mod.AIDLC_DOCS = tmp_path / "aidlc-docs"
+        saved_fcntl = sys.modules.pop("fcntl", None)
+        try:
+            result = _factory_run_mod._append_audit_block(
+                "2026-05-25T10:00:00",
+                "INCEPTION - Planning",
+                "ComplexityGov",
+                ["skip=story-writer"],
+            )
+            assert result is True
+        finally:
+            if saved_fcntl is not None:
+                sys.modules["fcntl"] = saved_fcntl
+            _factory_run_mod.AIDLC_DOCS = saved_docs

@@ -8,7 +8,7 @@
   "properties": {
     "complexity_tier": {
       "type": "string",
-      "enum": ["SMALL", "MEDIUM", "LARGE"],
+      "enum": ["TINY", "SMALL", "MEDIUM", "LARGE"],
       "description": "Complexity tier assigned by factory_complexity.py."
     },
     "skip_stages": {
@@ -19,13 +19,15 @@
           "story-writer",
           "unit-decomposer",
           "reverse-engineer",
+          "workflow-planner",
+          "build-test-agent",
           "reviewer-security",
           "reviewer-performance",
           "reviewer-simplifier"
         ]
       },
       "uniqueItems": true,
-      "description": "Stage IDs that must be skipped for this tier. Critical stages (workspace-scout, requirements-analyst, workflow-planner, code-generator, build-test-agent) are never in this list."
+      "description": "Stage IDs that must be skipped for this tier. TINY and SMALL tiers skip stages; LARGE skips none."
     },
     "merge_codegen_gate": {
       "type": "boolean",
@@ -42,13 +44,23 @@
           "reviewer-simplifier"
         ]
       },
-      "minItems": 1,
+      "minItems": 0,
       "uniqueItems": true,
-      "description": "Subset of reviewers to spawn in /factory-review. reviewer-code is always included."
+      "description": "Subset of reviewers to spawn in /factory-review. TINY tier uses an empty pool."
     }
   },
   "additionalProperties": true,
   "allOf": [
+    {
+      "if": { "properties": { "complexity_tier": { "const": "TINY" } } },
+      "then": {
+        "properties": {
+          "merge_codegen_gate": { "const": true },
+          "reviewer_pool": { "maxItems": 0 }
+        },
+        "description": "TINY tier must have merge_codegen_gate=true and an empty reviewer pool."
+      }
+    },
     {
       "if": { "properties": { "complexity_tier": { "const": "SMALL" } } },
       "then": {

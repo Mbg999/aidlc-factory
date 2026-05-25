@@ -40,7 +40,7 @@
 | `custom-agent.input.v1.json` | Generic input for user-defined subagents | orchestrator | `task_description`, `context`, `budget` |
 | `custom-agent.output.v1.json` | Generic output for user-defined subagents | custom agent | `status`, `summary`, `artifacts[]` (path, kind, hash), `findings[]` |
 | `approval.input.v1.json` | Structured approval gate presentation | orchestrator | `run_id`, `stage`, `units[]` (name, tasks, acceptance_criteria), `estimated_tokens`, `estimated_minutes` |
-| `shared/complexity-tier.schema.json` | Complexity tier enum (SMALL/MEDIUM/LARGE) + routing | — | `complexity_tier`, `skip_stages[]`, `reviewer_pool[]` |
+| `shared/complexity-tier.schema.json` | Complexity tier enum (TINY/SMALL/MEDIUM/LARGE) + routing | — | `complexity_tier`, `skip_stages[]`, `reviewer_pool[]` |
 | `shared/unit-graph.schema.json` | Unit dependency wave structure | — | `unit_waves[][]`, `unit_wave_count`, `unit_max_parallelism` |
 
 ---
@@ -71,11 +71,12 @@
 
 ## Complexity tiers
 
-Tiers (SMALL/MEDIUM/LARGE) set by `factory_complexity.py` control skip/merge
+Tiers (TINY/SMALL/MEDIUM/LARGE) set by `factory_complexity.py` control skip/merge
 routing and the reviewer pool. Defined in `shared/complexity-tier.schema.json`.
 
 | Tier | Skip stages | Reviewer pool |
 |------|-------------|---------------|
+| TINY | story-writer, unit-decomposer, workflow-planner, build-test-agent | (none — FAST_PATH) |
 | SMALL | story-writer, unit-decomposer | code only |
 | MEDIUM | story-writer | code, security, simplifier |
 | LARGE | (none) | all 4 reviewers |

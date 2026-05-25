@@ -228,29 +228,53 @@ def _read_last_h2(audit_path: Path) -> tuple[str, str] | None:
 
 
 def _flock(path: Path):
-    """Context manager for POSIX advisory exclusive lock on `path`.
+    """Context manager for cross-platform advisory exclusive lock on `path`.
 
     Uses a separate lockfile (path + '.lock') so writers can read+write the
-    target safely. Returns a no-op CM on platforms without fcntl (Windows).
+    target safely. Uses fcntl (POSIX) or msvcrt (Windows). Falls back to
+    no-op on unsupported platforms (e.g. WASM).
     """
     import contextlib
 
     @contextlib.contextmanager
     def cm():
-        try:
-            import fcntl
-        except ImportError:
-            yield
-            return
         path.parent.mkdir(parents=True, exist_ok=True)
         lockfile = path.with_suffix(path.suffix + ".lock")
         with lockfile.open("a") as lf:
-            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            _acquire_lock(lf)
             try:
                 yield
             finally:
-                fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+                _release_lock(lf)
     return cm()
+
+
+def _acquire_lock(lf) -> None:
+    try:
+        import fcntl
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        return
+    except ImportError:
+        pass
+    try:
+        import msvcrt
+        msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+    except ImportError:
+        pass
+
+
+def _release_lock(lf) -> None:
+    try:
+        import fcntl
+        fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+        return
+    except ImportError:
+        pass
+    try:
+        import msvcrt
+        msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+    except ImportError:
+        pass
 
 
 def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> bool:
