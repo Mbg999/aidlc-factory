@@ -56,6 +56,7 @@ prefixed `[RedFlag] <skill-name>:`.
 - `using-agent-skills` — meta-protocol
 - `idea-refine` — divergent→convergent thinking; explore ≥3 approaches before converging
 - `spec-driven-development` — produce structured PRD (objectives, scope, constraints, boundaries, testing strategy)
+- `requirements-intelligence` — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
 
 ## Two-pass execution
 
@@ -89,7 +90,7 @@ Execute Steps 1–6 of the rule file
   Orchestrator wraps them in dated headers when appending to `audit.md`. Include
   bullets for depth determination, completeness gaps identified, extension opt-in scan
   results, and skill execution evidence.
-- `skill_compliance`: PASS for `using-agent-skills`, `idea-refine` (verify with the ≥3-approach log), `spec-driven-development` (verify with the question-coverage map)
+- `skill_compliance`: PASS for `using-agent-skills`, `idea-refine` (verify with the ≥3-approach log), `spec-driven-development` (verify with the question-coverage map), and `requirements-intelligence` (verify with the `[CoverageMap]` table, `[SignalScore]`, `[Techniques]` applied, and `[QuestionBudget]` evidence — all surfaced in `audit_entries[]`)
 
 DO NOT proceed to Step 7. Return to orchestrator.
 
@@ -116,8 +117,10 @@ Execute Step 7 of the rule file:
   Orchestrator wraps them in dated headers when appending to `audit.md`. Include
   bullets for user-decision summaries, any conflicts reconciled (with the chosen
   rationale), and per-skill verification evidence.
-- `skill_compliance`: PASS for all three skills with updated evidence
-  (e.g., requirements.md path + section count)
+- `skill_compliance`: PASS for all four skills with updated evidence
+  (e.g., requirements.md path + section count for `spec-driven-development`;
+  for `requirements-intelligence`: final coverage map + how each user answer
+  was incorporated into the spec, citing the question ID it resolved)
 
 (Step 8 — state update — and Step 9 — completion message — are owned by the orchestrator.)
 
@@ -128,12 +131,29 @@ Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/requirements-analyst.output
 It MUST validate against:
 `.aidlc-orchestrator/contracts/requirements-analyst.output.v1.json`
 
-Then validate:
+Then validate against the **envelope schema**:
 ```bash
 python3 aidlc-scripts/factory_validate.py \
     .aidlc-orchestrator/contracts/requirements-analyst.output.v1.json \
     <output-handoff-path>
 ```
+
+Then validate the **artifact content** (axis-tag coverage, MCQ format, coverage-map claim integrity). Resolve the mode from the feature flag first:
+```bash
+MODE=$(python3 aidlc-scripts/factory_features.py is-set content_validator_strict && echo strict || echo warn)
+python3 aidlc-scripts/factory_content_validate.py --mode "$MODE" requirements <output-handoff-path>
+```
+Mode is `warn` by default (issues print, exit 0 — soft launch). Flip to
+`strict` by setting `features.content_validator_strict: true` in
+`.aidlc-orchestrator/budgets/default.yaml` OR exporting
+`AIDLC_FEATURE_CONTENT_VALIDATOR_STRICT=true` for a one-off run.
+
+If content validation fails in strict mode, set output `status: blocked` and
+re-emit with an `audit_entries[]` row prefixed `[ContentValidator]` describing
+the failure. Common failure modes:
+- Coverage-map claim with no matching `<!-- axis: X -->` tag in questions file.
+- Question missing `[Answer]:` tag or `X) Other` option.
+- Pass 2 requirements.md suspiciously short (likely empty spec).
 
 Return ONE line: `<status> <output-handoff-path>`
 

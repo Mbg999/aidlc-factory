@@ -25,7 +25,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
    `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, and `code-review-and-quality`. It may also include
+   `codegraph-aware-exploration`, `library-docs-with-context7`, and `code-review-and-quality`. It may also include
    framework skills propagated from the build phase (e.g., `angular-developer`,
    `typescript-advanced-types`). Load every skill file present — they sharpen your review
    for the specific frameworks and idioms in the generated code.
@@ -105,3 +105,45 @@ Return: `<status> <output-path>`.
 - Do not fix code. Findings only.
 - Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
 - Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **Load design system index** — resolve to check primitives:
+   ```bash
+   python3 aidlc-scripts/factory_design_system_resolve.py resolve __index__
+   ```
+   Read the INDEX.md to know which primitives exist.
+
+2. **Primitive compliance** — scan generated UI files for:
+   - Raw `<button>` where `Button` primitive exists → P2 finding
+   - Raw `<div>` with padding where `Box` or `Stack` exists → P2 finding
+   - Raw `<p>`, `<span>` with font styling where `Text` exists → P2 finding
+   - Raw `<input>` without `Input` wrapper → P2 finding
+
+3. **data-testid audit** — scan ALL interactive elements:
+   - Missing `data-testid` on any button, link, input, select → P1 finding
+   - Naming should follow `{component}-{element-role}` pattern → P3 if inconsistent
+
+4. **Token compliance** — scan for hardcoded values:
+   - Inline `padding`, `margin`, `gap` not matching `spacing.*` tokens → P2 finding
+   - Inline `border-radius` not matching `radius.*` tokens → P2 finding
+   - Raw hex colors where `color.*` tokens exist → P2 finding
+
+Severity guide:
+- P1: missing `data-testid` on any interactive element (blocks E2E testing)
+- P2: raw HTML replacing primitive, hardcoded token value
+- P3: inconsistent naming, cosmetic token drift
+
+Findings format (standard):
+```yaml
+- severity: P2
+  file: src/components/Button.tsx
+  line: 15
+  axis: maintainability
+  message: "Raw <button> used instead of Button primitive — design system drift"
+  recommendation: "Replace with <Button variant='...' size='...' label='...' />"
+```

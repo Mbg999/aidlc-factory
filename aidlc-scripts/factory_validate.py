@@ -14,8 +14,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_AIDLC_ROOT = Path(os.environ["AIDLC_ROOT"]) if "AIDLC_ROOT" in os.environ else _REPO_ROOT
 
 
 def _die(msg: str, code: int = 2) -> None:
@@ -27,7 +32,7 @@ ORCHESTRATOR_VERSION = "0.2.0"
 EXPECTED_SCHEMA_VERSION = 1
 
 
-def _strict_check(doc: dict, doc_path: Path) -> list[str]:
+def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
     """Content-level validation beyond JSON Schema."""
     issues: list[str] = []
     status = doc.get("status")
@@ -44,6 +49,35 @@ def _strict_check(doc: dict, doc_path: Path) -> list[str]:
         if not doc.get("block_reason"):
             issues.append("status=blocked but no `block_reason` field")
 
+    # code-generator: any non-FAST_PATH sub_stage MUST produce a plan artifact on disk.
+    # Without this check, agents can claim sub_stage=generated without writing the plan,
+    # and downstream stages silently fail. See TOKEN-OPTIMIZATION-PLAN.md #6.
+    if schema_id.startswith("code-generator.output"):
+        sub_stage = doc.get("sub_stage")
+        fast_path = bool(doc.get("fast_path"))
+        if sub_stage in {"plan", "generated"} and not fast_path:
+            plan_artifacts = [
+                a for a in artifacts
+                if isinstance(a, dict) and a.get("kind") == "plan" and a.get("path")
+            ]
+            if not plan_artifacts:
+                issues.append(
+                    f"sub_stage={sub_stage} (non-fast_path) but no artifact with kind=plan — "
+                    "the construction plan file is mandatory whenever fast_path is not set; "
+                    "merged_plan_generate removes the approval gate, not the plan file"
+                )
+            else:
+                for art in plan_artifacts:
+                    art_path = Path(art["path"])
+                    candidates = [art_path] if art_path.is_absolute() else [
+                        Path.cwd() / art_path,
+                        _AIDLC_ROOT / art_path,
+                    ]
+                    if not any(c.exists() for c in candidates):
+                        issues.append(
+                            f"plan artifact declared at {art['path']} but file does not exist on disk"
+                        )
+
     # tests_added > 0 requires at least 1 test file in artifacts
     tests_added = doc.get("tests_added", 0)
     if isinstance(tests_added, int) and tests_added > 0:
@@ -51,14 +85,18 @@ def _strict_check(doc: dict, doc_path: Path) -> list[str]:
         for a in artifacts:
             path = a.get("path", "") if isinstance(a, dict) else ""
             stem = Path(path).stem
+            name = Path(path).name
             if (
-                any(p in ("test", "tests", "__tests__", "spec") for p in Path(path).parts)
-                or stem.startswith("test_")
-                or stem.endswith("_test")
-                or stem.endswith("_spec")
-            ):
-                has_test_artifact = True
-                break
+                    any(p in ("test", "tests", "__tests__", "spec", "e2e", "cypress") for p in Path(path).parts)
+                    or stem.startswith("test_")
+                    or stem.endswith("_test")
+                    or stem.endswith("_spec")
+                    or ".test." in name
+                    or ".spec." in name
+                    or name == "conftest.py"
+                ):
+                    has_test_artifact = True
+                    break
         if not has_test_artifact:
             issues.append(f"tests_added={tests_added} but no test file found in artifacts")
 
@@ -133,7 +171,7 @@ def main() -> None:
         sys.exit(1)
 
     if args.strict:
-        strict_issues = _strict_check(doc, doc_path)
+        strict_issues = _strict_check(doc, doc_path, schema_id=schema_id)
         if strict_issues:
             print(f"STRICT FAIL {doc_path} ({len(strict_issues)} content issue(s)):", file=sys.stderr)
             for issue in strict_issues:

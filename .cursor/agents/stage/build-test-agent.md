@@ -21,7 +21,13 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `test-driven-development`, `debugging-and-error-recovery`. Conditionally `browser-testing-with-devtools` if `manifest.project_profile.ui == true`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`,
+   `debugging-and-error-recovery`, `validator-retry`, and `secret-knowledge`. It may
+   also include framework skills propagated from the build phase and conditional skills
+   like `browser-testing-with-devtools` when `project_profile.ui == true`.
+   Load every skill file present.
 2. **FOLLOW** — Process steps in order.
 3. **CHECK** — Rationalizations: reject "the test failure isn't related", "it's a flaky test".
 4. **VERIFY** — Concrete: build command output exit codes, test pass/fail counts, coverage if available, debugger session traces if failures.
@@ -32,7 +38,7 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge`, `validator-retry`, `browser-testing-with-devtools*`.
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. Load a skill
@@ -98,7 +104,7 @@ Populate `emitted_knowledge[]` when:
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
 
-Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`. Don't emit
+Full guidance: `.cursor/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
 
 ## What you must NOT do

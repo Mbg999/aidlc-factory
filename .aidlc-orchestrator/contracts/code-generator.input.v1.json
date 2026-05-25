@@ -5,11 +5,11 @@
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "unit_name", "skills_required", "skill_paths_resolved"],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "stage_id": { "const": "code-generator" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Includes execution-plan and (if decomposed) the unit spec" },
-    "unit_name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "unit_spec_path": { "type": "string", "description": "Path to unit spec YAML. Required for non-fast-path code generation." },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 4, "default": ["using-agent-skills", "incremental-implementation", "test-driven-development", "source-driven-development"] },
     "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
@@ -17,7 +17,8 @@
     "gates": { "type": "array", "items": { "type": "string" }, "default": ["require_human_approval"] },
     "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
     "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
-    "fast_path": { "type": "boolean", "default": false, "description": "FAST_PATH mode — skip plan gate, skip re-spawn, stripped output" },
+    "fast_path": { "type": "boolean", "default": false, "description": "FAST_PATH mode — skip plan gate, skip re-spawn, stripped output. When true, no plan file is written." },
+    "merged_plan_generate": { "type": "boolean", "default": false, "description": "SMALL-tier merged mode — write the plan file inline and proceed to generation in the same spawn (single approval gate at the end). The plan IS still written to disk; only the separate plan-approval gate is removed. Mutually exclusive with fast_path." },
     "tier": { "type": "string", "enum": ["TINY", "SMALL", "MEDIUM", "LARGE"], "default": "SMALL" },
     "constraints": { "type": "array", "items": { "type": "string" }, "default": [], "description": "FAST_PATH constraints (e.g. TDD required, no architectural decisions)" },
     "repo_root": { "type": "string", "default": ".", "description": "FAST_PATH working directory" },
@@ -25,6 +26,48 @@
       "type": "string",
       "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
+    },
+    "design_system_path": {
+      "type": "string",
+      "description": "Path to design-system/ root. Set by project-profile when ui=true. Null when no design system exists."
+    },
+    "has_figma_data": {
+      "type": "boolean",
+      "description": "Set by project-profile when figma/ dir or *.figma.json files exist in the workspace."
+    },
+    "figma_snapped_path": {
+      "type": "string",
+      "description": "Path to figma/snapped.json after figma-snap ran. Absent when has_figma_data is false."
+    },
+    "figma_archaeologist_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set when >10 corrections made during figma snap — triggers Arqueólogo fallback in code-generator."
+    },
+    "inception_plan_path": {
+      "type": "string",
+      "description": "Path to the inception execution plan markdown (aidlc-docs/inception/plans/<run-id>-execution-plan.md). Set by orchestrator so code-generator can tick off inception tasks after unit completion."
+    },
+    "inception_task_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Inception plan task IDs (e.g. ['ING-T4', 'ING-T5']) that belong to this unit. Code-generator marks these [x] in inception_plan_path after all tasks are done."
+    },
+    "ui_intent": {
+      "type": "array",
+      "description": "Semantic UI plan from functional design. Each entry maps a needed component to a primitive or pattern.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": { "type": "string", "description": "Name of the UI element (e.g. 'save-button', 'login-form')" },
+          "primitive": { "type": "string", "description": "Design system primitive to use (e.g. 'Button', 'Stack')" },
+          "pattern": { "type": "string", "description": "Pattern from design-system/patterns/ to use (e.g. 'form-layout')" },
+          "props": { "type": "object", "description": "Initial props for the primitive" }
+        },
+        "additionalProperties": false
+      },
+      "default": []
     }
   },
   "additionalProperties": false,

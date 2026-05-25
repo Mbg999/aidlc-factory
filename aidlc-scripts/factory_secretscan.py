@@ -42,7 +42,7 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("Slack Token", re.compile(r"(?<![a-zA-Z0-9])xox[baprs]-[0-9a-zA-Z\-]{10,}(?![a-zA-Z0-9])")),
     ("JWT Token", re.compile(r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+")),
     ("Private Key", re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC|OPENSSH|PGP)\s+PRIVATE\s+KEY-----")),
-    ("Generic Password", re.compile(r'(?:"|\')?(?:password|passwd|pwd|secret)(?:"|\')?\s*[:=]\s*["\']?[^"\'{}\[\],\s]{8,}["\']?', re.IGNORECASE)),
+    ("Generic Password", re.compile(r'(?:"|\')?(?:password|passwd|pwd|secret)(?:"|\')?\s*[:=]\s*["\']?[^"\'{}\[\],\s]{12,}["\']?', re.IGNORECASE)),
     ("API Key Header", re.compile(r'(?:"|\')?(?:api[_-]?key|apikey|api_secret)(?:"|\')?\s*[:=]\s*["\'][^"\']+["\']', re.IGNORECASE)),
     ("Bearer Token", re.compile(r'["\']?bearer["\']?\s+[a-zA-Z0-9\-_\.]{20,}', re.IGNORECASE)),
     ("Connection String", re.compile(r"(?:mongodb|postgresql|mysql|redis|amqp)://[^\s]{10,}")),

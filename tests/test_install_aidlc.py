@@ -53,8 +53,8 @@ class TestParseToolsString:
 class TestHallucinationPreventionStack:
     """Piece 3 + Piece 4 scripts must be registered in installer constants."""
 
-    def test_factory_autoskills_in_scripts(self):
-        assert "factory_autoskills.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
+    def test_factory_custom_skills_in_scripts(self):
+        assert "factory_custom_skills.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
 
     def test_factory_skill_drift_in_scripts(self):
         assert "factory_skill_drift.py" in install_aidlc.ORCHESTRATOR_FACTORY_SCRIPTS
@@ -65,8 +65,8 @@ class TestHallucinationPreventionStack:
     def test_skill_sources_yaml_exists_in_repo(self):
         assert (REPO_ROOT / "skill-sources.yaml").exists()
 
-    def test_factory_autoskills_source_exists(self):
-        assert (REPO_ROOT / "aidlc-scripts" / "factory_autoskills.py").exists()
+    def test_factory_custom_skills_source_exists(self):
+        assert (REPO_ROOT / "aidlc-scripts" / "factory_custom_skills.py").exists()
 
     def test_factory_skill_drift_source_exists(self):
         assert (REPO_ROOT / "aidlc-scripts" / "factory_skill_drift.py").exists()
@@ -91,7 +91,7 @@ class TestHallucinationPreventionStack:
         """skill-sources.yaml must land in the target root during orchestrator install."""
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv",
+            "--tool", "claude", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stdout + r.stderr
@@ -105,7 +105,7 @@ class TestHallucinationPreventionStack:
         sentinel = "# user-customised\n"
         (tmp_path / "skill-sources.yaml").write_text(sentinel)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv",
+            "--tool", "claude", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
@@ -118,7 +118,7 @@ class TestHallucinationPreventionStack:
         _stub_skills(tmp_path)
         (tmp_path / "skill-sources.yaml").write_text("# old content\n")
         r = _run_cli(
-            "--tool", "claude", "--yes", "--with-orchestrator", "--no-venv", "--force",
+            "--tool", "claude", "--yes", "--no-venv", "--force",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
@@ -288,7 +288,7 @@ class TestVenvCli:
     def test_no_venv_flag_skips_creation(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--tool", "claude", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
@@ -298,7 +298,7 @@ class TestVenvCli:
     def test_dry_run_announces_venv_creation(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--dry-run",
+            "--tool", "claude", "--yes", "--dry-run",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0
@@ -356,8 +356,8 @@ class TestCodeGraphIntegration:
     def test_codegraph_dry_run_flag_accepted(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
-            "--with-codegraph", "--dry-run",
+            "--tool", "claude", "--yes", "--no-venv",
+            "--dry-run",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
@@ -512,7 +512,7 @@ class TestAutoInitCodeGraph:
     def test_cli_auto_detect_does_not_crash(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
+            "--tool", "claude", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
@@ -538,15 +538,11 @@ class TestEngramIntegration:
         assert "opencode" in install_aidlc.ENGRAM_CLI_SETUP
         assert install_aidlc.ENGRAM_CLI_SETUP["opencode"] == [["engram", "setup", "opencode"]]
 
-    def test_engram_cli_setup_has_codex(self):
-        assert "codex" in install_aidlc.ENGRAM_CLI_SETUP
-        assert install_aidlc.ENGRAM_CLI_SETUP["codex"] == [["engram", "setup", "codex"]]
-
     def test_engram_mcp_tools_has_cursor(self):
         assert "cursor" in install_aidlc.ENGRAM_MCP_TOOLS
 
-    def test_engram_mcp_tools_has_windsurf(self):
-        assert "windsurf" in install_aidlc.ENGRAM_MCP_TOOLS
+    def test_engram_mcp_tools_has_copilot(self):
+        assert "copilot" in install_aidlc.ENGRAM_MCP_TOOLS
 
     def test_engram_mcp_entry_shape(self):
         e = install_aidlc.ENGRAM_MCP_ENTRY
@@ -606,8 +602,8 @@ class TestEngramIntegration:
         import json
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
-        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
-        install_aidlc.install_engram(["windsurf"], project_dir, dry_run=False)
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
+        install_aidlc.install_engram(["cursor"], project_dir, dry_run=False)
         config = json.loads((project_dir / ".mcp.json").read_text())
         assert list(config["mcpServers"].keys()).count("engram") == 1
 
@@ -675,8 +671,8 @@ class TestEngramIntegration:
     def test_cli_with_engram_dry_run_accepted(self, tmp_path: Path):
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "claude", "--yes", "--no-orchestrator", "--no-venv",
-            "--with-engram", "--dry-run",
+            "--tool", "claude", "--yes", "--no-venv",
+            "--dry-run",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
@@ -686,8 +682,7 @@ class TestEngramIntegration:
         import json
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "cursor", "--yes", "--no-orchestrator", "--no-venv",
-            "--with-engram",
+            "--tool", "cursor", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
@@ -700,8 +695,7 @@ class TestEngramIntegration:
         import json
         _stub_skills(tmp_path)
         r = _run_cli(
-            "--tool", "cursor", "--yes", "--no-orchestrator", "--no-venv",
-            "--with-engram",
+            "--tool", "cursor", "--yes", "--no-venv",
             "--dest", str(tmp_path),
         )
         assert r.returncode == 0, r.stderr
@@ -709,3 +703,268 @@ class TestEngramIntegration:
         assert mcp_path.exists(), ".mcp.json not written for cursor"
         config = json.loads(mcp_path.read_text())
         assert "engram" in config.get("mcpServers", {})
+
+
+# ---------- _venv_python (cross-platform venv executable detection) ----------
+
+class TestVenvPythonDetection:
+    def test_unix_bin_python(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "bin" / "python"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_unix_bin_python3(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "bin" / "python3"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_windows_scripts_python_exe(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "Scripts" / "python.exe"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_windows_scripts_python3_exe(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        py = venv / "Scripts" / "python3.exe"
+        py.parent.mkdir(parents=True)
+        py.touch()
+        assert install_aidlc._venv_python(venv) == py
+
+    def test_returns_none_when_not_found(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        venv.mkdir()
+        assert install_aidlc._venv_python(venv) is None
+
+    def test_unix_preferred_over_windows(self, tmp_path: Path):
+        """bin/python takes precedence over Scripts/python.exe."""
+        venv = tmp_path / ".venv"
+        unix_py = venv / "bin" / "python"
+        win_py = venv / "Scripts" / "python.exe"
+        for p in (unix_py, win_py):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.touch()
+        assert install_aidlc._venv_python(venv) == unix_py
+
+    def test_bin_python3_preferred_over_scripts(self, tmp_path: Path):
+        """bin/python3 takes precedence over Scripts/python.exe."""
+        venv = tmp_path / ".venv"
+        unix_py3 = venv / "bin" / "python3"
+        win_py = venv / "Scripts" / "python.exe"
+        for p in (unix_py3, win_py):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.touch()
+        assert install_aidlc._venv_python(venv) == unix_py3
+
+
+# ---------- _is_windows ----------
+
+class TestIsWindows:
+    def test_returns_bool(self):
+        assert isinstance(install_aidlc._is_windows(), bool)
+
+    def test_consistent_with_platform_module(self):
+        import platform
+        assert install_aidlc._is_windows() == (platform.system() == "Windows")
+
+
+# ---------- update_gitignore — force preserves existing content ----------
+
+class TestUpdateGitignoreForcePreservesContent:
+    def test_force_does_not_overwrite_existing_lines(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text("*.pyc\n__pycache__/\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert "*.pyc" in text
+        assert "__pycache__/" in text
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_new_file_has_no_leading_blank_line(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False,
+        )
+        text = gi.read_text()
+        assert not text.startswith("\n"), "new .gitignore must not start with a blank line"
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_force_new_file_no_leading_blank_line(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert not text.startswith("\n")
+        assert ".aidlc-orchestrator/runs/" in text
+
+    def test_force_existing_file_has_separator_blank_line(self, tmp_path: Path):
+        """A blank line should separate existing content from the new AIDLC block."""
+        gi = tmp_path / ".gitignore"
+        gi.write_text("*.log\n")
+        install_aidlc.update_gitignore(
+            tmp_path, [".aidlc-orchestrator/runs/"], "# AIDLC", dry_run=False, force=True,
+        )
+        text = gi.read_text()
+        assert "\n\n" in text, "expected blank separator line between sections"
+
+
+# ---------- Windows python_cmds ----------
+
+class TestWindowsPythonCmds:
+    def test_windows_includes_py_launcher(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        called: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            called.append(cmd[0])
+            if cmd[0] == "py":
+                import types
+                r = types.SimpleNamespace(returncode=0)
+                return r
+            raise FileNotFoundError("not found")
+
+        venv_path = Path("/fake/.venv")
+        fake_py = venv_path / "Scripts" / "python.exe"
+        monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: fake_py)
+
+        import types
+        fake_venv_py = types.SimpleNamespace(returncode=0)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                types.SimpleNamespace(returncode=0),  # venv creation (py -m venv)
+                types.SimpleNamespace(returncode=0),  # pip upgrade
+                types.SimpleNamespace(returncode=0),  # pip install -r
+            ]
+            try:
+                install_aidlc.create_venv_and_install_requirements(
+                    Path("/fake"), Path("/fake/requirements.txt"), dry_run=False,
+                )
+            except Exception:
+                pass
+
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd[0] == "py", f"Expected 'py' as first venv cmd on Windows, got {first_cmd[0]!r}"
+
+    def test_non_windows_starts_with_python3(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        import types
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                types.SimpleNamespace(returncode=0),
+                types.SimpleNamespace(returncode=0),
+                types.SimpleNamespace(returncode=0),
+            ]
+            monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: p / "bin" / "python")
+            try:
+                install_aidlc.create_venv_and_install_requirements(
+                    Path("/fake"), Path("/fake/requirements.txt"), dry_run=False,
+                )
+            except Exception:
+                pass
+
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd[0] == "python3", (
+            f"Expected 'python3' as first venv cmd on non-Windows, got {first_cmd[0]!r}"
+        )
+
+
+# ---------- _probe_version (Windows .ps1 fallback) ----------
+
+class TestProbeVersion:
+    """Unit tests for _probe_version() — especially the Windows .ps1 fallback."""
+
+    def test_successful_probe(self):
+        ok, ver = install_aidlc._probe_version([sys.executable, "--version"])
+        assert ok
+        assert "Python" in ver
+
+    def test_non_zero_returncode(self, monkeypatch):
+        mock = MagicMock()
+        mock.returncode = 1
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        ok, ver = install_aidlc._probe_version(["some-cmd", "--version"])
+        assert not ok
+        assert ver == "not found"
+
+    def test_timeout_expired(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        def _raise(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="some-cmd", timeout=10)
+        monkeypatch.setattr("subprocess.run", _raise)
+        ok, ver = install_aidlc._probe_version(["some-cmd", "--version"])
+        assert not ok
+        assert ver == "not found"
+
+    def test_file_not_found_on_unix_no_fallback(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        def _raise(*a, **kw):
+            raise FileNotFoundError("not found")
+        monkeypatch.setattr("subprocess.run", _raise)
+        ok, ver = install_aidlc._probe_version(["npm", "--version"])
+        assert not ok
+        assert ver == "not found"
+
+    def test_file_not_found_on_windows_falls_back_to_powershell(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+
+        calls = []
+
+        def _run(cmd, **kw):
+            calls.append(cmd)
+            if len(calls) == 1:
+                raise FileNotFoundError("not found — simulated missing .exe/.cmd")
+            # Second call is the PowerShell fallback — succeed
+            mock = MagicMock()
+            mock.returncode = 0
+            mock.stdout = "11.4.2\n"
+            return mock
+
+        monkeypatch.setattr("subprocess.run", _run)
+        ok, ver = install_aidlc._probe_version(["npm", "--version"])
+        assert ok
+        assert ver == "11.4.2"
+        assert len(calls) == 2
+        assert calls[0] == ["npm", "--version"]
+        assert "powershell" in calls[1][0].lower()
+        assert "npm --version" in " ".join(calls[1])
+
+    def test_file_not_found_windows_fallback_also_fails(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+
+        def _raise(*a, **kw):
+            raise FileNotFoundError("not found")
+        monkeypatch.setattr("subprocess.run", _raise)
+        ok, ver = install_aidlc._probe_version(["npm", "--version"])
+        assert not ok
+        assert ver == "not found"
+
+    def test_empty_output_returns_empty_string(self, monkeypatch):
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stdout = ""
+        mock.stderr = ""
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        ok, ver = install_aidlc._probe_version(["cmd", "--version"])
+        assert ok
+        assert ver == ""
+
+    def test_returns_first_line_of_multi_line_output(self, monkeypatch):
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stdout = "first line\nsecond line\n"
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        ok, ver = install_aidlc._probe_version(["cmd", "--version"])
+        assert ok
+        assert ver == "first line"

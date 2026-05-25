@@ -17,7 +17,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `code-simplification`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, and `code-simplification`. Load every skill file present.
 2. **FOLLOW** — Three-similar-lines-rule, dead-code scan, layer-redundancy review.
 3. **CHECK** — Rationalizations: reject "future flexibility", "we might need this".
 4. **VERIFY** — Concrete: each finding identifies the abstraction, what it abstracts (or doesn't), and the simpler form.
@@ -105,3 +107,39 @@ Return: `<status> <output-path>`.
 - Do not refactor. Findings only.
 - Do not flag necessary abstractions just because they're abstractions.
 - Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **Primitive bypass** — scan for raw HTML that should be a primitive:
+   - Raw `<div>` with padding/radius where `Box` or `Surface` exists → P2 finding
+   - Raw `<button>` where `Button` primitive exists → P2 finding
+   - Manual Stack/Inline via CSS where `Stack`/`Inline` primitives exist → P2 finding
+
+2. **Custom CSS override** — scan for inline or Tailwind arbitrary values
+   where a design token exists:
+   - `px-[13px]` → should be `p-md` or `px-3` (spacing.md=12px) → P2 finding
+   - `rounded-[5px]` → should be `rounded-sm` (radius.sm=3px) → P2 finding
+   - `text-[15px]` → should be `text-body` (font-size.body=14px) → P2 finding
+   - Raw color hex → should be `text-{semantic}` or `bg-{semantic}` → P2 finding
+
+3. **Redundant wrappers** — flag single-child Stack/Inline/Box:
+   - `<Stack><SingleChild /></Stack>` → just render SingleChild → P2 finding
+   - `<Box padding="md"><Surface>...</Surface></Box>` → redundant nesting → P2 finding
+
+Severity guide:
+- P2: bypassing primitives, custom CSS overrides, redundant wrappers
+- P3: cosmetic simplification opportunities
+
+Findings format (standard):
+```yaml
+- severity: P2
+  file: src/components/UserCard.tsx
+  line: 8
+  simplification_pattern: pass-through-wrapper
+  message: "Inline padding value 13px does not match any spacing token — nearest is spacing.md (12px)"
+  recommendation: "Use Box padding='md' or <Box padding='md'> instead of inline style"
+```

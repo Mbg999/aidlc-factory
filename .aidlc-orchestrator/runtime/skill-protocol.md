@@ -13,7 +13,7 @@ Skills are the primary enforcement mechanism for quality and process.
 `factory_skill_sync.py select` runs autoskills across all workspace directories (monorepo
 support), consolidates framework skills to `.agents/skills/`, then returns the full path
 list. Stages at spec/plan time use `.agents/custom-skills/` only (process skills).
-`factory_autoskills.py` handles private/internal skills from `skill-sources.yaml` and
+`factory_custom_skills.py` handles private/internal skills from `skill-sources.yaml` and
 coexists with `factory_skill_sync.py` — both write to `.agents/skills/`.
 
 ## Skill anatomy
@@ -38,7 +38,7 @@ Every skill from addyosmani/agent-skills has: **Overview**, **When to Use**,
 |---|---|
 | Define | `idea-refine`, `spec-driven-development` |
 | Plan | `planning-and-task-breakdown` |
-| Build | `incremental-implementation`, `tdd`, `source-driven-development`, `frontend-ui-engineering`*, `api-and-interface-design`* |
+| Build | `incremental-implementation`, `tdd`, `source-driven-development`, `frontend-ui-engineering`*, `design-system-composer`*, `api-and-interface-design`* |
 | Verify | `tdd`, `browser-testing-with-devtools`*, `debugging-and-error-recovery` |
 | Review | `code-review-and-quality`, `security-and-hardening`, `performance-optimization`, `code-simplification` |
 | Ship | `shipping-and-launch`, `git-workflow`, `ci-cd`, `documentation-and-adrs`, `deprecation-and-migration`* |

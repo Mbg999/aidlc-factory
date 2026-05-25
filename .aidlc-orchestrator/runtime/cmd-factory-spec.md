@@ -50,7 +50,7 @@ PRIORITY: P2
 Execute `stage/requirements-analyst.md` inline (no `Task()`). Follow the
 [post-execution loop](spawn-loop.md) for bookkeeping.
 
-**Two-pass**: both passes execute inline. Pass 1 emits answers → surface → user responds → Pass 2.
+**Two-pass**: both passes execute inline. Pass 1 emits answers → **SURFACE the questions file path** (from `questions_artifact_path`) to the user so they can answer via CLI or by editing the file directly → user responds → Pass 2.
 
 Pre-execution (steps 0-1): emit `spawn_start`, knowledge query.
 Then execute inline. After each pass: lightweight validation, context compaction.
@@ -85,4 +85,4 @@ label is persisted for telemetry; what matters downstream is `fast_path`, `skip_
 `git add -A && git commit -m "<type>(<scope>): <description>"` per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
 
 ## Step 6 — Present completion
-Show: run_id, workspace_state (1 line), requirements.md path, **routing decisions** (`skip_stages`, `reviewer_pool`, `merge_codegen_gate`), skill compliance table. Offer `/factory-plan <run-id>`. Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.
+Show: run_id (MUST substitute the actual run_id, NOT the literal text `<run-id>`), workspace_state (1 line), requirements.md path, questions file path (from `questions_artifact_path` — so the user can answer via file), **routing decisions** (`skip_stages`, `reviewer_pool`, `merge_codegen_gate`), skill compliance table. Offer `/factory-plan <run-id>` (MUST substitute the actual run_id for `<run-id>`). Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.

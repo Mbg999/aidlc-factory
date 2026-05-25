@@ -1,7 +1,8 @@
-# Recommended minimal dependencies for skills installer, executors, and evaluator
+# Minimal dependencies for skills installer and factory scripts
 pyyaml>=6.0
 jsonschema>=4.0
-boto3>=1.42.47
 
 # Optional developer/test tools
 pytest>=7.0
+
+# boto3 is only required by aidlc-scripts/aidlc-evaluator/ — see its pyproject.toml

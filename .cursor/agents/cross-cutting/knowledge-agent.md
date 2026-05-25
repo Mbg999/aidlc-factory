@@ -34,10 +34,10 @@ aidlc/<project-slug>/<kind>/<title-slug>
 - `<title-slug>`: first 4-6 meaningful words of the title, slugified.
 
 Examples:
-- `aidlc/custom-aidlc/pattern/lambda-handler-token-validation`
-- `aidlc/custom-aidlc/antipattern/secrets-in-env`
-- `aidlc/custom-aidlc/adr/auth-uses-asymmetric-jwt`
-- `aidlc/custom-aidlc/lesson/n-plus-one-from-orm-eager-load`
+- `aidlc/aidlc-factory/pattern/lambda-handler-token-validation`
+- `aidlc/aidlc-factory/antipattern/secrets-in-env`
+- `aidlc/aidlc-factory/adr/auth-uses-asymmetric-jwt`
+- `aidlc/aidlc-factory/lesson/n-plus-one-from-orm-eager-load`
 
 ## Knowledge entry shape
 
@@ -113,6 +113,13 @@ results = mem_search(
   - `reviewer-security` → query for known security antipatterns + ADRs
   - `reviewer-*` → query for relevant antipatterns
   - `ship-agent` → query for ADRs to roll into release notes
+
+**Design system cross-reference** — when `manifest.project_profile.ui == true`
+AND `design_system_path` is set, additionally query for examples and antipatterns
+from the design system's knowledge store. For `code-generator`, load relevant
+`examples/` (max 3 per component) and `anti-patterns/live/` entries from
+`context_pointers[]` — these are primitives with human-approved track records
+that the generator should prioritize, and antipatterns it should avoid.
 
 **Result formatting** — each match becomes a context_pointer entry:
 ```

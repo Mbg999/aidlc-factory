@@ -29,7 +29,7 @@ To complete this adapter:
    - Import the Cursor SDK at the top of `_invoke_cursor_task`.
    - Submit a job referencing `.cursor/agents/stage/<stage_name>.md`.
    - Pass `input_handoff_path` as the agent's input context.
-   - Honor `timeout_sec` per executor.v1.md §3.
+   - Honor `timeout_sec` per executor.v1.md §1.
    - Return the path to the produced output handoff.
 
 2. Until programmatic spawn is available, use this adapter in
@@ -202,7 +202,7 @@ class CursorExecutor(StageExecutor):
         2. Submit a job referencing `.cursor/agents/stage/<stage_name>.md`
            (or the cross-cutting equivalent if stage is not in `stage/`).
         3. Pass `input_handoff_path` as the agent's input context.
-        4. Honor `timeout_sec` per executor.v1.md §3.
+        4. Honor `timeout_sec` per executor.v1.md §1.
         5. Return the path to the produced output handoff.
 
         Until implemented:

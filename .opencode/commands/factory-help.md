@@ -85,6 +85,16 @@ python3 aidlc-scripts/factory_agent_discover.py list
 
 ---
 
+## CLI tools
+
+| Command | What it does |
+|---------|-------------|
+| `factory_triage.py --dry-run` | Preview what a factory command would do without executing |
+| `factory_validate.py --strict` | Strict-mode contract validation (blocks on warnings) |
+| `factory_secretscan.py` | Scan handoffs and artifacts for leaked secrets before commit |
+
+---
+
 ## Docs
 
 - `docs/TROUBLESHOOTING.md`

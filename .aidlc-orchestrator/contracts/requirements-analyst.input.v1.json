@@ -13,7 +13,7 @@
     "skill_paths_resolved"
   ],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "stage_id": { "const": "requirements-analyst" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": {

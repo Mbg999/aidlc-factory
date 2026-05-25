@@ -43,7 +43,7 @@
         "type": "object",
         "required": ["name", "description"],
         "properties": {
-          "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
           "description": { "type": "string" },
           "depends_on": { "type": "array", "items": { "type": "string" }, "default": [] }
         },

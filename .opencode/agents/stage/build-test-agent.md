@@ -25,7 +25,13 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `test-driven-development`, `debugging-and-error-recovery`. Conditionally `browser-testing-with-devtools` if `manifest.project_profile.ui == true`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`,
+   `debugging-and-error-recovery`, `validator-retry`, and `secret-knowledge`. It may
+   also include framework skills propagated from the build phase and conditional skills
+   like `browser-testing-with-devtools` when `project_profile.ui == true`.
+   Load every skill file present.
 2. **FOLLOW** — Process steps in order.
 3. **CHECK** — Rationalizations: reject "the test failure isn't related", "it's a flaky test".
 4. **VERIFY** — Concrete: build command output exit codes, test pass/fail counts, coverage if available, debugger session traces if failures.
@@ -36,15 +42,15 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Red Flags:** persistent flakes after retries, silent failures, tests that pass without asserting, environment-dependent results → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `validator-retry`, `browser-testing-with-devtools*`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`, `test-driven-development`, `debugging-and-error-recovery`, `secret-knowledge`, `validator-retry`, `browser-testing-with-devtools*`.
 
-**Lockfile-aware skill loading:** Before loading any framework skill, read `manifest.workspace_state.tech_stack[]`.
-Load a skill only if its `applies_to.framework` + `applies_to.version` range matches an entry in `tech_stack[]`.
-Skills with no `applies_to` are universal — always load. Log each decision with `[Skills]` prefix.
+**Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
+or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. Load a skill
+only if its `applies_to.framework` + `applies_to.version` range matches an entry in
+`tech_stack[]`. Skills with no `applies_to` are universal — always load. Log each decision
+with `[Skills]` prefix in `audit_entries[]`.
 
-**`environment-detection` runs FIRST** — before any `npm install` / `pip install` / equivalent.
-Check `command -v <tool>` for every required runtime; USE the existing installation when version-compatible.
-Log every detection result with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
+**`environment-detection` runs FIRST** — before any `npm install` / `pip install` / `brew install` / equivalent. The skill enforces detect-before-install: check `command -v <tool>` and `<tool> --version` for every required runtime, USE the existing installation when version is compatible, prefer fast version managers (nvm / asdf / mise / pyenv) when not, and treat brew as a last resort. Source-built brew installs are the single largest avoidable cost in this stage and have caused 180s timeouts on `brew install node@20` when node was already on `$PATH` via nvm. Log every detection result to `audit_entries[]` with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
 
 ## Your job
 Follow `aidlc-rules/aws-aidlc-rule-details/construction/build-and-test.md`.
@@ -62,10 +68,13 @@ For the unit specified in input:
    ```bash
    AFFECTED=$(git diff --name-only HEAD~1 2>/dev/null | codegraph affected --stdin --quiet 2>/dev/null)
    ```
-   - If `AFFECTED` is non-empty: run ONLY affected tests. Emit:
+   - If `AFFECTED` is non-empty: run ONLY affected tests. Pass the affected list to the
+     test runner (Vitest `--reporter=json`, pytest `-k`, go test `./...` filtered,
+     cargo test `--test <name>`). Emit:
      `[CodeGraph] tests_filtered: <N_affected>/<N_total> — running impacted subset only`
    - If `AFFECTED` is empty OR codegraph not installed: fall back to full suite.
      Emit: `[CodeGraph] no affected tests detected — running full suite`
+   - Never fail the build because `codegraph affected` is unavailable.
 
 4. Run tests → capture pass/fail counts, coverage if measured.
 5. On failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.

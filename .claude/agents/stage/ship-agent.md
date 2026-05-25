@@ -18,9 +18,10 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `shipping-and-launch`,
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
    `git-workflow-and-versioning`, `ci-cd-and-automation`,
-   `documentation-and-adrs`. Conditionally `deprecation-and-migration` if
+   `documentation-and-adrs`, `secret-knowledge` (Section E: DevOps + Section G: Systems). Conditionally `deprecation-and-migration` if
    `manifest.project_profile.has_legacy == true`.
 2. **FOLLOW** — Each skill's Process steps.
 3. **CHECK** — Rationalizations: reject "the README is enough", "ADRs are bureaucracy".
@@ -37,7 +38,7 @@ unit, version-bump without rationale, missing migration plan when
 `has_legacy` is true.
 
 **Skills:** `using-agent-skills`, `shipping-and-launch`, `git-workflow-and-versioning`,
-`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`.
+`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`, `secret-knowledge`.
 
 ## Your job
 1. **Release notes** → `RELEASE_NOTES.md` (or append to it). Sections: Added, Changed, Fixed, Deprecated, Removed, Security. Match the diff scope of this run.
@@ -47,6 +48,26 @@ unit, version-bump without rationale, missing migration plan when
 5. **Versioning** → propose semver bump (patch/minor/major) with rationale based on diff scope.
 6. (Conditional) **Migration plan** → if `has_legacy == true`, produce
    `aidlc-docs/operations/<run-id>-migration-plan.md` with deprecation timeline.
+7. (Conditional) **UI example capture** → if `design_system_path` is set:
+   a. Collect all source artifacts from this run's code-generator outputs that contain
+      UI primitives (Button, Stack, Inline, Box, Surface, Text, Input, Icon)
+   b. For each UI artifact, extract the TSX code and run:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_learn.py approve \
+          --component <Primitive> \
+          --code '<extracted-tsx>' \
+          --source <artifact-path> \
+          --run-id <run-id>
+      ```
+   c. After all examples saved, run:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_learn.py update-index
+      ```
+   d. Enforce memory cap:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_resolve.py trim
+      ```
+   e. Log each saved example in `audit_entries[]`
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/ship-agent.output.yaml`.

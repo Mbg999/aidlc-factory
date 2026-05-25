@@ -49,7 +49,7 @@ class Capabilities:
 class SpawnResult:
     """Return value of StageExecutor.spawn().
 
-    Mirrors the SpawnResult shape from executor.v1.md §3.
+    Mirrors the SpawnResult shape from executor.v1.md §1.
     """
 
     status: SpawnStatus
@@ -90,7 +90,7 @@ class StageExecutor(abc.ABC):
         timeout_sec: Optional[int] = None,
         isolation: Optional[IsolationMode] = None,
     ) -> SpawnResult:
-        """Spawn one stage. See executor.v1.md §3 for invariants.
+        """Spawn one stage. See executor.v1.md §1 for invariants.
 
         MUST validate output against `<stage>.output.v1.json` before returning.
         MUST emit `tokens_in`, `tokens_out`, `wall_clock_sec` on the result.

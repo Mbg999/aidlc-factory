@@ -20,6 +20,37 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 - `workspace_state.reverse_engineering_artifacts_present == true`, OR
 - the user_request matches `/migrat|refactor|deprecat|legacy|rewrite|port/i`
 
+**`design_system_path`** — when `ui: true`:
+1. Check if `design-system/` exists at repo root
+2. If yes: set `design_system_path = "design-system/"`
+3. If no: set `design_system_path = null` (skill still runs with inline fallback)
+
+**`has_figma_data`** — when `ui: true`:
+1. Check if `figma/` directory exists OR any `*.figma.json` files exist in the workspace
+2. Check `workspace-scout.output.yaml.workspace_state` for figma references in `project_structure`
+3. If yes: set `has_figma_data = true`
+4. If no: set `has_figma_data = false`
+
+**Figma input snap** — when `has_figma_data == true`:
+1. Before code-generator runs, execute the snap step:
+   ```bash
+   python3 aidlc-scripts/factory_design_system_snap.py snap-file \
+       --input figma/raw-data.json \
+       --output figma/snapped.json
+   ```
+2. Set `figma_snapped_path = "figma/snapped.json"` in the code-generator input
+3. The snap script reports correction count. If >10 corrections, set flag
+   `figma_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
+   `design-system-composer` skill §7.
+
+**Inject into downstream handoffs:**
+When building input handoffs for code-generator, reviewers, build-test-agent, and ship-agent, add:
+- `design_system_path` from the resolved value
+- `has_figma_data` from the resolved value
+- `figma_snapped_path` when figma snapping ran
+- `figma_archaeologist_mode` when >10 corrections
+- `skills_required[]` adds `frontend-ui-engineering`, `design-system-composer`, AND `ui-constraint-validator` when `ui: true`
+
 **Persist:**
 ```bash
 python3 aidlc-scripts/factory_run.py set <run-id> \
@@ -37,7 +68,9 @@ When building input handoffs for `code-generator`, `build-test-agent`, and `ship
 
 | Flag | Affected stage(s) | Skill to add |
 |---|---|---|
-| `ui: true` | `code-generator` | `frontend-ui-engineering` |
+| `ui: true` | `code-generator` | `frontend-ui-engineering` (generic patterns) |
+| `ui: true` | `code-generator` | `design-system-composer` (design-system composition) |
+| `ui: true` | `code-generator` | `ui-constraint-validator` |
 | `ui: true` | `build-test-agent` | `browser-testing-with-devtools` |
 | `api: true` | `code-generator` | `api-and-interface-design` |
 | `has_legacy: true` | `ship-agent` | `deprecation-and-migration` |
@@ -56,7 +89,7 @@ Workspace Scout detected:
   - reverse_engineering_artifacts_present: false
 
 Running `reverse-engineer` first produces:
-  - aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md
+  - aidlc-docs/inception/reverse-engineering/<run-id>-business-overview.md  (MUST substitute actual run_id)
   - architecture.md, code-structure.md, api-docs.md, component-inventory.md
   - interaction-diagrams.md, tech-stack.md, dependencies.md
 

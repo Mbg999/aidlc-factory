@@ -3,7 +3,7 @@
 install_aidlc.py
 
 Simple installer to copy AI-DLC rule files into the chosen agent integration
-location (Kiro, Amazon Q, Cursor, Cline, Claude Code, GitHub Copilot, Other).
+location (Cursor, Claude Code, GitHub Copilot, OpenCode, Other).
 
 Optionally fetches and installs engineering process skills from
 https://github.com/addyosmani/agent-skills.
@@ -11,13 +11,14 @@ https://github.com/addyosmani/agent-skills.
 Usage examples:
   python aidlc-scripts/install_aidlc.py --tool cursor
   python aidlc-scripts/install_aidlc.py --tool copilot --yes
-  python aidlc-scripts/install_aidlc.py --tool kiro --dry-run
+  python aidlc-scripts/install_aidlc.py --tool claude --dry-run
   python aidlc-scripts/install_aidlc.py --tool copilot --with-agent-skills
 """
 from __future__ import annotations
 
 import argparse
 import os
+import platform as _platform
 import shutil
 import sys
 from pathlib import Path
@@ -116,6 +117,23 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     _retry_op(lambda p: p.chmod(0o755), dst)
 
 
+def _is_windows() -> bool:
+    return _platform.system() == "Windows"
+
+
+def _venv_python(venv_path: Path) -> Path | None:
+    """Return the Python executable inside a virtualenv (cross-platform)."""
+    for candidate in (
+        venv_path / "bin" / "python",          # macOS / Linux (canonical)
+        venv_path / "bin" / "python3",          # some Linux distros
+        venv_path / "Scripts" / "python.exe",   # Windows
+        venv_path / "Scripts" / "python3.exe",  # Windows (alt)
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def ensure_target_requirements(repo_root: Path, target_root: Path, dry_run: bool) -> Path | None:
     """Ensure target_root has a requirements.txt, seeding from the source repo if missing.
 
@@ -152,7 +170,8 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
         print(f"[DRY-RUN] Would install requirements from {requirements_path}")
         return
 
-    python_cmds = ["python3", "python"]
+    python_cmds = (["py", "python3", "python"] if _is_windows()
+                   else ["python3", "python"])
     created = False
     last_err: Exception | None = None
     for cmd in python_cmds:
@@ -170,15 +189,16 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
 
     if not created:
         raise EnvironmentError(
-            f"Could not create virtual environment ('python3'/'python' not found or failed): {last_err}"
+            f"Could not create virtual environment: no suitable Python found "
+            f"(tried: {', '.join(python_cmds)}). Last error: {last_err}"
         )
 
-    # Locate python executable inside the venv (Unix vs Windows)
-    venv_python = venv_path / "bin" / "python"
-    if not venv_python.exists():
-        venv_python = venv_path / "Scripts" / "python.exe"
-    if not venv_python.exists():
-        raise EnvironmentError(f"Could not find python executable in virtualenv at {venv_path}")
+    venv_python = _venv_python(venv_path)
+    if venv_python is None:
+        raise EnvironmentError(
+            f"Could not find python executable in virtualenv at {venv_path}. "
+            "Expected bin/python (macOS/Linux) or Scripts/python.exe (Windows)."
+        )
 
     try:
         print("Upgrading pip in virtualenv...")
@@ -206,8 +226,8 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 
 VALID_TOOLS = (
-    "kiro", "amazonq", "cursor", "cline", "claude",
-    "copilot", "opencode", "codex", "windsurf", "other",
+    "cursor", "claude",
+    "copilot", "opencode", "other",
 )
 
 
@@ -241,7 +261,6 @@ def parse_tools_string(s: str) -> list[str]:
 # validation even when subagent spawning isn't available.
 ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_validate.py",
-    "factory_budget.py",
     "factory_merge_reviews.py",
     "factory_conflict.py",
     "factory_run.py",
@@ -267,8 +286,12 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_knowledge_promote.py",
     "factory_knowledge_dashboard.py",
     # Hallucination prevention stack (Piece 3 + Piece 4)
-    "factory_autoskills.py",      # fetch+verify community skills from skill-sources.yaml
+    "factory_custom_skills.py",      # fetch+verify community skills from skill-sources.yaml
     "factory_skill_drift.py",     # detect skills whose version range lags behind latest stable
+    # Design system pipeline (Figma input snapping, component-aware resolution, learn/approve/reject)
+    "factory_design_system_snap.py",    # snap raw Figma values to canonical design tokens
+    "factory_design_system_resolve.py", # lazy-load design system files for matching components
+    "factory_design_system_learn.py",   # learn from approved/rejected UI output
     # Skill sync layer — monorepo-aware autoskills bridge
     "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
     "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
@@ -281,6 +304,17 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
 ORCHESTRATOR_ROOT_CONFIGS = [
     "skill-sources.yaml",
 ]
+
+# Per-tool MCP config files (Context7 + Chrome DevTools, locally-run via npx).
+# Each tool reads its MCP servers from a different path/format, so we ship one
+# config per tool and let the installer place only the relevant one.
+# User-customizable — never overwrite on re-install (use --force).
+ORCHESTRATOR_TOOL_MCP_CONFIGS = {
+    "claude":   Path(".mcp.json"),
+    "cursor":   Path(".cursor/mcp.json"),
+    "copilot":  Path(".vscode/mcp.json"),
+    "opencode": Path("opencode.json"),
+}
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
 # Shipped to every consumer; the active adapter is picked at runtime per
@@ -445,24 +479,25 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
         print(f"[DRY-RUN] Would update {gi_path} with: {', '.join(entries)}")
         return
 
-    if gi_path.exists() and not force:
-        existing_text = gi_path.read_text()
-        existing_lines = {line.strip() for line in existing_text.splitlines()}
-        new_lines = [e for e in entries if e not in existing_lines]
-        if not new_lines:
-            print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
-            return
-        with gi_path.open("a") as f:
+    existing_text = gi_path.read_text() if gi_path.exists() else ""
+    existing_lines = {line.strip() for line in existing_text.splitlines()}
+    new_lines = [e for e in entries if e not in existing_lines]
+
+    if not force and not new_lines:
+        print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
+        return
+
+    lines_to_write = entries if force else new_lines
+
+    with gi_path.open("a") as f:
+        if existing_text:
             if not existing_text.endswith("\n"):
                 f.write("\n")
-            f.write(f"\n{header}\n")
-            for line in new_lines:
-                f.write(f"{line}\n")
-        print(f"  appended {len(new_lines)} pattern(s) to {gi_path.relative_to(target_root)}")
-    else:
-        content = f"{header}\n" + "\n".join(entries) + "\n"
-        gi_path.write_text(content)
-        print(f"  created {gi_path.relative_to(target_root)} with {len(entries)} pattern(s)")
+            f.write("\n")
+        f.write(f"{header}\n")
+        for line in lines_to_write:
+            f.write(f"{line}\n")
+    print(f"  appended {len(lines_to_write)} pattern(s) to {gi_path.relative_to(target_root)}")
 
 
 def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False) -> None:
@@ -508,7 +543,6 @@ def _tool_agent_dir(tool: str) -> str:
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
-        "codex": ".codex/agents",
         "copilot": ".github/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
 
@@ -519,7 +553,6 @@ def _tool_commands_dir(tool: str) -> str:
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
-        "codex": ".codex/commands",
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -678,6 +711,19 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 print(f"  prompts -> .github/prompts/")
                 copy_tree(src_prompts, dst_prompts, dry_run)
             _install_vscode_copilot_settings(target_root, dry_run)
+
+        # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
+        # skip if destination already exists unless --force.
+        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+        if mcp_rel is not None:
+            src_mcp = repo_root / mcp_rel
+            dst_mcp = target_root / mcp_rel
+            if src_mcp.exists():
+                if dst_mcp.exists() and not force:
+                    print(f"  {mcp_rel} already exists — skipping (use --force to overwrite)")
+                else:
+                    print(f"  mcp config -> {mcp_rel}")
+                    copy_file(src_mcp, dst_mcp, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
@@ -859,6 +905,14 @@ def _check_node_version(min_major: int) -> tuple[bool, str]:
         return False, "not found"
 
 
+def _run_codegraph(cmd: list[str], target_root: Path | None = None, **kwargs) -> subprocess.CompletedProcess:
+    """Run a codegraph command, using PowerShell on Windows to resolve .ps1 wrappers."""
+    if _is_windows():
+        pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
+        return subprocess.run(pwsh_cmd, cwd=str(target_root) if target_root else None, **kwargs)
+    return subprocess.run(cmd, cwd=str(target_root) if target_root else None, **kwargs)
+
+
 def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
     """Auto-detect codegraph on PATH and run `codegraph init -i` if .codegraph/ missing.
 
@@ -873,33 +927,23 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
     if not ok:
         return
 
-    try:
-        result = subprocess.run(
-            ["codegraph", "--version"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode != 0:
-            return
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    ok, cg_version = _probe_version(["codegraph", "--version"])
+    if not ok:
         return
 
-    cg_version = result.stdout.strip()
     print(f"\n--- CodeGraph detected ({cg_version}) — initializing index ---")
     if dry_run:
         print(f"[DRY-RUN] Would run: codegraph init -i in {target_root}")
         return
 
     print("  Running codegraph init -i (may take 30s–4min)...")
-    init_result = subprocess.run(
-        ["codegraph", "init", "-i"],
-        cwd=str(target_root),
-    )
+    init_result = _run_codegraph(["codegraph", "init", "-i"], target_root)
     if init_result.returncode != 0:
         print("  WARNING: codegraph init -i exited with an error — index may be incomplete.")
         print(f"  Run manually:  cd {target_root} && codegraph init -i")
     else:
         print("  CodeGraph index built successfully.")
-        subprocess.run(["codegraph", "status"], cwd=str(target_root))
+        _run_codegraph(["codegraph", "status"], target_root)
 
 
 def install_codegraph(target_root: Path, dry_run: bool) -> None:
@@ -926,26 +970,29 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         )
     print(f"  Node: {version_str} (>= {CODEGRAPH_NODE_MIN}) — OK")
 
-    # Step 2: npm install -g
-    if dry_run:
+    # Step 2: check if already installed
+    ok, cg_version = _probe_version(["codegraph", "--version"])
+    if ok:
+        print(f"  codegraph: {cg_version} — already installed, skipping npm install")
+    elif dry_run:
         print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
     else:
         print(f"  Installing {CODEGRAPH_NPM_PACKAGE} globally via npm...")
-        result = subprocess.run(
-            ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE],
-            capture_output=False,
+        # On Windows npm may be a .ps1 script (not resolved by subprocess.run).
+        # Use PowerShell explicitly to handle this.
+        npm_cmd = (
+            ["powershell", "-NoProfile", "-Command", f"npm install -g {CODEGRAPH_NPM_PACKAGE}"]
+            if _is_windows()
+            else ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE]
         )
+        result = subprocess.run(npm_cmd, capture_output=False)
         if result.returncode != 0:
             raise RuntimeError(
                 f"npm install -g {CODEGRAPH_NPM_PACKAGE} failed (exit {result.returncode}). "
                 "Check npm permissions or use --prefix for a local install."
             )
-        # Verify the install
-        ver_result = subprocess.run(
-            ["codegraph", "--version"], capture_output=True, text=True, timeout=15
-        )
-        cg_version = ver_result.stdout.strip() if ver_result.returncode == 0 else "unknown"
-        print(f"  codegraph: {cg_version}")
+        ok, cg_version = _probe_version(["codegraph", "--version"])
+        print(f"  codegraph: {cg_version}" if ok else "  codegraph: unknown")
 
     # Step 3: Write .mcp.json
     mcp_path = target_root / ".mcp.json"
@@ -971,18 +1018,6 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         )
         print(f"  .mcp.json — added 'codegraph' MCP server entry")
 
-    print("\n  Running codegraph init -i (initial index — may take 30s–4min)...")
-    init_result = subprocess.run(
-        ["codegraph", "init", "-i"],
-        cwd=str(target_root),
-    )
-    if init_result.returncode != 0:
-        print("  WARNING: codegraph init -i exited with an error — index may be incomplete.")
-        print(f"  Run manually:  cd {target_root} && codegraph init -i")
-    else:
-        print("  CodeGraph index built successfully.")
-        subprocess.run(["codegraph", "status"], cwd=str(target_root))
-
 
 # ─── Engram persistent memory ────────────────────────────────────────────────
 
@@ -993,12 +1028,11 @@ ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
         ["claude", "plugin", "install", "engram"],
     ],
     "opencode": [["engram", "setup", "opencode"]],
-    "codex":    [["engram", "setup", "codex"]],
 }
 
 # MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
 ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
-    {"cursor", "windsurf", "kiro", "cline", "copilot", "amazonq", "other"}
+    {"cursor", "copilot", "other"}
 )
 
 ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
@@ -1008,8 +1042,8 @@ ENGRAM_PROJECT_CONFIG_RELPATH = Path(".engram") / "project.json"
 def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
     """Wire Engram persistent memory for each selected tool.
 
-    CLI-native tools (claude, opencode, codex): runs the tool-specific setup command(s).
-    MCP-based tools (cursor, windsurf, …): merges the engram entry into .mcp.json.
+    CLI-native tools (claude, opencode): runs the tool-specific setup command(s).
+    MCP-based tools (cursor, copilot, …): merges the engram entry into .mcp.json.
     Always writes .engram/project.json with project_name = target_root.name.
     """
     import json
@@ -1070,6 +1104,43 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
         print(f"  project config -> .engram/project.json (project_name={project_name!r})")
 
 
+# ── Design System (optional, --with-design-system) ──────────────────────────
+
+
+DESIGN_SYSTEM_SRCS = frozenset({
+    "design-system",
+    ".agents/custom-skills/design-system-composer",
+    ".agents/custom-skills/ui-constraint-validator",
+})
+
+
+def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> None:
+    """Install design system directory and related skills into target project.
+
+    Copies:
+      - design-system/ (tokens, primitives, patterns, anti-patterns)
+      - .agents/custom-skills/design-system-composer/
+      - .agents/custom-skills/ui-constraint-validator/
+    """
+    print("\n--- Installing Design System ---")
+
+    for src_name in sorted(DESIGN_SYSTEM_SRCS):
+        src = repo_root / src_name
+        dst = target_root / src_name
+        if not src.exists():
+            print(f"  SKIP {src_name} — not found in repo")
+            continue
+        if dry_run:
+            print(f"[DRY-RUN] Would copy {src_name}/ -> {dst.parent}/")
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _rmtree_force(dst)  # clean install
+            copy_tree(src, dst, dry_run=False)
+            print(f"  {src_name}/ -> {dst}")
+
+    print("  Design system installed.")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
     p.add_argument("--tool", required=False,
@@ -1086,11 +1157,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--custom-skills-path", type=str, default=None,
                    help="Path to custom/project-specific skills. Each subdirectory should contain a SKILL.md. "
                         "Installed to .agents/skills/ and override agent-skills with the same name.")
-    p.add_argument("--with-orchestrator", dest="with_orchestrator", action="store_true", default=None,
-                   help="Install the AIDLC orchestrator (factory scripts + subagents + slash commands). "
-                        "If neither --with-orchestrator nor --no-orchestrator is set, prompts interactively (default: yes).")
-    p.add_argument("--no-orchestrator", dest="with_orchestrator", action="store_false",
-                   help="Skip orchestrator installation.")
+
     p.add_argument("--force", action="store_true",
                    help="Re-install / upgrade over an existing installation. Overwrites all "
                         "orchestrator files (kernel, runtime, scripts, contracts, subagents) "
@@ -1100,88 +1167,323 @@ def parse_args() -> argparse.Namespace:
                    help="Skip creating .venv and pip-installing requirements.txt. "
                         "Default: a virtualenv is created at <dest>/.venv and the "
                         "target's requirements.txt is installed into it.")
-    p.add_argument("--with-codegraph", action="store_true", default=False,
-                   help="Install CodeGraph (@colbymchenry/codegraph via npm) and write the "
-                        "project-local .mcp.json MCP server config. Requires Node >= 18. "
-                        "Default: off — CodeGraph is opt-in.")
-    p.add_argument("--with-engram", action="store_true", default=False,
-                   help="Set up Engram persistent memory for the selected tool(s). "
-                        "CLI-native tools (claude, opencode, codex) run the tool-specific setup "
-                        "command; MCP-based tools get an entry in .mcp.json. "
-                        "Always writes .engram/project.json with the repo folder as project_name. "
-                        "Default: off — Engram is opt-in.")
+    p.add_argument("--no-codegraph", dest="with_codegraph", action="store_false", default=True,
+                   help="Skip CodeGraph installation.")
+    p.add_argument("--no-engram", dest="with_engram", action="store_false", default=True,
+                   help="Skip Engram persistent memory setup.")
+    p.add_argument("--with-design-system", action="store_true", default=True,
+                   help="Install the design system (tokens, primitives, patterns, skills). "
+                        "Copies design-system/ + design-system-composer + ui-constraint-validator skills. "
+                        "Default: install (recommended for UI projects).")
+    p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
+                   help="Skip design system installation.")
+    p.add_argument("--skip-preflight", action="store_true",
+                   help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
+                        "Use only if you know what you're doing — missing prereqs will "
+                        "surface as cryptic errors later in the install.")
     return p.parse_args()
 
 
-def ask_orchestrator(tools: list[str]) -> bool:
-    """Prompt user whether to install the AIDLC orchestrator. Default: yes."""
-    tools_label = ", ".join(tools)
-    native = [t for t in tools if t in ("claude", "opencode", "copilot")]
-    degraded = [t for t in tools if t not in ("claude", "opencode", "copilot")]
-    if native and not degraded:
-        msg = (f"Install the AIDLC orchestrator (factory scripts + subagents + slash commands) for {tools_label}?\n"
-               f"  Includes: 13 stage subagents, 12 /factory-* slash commands,"
-               f"{len(ORCHESTRATOR_FACTORY_SCRIPTS)} factory_*.py scripts,\n"
-               f"  executor adapter package (claude-code + opencode), "
-               f"20+ JSON schema contracts, default budget policy, quality SLOs.\n"
-               f"  [Y/n]: ")
-    else:
-        deg_label = ", ".join(degraded)
-        msg = (f"Install the AIDLC orchestrator infrastructure for {tools_label}?\n"
-               f"  You'll get the factory_*.py scripts and contracts (usable for manual validation).\n"
-               f"  Subagent spawning is Claude Code only — for {deg_label} the multi-agent factory\n"
-               f"  runs in degraded mode (single-agent role-switching) per ORCHESTRATOR-PLAN.md §8.4.\n"
-               f"  [Y/n]: ")
+TOOL_DESCRIPTIONS = {
+    "cursor":   "Cursor editor — writes to .cursor/agents/ and .cursor/commands/",
+    "claude":   "Claude Code CLI — writes to .claude/agents/ and .claude/commands/",
+    "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
+    "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
+    "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
+}
+
+
+# ── Preflight prerequisite gate ──────────────────────────────────────────────
+
+
+def _parse_semver(raw: str) -> tuple[int, ...] | None:
+    """Extract a leading semver-ish tuple from a version string. None on failure."""
+    import re
+    m = re.search(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", raw)
+    if not m:
+        return None
+    return tuple(int(x) if x else 0 for x in m.groups())
+
+
+def _probe_version(cmd: list[str]) -> tuple[bool, str]:
+    """Run cmd and return (found, raw-version-string). found=False on any failure."""
+    # Windows: if the command is a .ps1/.cmd script, subprocess.run may not
+    # find it through PATHEXT. Fall back to PowerShell invocation.
     try:
-        resp = input(msg).strip().lower()
-    except KeyboardInterrupt:
-        return False
-    return resp not in ("n", "no")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        if _is_windows():
+            pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
+            try:
+                result = subprocess.run(pwsh_cmd, capture_output=True, text=True, timeout=10)
+            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+                return False, "not found"
+        else:
+            return False, "not found"
+    if result.returncode != 0:
+        return False, "not found"
+    out = (result.stdout or result.stderr or "").strip().splitlines()
+    return (True, out[0]) if out else (True, "")
+
+
+# Each entry: (display_name, probe_cmd, min_version_tuple_or_None,
+#              required_when_predicate, install_url, install_hints[],
+#              skip_reason_or_None)
+def _preflight_specs(args: argparse.Namespace, tools: list[str] | None = None) -> list[tuple]:
+    """Build the preflight probe list. `tools` is the resolved tool list — when
+    None, conditional probes that depend on tool selection are skipped (caller
+    must run a second preflight pass after interactive tool selection)."""
+    tools = tools or []
+    with_engram = bool(getattr(args, "with_engram", True))
+    with_codegraph = bool(getattr(args, "with_codegraph", True))
+    using_agent_skills = bool(getattr(args, "with_agent_skills", True)) and not getattr(args, "agent_skills_path", None)
+
+    specs = [
+        (
+            "Python", [sys.executable, "--version"], (3, 10, 0),
+            lambda: True,
+            "https://www.python.org/downloads/",
+            ["Python 3.10+ is required to run the installer and AIDLC factory scripts.",
+             "macOS:          brew install python@3.12  (or: pyenv install 3.12)",
+             "Linux (Debian): sudo apt-get install python3 python3-venv python3-pip",
+             "Linux (RHEL):   sudo dnf install python3 python3-pip",
+             "Windows:        winget install Python.Python.3.12",
+             "All platforms:  https://www.python.org/downloads/"],
+            None,
+        ),
+        (
+            "Git", ["git", "--version"], None,
+            lambda: using_agent_skills,
+            "https://git-scm.com/downloads",
+            ["macOS:          xcode-select --install",
+             "Linux (Debian): sudo apt-get install git",
+             "Linux (RHEL):   sudo dnf install git",
+             "Windows:        winget install Git.Git",
+             "All platforms:  https://git-scm.com/downloads"],
+            "not needed (agent skills disabled or local path provided)",
+        ),
+        (
+            "Node.js", ["node", "--version"], (22, 6, 0),
+            lambda: True,
+            "https://nodejs.org/en/download",
+            ["macOS via brew:      brew install node@22",
+             "macOS/Linux via nvm:",
+             "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash",
+             "  nvm install 22 && nvm use 22",
+             "Linux (Debian):      sudo apt-get install -y nodejs npm",
+             "Linux (RHEL):        sudo dnf install nodejs npm",
+             "Windows via winget:  winget install OpenJS.NodeJS.LTS",
+             "Windows via nvm-win: https://github.com/coreybutler/nvm-windows",
+             "All platforms:       https://nodejs.org/en/download",
+             "Required for autoskills — Node < 22.6 means lockfile-aware skills will not be installed."],
+            None,
+        ),
+        (
+            "npm", ["npm", "--version"], None,
+            lambda: True,
+            "https://nodejs.org/en/download",
+            ["npm ships with Node.js — install Node 22+ and npm comes with it."],
+            None,
+        ),
+    ]
+
+    # Tool-conditional probes — only included when the user has already selected
+    # their tool(s). In the first preflight pass (tools=[]) these are omitted so
+    # the user doesn't see confusing skip messages before choosing a platform.
+    # CodeGraph is NOT probed here — the installer installs it, so there's nothing
+    # to preflight-check beyond Node/npm (already verified in pass 1).
+    if tools:
+        specs += [
+            (
+                "Claude Code CLI", ["claude", "--version"], None,
+                lambda: with_engram and "claude" in tools,
+                "https://docs.claude.com/claude-code",
+                ["macOS via brew: brew install anthropic/claude/claude",
+                 "Or follow the official install at https://docs.claude.com/claude-code",
+                 "Not needed if you use --no-engram or a different tool."],
+                "not required (engram on Claude uses the claude CLI — no standalone binary needed)",
+            ),
+            (
+                "Engram CLI", ["engram", "--version"], None,
+                lambda: with_engram and "opencode" in tools,
+                "https://github.com/Gentleman-Programming/engram",
+                ["Follow the install instructions at https://github.com/Gentleman-Programming/engram",
+                 "Not needed if you use --no-engram or a different tool."],
+                "not required (only for engram on OpenCode — for Claude the claude plugin is used instead)",
+            ),
+        ]
+
+    return specs
+
+
+PREFLIGHT_EXIT_CODE = 9
+
+
+def preflight_check(args: argparse.Namespace, tools: list[str] | None = None, label: str = "") -> int:
+    """Probe required tools BEFORE writing anything. Exit 9 on any failure.
+
+    Honours --dry-run by printing the checklist but never returning non-zero.
+    Honours --skip-preflight by returning 0 immediately.
+
+    `tools`: when None, conditional probes (claude/engram/codegraph CLIs) are
+    skipped. Call this function a SECOND time with the resolved tools list
+    once interactive tool selection completes.
+    `label`: short suffix appended to the header so multi-pass invocations are
+    distinguishable in output (e.g. "core" / "tool-specific").
+    """
+    if getattr(args, "skip_preflight", False):
+        print(f"--- Preflight check skipped (--skip-preflight){' — ' + label if label else ''} ---")
+        return 0
+
+    header = "--- Preflight check (prerequisites)"
+    if label:
+        header += f" — {label}"
+    header += " ---"
+    print(f"\n{header}")
+    specs = _preflight_specs(args, tools)
+    failures: list[tuple] = []
+    for spec in specs:
+        name, cmd, min_v, required_when, url, hints = spec[:6]
+        skip_reason = spec[6] if len(spec) > 6 else None
+        if not required_when():
+            reason = skip_reason or "not required for this install"
+            print(f"  {name:18s} ⏭️  {reason}")
+            continue
+        ok, raw = _probe_version(cmd)
+        if not ok:
+            failures.append((name, "missing", min_v, url, hints, raw))
+            print(f"  {name:18s} ❌ {raw}")
+            continue
+        if min_v is None:
+            print(f"  {name:18s} ✅ {raw}")
+            continue
+        parsed = _parse_semver(raw)
+        if parsed is None or parsed < min_v:
+            failures.append((name, "version_too_old", min_v, url, hints, raw))
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  {name:18s} ❌ {raw} (need >= {min_v_str})")
+        else:
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  {name:18s} ✅ {raw} (>= {min_v_str})")
+
+    if not failures:
+        print("  All prerequisites satisfied.\n")
+        return 0
+
+    if args.dry_run:
+        print(f"\n[DRY-RUN] {len(failures)} prerequisite(s) would block this install — continuing dry-run.\n")
+        return 0
+
+    print()
+    print("=" * 70)
+    print(f"❌ Cannot proceed — {len(failures)} prerequisite(s) missing.")
+    print("=" * 70)
+    for name, kind, min_v, url, hints, raw in failures:
+        print()
+        if kind == "missing":
+            print(f"  Missing: {name}")
+        else:
+            min_v_str = ".".join(str(p) for p in min_v)
+            print(f"  Outdated: {name} — detected {raw}, need >= {min_v_str}")
+        print(f"  Docs:    {url}")
+        for h in hints:
+            print(f"    {h}")
+    print()
+    print("Fix the failures above, then re-run this installer.")
+    print("(To bypass at your own risk, re-run with --skip-preflight.)")
+    print()
+    return PREFLIGHT_EXIT_CODE
+
+
+
 
 
 def interactive_choose_tools() -> list[str]:
     """Prompt user to select one or more tools (comma-separated indices)."""
     choices = list(VALID_TOOLS)
-    print("Select the agentic coding tool(s) to install AI-DLC for:")
-    print("(One number, or comma-separated for multiple — e.g. '5,7')")
+    print()
+    print("Which agentic coding tool(s) do you use?")
+    print("AIDLC will install the integration files for each tool you select.")
+    print()
     for i, c in enumerate(choices, 1):
-        print(f" {i}) {c}")
+        desc = TOOL_DESCRIPTIONS.get(c, "")
+        print(f"  {i}) {c:9s} {desc}")
+    print()
+    print("Pick one number, or comma-separated for multiple.")
+    print("Examples:")
+    print("  '2'    -> Claude Code only")
+    print("  '2,4'  -> Claude Code + OpenCode")
     while True:
-        v = input("Enter number(s): ").strip()
+        try:
+            v = input("Your choice: ").strip()
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            sys.exit(1)
         if not v:
+            print("  Please enter a number from 1 to {}. Example: '2'.".format(len(choices)))
             continue
         try:
             indices = [int(x.strip()) - 1 for x in v.split(",") if x.strip()]
-            if indices and all(0 <= idx < len(choices) for idx in indices):
-                seen: set[str] = set()
-                out: list[str] = []
-                for idx in indices:
-                    name = choices[idx]
-                    if name not in seen:
-                        seen.add(name)
-                        out.append(name)
-                return out
-        except Exception:
-            pass
-        print("Invalid selection, try again")
+        except ValueError:
+            print(f"  That doesn't look right — enter numbers only (you entered: {v!r}).")
+            print(f"  Example: '2' or '2,4'.")
+            continue
+        if not indices:
+            print(f"  No numbers found in {v!r}. Example: '2' or '2,4'.")
+            continue
+        out_of_range = [i + 1 for i in indices if i < 0 or i >= len(choices)]
+        if out_of_range:
+            print(f"  Out of range: {out_of_range}. Valid: 1-{len(choices)}.")
+            continue
+        seen: set[str] = set()
+        out: list[str] = []
+        for idx in indices:
+            name = choices[idx]
+            if name not in seen:
+                seen.add(name)
+                out.append(name)
+        return out
+
+
+def _prompt_destination() -> Path:
+    """Prompt for install destination with examples + current-dir default."""
+    cwd = Path.cwd()
+    print()
+    print("Where should AIDLC be installed?")
+    print("This is the root of the project you want to add AIDLC to.")
+    print()
+    print("Examples:")
+    print("  .                           current directory")
+    print("  ~/projects/my-app           absolute path with home expansion")
+    print(f"  {cwd}   full absolute path")
+    print()
+    while True:
+        try:
+            resp = input(f"Destination [default: {cwd}]: ").strip().strip("'\"")
+        except KeyboardInterrupt:
+            print("\nAborted by user")
+            sys.exit(1)
+        if not resp:
+            return cwd
+        try:
+            return Path(resp).expanduser().resolve()
+        except (OSError, RuntimeError) as e:
+            print(f"  Could not resolve {resp!r}: {e}. Try again.")
 
 
 def main() -> int:
     args = parse_args()
-    # Determine destination root: prefer --dest, otherwise ask interactively
+
+    # Pass 1 — core preflight (python/git/node/npm + any conditional probes
+    # whose required_when() can be resolved from --tool/--with-* flags alone).
+    rc = preflight_check(args, tools=None, label="core")
+    if rc != 0:
+        return rc
+
     if args.dest:
         target_root = Path(args.dest).expanduser().resolve()
     else:
-        # prompt for destination path (default: current directory)
-        try:
-            resp = input(f"Destination path (default: {Path.cwd()}): ").strip().strip("'\"")
-        except KeyboardInterrupt:
-            print("\nAborted by user")
-            return 1
-        if resp:
-            target_root = Path(resp).expanduser().resolve()
-        else:
-            target_root = Path.cwd()
+        target_root = _prompt_destination()
     repo_root = Path(__file__).resolve().parent.parent
 
     if args.tool:
@@ -1192,6 +1494,14 @@ def main() -> int:
             return 2
     else:
         tools = interactive_choose_tools()
+
+    # Pass 2 — tool-conditional preflight. If the user picked --tool
+    # interactively (no CLI flag), conditional probes for claude / engram /
+    # codegraph CLIs need to fire NOW that tools are resolved.
+    if not args.tool:
+        rc = preflight_check(args, tools=tools, label="tool-specific")
+        if rc != 0:
+            return rc
 
     # Agent skills will be installed by default (no interactive prompt)
 
@@ -1281,25 +1591,14 @@ def main() -> int:
             if count:
                 print(f"Installed {count} bundled custom skill(s)")
 
-    # --- AIDLC Orchestrator (Phases 0-6) ---
-    install_orch: bool
-    if args.with_orchestrator is not None:
-        install_orch = args.with_orchestrator
-    elif args.yes:
-        install_orch = True   # default yes in non-interactive mode
-    else:
-        install_orch = ask_orchestrator(tools)
+    # --- AIDLC Orchestrator (always installed — mandatory for full workflow) ---
+    try:
+        install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force)
+    except Exception as e:
+        print(f"ERROR installing orchestrator: {e}")
+        return 6
 
-    if install_orch:
-        try:
-            install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force)
-        except Exception as e:
-            print(f"ERROR installing orchestrator: {e}")
-            return 6
-    else:
-        print("\nSkipped AIDLC orchestrator installation.")
-
-    # --- CodeGraph (optional, --with-codegraph) ---
+    # --- CodeGraph (default: install, opt-out via --no-codegraph) ---
     if args.with_codegraph:
         try:
             install_codegraph(target_root, args.dry_run)
@@ -1307,12 +1606,17 @@ def main() -> int:
             print(f"ERROR installing CodeGraph: {e}")
             print("  CodeGraph is optional — AIDLC will degrade gracefully without it.")
 
-    # --- CodeGraph auto-detect (post-install) ---
-    _auto_init_codegraph(target_root, args.dry_run)
-
-    # --- Engram (optional, --with-engram) ---
+    # --- Engram (default: install, opt-out via --no-engram) ---
     if args.with_engram:
         install_engram(tools, target_root, args.dry_run)
+
+    # --- Design System (optional, --with-design-system / --no-design-system) ---
+    if args.with_design_system:
+        try:
+            install_design_system(repo_root, target_root, args.dry_run)
+        except Exception as e:
+            print(f"ERROR installing design system: {e}")
+            print("  Design system is optional — AIDLC will degrade gracefully without it.")
 
     # --- Python venv + dependencies ---
     if args.no_venv:
@@ -1331,6 +1635,10 @@ def main() -> int:
             except RuntimeError as e:
                 print(f"WARNING: {e}")
                 print("  You can retry manually:  .venv/bin/pip install -r requirements.txt")
+
+    # --- CodeGraph init (last step — runs after everything else) ---
+    if args.with_codegraph:
+        _auto_init_codegraph(target_root, args.dry_run)
 
     print("Done.")
     return 0

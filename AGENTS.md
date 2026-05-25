@@ -33,7 +33,7 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
 | `aidlc-scripts/factory_*.py` | Runtime Python scripts |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills: code-review-and-quality, validator-retry, environment-detection, codegraph-aware-exploration |
+| `.agents/custom-skills/` | Custom skills: code-review-and-quality, validator-retry, environment-detection, codegraph-aware-exploration, secret-knowledge |
 | `aidlc-docs/` | Generated artifacts from AIDLC runs in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
@@ -98,7 +98,7 @@ Key env vars:
 |-------|-----------|
 | Validator-retry | `tsc --noEmit` / `pyright` / `cargo check` after each code slice; feeds errors back (max 3 retries) |
 | Lockfile-aware skills | `workspace-scout` parses lockfiles; only injects skills matching pinned versions |
-| Autoskills | `factory_autoskills.py` fetches community skills with SHA-256 verification |
+| Autoskills | `factory_custom_skills.py` fetches community skills with SHA-256 verification |
 | Skill drift detector | `factory_skill_drift.py` flags skills whose version range no longer covers latest stable |
 
 ---
@@ -111,4 +111,4 @@ Extensions layer additional rules on top of the core workflow. Opt-in files live
 Extensions without an opt-in file are always enforced.
 
 
-Keep parity between .opencode/ and .claude/ files, everytime you change anything in one, do the same for the other.
+Keep parity between .opencode/, .cursor, .github and .claude/ files, everytime you change anything in one, do the same for the other.

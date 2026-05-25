@@ -5,11 +5,11 @@
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "unit_name", "skills_required", "skill_paths_resolved"],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "stage_id": { "const": "build-test-agent" },
     "user_request": { "type": "string", "minLength": 1 },
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "code-generator output for this unit" },
-    "unit_name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 3, "default": ["using-agent-skills", "test-driven-development", "debugging-and-error-recovery"] },
     "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "budget": { "type": "object" },
@@ -20,6 +20,10 @@
       "type": "string",
       "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
+    },
+    "design_system_path": {
+      "type": "string",
+      "description": "Path to design-system/ root. Set by project-profile when ui=true. Injected by orchestrator Step B.3 alongside browser-testing-with-devtools skill. Null/absent means no design system available."
     }
   },
   "additionalProperties": false

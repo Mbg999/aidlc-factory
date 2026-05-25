@@ -18,6 +18,7 @@
 .codebuild/**
 .worktrees/**
 .vscode/**
+!.vscode/mcp.json
 .env
 .venv/
 buildspec.yml

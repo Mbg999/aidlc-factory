@@ -31,7 +31,9 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
    Otherwise execute `stage/unit-decomposer.md` inline per the [post-execution loop](spawn-loop.md).
 
 4. Auto-commit `docs(workflow-planning): complete workflow planning` and update
-   state. Present completion + offer `/factory-build <run-id>`.
+   state. Present completion + offer `/factory-build <run-id>` (MUST substitute the
+   actual run_id for `<run-id>` — e.g. `/factory-build 2026-05-23T13-10-58Z-dragon-ball-z-app`).
+   Also show the plan file path so the user can inspect it before approving.
 
 > **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
 > Plan stages use `.agents/custom-skills/` process skills only.

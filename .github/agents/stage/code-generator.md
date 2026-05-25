@@ -26,10 +26,15 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills` first, then `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`. Conditionally
-   load `frontend-ui-engineering` if `manifest.project_profile.ui == true`
-   and `api-and-interface-design` if `manifest.project_profile.api == true`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `environment-detection`, `incremental-implementation`,
+   `test-driven-development`, `source-driven-development`, `validator-retry`, and
+   `secret-knowledge`. It may also include framework skills propagated from the build
+   phase (e.g., `vue`, `react-best-practices`, `typescript-advanced-types`) and
+   conditional skills from project profile (`frontend-ui-engineering`,
+   `design-system-composer`, `ui-constraint-validator`, `api-and-interface-design`).
+   Load every skill file present.
 2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
    Incremental = thin vertical slices, each green before next.
 3. **CHECK** — Common Rationalizations. Reject "I'll add tests later",
@@ -44,9 +49,9 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
-`validator-retry`, `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `api-and-interface-design*`, `secret-knowledge` (* = conditional on profile).
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
@@ -71,21 +76,35 @@ Follow these rule files in order:
 5. `aidlc-rules/aws-aidlc-rule-details/construction/code-generation.md`
 
 ### Sub-stage 1: Plan
-Check `input.merged_plan_generate`. Two paths:
+
+> **HARD RULE — read this first.** When `fast_path` is NOT true, the plan
+> file at
+> `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
+> MUST be written to disk AND MUST appear in `artifacts[]` with `kind: plan`.
+> `merged_plan_generate: true` removes the *approval gate* — it does NOT
+> remove the *plan file*. The orchestrator now validates this with
+> `factory_validate.py --strict`; if the artifact or the file is missing,
+> the unit is rejected and surfaced as blocked before the next gate. Do not
+> rationalize skipping the plan because the work feels small — only the
+> `fast_path: true` input authorizes a no-plan run.
+
+Check `input.merged_plan_generate`. Two paths (both write the plan file):
 
 **Standard path** (`merged_plan_generate: false` or absent):
-Produce `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
-with task checkboxes per the construction rules. Each task is a thin slice.
-Emit `status: needs_human` with `sub_stage: plan` after the plan is written.
-**HALT.** The orchestrator will surface the plan, get approval, and re-spawn
-you with `context_pointers[]` indicating approval.
+Produce the plan file at the path above with task checkboxes per the
+construction rules. Each task is a thin slice. Add the file to
+`artifacts[]` as `{path: <plan-path>, kind: "plan"}`. Emit
+`status: needs_human` with `sub_stage: plan` after the plan is written.
+**HALT.** The orchestrator will surface the plan, get approval, and
+re-spawn you with `context_pointers[]` indicating approval.
 
 **Merged path** (`merged_plan_generate: true` — SMALL tier):
-Produce the same plan file, then **immediately proceed to code generation
-without halting**. Write the plan inline in `audit_entries[]` as a summary
-block before the first task. Emit `status: needs_human` with
-`sub_stage: generated` (not `plan`) when all tasks are done — the plan and
-code are presented together for a single approval gate.
+Produce the same plan file at the same path AND add it to `artifacts[]`
+the same way, then **immediately proceed to code generation without
+halting**. Write the plan inline in `audit_entries[]` as a summary block
+before the first task. Emit `status: needs_human` with `sub_stage: generated`
+(not `plan`) when all tasks are done — the plan and code are presented
+together for a single approval gate.
 
 ### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
 

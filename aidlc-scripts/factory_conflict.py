@@ -105,7 +105,7 @@ def validate_holder(holder: str) -> None:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _die(msg: str, code: int = 2) -> None:
@@ -150,7 +150,11 @@ def _list_locks(rd: Path) -> list[dict]:
         return []
     locks = []
     for f in sorted(locks_dir.glob("*.yaml")):
-        locks.append(yaml.safe_load(f.read_text()))
+        data = yaml.safe_load(f.read_text())
+        if isinstance(data, dict) and "holder" in data:
+            locks.append(data)
+        else:
+            print(f"[WARN] skipping malformed lock file {f.name}", file=sys.stderr)
     return locks
 
 
@@ -186,12 +190,15 @@ def cmd_acquire(args: argparse.Namespace) -> None:
     _acquire_lock = rd / ".acquire.lock"
     try:
         import fcntl
+    except ImportError:
+        fcntl = None  # type: ignore[assignment]  # Windows — no flock available
+
+    if fcntl is None:
+        _do_acquire(args, rd, locks_dir)
+    else:
         with _acquire_lock.open("a") as lf:
             fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
             _do_acquire(args, rd, locks_dir)
-    except (ImportError, OSError):
-        # Fall back to non-locked path on platforms without fcntl (Windows)
-        _do_acquire(args, rd, locks_dir)
 
 
 def _do_acquire(args: argparse.Namespace, rd: Path, locks_dir: Path) -> None:

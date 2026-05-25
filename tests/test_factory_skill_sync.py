@@ -99,30 +99,38 @@ class TestCopySkill:
 class TestCheckNode:
     def test_node_not_found_returns_false(self):
         with patch("factory_skill_sync.subprocess.run", side_effect=FileNotFoundError):
-            assert mod._check_node() is False
+            ok, reason = mod._check_node()
+            assert ok is False
+            assert "not found" in reason.lower()
 
     def test_node_old_version_returns_false(self):
         result = MagicMock()
         result.stdout = "v18.0.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
-            assert mod._check_node() is False
+            ok, reason = mod._check_node()
+            assert ok is False
+            assert "v18" in reason
 
     def test_node_good_version_returns_true(self):
         result = MagicMock()
         result.stdout = "v22.6.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
-            assert mod._check_node() is True
+            ok, reason = mod._check_node()
+            assert ok is True
+            assert reason == ""
 
     def test_node_newer_version_returns_true(self):
         result = MagicMock()
         result.stdout = "v24.0.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
-            assert mod._check_node() is True
+            ok, reason = mod._check_node()
+            assert ok is True
 
     def test_timeout_returns_false(self):
         with patch("factory_skill_sync.subprocess.run",
                    side_effect=subprocess.TimeoutExpired("node", 10)):
-            assert mod._check_node() is False
+            ok, reason = mod._check_node()
+            assert ok is False
 
 
 # ── _skill_is_current ─────────────────────────────────────────────────────────
@@ -377,7 +385,12 @@ class TestCmdSelect:
 # ── cmd_sync graceful degradation ────────────────────────────────────────────
 
 class TestCmdSyncGracefulDegradation:
-    def test_node_missing_exits_0(self, tmp_path):
-        with patch("factory_skill_sync._check_node", return_value=False):
+    def test_node_missing_exits_0(self, tmp_path, capsys):
+        with patch("factory_skill_sync._check_node",
+                   return_value=(False, "Node.js not found on PATH")):
             result = mod.cmd_sync(tmp_path)
         assert result == 0
+        out = capsys.readouterr().out
+        assert "[Sync] SKIPPED" in out
+        assert "Node.js not found" in out
+        assert "[Sync] WARN" in out

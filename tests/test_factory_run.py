@@ -193,3 +193,68 @@ def test_set_field(env_setup, run_id):
     )
     data = json.loads(result2.stdout)
     assert data["project_profile"]["ui"] is True
+
+
+# ── --next-cmd (B3 substitution helper) ───────────────────────────────────────
+
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location("factory_run_mod", RUN_PY)
+_factory_run_mod = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_factory_run_mod)
+
+
+def test_next_command_empty_manifest():
+    assert _factory_run_mod._next_command("r1", {"completed_stages": []}) is None
+
+
+def test_next_command_after_phase0():
+    m = {"completed_stages": ["workspace-scout", "requirements-analyst"]}
+    assert _factory_run_mod._next_command("r1", m) == "/factory-plan r1"
+
+
+def test_next_command_after_phase1():
+    m = {"completed_stages": ["workspace-scout", "requirements-analyst", "workflow-planner"]}
+    assert _factory_run_mod._next_command("r1", m) == "/factory-build r1"
+
+
+def test_next_command_after_build():
+    m = {"completed_stages": ["workspace-scout", "requirements-analyst", "workflow-planner",
+                              "code-generator", "build-test-agent"]}
+    assert _factory_run_mod._next_command("r1", m) == "/factory-review r1"
+
+
+def test_next_command_after_review():
+    m = {"completed_stages": ["workspace-scout", "requirements-analyst", "workflow-planner",
+                              "code-generator", "build-test-agent",
+                              "reviewer-code", "reviewer-simplifier"]}
+    assert _factory_run_mod._next_command("r1", m) == "/factory-ship r1"
+
+
+def test_next_command_after_ship_returns_none():
+    m = {"completed_stages": ["workspace-scout", "requirements-analyst", "workflow-planner",
+                              "code-generator", "build-test-agent",
+                              "reviewer-code", "ship-agent"]}
+    assert _factory_run_mod._next_command("r1", m) is None
+
+
+def test_next_command_cli_with_real_manifest(env_setup, run_id):
+    subprocess.run(
+        [sys.executable, str(RUN_PY), "init", run_id, "--user-request", "test"],
+        capture_output=True, text=True, env={**__import__("os").environ},
+    )
+    subprocess.run(
+        [sys.executable, str(RUN_PY), "complete-stage", run_id, "workspace-scout"],
+        capture_output=True, text=True, env={**__import__("os").environ},
+    )
+    subprocess.run(
+        [sys.executable, str(RUN_PY), "complete-stage", run_id, "requirements-analyst"],
+        capture_output=True, text=True, env={**__import__("os").environ},
+    )
+    result = subprocess.run(
+        [sys.executable, str(RUN_PY), "status", run_id, "--next-cmd"],
+        capture_output=True, text=True, env={**__import__("os").environ},
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"/factory-plan {run_id}"
+    # Critical: literal run_id present, no `<run-id>` placeholder leaking
+    assert "<run-id>" not in result.stdout

@@ -43,7 +43,7 @@ When CodeGraph is active, use the following routing for every lookup:
 | What does X call? | `codegraph_callees` |
 | What breaks if I change X? | `codegraph_impact` at depth 2 |
 | Get source of X | `codegraph_node` |
-| What files exist? | `codegraph_files` |
+| What files exist? | `codegraph_files` (limit depth to avoid context saturation; increase for specific subtrees as needed) |
 | Summarize this codebase | `codegraph_context` — **SUBAGENT ONLY** — never call from main session |
 | List packages indexed | `codegraph_status` |
 

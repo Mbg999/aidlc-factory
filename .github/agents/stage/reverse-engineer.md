@@ -47,9 +47,11 @@ Produce these artifacts under `aidlc-docs/inception/reverse-engineering/`:
 - `code-structure.md` — directory map, module roles, build/test conventions
 - `api-docs.md` — public interfaces (HTTP routes, gRPC services, library exports)
 - `component-inventory.md` — components/services with responsibilities + dependencies
-- `interaction-diagrams.md` — Mermaid sequence diagrams for top-3 flows
+- `interaction-diagrams.md` — Mermaid sequence diagrams for top-3 entry flows
 - `technology-stack.md` — languages, frameworks, runtimes, infra, observability
 - `dependencies.md` — direct + dev dependencies with versions and roles
+- `code-quality-assessment.md` — test coverage, code quality indicators, technical debt, patterns/anti-patterns
+- `reverse-engineering-timestamp.md` — metadata: analysis date, total files analyzed, artifact manifest
 
 ### CodeGraph-preferred artifact strategy
 
@@ -61,19 +63,31 @@ Use this approach for each artifact instead of bulk file reads:
 |---|---|---|
 | `business-overview.md` | `codegraph_context` with task: "summarize business domain, entry points, and user-facing capabilities" | Glob + Read README/docs |
 | `architecture.md` | `codegraph_context` with task: "describe layered architecture, key boundaries, and deployment model" | Read main config + entry files |
-| `code-structure.md` | `codegraph_files` to get directory map; `codegraph_search` for module roles | `find` + depth-2 Glob |
+| `code-structure.md` | `codegraph_files` with depth limit for directory map; `codegraph_search` for module roles | `find` + depth-2 Glob |
 | `api-docs.md` | `codegraph_search` for route handlers, exported functions, gRPC service defs | Grep for route patterns |
-| `component-inventory.md` | `codegraph_context` with task: "list components with responsibilities and dependencies" | Read each top-level module |
-| `interaction-diagrams.md` | `codegraph_callers` + `codegraph_callees` for top-3 entry points | Manual trace via Grep |
+| `component-inventory.md` | `codegraph_context` with task: "list components with responsibilities and dependencies"; then `codegraph_impact --depth 1` on each top-level module for coupling data | Read each top-level module |
+| `interaction-diagrams.md` | `codegraph_callers` + `codegraph_callees`. Select top-3 entry points by cascade: (1) symbols with highest `callers_count`, (2) HTTP routes with most handlers, (3) most-imported public exports, (4) `main`/`app`/`index` bootstrap. Log selection rationale. | Manual trace via Grep |
 | `technology-stack.md` | `codegraph_status` for indexed languages; Read manifest files for versions | Read manifest files only |
 | `dependencies.md` | Read manifest/lockfiles (not in graph) | Same |
+| `code-quality-assessment.md` | `codegraph_search` for test patterns (`test_`, `spec`, `_test`); `codegraph_status` for file/symbol counts | `rg` for test files + `wc -l` |
+| `reverse-engineering-timestamp.md` | `codegraph_status` for node/file counts to record in metadata | `find` with source extensions + `wc -l` |
 
-**Forbidden when index is active:** bulk `Read` on source files (`.py`, `.ts`, `.go`, `.rs`, etc.).
-Exception: configuration files, build manifests, and READMEs.
+**Source read budget when CodeGraph is active:**
+- Limit source file `Read` calls to **≤ 3 per artifact** and **≤ 12 total**.
+- Do NOT use `glob` + `Read` to slurp directories. Use `codegraph_files` to discover files, then read selectively.
+- Log each source read with justification:
+  ```
+  [Source Read] src/pricing/engine.py — needed to understand discount logic (codegraph_context omitted this)
+  ```
 
 Emit per-artifact audit entry:
 ```
 [CodeGraph] <artifact>.md — codegraph_context replaced ~<N> file reads
+```
+
+For `component-inventory.md`, additionally emit per-component:
+```
+[Impact] auth/ → 14 callers, 6 callees, 3 files
 ```
 
 Final summary audit entry:
@@ -92,7 +106,7 @@ Validate against `.aidlc-orchestrator/contracts/reverse-engineer.output.v1.json`
 
 Required:
 - `status: complete` (or blocked/failed/needs_human)
-- `artifacts`: all 8 RE files with `kind: doc`
+- `artifacts`: all 10 RE files with `kind: doc`
 - `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
   Orchestrator wraps them in dated `REVERSE ENGINEERING - START/COMPLETE` headers
   when appending to `audit.md`. Include bullets summarizing artifact-by-artifact
@@ -114,4 +128,4 @@ Return: `<status> <output-handoff-path>`
 - Do not write the requirements doc — that's Requirements Analyst.
 - Do not modify audit.md or aidlc-state.md directly.
 - Do not invent intent. If you can't tell what something does, say so.
-- Do not exceed scope: 8 artifacts, no more, no less.
+- Do not exceed scope: 10 artifacts, no more, no less.

@@ -14,9 +14,9 @@
 # Both installers write to .agents/skills/<name>/ and coexist safely.
 #
 # Usage (this file):
-#   python3 aidlc-scripts/factory_autoskills.py            # install/update all
-#   python3 aidlc-scripts/factory_autoskills.py --dry-run  # preview only
-#   python3 aidlc-scripts/factory_autoskills.py --skill my-internal-skill
+#   python3 aidlc-scripts/factory_custom_skills.py            # install/update all
+#   python3 aidlc-scripts/factory_custom_skills.py --dry-run  # preview only
+#   python3 aidlc-scripts/factory_custom_skills.py --skill my-internal-skill
 #
 # Format per entry:
 #   name:       unique slug (becomes the directory name under .agents/skills/)
@@ -28,7 +28,7 @@
 #
 # To add a skill:
 #   1. Add an entry below with url + sha256 (get sha256: curl -sL <url> | shasum -a 256)
-#   2. Run: python3 aidlc-scripts/factory_autoskills.py --skill <name>
+#   2. Run: python3 aidlc-scripts/factory_custom_skills.py --skill <name>
 #   3. Commit the updated skill-sources.yaml and the installed skill file
 
 sources:
@@ -74,6 +74,17 @@ sources:
   #   applies_to:
   #     framework: fastapi
   #     version: ">=0.100.0"
+
+  # Secret Knowledge — trimstray/the-book-of-secret-knowledge
+  # Local custom skill at .agents/custom-skills/secret-knowledge/
+  # Source: https://github.com/trimstray/the-book-of-secret-knowledge
+  # This entry tracks the upstream repo. Update sha256 to pin a specific commit.
+  # - name: secret-knowledge-upstream
+  #   url: https://raw.githubusercontent.com/trimstray/the-book-of-secret-knowledge/master/README.md
+  #   sha256: ""   # run: curl -sL <url> | shasum -a 256
+  #   applies_to:
+  #     framework: _reference
+  #     version: ">=0.0.0"
 
   # Placeholder so the file parses correctly with an empty sources list
   # Remove this when you add real entries above.

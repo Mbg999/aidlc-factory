@@ -1,10 +1,10 @@
 # Audit-Block Protocol — Canonical Reference
 
 **Single source of truth** for non-spawn audit blocks (user decisions, user
-answers, stage-skipped events, orchestrator notes). Before this document
-existed, the same rules were restated inline at every approval gate in
-`.claude/agents/orchestrator.md`. They now live here, enforced by
-`aidlc-scripts/factory_run.py emit_audit_block`.
+answers, stage-skipped events, orchestrator notes). Enforced by
+`aidlc-scripts/factory_run.py emit_audit_block`. For helper internals,
+example renders, file lifecycle, and history, see
+[`audit-block.protocol.appendix.md`](audit-block.protocol.appendix.md).
 
 ## Invocation
 
@@ -20,26 +20,10 @@ python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
     --bullet "<text>" [--bullet ...]
 ```
 
-The helper performs the entire substep-6 sequence atomically:
-1. Validate `--evt` against the canonical vocabulary (table below).
-2. Validate `--phase` ∈ {`INCEPTION`, `CONSTRUCTION`, `OPERATIONS`}.
-3. Validate evt-required fields are present.
-4. Validate the run exists (manifest.yaml on disk).
-5. Validate at least one `--bullet` is supplied.
-6. **Emit a timeline event first** (single source of ts truth).
-7. Acquire advisory `flock` on `aidlc-docs/audit.md`.
-8. **Dedupe guard:** if last `## ` header in `audit.md` has the same `ts` AND
-   the same `"<PHASE> - <LABEL>"`, this is a retry — skip the append.
-9. **Chronology guard:** the new ts MUST be ≥ the last header's ts; otherwise
-   the helper dies non-zero rather than corrupting history.
-10. Append the block under the lock.
-11. Release the lock.
-12. Print the ts to stdout for the caller to capture.
-
-Wall-clocking `now()` for the audit header is **impossible** because the ts
-comes from the timeline event the helper just emitted — not from a separate
-clock read. Chronology is enforced against `timeline.jsonl`, not the system
-clock.
+The helper validates inputs, emits a timeline event for the canonical `ts`,
+acquires `flock` on `aidlc-docs/audit.md`, dedupes retries, enforces
+chronology, appends the block, and prints the `ts` to stdout. On failure it
+returns non-zero with no mutation. Full sequence in the appendix.
 
 ## Canonical evt vocabulary
 
@@ -65,39 +49,7 @@ NOT this helper. This helper is for the four non-spawn evts above.
 
 Followed by exactly one blank line as the section separator. The H2 header is
 the only structural marker; reviewers and downstream tools parse against this
-pattern.
-
-Example renders:
-
-```
-## 2026-05-14T10:34:12+00:00 INCEPTION - User Decision (workflow-planner)
-- [User] Approved execution plan
-- [User] Free-text note: "the multi-unit decomposition is fine"
-
-## 2026-05-14T10:51:08+00:00 INCEPTION - User Answers Received
-- [User] Q1=A (security extension enabled)
-- [User] Q2=C (no property-based testing)
-- [Orchestrator] Tension flagged for Pass 2: 401 vs 403 disambiguation
-
-## 2026-05-14T11:02:44+00:00 INCEPTION - Reverse-Engineer SKIPPED
-- [Orchestrator] non-critical: workspace_state.next_phase != "reverse-engineering"
-- [Orchestrator] Skipping per Failed→skipped recovery; downstream stages proceed
-```
-
-## Retry semantics
-
-If a stage spawn fails after `emit_audit_block` succeeded but before the
-orchestrator commits its own state, the orchestrator may re-invoke
-`emit_audit_block` with `--ts <previous-ts>` to retry idempotently. The
-dedupe guard will detect the identical block and skip; the helper still
-exits 0 and prints `<ts> (dedupe skipped — identical block already present)`.
-
-## Concurrency
-
-The helper uses POSIX `fcntl.flock` on `audit.md.lock`. Multiple parallel
-writers (e.g. layer-parallel `/factory-build` writing audit entries per unit)
-serialize correctly; no two writers can interleave into the same `## ` block.
-Verified by `tests/test_emit_audit_block.py::test_emit_audit_block_concurrent_writers_serialize`.
+pattern. `<PHASE>` ∈ {`INCEPTION`, `CONSTRUCTION`, `OPERATIONS`}.
 
 ## Failure modes (all return non-zero, no mutation)
 
@@ -111,13 +63,20 @@ Verified by `tests/test_emit_audit_block.py::test_emit_audit_block_concurrent_wr
 | run_id doesn't have a manifest.yaml | `run not found: ...` |
 | ts < last header's ts (chronology violation) | `chronology violation: ts <new> < last audit ts <old>` |
 
-## Audit file lifecycle
+## Retry semantics
 
-- Path: `aidlc-docs/audit.md`. Append-only.
-- If missing, the helper creates it with header `# Audit Log\n\n`.
-- The archive rotation policy from `core-workflow.md` (entries > 30 → archive
-  to `aidlc-docs/archive/audit-<phase>.md`) is **not** the helper's
-  responsibility — keep that in the orchestrator's lifecycle code.
+If a stage spawn fails after `emit_audit_block` succeeded but before the
+orchestrator commits its own state, the orchestrator may re-invoke
+`emit_audit_block` with `--ts <previous-ts>` to retry idempotently. The
+dedupe guard will detect the identical block and skip; the helper still
+exits 0 and prints `<ts> (dedupe skipped — identical block already present)`.
+
+## Concurrency
+
+POSIX `fcntl.flock` on `audit.md.lock`. Multiple parallel writers (e.g.
+layer-parallel `/factory-build` writing audit entries per unit) serialize
+correctly; no two writers can interleave into the same `## ` block.
+Verified by `tests/test_emit_audit_block.py::test_emit_audit_block_concurrent_writers_serialize`.
 
 ## Exact invocations per gate
 
@@ -206,18 +165,3 @@ python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
 ```
 
 Critical stages (`workspace-scout`, `requirements-analyst`, `workflow-planner`, `code-generator`, `build-test-agent`) MUST halt instead — use `factory_run.py fail-stage`, not this helper.
-
-## Why this exists
-
-Before Phase 1 of the refactor, `orchestrator.md` restated the substep-6
-canonical sequence inline at every approval gate — six full restatements plus
-~10 partial references, 60+ audit-protocol phrase hits across 12 phrases.
-That was deterministic boilerplate the LLM had to re-read on every spawn.
-By compiling it into this helper:
-
-- The kernel no longer carries the protocol body (saves tokens on every load).
-- The protocol exists in exactly one place (this doc + the helper).
-- Behavior is testable (12 pytest cases in `tests/test_emit_audit_block.py`).
-- Race conditions are impossible (flock-guarded).
-- Retries are idempotent (dedupe guard).
-- Chronology violations fail loudly (chronology guard).

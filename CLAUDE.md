@@ -24,7 +24,7 @@ prevention, CodeGraph integration, and persistent memory (Engram).
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
 | `aidlc-scripts/factory_*.py` | Runtime scripts (run manager, conflict, merge-reviews, validate, telemetry, …) |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, …) |
+| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, …) |
 | `aidlc-docs/` | Generated artifacts from any AIDLC run executed in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
@@ -105,7 +105,7 @@ python aidlc-scripts/install_aidlc.py --tool claude --dry-run
 
 # Run the factory scripts
 python3 aidlc-scripts/factory_validate.py
-python3 aidlc-scripts/factory_autoskills.py --dry-run
+python3 aidlc-scripts/factory_custom_skills.py --dry-run
 python3 aidlc-scripts/factory_skill_drift.py --report
 ```
 
@@ -126,4 +126,5 @@ This project ships with the AIDLC orchestrator:
 
 See `.claude/agents/orchestrator.md`, `.aidlc-orchestrator/runtime/index.md`, `.aidlc-orchestrator/contracts/`.
 
-Keep parity between .opencode/, .cursor/, and .claude/ files. Every time you change an agent in one, apply the same change to the others. Frontmatter differs per platform (Claude Code uses `model: sonnet/opus/haiku`; OpenCode adds `mode` and `permission`; Cursor uses `model: inherit`, `readonly`, `is_background`) — update body content in all three, but preserve each platform's frontmatter conventions.
+Keep parity between .opencode/, .cursor/, .github and .claude/ files. Every time you change an agent in one, apply the same change to the others. Frontmatter differs per platform (Claude Code uses `model: sonnet/opus/haiku`; OpenCode adds `mode` and `permission`; Cursor uses `model: inherit`, `readonly`, `is_background`) — update body content in all three, but preserve each platform's frontmatter conventions.
+Also keep compatibility between mac, windows and linux when necesary

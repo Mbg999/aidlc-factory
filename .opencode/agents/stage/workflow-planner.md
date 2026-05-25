@@ -25,7 +25,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills` first, then `planning-and-task-breakdown`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills` and
+   `planning-and-task-breakdown`. Load every skill file present.
 2. **FOLLOW** — Process steps. The breakdown skill mandates: small units,
    verifiable, with acceptance criteria.
 3. **CHECK** — Walk Rationalizations. Reject "we'll figure it out later".
@@ -36,7 +38,19 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Anti-bypass / Red Flags** — same as other stages.
 
-**Skills:** `using-agent-skills`, `planning-and-task-breakdown`.
+**Skills:** `using-agent-skills`, `planning-and-task-breakdown`, `requirements-intelligence` (plan-stage variant only).
+
+**Plan-stage variant of `requirements-intelligence`:** load the skill in *plan-stage* mode (see `requirements-intelligence/SKILL.md` § "Plan-stage variant" and `pre-mortem.md` § "Plan-stage variant"). Run the pre-mortem rubric against the plan artifact and emit ≤3 plan-risk questions appended to the approval surface (NOT a separate questions file). Pre-mortem-on-plan asks: (1) where will this plan break first during construction, (2) which unit boundary, if wrong, forces a re-plan, (3) which task has the weakest acceptance criterion. Skip if the plan is single-unit AND every task already has ≥2 acceptance criteria.
+
+**Mandatory dual emission on skip — both required, never one without the other:**
+1. `skill_compliance[]` row: `{skill: requirements-intelligence, status: N/A, evidence: "<reason>"}`
+2. `audit_entries[]` bullet: literally `[PlanPreMortem] skipped: <reason>` (e.g. `[PlanPreMortem] skipped: trivial plan — single-unit with ≥2 ACs per task`)
+
+**Mandatory dual emission on PASS:**
+1. `skill_compliance[]` row: `{skill: requirements-intelligence, status: PASS, evidence: "<N risk questions emitted>"}`
+2. `audit_entries[]` bullet: `[PlanPreMortem] PASS — <N> plan-risk question(s) appended to approval surface`
+
+Emitting the `skill_compliance[]` row without the matching `[PlanPreMortem] …` audit_entry (or vice versa) is a contract violation and will trigger orchestrator defensive logging.
 
 ## Your job
 Follow `aidlc-rules/aws-aidlc-rule-details/inception/workflow-planning.md` and

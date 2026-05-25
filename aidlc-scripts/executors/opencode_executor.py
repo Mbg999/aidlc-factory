@@ -134,7 +134,7 @@ class OpenCodeExecutor(StageExecutor):
         2. Submit a job referencing `.opencode/agents/<stage_name>.md` (or the
            Claude Code equivalent if the symlink-install option was chosen).
         3. Pass `input_handoff_path` as the agent's input.
-        4. Honor `timeout_sec` and `isolation` per executor.v1.md §3 and §9.
+        4. Honor `timeout_sec` and `isolation` per executor.v1.md §1 and §7.
         5. Return the path to the produced output handoff.
 
         Until implemented:

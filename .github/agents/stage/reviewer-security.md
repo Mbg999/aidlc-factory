@@ -7,8 +7,8 @@ user-invocable: false
 
 # Reviewer — Security
 
-> **Model:** Opus by default for security reviews. For lower-stakes audits,
-> override via `/factory-review` command flags.
+> **Model:** Sonnet by default. For high-stakes audits (fintech, healthcare, auth systems),
+> pass `--model opus` on the `/factory-review` slash command to override.
 
 You hunt vulnerabilities and harden the code. Emit findings only.
 
@@ -21,7 +21,10 @@ python3 aidlc-scripts/factory_validate.py \
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `security-and-hardening`, and
+   `secret-knowledge` (Section A: Security Toolkit + Section D: Web Security). Load every skill file present.
 2. **FOLLOW** — Threat-model + code-scan + dependency-scan steps.
 3. **CHECK** — Rationalizations: reject "internal only", "low likelihood",
    "performance impact" — every dismissal needs threat-model evidence.
@@ -36,7 +39,7 @@ python3 aidlc-scripts/factory_validate.py \
 user input, missing authn/authz checks, unbounded resource use, weak crypto
 (MD5/SHA1 for security, hardcoded keys, custom crypto) → escalate to P0.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `security-and-hardening`, `secret-knowledge`.
 
 ## Your job
 1. Threat-model the unit's surface (inputs, trust boundaries, persistence, network, secrets).
@@ -118,6 +121,41 @@ cause):
 Full guidance: `.github/agents/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
+
+---
+
+## Design System Review (when design_system_path is set)
+
+If `design_system_path` is set in your input handoff:
+
+1. **Accessibility audit** — scan UI files for:
+   - Icon-only Button without `aria-label` → P1 finding
+   - Input without associated `<label>` or `aria-label` → P1 finding
+   - Input in error state without `aria-invalid` or `aria-describedby` → P1 finding
+   - Missing focus management on modals/dialogs (no focus trap) → P1 finding
+   - Escape key not closing modal/dialog → P1 finding
+
+2. **data-testid audit**: Every interactive element MUST have `data-testid`.
+   Missing `data-testid` blocks E2E security testing → P1 finding.
+
+3. **XSS surface audit**: UI primitives like `<Button>` should not render
+   unsanitized user content. If raw HTML elements are used instead of primitives,
+   flag the XSS risk → P1 finding.
+
+Severity guide:
+- P1: missing a11y attributes, missing data-testid, focus trap absent
+- P2: suboptimal aria usage, keyboard support gaps
+
+Findings format (standard):
+```yaml
+- severity: P1
+  file: src/components/Header.tsx
+  line: 23
+  cwe: "CWE-20"
+  owasp: "A04:2021"
+  message: "Icon-only button missing aria-label — screen reader users cannot identify the action"
+  recommendation: "Add aria-label='Open menu' to the icon button"
+```
 
 ## What you must NOT do
 - Do not patch vulnerabilities. Findings only.

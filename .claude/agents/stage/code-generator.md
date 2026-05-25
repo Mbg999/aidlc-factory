@@ -25,10 +25,15 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 
 ## Skill Execution Protocol
 
-1. **LOAD** — `using-agent-skills` first, then `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`. Conditionally
-   load `frontend-ui-engineering` if `manifest.project_profile.ui == true`
-   and `api-and-interface-design` if `manifest.project_profile.api == true`.
+1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
+   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `codegraph-aware-exploration`, `environment-detection`, `incremental-implementation`,
+   `test-driven-development`, `source-driven-development`, `validator-retry`, and
+   `secret-knowledge`. It may also include framework skills propagated from the build
+   phase (e.g., `vue`, `react-best-practices`, `typescript-advanced-types`) and
+   conditional skills from project profile (`frontend-ui-engineering`,
+   `design-system-composer`, `ui-constraint-validator`, `api-and-interface-design`).
+   Load every skill file present.
 2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
    Incremental = thin vertical slices, each green before next.
 3. **CHECK** — Common Rationalizations. Reject "I'll add tests later",
@@ -43,9 +48,12 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 **Red Flags:** uncovered code paths, mocked external boundaries that should be real,
 silent error handling, `# noqa` without justification → `status: needs_human`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `environment-detection`,
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
-`validator-retry`, `frontend-ui-engineering*`, `api-and-interface-design*` (* = conditional on profile).
+`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
+`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
+and `ui-constraint-validator` are present, run them as a pipeline:
+`design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
@@ -70,21 +78,35 @@ Follow these rule files in order:
 5. `aidlc-rules/aws-aidlc-rule-details/construction/code-generation.md`
 
 ### Sub-stage 1: Plan
-Check `input.merged_plan_generate`. Two paths:
+
+> **HARD RULE — read this first.** When `fast_path` is NOT true, the plan
+> file at
+> `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
+> MUST be written to disk AND MUST appear in `artifacts[]` with `kind: plan`.
+> `merged_plan_generate: true` removes the *approval gate* — it does NOT
+> remove the *plan file*. The orchestrator now validates this with
+> `factory_validate.py --strict`; if the artifact or the file is missing,
+> the unit is rejected and surfaced as blocked before the next gate. Do not
+> rationalize skipping the plan because the work feels small — only the
+> `fast_path: true` input authorizes a no-plan run.
+
+Check `input.merged_plan_generate`. Two paths (both write the plan file):
 
 **Standard path** (`merged_plan_generate: false` or absent):
-Produce `aidlc-docs/construction/plans/<run-id>-<unit-name>-code-generation-plan.md`
-with task checkboxes per the construction rules. Each task is a thin slice.
-Emit `status: needs_human` with `sub_stage: plan` after the plan is written.
-**HALT.** The orchestrator will surface the plan, get approval, and re-spawn
-you with `context_pointers[]` indicating approval.
+Produce the plan file at the path above with task checkboxes per the
+construction rules. Each task is a thin slice. Add the file to
+`artifacts[]` as `{path: <plan-path>, kind: "plan"}`. Emit
+`status: needs_human` with `sub_stage: plan` after the plan is written.
+**HALT.** The orchestrator will surface the plan, get approval, and
+re-spawn you with `context_pointers[]` indicating approval.
 
 **Merged path** (`merged_plan_generate: true` — SMALL tier):
-Produce the same plan file, then **immediately proceed to code generation
-without halting**. Write the plan inline in `audit_entries[]` as a summary
-block before the first task. Emit `status: needs_human` with
-`sub_stage: generated` (not `plan`) when all tasks are done — the plan and
-code are presented together for a single approval gate.
+Produce the same plan file at the same path AND add it to `artifacts[]`
+the same way, then **immediately proceed to code generation without
+halting**. Write the plan inline in `audit_entries[]` as a summary block
+before the first task. Emit `status: needs_human` with `sub_stage: generated`
+(not `plan`) when all tasks are done — the plan and code are presented
+together for a single approval gate.
 
 ### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
 
@@ -109,20 +131,53 @@ Before the first Red/Green/Refactor task, run the CodeGraph pre-flight:
 
 When CodeGraph is absent: skip pre-flight, proceed directly to Red step.
 
+#### Pre-TDD: Load design system (UI units only)
+
+If `input.design_system_path` is set:
+1. Extract needed component types from `input.ui_intent[]` (or infer from the task)
+2. Run:
+   ```bash
+   python3 aidlc-scripts/factory_design_system_resolve.py resolve <types>
+   ```
+3. Load returned files into context — design.md, anatomy.md, do-dont.md, tokens/*.md
+4. Load `design-system-composer/SKILL.md` and `ui-constraint-validator/SKILL.md`
+
+#### Pre-Figma: Snap Figma data (when available)
+
+If `input.has_figma_data` is set AND `input.figma_snapped_path` exists:
+1. Load the snapped Figma data from `input.figma_snapped_path`
+2. In `figma_archaeologist_mode`: extract only text, inputs, and reading order — ignore positions/sizes/colors — and rebuild using `design-system/patterns/`
+3. Otherwise: treat snapped JSON as the UI intent plan — components to build, layout to follow
+4. Log snap correction count in `audit_entries[]`
+
 #### TDD loop
 
 For each plan task (top to bottom):
 1. **Red** — write a failing test
-2. **Green** — minimum code to pass
-3. **Refactor** — clean up, keep green
-4. **Validate** — follow `validator-retry` skill Process:
+2. **Green** — minimum code to pass. If UI task: compose from primitives per `design-system-composer`.
+3. **UI Compile** (UI tasks only) — run the UI compiler pass:
+   - Scan generated TSX/HTML for raw style values
+   - Snap to canonical tokens per `ui-compiler.md` §2
+   - Rewrite to token references
+4. **UI Validate** (UI tasks only) — run `ui-constraint-validator`:
+   - Check spacing, radius, typography, color, elevation
+   - Autocorrect deviations (max 3 per slice)
+   - Log corrections to `ui_compliance[]`
+   - If >3 deviations: set `status: needs_human`, HALT
+5. **Refactor** — clean up, keep green
+6. **Validate** — follow `validator-retry` skill Process:
    - Run detected static validators (tsc, pyright, cargo check, go vet, eslint)
    - On errors: feed `errors_text` back as context, retry up to 3 times
    - On persistent failure after 3 retries: set `status: blocked` and HALT
    - On clean: emit `[Validator] clean` and continue to next task
 
-   Mark `[x]` in the plan file in the SAME interaction. Do NOT run `git commit`.
+   Mark `[x]` in the construction plan file in the SAME interaction. Do NOT run `git commit`.
    Orchestrator commits after user approval gate.
+
+   If `input.inception_plan_path` is set and `input.inception_task_ids[]` is non-empty:
+   after ALL construction tasks are done (not per-slice), also mark those task IDs `[x]`
+   in the inception plan. Find each line matching `- [ ] **<ID>**` and replace with
+   `- [x] **<ID>**`. Update only lines whose ID appears in `inception_task_ids[]`.
 
 Apply `code-review-and-quality` skill **on yourself** (five-axis self-review)
 when the unit's last task is done. Note the self-review summary in
