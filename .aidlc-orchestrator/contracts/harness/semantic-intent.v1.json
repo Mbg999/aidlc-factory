@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "harness.semantic-intent.v1",
+  "title": "Design System Harness — Semantic Intent (v1)",
+  "description": "Framework-agnostic UI intent model. Any FrameworkAdapter translates this to target code.",
+  "type": "object",
+  "required": ["tokens", "components"],
+  "properties": {
+    "tokens": {
+      "type": "object",
+      "description": "Canonical design token values. At minimum spacing + color.",
+      "required": ["spacing", "color"],
+      "properties": {
+        "spacing": {
+          "type": "object",
+          "description": "Semantic name → pixel value. E.g. {'xs': 4, 'sm': 8, 'md': 12}",
+          "patternProperties": { "^[a-z]+$": { "type": "integer", "minimum": 0 } },
+          "minProperties": 2
+        },
+        "radius": {
+          "type": "object",
+          "description": "E.g. {'none': 0, 'sm': 3, 'md': 6, 'lg': 12, 'full': 9999}",
+          "patternProperties": { "^[a-z]+$": { "type": "integer", "minimum": 0 } },
+          "minProperties": 1
+        },
+        "typography": {
+          "type": "object",
+          "description": "E.g. {'caption': {'size': 12}, 'body': {'size': 14}}",
+          "patternProperties": {
+            "^[a-z][a-z0-9-]*$": {
+              "type": "object",
+              "required": ["size"],
+              "properties": {
+                "size": { "type": "integer", "minimum": 8 },
+                "weight": { "type": "string" },
+                "lineHeight": { "type": "number", "minimum": 1.0 }
+              }
+            }
+          },
+          "minProperties": 1
+        },
+        "color": {
+          "type": "object",
+          "description": "Semantic name → hex. E.g. {'brand.primary': '#2563EB', 'neutral.bg': '#FFFFFF'}",
+          "patternProperties": { "^[a-z.]+$": { "type": "string", "pattern": "^#[0-9A-Fa-f]{3,8}$" } },
+          "minProperties": 3
+        },
+        "elevation": {
+          "type": "object",
+          "description": "E.g. {'sm': {'shadow': '0 1px 2px rgba(0,0,0,0.1)', 'zIndex': 1}}",
+          "patternProperties": {
+            "^[a-z]+$": {
+              "type": "object",
+              "properties": {
+                "shadow": { "type": "string" },
+                "zIndex": { "type": "integer" }
+              }
+            }
+          },
+          "minProperties": 1
+        }
+      }
+    },
+    "layout": {
+      "type": "array",
+      "description": "Top-level layout nodes defining page structure.",
+      "items": { "$ref": "#/definitions/LayoutNode" }
+    },
+    "components": {
+      "type": "array",
+      "description": "UI components to generate. At least one required.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/ComponentIntent" }
+    },
+    "meta": {
+      "type": "object",
+      "description": "Metadata about the intent generation.",
+      "properties": {
+        "source": { "type": "string", "enum": ["figma", "stitch", "raw_json", "manual", "unknown"] },
+        "source_quality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "archaeologist_mode": { "type": "boolean", "default": false },
+        "framework_hint": { "type": "string", "description": "E.g. 'react', 'angular', 'flutter', 'vue'" }
+      }
+    }
+  },
+  "definitions": {
+    "LayoutNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["stack", "inline", "box", "grid", "surface"] },
+        "gap": { "type": "string", "description": "Token key reference, e.g. 'sm'" },
+        "padding": { "type": "string", "description": "Token key reference, e.g. 'md'" },
+        "radius": { "type": "string", "description": "Token key reference, e.g. 'sm'" },
+        "background": { "type": "string", "description": "Token key reference, e.g. 'neutral.surface'" },
+        "children": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/LayoutNode" },
+              { "$ref": "#/definitions/ComponentIntent" }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComponentIntent": {
+      "type": "object",
+      "required": ["type", "label"],
+      "properties": {
+        "type": { "type": "string", "enum": ["button", "input", "text", "icon", "link"] },
+        "variant": { "type": "string", "description": "E.g. 'primary', 'secondary', 'danger'" },
+        "size": { "type": "string", "description": "E.g. 'sm', 'md', 'lg'. Mapped to token spacing by adapter." },
+        "label": { "type": "string", "minLength": 1 },
+        "icon": { "type": "string", "description": "Icon name if applicable." },
+        "disabled": { "type": "boolean", "default": false },
+        "token_overrides": {
+          "type": "object",
+          "description": "Per-component token overrides. Key → token key.",
+          "additionalProperties": { "type": "string" }
+        },
+        "framework_props": {
+          "type": "object",
+          "description": "Escape hatch for framework-specific props. Not validated by harness.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

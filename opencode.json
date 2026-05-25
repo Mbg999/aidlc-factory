@@ -15,11 +15,6 @@
       "type": "local",
       "command": ["npx", "-y", "@_davideast/stitch-mcp", "proxy"],
       "enabled": true
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp",
-      "enabled": true
     }
   }
 }
