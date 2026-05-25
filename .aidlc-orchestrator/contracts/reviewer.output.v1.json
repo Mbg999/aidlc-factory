@@ -79,7 +79,13 @@
       "default": []
     },
     "conflicts_detected": { "type": "array", "default": [] },
-    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] }
+    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "run_id": { "type": "string", "description": "Orchestrator run ID injected by the agent" },
+    "stage_id": { "type": "string", "description": "Stage identifier" },
+    "overall_verdict": { "type": "string", "description": "Overall review verdict" },
+    "summary": { "type": "string", "description": "Summary of review findings" },
+    "verdict": { "type": "string", "description": "Verdict per axis" },
+    "report": { "type": "string", "description": "Full review report text" }
   },
   "additionalProperties": false
 }
