@@ -866,8 +866,9 @@ def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"Cloning agent-skills from {AGENT_SKILLS_REPO}...")
+    # Minimal shallow clone: only latest commit of default branch, no tags
     subprocess.run(
-        ["git", "clone", "--depth", "1", AGENT_SKILLS_REPO, str(dest)],
+        ["git", "clone", "--depth", "1", "--single-branch", "--no-tags", AGENT_SKILLS_REPO, str(dest)],
         check=True,
     )
     return dest
