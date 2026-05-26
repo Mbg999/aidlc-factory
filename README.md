@@ -14,8 +14,12 @@ every stage and traceable artifacts at every step.
 > Generative AI can make mistakes. Review every AI-generated artifact and
 > associated cost before approving a stage.
 
-This repository is based on **[AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)** (v0.1.8), taking its inception -> construction -> operations flow as a reference, AIDLC-Factory adds a multi-agent orchestrator, a skills application layer,
-hallucination prevention, quality gates, CodeGraph integration, persistent memory with Engram, a contract-validated stage pipeline, and much more!
+This repository is based on **[AWS Labs aidlc-workflows](https://github.com/awslabs/aidlc-workflows)**
+(core workflow rules at v0.1.8). Taking its inception → construction →
+operations flow as a reference, this fork (v0.2.0) adds a multi-agent
+orchestrator, a skills application layer, hallucination prevention, quality
+gates, CodeGraph integration, persistent memory (Engram), a contract-validated
+stage pipeline, and more.
 
 ---
 
@@ -25,11 +29,15 @@ hallucination prevention, quality gates, CodeGraph integration, persistent memor
 - [What This Is](#what-this-is)
 - [Third-Party Components](#third-party-components)
 - [Slash Commands Reference](#slash-commands-reference)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Security & Quality Gates](#security--quality-gates)
+- [Working on this repo](#working-on-this-repo)
 - [Installation](#installation)
 - [Repository Layout](#repository-layout)
 - [Adding Custom Skills](#adding-custom-skills)
 - [Adding Custom Agents](#adding-custom-agents)
 - [Configuration](#configuration)
+- [Community](#community)
 - [Keeping the Fork in Sync with Upstream](#keeping-the-fork-in-sync-with-upstream)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -80,9 +88,11 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Design system enforcement** — `design-system-composer` composes UIs exclusively from `design-system/INDEX.md` primitives. After each generation slice `ui-constraint-validator` scans for hardcoded spacing, radius, typography, color, and elevation values and auto-corrects them to the nearest canonical token. Slices with >3 deviations are blocked for human review instead of silently producing non-compliant UI.
 - **API hallucination elimination** — `validator-retry` runs static type-check and linter feedback in a loop after every code-generation unit. Compile errors caused by hallucinated APIs or wrong signatures are fed back to the generator for correction before the stage exits — not caught at runtime or by the user.
 - **Curated, verified tool catalog** — `secret-knowledge` gives every stage agent a reference catalog of CLI tools, security toolkits, performance profilers, and shell one-liners sourced from the Book of Secret Knowledge. Every recommended command passes a verification gate (tool exists, syntax correct, platform-appropriate, no hallucinated URLs) to prevent fabricated tool names from reaching generated scripts.
-- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_custom_skills.py` handles internal or private skills pinned by SHA-256. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time. Node ≥ 22.12 is auto-bootstrapped via `fnm`, `volta`, or `nvm` when missing; the sync silently degrades if no Node manager is available, so it never blocks a run.
+- **Skills currency / anti-drift** — `factory_skill_sync.py` wraps the `autoskills` NPM registry and consolidates the latest framework-specific skills (Next.js, Angular, Express, Vue, etc.) into `.agents/skills/`. `factory_custom_skills.py` handles internal or private skills pinned by SHA-256 via `skill-sources.yaml`. Together they keep stage agents' knowledge of framework idioms and API conventions current — not frozen at model training time. Node ≥ 22.12 is auto-bootstrapped via `fnm`, `volta`, or `nvm` when missing; the sync silently degrades if no Node manager is available, so it never blocks a run.
 - **Library doc grounding (Context7 MCP)** — the installer ships a project-local MCP server entry for [Context7](https://github.com/upstash/context7), and a `library-docs-with-context7` custom skill routes every framework / SDK / CLI / cloud-service question through Context7's `resolve-library-id` → `query-docs` two-call protocol before falling back to WebFetch, WebSearch, or training-data recall. The skill is wired into `code-generator`, `build-test-agent`, and `reviewer-code` so subagents inherit the directive (MCP `instructions` blocks are session-level only).
 - **Browser testing (Chrome DevTools MCP)** — the installer ships a project-local MCP server entry for [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp), giving the `browser-testing-with-devtools` skill a real driver for click / fill / screenshot / Lighthouse / network-trace operations during build-test and review stages.
+- **Executor adapters** — `aidlc-scripts/executors/` implements a pluggable adapter pattern (`StageExecutor` base class) so the same orchestrator logic can spawn subagents on Claude Code (production), Cursor (stub), or OpenCode (stub). A `registry.yaml` maps `--tool` values to adapter implementations with declared capabilities (concurrency, worktree isolation, cancellation).
+- **Security scanning stack** — six integrated scanners (gitleaks, semgrep, grype, bandit, checkov, clamav) run daily via CI and on every PR, covering secret detection, SAST, SCA, IaC scanning, and malware scanning.
 
 The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
 Copilot, and OpenCode** — each ships with its own stage subagent tree under
@@ -100,14 +110,14 @@ at install time.
 
 | Component | Source | What it provides | How it's installed |
 |---|---|---|---|
-| **AWS Labs AI-DLC** | [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows) v0.2.0 | Core workflow rules in `aidlc-rules/` — the spec → plan → code → review → ship pipeline that this fork extends | Bundled in `aidlc-rules/` |
-| **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on) |
+| **AWS Labs AI-DLC** | [awslabs/aidlc-workflows](https://github.com/awslabs/aidlc-workflows) v0.1.8 | Core workflow rules in `aidlc-rules/` — the spec → plan → code → review → ship pipeline that this fork extends | Bundled in `aidlc-rules/` |
+| **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on). Installed to `.agents/skills/` in the *destination* project. |
 | **CodeGraph MCP** | [@colbymchenry/codegraph](https://www.npmjs.com/package/@colbymchenry/codegraph) (npm) | Local semantic code knowledge graph + MCP tools (`codegraph_search`, `codegraph_callers`, `codegraph_impact`, etc.) for 92% fewer tool calls and 71% faster context retrieval | `--with-codegraph` (requires Node ≥ 18) |
 | **Engram** | Local persistent memory (MCP) | Cross-session memory: decisions, conventions, bug fixes, discoveries. Used by stage agents via `mem_save`, `mem_search`, etc. | `--with-engram` |
-| **Context7 MCP** | [upstash/context7](https://github.com/upstash/context7) | Version-aware library / SDK / CLI documentation. Two-call protocol: `resolve-library-id` → `query-docs`. Subagents reach it via the `library-docs-with-context7` skill. | Bundled. The installer copies per-tool MCP configs (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `opencode.json`) referencing `npx -y @upstash/context7-mcp`. |
+| **Context7 MCP** | [upstash/context7](https://github.com/upstash/context7) | Version-aware library / SDK / CLI documentation. Two-call protocol: `resolve-library-id` → `query-docs`. Subagents reach it via the `library-docs-with-context7` skill. | Bundled in per-tool MCP configs (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `opencode.json`) referencing `npx -y @upstash/context7-mcp`. |
 | **Chrome DevTools MCP** | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Real Chrome driver for click / fill / screenshot / Lighthouse / network-trace / performance-trace from any stage agent. Backs the `browser-testing-with-devtools` skill. | Bundled in the same per-tool MCP configs (`npx -y chrome-devtools-mcp@latest`). |
 | **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, or `.opencode/`) |
-| **Custom Skills (this fork)** | `.agents/custom-skills/` | 21 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
+| **Custom Skills (this fork)** | `.agents/custom-skills/` | 22 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
 | **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
 | **Google Stitch MCP** | [@_davideast/stitch-mcp](https://www.npmjs.com/package/@_davideast/stitch-mcp) (npm) | AI design-to-code: 15+ tools for design extraction, project management, dark mode, responsive variants. Backs the `design-system-composer` skill. | `--with-stitch-mcp` (requires Node ≥ 18, gcloud auth, `GOOGLE_CLOUD_PROJECT`) |
 | **Figma MCP** | Official Figma Remote MCP at https://mcp.figma.com/mcp + community fallback `figma-mcp` (npm) | Design-to-code MCP bridge: 16+ tools (`get_design_context`, `use_figma`, `generate_figma_design`, etc.) for reading designs, extracting tokens, generating components. Backs the `design-system-composer` skill. | `--with-figma-mcp` (requires OAuth or `FIGMA_API_KEY`) |
@@ -194,6 +204,10 @@ will create its own `.venv` in the destination automatically.
   - **Claude Code:** `claude plugin marketplace add Gentleman-Programming/engram && claude plugin install engram`
   - **OpenCode:** `engram setup opencode`
   - **Cursor / GitHub Copilot / others:** the installer writes an `.mcp.json` entry pointing at the `engram` MCP server (install the binary via the [Engram repo](https://github.com/Gentleman-Programming/engram))
+
+> **Note for OpenCode users:** OpenCode has an additional Node.js dependency
+> (`@opencode-ai/plugin`) tracked in `.opencode/package.json`. Run
+> `npm install` inside `.opencode/` if you see plugin-related errors.
 
 ### Platform-specific setup
 
@@ -297,7 +311,7 @@ python3 aidlc-scripts/install_aidlc.py \
 | `--tool <name>` | required | `cursor`, `claude`, `copilot`, `opencode`, `other`. Comma-separate for multiple. |
 | `--dest <path>` | `.` (cwd) | Project to install into. |
 | `--source <path>` | packaged | Override the rules source (advanced). |
-| `--with-agent-skills` | on | Install the 19 engineering-process skills from `addyosmani/agent-skills`. |
+| `--with-agent-skills` | on | Install the engineering-process skills from `addyosmani/agent-skills`. |
 | `--agent-skills-path <path>` | — | Use a local clone instead of cloning fresh. |
 | `--custom-skills-path <path>` | — | Add project-specific skills. Each subdirectory needs a `SKILL.md`. Overrides agent-skills with the same name. |
 | `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator. Effective for `claude`, `cursor`, `copilot`, `opencode`. |
@@ -320,17 +334,25 @@ directories vary per `--tool`:
 |---|---|---|---|---|
 | `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` | `.mcp.json` (`mcpServers`) |
 | `cursor` | `.cursor/agents/` | `.cursor/commands/` | — | `.cursor/mcp.json` (`mcpServers`) |
-| `copilot` | `.github/agents/` | `.github/prompts/` (+ `.github/skills/`, `.vscode/settings.json`) | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
+| `copilot` | `.github/agents/` | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
 | `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
 
-Each MCP config always registers `@upstash/context7-mcp` (library docs) and `chrome-devtools-mcp@latest` (browser driver). When `--with-stitch-mcp` is set, the Google Stitch MCP entry (`@_davideast/stitch-mcp`) is added. When `--with-figma-mcp` is set, the Figma MCP entry (official HTTP remote or community stdio fallback) is added. The installer never overwrites an existing config — use `--force` to replace.
+> **MCP servers shipped in this repo:** The per-tool MCP configs include two
+> servers by default — `@upstash/context7-mcp` (library docs) and
+> `chrome-devtools-mcp@latest` (browser driver). When `--with-stitch-mcp` is set,
+> Google Stitch MCP is added; when `--with-figma-mcp` is set, the Figma MCP entry
+> is added; CodeGraph and Engram get their own MCP entries when
+> `--with-codegraph` / `--with-engram` are used. The installer never overwrites
+> an existing config — use `--force` to replace.
 
 Everything outside the per-tool block is shared across all four tools.
 
 ```
 <project>/
-├── aidlc-rules/                       # Upstream AWS AIDLC workflow rules
-├── .agents/skills/                    # Engineering skills (agent-skills + custom)
+├── aidlc-rules/                       # Upstream AWS AIDLC workflow rules (v0.1.8)
+├── .agents/
+│   ├── skills/                        # Engineering skills from --with-agent-skills (created at install)
+│   └── custom-skills/                 # 22 fork-specific skills (highest priority)
 ├── <tool>/                            # Per-tool orchestrator wiring (see table above)
 │   ├── agents/
 │   │   ├── orchestrator.md            # Multi-agent orchestrator entry point
@@ -339,25 +361,36 @@ Everything outside the per-tool block is shared across all four tools.
 │   │   └── custom/                    # Your custom agents (commit to repo)
 │   └── commands/ (or prompts/)        # 13 /factory-* slash commands or prompt files
 ├── .aidlc-orchestrator/
-│   ├── runtime/                       # Runtime architecture docs
-│   ├── contracts/                     # JSON Schema handoff contracts
-│   ├── budgets/default.yaml           # Per-stage model assignments
+│   ├── runtime/                       # 24 architecture & procedure docs
+│   ├── contracts/                     # 31 JSON Schema handoff + protocol entries
+│   ├── budgets/default.yaml           # Per-stage model assignments + concurrency + feature flags
 │   ├── runs/                          # Per-run state (gitignored)
 │   └── knowledge/                     # Project-scoped knowledge store (gitignored)
 ├── aidlc-scripts/
 │   ├── install_aidlc.py               # The installer itself
-│   ├── factory_run.py                 # Run manager (manifest + timeline)
-│   ├── factory_conflict.py            # File-glob lock + AST drift detection
-│   ├── factory_merge_reviews.py       # Reviewer pool merger
-│   ├── factory_validate.py            # Handoff contract validator
-│   ├── factory_stitch_mcp.py          # Google Stitch MCP registry & health check
-│   ├── factory_figma_mcp.py           # Figma MCP registry & health check
-│   └── factory_*.py                   # ~35 runtime scripts
+│   ├── factory_*.py                   # ~38 runtime scripts
+│   ├── skill_utils.py                 # Skills utility library
+│   ├── executors/                     # Pluggable executor adapters (claude-code, cursor, opencode)
+│   └── VERSION                        # Orchestrator scripts version (currently 0.2.0)
+├── design-system/                     # Token-driven UI design system (INDEX.md, tokens, primitives, patterns)
+├── aidlc-docs/                        # Generated artifacts from AIDLC runs
 ├── .codegraph/                        # CodeGraph index (gitignored, regenerated)
-├── .mcp.json                          # MCP server registrations (claude: context7, chrome-devtools, stitch, figma, codegraph, engram)
+├── .engram/                           # Engram persistent memory store (gitignored)
+├── .github/
+│   ├── workflows/                     # 8 CI/CD workflows
+│   ├── ISSUE_TEMPLATE/                # 5 issue templates
+│   ├── CODEOWNERS                     # Ownership rules
+│   └── pull_request_template.md       # PR template
+├── .mcp.json                          # MCP server registrations (context7 + chrome-devtools)
 ├── .cursor/mcp.json                   # Same servers, Cursor format (when --tool cursor)
-├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot; figma uses stdio fallback)
+├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot)
 ├── opencode.json                      # Same servers, OpenCode format (when --tool opencode)
+├── .bandit, .checkov.yaml, .gitleaks.toml, .grype.yaml, .semgrepignore  # Security scanner configs
+├── .pre-commit-config.yaml            # Markdownlint pre-commit hook
+├── skill-sources.yaml                 # SHA-256 pinned custom/private skill registry
+├── cliff.toml                         # Git-cliff changelog generation config
+├── CHANGELOG.md                       # Release history
+├── docs/                              # Supporting docs (working-with-aidlc, troubleshooting, dev guide, admin guide)
 └── .venv/                             # Python virtual environment
 ```
 
@@ -384,7 +417,7 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 
 | Path | Purpose |
 |---|---|
-| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules read by all stage agents |
+| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules read by all stage agents (upstream v0.1.8) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Detailed per-stage rules (inception / construction / operations / extensions) |
 | `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, OpenCode, generic) |
 | `.claude/`, `.cursor/`, `.github/`, `.opencode/` | Per-tool agent + commands trees (kept in parity — same orchestrator, stages, and cross-cutting agents; frontmatter differs per tool) |
@@ -393,14 +426,24 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 | `<tool>/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
 | `<tool>/agents/custom/` | Your custom subagents (auto-discovered) |
 | `<tool>/commands/` (or `.github/prompts/`) | 13 `/factory-*` slash command / prompt definitions |
-| `.aidlc-orchestrator/runtime/` | Architecture docs (`index.md`, `spawn-loop.md`, `fast-path.md`, `recovery.md`, etc.) |
-| `.aidlc-orchestrator/contracts/` | JSON Schema input/output handoffs per stage |
-| `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments (haiku / sonnet / opus) |
-| `.agents/custom-skills/` | 21 fork-specific skills (highest priority in skill resolution) |
-| `aidlc-scripts/` | ~35 runtime Python scripts (`factory_*.py`) + the installer; includes `factory_stitch_mcp.py` (Google Stitch MCP) and `factory_figma_mcp.py` (Figma MCP) |
-| `aidlc-scripts/executors/` | Executor adapter implementations per the `executor.v1` contract |
+| `.aidlc-orchestrator/runtime/` | 24 architecture docs: `index.md` (entry point), `spawn-loop.md`, `fast-path.md`, `recovery.md`, `compaction.md`, `visual-feedback.md`, `ui-compiler.md`, `design-system.md`, `cmd-factory-product.md`, `project-profile.md`, `custom-subagents.md`, `extension-loading.md`, `skill-protocol.md`, `knowledge-agent.md`, `conflict-resolver.md`, etc. |
+| `.aidlc-orchestrator/contracts/` | 31 entries — JSON Schema stage I/O handoffs, approval schema, audit-block protocol, executor contract, harness schemas, shared schemas, plus `README.md` and `REFERENCE.md` |
+| `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments, concurrency limits, feature flags |
+| `.agents/custom-skills/` | 22 fork-specific skills (highest priority in skill resolution) |
+| `aidlc-scripts/` | ~38 `factory_*.py` runtime scripts + `install_aidlc.py` + `skill_utils.py` |
+| `aidlc-scripts/executors/` | Pluggable executor adapter implementations: `base.py` (abstract), `claude_code_executor.py` (production), `cursor_executor.py` + `opencode_executor.py` (stubs), `registry.yaml`, `runner.py` |
+| `aidlc-scripts/VERSION` | Orchestrator scripts version (0.2.0) |
+| `aidlc-rules/VERSION` | Upstream rules version (0.1.8) |
+| `design-system/` | Token-driven UI design system: `INDEX.md`, `tokens/`, `primitives/`, `patterns/`, `anti-patterns/`, `examples/`, `screenshots/` |
 | `aidlc-docs/` | Generated artifacts from AIDLC runs |
-| `tests/` | Pytest suite (650+ tests at time of writing) |
+| `docs/` | Supporting documentation: `WORKING-WITH-AIDLC.md`, `TROUBLESHOOTING.md`, `DEVELOPERS_GUIDE.md`, `ADMINISTRATIVE_GUIDE.md`, `GENERATED_DOCS_REFERENCE.md`, `writing-inputs/` |
+| `tests/` | Pytest suite |
+| `.github/workflows/` | 8 CI/CD workflows |
+| `.github/ISSUE_TEMPLATE/` | 5 issue templates + `labeler.yml` |
+| `skill-sources.yaml` | SHA-256 pinned registry for custom/private skills (read by `factory_custom_skills.py`) |
+| `cliff.toml` | Git-cliff changelog generation config (Conventional Commits) |
+| `.pre-commit-config.yaml` | Markdownlint pre-commit hook |
+| `.bandit`, `.checkov.yaml`, `.gitleaks.toml`, `.grype.yaml`, `.semgrepignore` | Security scanner configuration files |
 
 ---
 
@@ -415,7 +458,7 @@ validate design tokens.
 When a stage requests a skill, the resolver checks (first found wins):
 
 1. `.agents/custom-skills/<name>/SKILL.md` — project-specific (highest priority)
-2. `.agents/skills/<name>/SKILL.md` — installed via `--with-agent-skills`
+2. `.agents/skills/<name>/SKILL.md` — installed via `--with-agent-skills` (created at install time in the destination project)
 3. `~/.agents/skills/<name>/SKILL.md` — user-global fallback
 
 ### Built-in custom skills (this fork)
@@ -475,6 +518,24 @@ The skill is picked up automatically on the next stage run. To verify:
 
 ```bash
 python3 aidlc-scripts/factory_custom_skills.py --dry-run | grep my-skill
+```
+
+### Private/custom skill registry
+
+For skills not in the public autoskills registry, add entries to
+`skill-sources.yaml` with name, raw URL, and SHA-256 pin:
+
+```yaml
+sources:
+  - name: my-internal-skill
+    url: https://example.com/skills/my-skill/SKILL.md
+    sha256: "abcdef1234567890..."
+```
+
+Then install with:
+
+```bash
+python3 aidlc-scripts/factory_custom_skills.py --skill my-internal-skill
 ```
 
 ### Commit custom skills to the repo
@@ -583,27 +644,37 @@ reports violations without modifying files. Use it as a template.
 |---|---|---|
 | `AIDLC_ROOT` | Override the repo root used by factory scripts. Defaults to the parent of `aidlc-scripts/`. | `AIDLC_ROOT=/path/to/repo python3 aidlc-scripts/factory_validate.py` |
 | `AIDLC_MODEL_<STAGE>` | Override the model for a specific stage. Uppercase stage name with dashes → underscores. | `AIDLC_MODEL_CODE_GENERATOR=opus` |
+| `AIDLC_FEATURE_<KEY>` | Override a feature flag from `default.yaml`. | `AIDLC_FEATURE_CONTENT_VALIDATOR_STRICT=true` |
 
 ### Per-stage model assignments
 
 Edit `.aidlc-orchestrator/budgets/default.yaml`:
 
 ```yaml
-stages:
-  workspace-scout:        haiku
-  requirements-analyst:   opus     # Two-pass; needs deep reasoning
-  workflow-planner:       opus
-  story-writer:           sonnet
-  unit-decomposer:        sonnet
-  code-generator:         opus
-  build-test-agent:       sonnet
-  reviewer-code:          sonnet
-  reviewer-security:      opus     # Security misses become incidents
-  reviewer-performance:   sonnet
-  reviewer-simplifier:    sonnet
-  ship-agent:             sonnet
-  custom-agent:           sonnet   # Default for custom agents
+concurrency:
+  max_parallel: 4
+
+per_stage:
+  # Models are Claude Code shorthand (sonnet/opus/haiku).
+  # Cursor ignores these — it uses `model: inherit` in .cursor/agents frontmatter.
+  workspace-scout:        { model: "sonnet" }
+  reverse-engineer:       { model: "sonnet" }
+  requirements-analyst:   { model: "opus" }
+  story-writer:           { model: "sonnet" }
+  workflow-planner:       { model: "opus" }
+  unit-decomposer:        { model: "sonnet" }
+  code-generator:         { model: "opus" }
+  build-test-agent:       { model: "sonnet" }
+  reviewer-code:          { model: "sonnet" }
+  reviewer-security:      { model: "sonnet" }
+  reviewer-performance:   { model: "sonnet" }
+  reviewer-simplifier:    { model: "sonnet" }
+  ship-agent:             { model: "sonnet" }
+  custom-agent:           { model: "sonnet" }
 ```
+
+Feature flags in the same file control gating behaviour (content validation
+strict mode, SLO-breach blocking, knowledge promotion, shared corpus injection).
 
 ### Auto-commit on approval
 
@@ -614,6 +685,21 @@ stage's internal `status: complete` — only on explicit user approval.
 
 To opt out, remove the `auto_commit_on_approval: true` line from
 `.aidlc-orchestrator/runtime/run-manager.md`.
+
+---
+
+## Community
+
+The repository includes standard open-source community files:
+
+| File | Purpose |
+|---|---|
+| `CHANGELOG.md` | Release history (generated via `cliff.toml` using git-cliff) |
+| `CONTRIBUTING.md` | Guidelines for contributions |
+| `CODE_OF_CONDUCT.md` | Standards for community interaction |
+| `NOTICES.md` | Third-party attribution and modification notes |
+| `docs/DEVELOPERS_GUIDE.md` | Deep-dive developer documentation |
+| `docs/ADMINISTRATIVE_GUIDE.md` | Operations and administration reference |
 
 ---
 
@@ -689,6 +775,16 @@ python3 aidlc-scripts/factory_skill_drift.py --report
 ```bash
 # Reinstall with --with-engram (substitute your tool: claude, cursor, copilot, opencode)
 python3 aidlc-scripts/install_aidlc.py --tool <tool> --dest . --with-engram --force
+```
+
+### MCP server not starting
+
+Verify the MCP config has the expected servers. This repo ships with only
+`context7` and `chrome-devtools` by default — codegraph, engram, stitch,
+and figma entries are added by the installer at `--with-*` time:
+
+```bash
+python3 -m json.tool .mcp.json
 ```
 
 ---
