@@ -29,8 +29,6 @@ stage pipeline, and more.
 - [What This Is](#what-this-is)
 - [Third-Party Components](#third-party-components)
 - [Slash Commands Reference](#slash-commands-reference)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Security & Quality Gates](#security--quality-gates)
 - [Working on this repo](#working-on-this-repo)
 - [Installation](#installation)
 - [Repository Layout](#repository-layout)
@@ -38,7 +36,6 @@ stage pipeline, and more.
 - [Adding Custom Agents](#adding-custom-agents)
 - [Configuration](#configuration)
 - [Community](#community)
-- [Keeping the Fork in Sync with Upstream](#keeping-the-fork-in-sync-with-upstream)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -700,27 +697,6 @@ The repository includes standard open-source community files:
 | `NOTICES.md` | Third-party attribution and modification notes |
 | `docs/DEVELOPERS_GUIDE.md` | Deep-dive developer documentation |
 | `docs/ADMINISTRATIVE_GUIDE.md` | Operations and administration reference |
-
----
-
-## Keeping the Fork in Sync with Upstream
-
-To pull new releases from AWS Labs upstream while keeping this fork's
-extensions:
-
-```bash
-# One-time setup
-git remote add upstream https://github.com/awslabs/aidlc-workflows
-
-# Pull upstream changes
-git fetch upstream
-git merge upstream/main
-git push origin main
-```
-
-The merge will only touch `aidlc-rules/` (upstream-owned). Conflicts in
-fork-specific paths (`.claude/`, `.aidlc-orchestrator/`, `aidlc-scripts/`,
-`.agents/custom-skills/`) shouldn't occur — upstream doesn't ship those.
 
 ---
 
