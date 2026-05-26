@@ -850,9 +850,35 @@ class TestIsWindows:
     def test_returns_bool(self):
         assert isinstance(install_aidlc._is_windows(), bool)
 
-    def test_consistent_with_platform_module(self):
-        import platform
-        assert install_aidlc._is_windows() == (platform.system() == "Windows")
+    def test_true_when_platform_is_windows(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Windows")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_msys(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "msys")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "MSYS_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_mingw(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "MINGW64_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_cygwin(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "cygwin")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "CYGWIN_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_false_on_macos(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Darwin")
+        assert install_aidlc._is_windows() is False
+
+    def test_false_on_linux(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Linux")
+        assert install_aidlc._is_windows() is False
 
 
 # ---------- update_gitignore — force preserves existing content ----------

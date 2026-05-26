@@ -118,7 +118,12 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
 
 
 def _is_windows() -> bool:
-    return _platform.system() == "Windows"
+    """Detect Windows including Git Bash (MSYS2/MINGW/Cygwin)."""
+    return (
+        sys.platform == "win32"
+        or _platform.system() == "Windows"
+        or _platform.system().upper().startswith(("MSYS", "MINGW", "CYGWIN"))
+    )
 
 
 def _venv_python(venv_path: Path) -> Path | None:
@@ -967,17 +972,13 @@ CODEGRAPH_SAFE_ORCHESTRATOR_TOOLS = [
 
 def _check_node_version(min_major: int) -> tuple[bool, str]:
     """Return (ok, version_string). ok=False when node < min_major or not found."""
-    cmd: list[str] = ["node", "--version"]
-    if _is_windows():
-        cmd = ["cmd", "/c"] + cmd
+    ok, version_str = _probe_version(["node", "--version"])
+    if not ok:
+        return False, "not found"
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=10
-        )
-        version_str = result.stdout.strip()
         major = int(version_str.lstrip("v").split(".")[0])
         return major >= min_major, version_str
-    except (FileNotFoundError, ValueError, subprocess.TimeoutExpired):
+    except (ValueError, IndexError, AttributeError):
         return False, "not found"
 
 
