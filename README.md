@@ -114,9 +114,9 @@ at install time.
 | **Agent Skills** | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Engineering-process skills (TDD, security, ADRs, deprecation, performance, etc.) auto-attached per stage | `--with-agent-skills` (default on). Installed to `.agents/skills/` in the *destination* project. |
 | **CodeGraph MCP** | [@colbymchenry/codegraph](https://www.npmjs.com/package/@colbymchenry/codegraph) (npm) | Local semantic code knowledge graph + MCP tools (`codegraph_search`, `codegraph_callers`, `codegraph_impact`, etc.) for 92% fewer tool calls and 71% faster context retrieval | `--with-codegraph` (requires Node ≥ 18) |
 | **Engram** | Local persistent memory (MCP) | Cross-session memory: decisions, conventions, bug fixes, discoveries. Used by stage agents via `mem_save`, `mem_search`, etc. | `--with-engram` |
-| **Context7 MCP** | [upstash/context7](https://github.com/upstash/context7) | Version-aware library / SDK / CLI documentation. Two-call protocol: `resolve-library-id` → `query-docs`. Subagents reach it via the `library-docs-with-context7` skill. | Bundled in per-tool MCP configs (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `opencode.json`) referencing `npx -y @upstash/context7-mcp`. |
+| **Context7 MCP** | [upstash/context7](https://github.com/upstash/context7) | Version-aware library / SDK / CLI documentation. Two-call protocol: `resolve-library-id` → `query-docs`. Subagents reach it via the `library-docs-with-context7` skill. | Bundled in per-tool MCP configs (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `opencode.json`, `codex.json`) referencing `npx -y @upstash/context7-mcp`. |
 | **Chrome DevTools MCP** | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Real Chrome driver for click / fill / screenshot / Lighthouse / network-trace / performance-trace from any stage agent. Backs the `browser-testing-with-devtools` skill. | Bundled in the same per-tool MCP configs (`npx -y chrome-devtools-mcp@latest`). |
-| **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, or `.opencode/`) |
+| **Agentic coding tools** | Claude Code, Cursor, GitHub Copilot, OpenCode, Codex | Any of these can host the multi-agent orchestrator. Each tool's native subagent spawn primitive backs every stage spawn. | User-installed; the installer wires the tool-specific config (`.claude/`, `.cursor/`, `.github/`, `.opencode/`, or `.codex/`) |
 | **Custom Skills (this fork)** | `.agents/custom-skills/` | 22 project-specific skills: `validator-retry`, `codegraph-aware-exploration`, `secret-knowledge`, `design-system-composer`, etc. | Bundled, copied automatically when the orchestrator is installed |
 | **Design System (optional)** | `design-system/` + `design-system-composer` skill | Token-driven UI composition with hardcoded-value detection | `--with-design-system` (default on for UI projects) |
 | **Google Stitch MCP** | [@_davideast/stitch-mcp](https://www.npmjs.com/package/@_davideast/stitch-mcp) (npm) | AI design-to-code: 15+ tools for design extraction, project management, dark mode, responsive variants. Backs the `design-system-composer` skill. | `--with-stitch-mcp` (requires Node ≥ 18, gcloud auth, `GOOGLE_CLOUD_PROJECT`) |
@@ -131,9 +131,9 @@ at install time.
 ## Slash Commands Reference
 
 Commands are invoked from inside your agentic coding tool (Claude Code, Cursor,
-GitHub Copilot, or OpenCode). They live in the tool-specific commands directory
-(`.claude/commands/`, `.cursor/commands/`, `.github/prompts/`, or
-`.opencode/commands/`) and route through the orchestrator agent under that
+GitHub Copilot, OpenCode, or Codex). They live in the tool-specific commands directory
+(`.claude/commands/`, `.cursor/commands/`, `.github/prompts/`,
+`.opencode/commands/`, or `.codex/config.toml` for Codex agents) and route through the orchestrator agent under that
 tool's agents directory (`<tool>/agents/orchestrator.md`).
 
 | Command | Phase | What it does |
@@ -346,7 +346,7 @@ directories vary per `--tool`:
 > `--with-codegraph` / `--with-engram` are used. The installer never overwrites
 > an existing config — use `--force` to replace.
 
-Everything outside the per-tool block is shared across all four tools.
+Everything outside the per-tool block is shared across all five tools.
 
 ```
 <project>/
@@ -360,7 +360,7 @@ Everything outside the per-tool block is shared across all four tools.
 │   │   ├── stage/                     # 13 stage subagents
 │   │   ├── cross-cutting/             # conflict-resolver, knowledge-agent
 │   │   └── custom/                    # Your custom agents (commit to repo)
-│   └── commands/ (or prompts/)        # 13 /factory-* slash commands or prompt files
+│   └── commands/ (or prompts/ or config.toml)  # 13 /factory-* slash commands, prompt files, or Codex TOML config
 ├── .aidlc-orchestrator/
 │   ├── runtime/                       # 24 architecture & procedure docs
 │   ├── contracts/                     # 31 JSON Schema handoff + protocol entries
@@ -371,7 +371,7 @@ Everything outside the per-tool block is shared across all four tools.
 │   ├── install_aidlc.py               # The installer itself
 │   ├── factory_*.py                   # ~38 runtime scripts
 │   ├── skill_utils.py                 # Skills utility library
-│   ├── executors/                     # Pluggable executor adapters (claude-code, cursor, opencode)
+│   ├── executors/                     # Pluggable executor adapters (claude-code, cursor, opencode, codex)
 │   └── VERSION                        # Orchestrator scripts version (currently 0.2.0)
 ├── design-system/                     # Token-driven UI design system (INDEX.md, tokens, primitives, patterns)
 ├── aidlc-docs/                        # Generated artifacts from AIDLC runs
@@ -386,6 +386,7 @@ Everything outside the per-tool block is shared across all four tools.
 ├── .cursor/mcp.json                   # Same servers, Cursor format (when --tool cursor)
 ├── .vscode/mcp.json                   # Same servers, VS Code/Copilot format (when --tool copilot)
 ├── opencode.json                      # Same servers, OpenCode format (when --tool opencode)
+├── codex.json                         # Same servers, Codex format (when --tool codex)
 ├── .bandit, .checkov.yaml, .gitleaks.toml, .grype.yaml, .semgrepignore  # Security scanner configs
 ├── .pre-commit-config.yaml            # Markdownlint pre-commit hook
 ├── skill-sources.yaml                 # SHA-256 pinned custom/private skill registry
@@ -420,8 +421,8 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 |---|---|
 | `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules read by all stage agents (upstream v0.1.8) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Detailed per-stage rules (inception / construction / operations / extensions) |
-| `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, OpenCode, generic) |
-| `.claude/`, `.cursor/`, `.github/`, `.opencode/` | Per-tool agent + commands trees (kept in parity — same orchestrator, stages, and cross-cutting agents; frontmatter differs per tool) |
+| `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, OpenCode, Codex, generic) |
+| `.claude/`, `.cursor/`, `.github/`, `.opencode/`, `.codex/` | Per-tool agent + commands trees (kept in parity — same orchestrator, stages, and cross-cutting agents; frontmatter differs per tool) |
 | `<tool>/agents/orchestrator.md` | Multi-agent orchestrator entry point |
 | `<tool>/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
 | `<tool>/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
@@ -432,7 +433,7 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments, concurrency limits, feature flags |
 | `.agents/custom-skills/` | 22 fork-specific skills (highest priority in skill resolution) |
 | `aidlc-scripts/` | ~38 `factory_*.py` runtime scripts + `install_aidlc.py` + `skill_utils.py` |
-| `aidlc-scripts/executors/` | Pluggable executor adapter implementations: `base.py` (abstract), `claude_code_executor.py` (production), `cursor_executor.py` + `opencode_executor.py` (stubs), `registry.yaml`, `runner.py` |
+| `aidlc-scripts/executors/` | Pluggable executor adapter implementations: `base.py` (abstract), `claude_code_executor.py` (production), `cursor_executor.py`, `opencode_executor.py`, `codex_executor.py` (stubs), `registry.yaml`, `runner.py` |
 | `aidlc-scripts/VERSION` | Orchestrator scripts version (0.2.0) |
 | `aidlc-rules/VERSION` | Upstream rules version (0.1.8) |
 | `design-system/` | Token-driven UI design system: `INDEX.md`, `tokens/`, `primitives/`, `patterns/`, `anti-patterns/`, `examples/`, `screenshots/` |
@@ -557,7 +558,7 @@ performance profiler.
 ### Create a custom agent
 
 Replace `<tool>` with your tool's agents directory: `.claude/agents`,
-`.cursor/agents`, `.github/agents`, or `.opencode/agents`.
+`.cursor/agents`, `.github/agents`, `.opencode/agents`, or `.codex/agents`.
 
 ```bash
 mkdir -p <tool>/agents/custom
@@ -622,7 +623,7 @@ under the `custom-agent` key). Override per-agent by adding an explicit entry.
 ### Built-in custom agent example
 
 `lint-audit` ships in each tool's `agents/custom/` directory (`.claude/`,
-`.cursor/`, `.github/`, `.opencode/`) — it runs the project's linter and
+`.cursor/`, `.github/`, `.opencode/`, `.codex/`) — it runs the project's linter and
 reports violations without modifying files. Use it as a template.
 
 ### Commit custom agents to the repo
@@ -633,6 +634,7 @@ reports violations without modifying files. Use it as a template.
 !.cursor/agents/custom/
 !.github/agents/custom/
 !.opencode/agents/custom/
+!.codex/agents/custom/
 ```
 
 ---
@@ -753,7 +755,7 @@ python3 aidlc-scripts/factory_skill_drift.py --report
 ### Engram memory tools not found
 
 ```bash
-# Reinstall with --with-engram (substitute your tool: claude, cursor, copilot, opencode)
+# Reinstall with --with-engram (substitute your tool: claude, cursor, copilot, opencode, codex)
 python3 aidlc-scripts/install_aidlc.py --tool <tool> --dest . --with-engram --force
 ```
 
@@ -782,6 +784,6 @@ the combined work is distributed under Apache-2.0 as permitted by MIT-0.
 Third-party components ([`agent-skills`](https://github.com/addyosmani/agent-skills),
 [`codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph), Engram,
 and the supported agentic coding tools — Claude Code, Cursor, GitHub Copilot,
-OpenCode) are governed by their respective upstream licenses.
+OpenCode, Codex) are governed by their respective upstream licenses.
 
 Full third-party attribution and modification notes are in [`NOTICES.md`](NOTICES.md).
