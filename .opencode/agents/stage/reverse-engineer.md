@@ -62,6 +62,8 @@ Produce these artifacts under `aidlc-docs/inception/reverse-engineering/`:
 
 **When `.codegraph/codegraph.db` is present** (check workspace_state.codegraph_state.indexed):
 
+Use this approach for each artifact instead of bulk file reads:
+
 | Artifact | CodeGraph call | Fallback (no index) |
 |---|---|---|
 | `business-overview.md` | `codegraph_context` with task: "summarize business domain, entry points, and user-facing capabilities" | Glob + Read README/docs |
@@ -84,17 +86,24 @@ Produce these artifacts under `aidlc-docs/inception/reverse-engineering/`:
   ```
 
 
-Emit per-artifact: `[CodeGraph] <artifact>.md — codegraph_context replaced ~<N> file reads`
+Emit per-artifact audit entry:
+```
+[CodeGraph] <artifact>.md — codegraph_context replaced ~<N> file reads
+```
 
 For `component-inventory.md`, additionally emit per-component:
 ```
 [Impact] auth/ → 14 callers, 6 callees, 3 files
 ```
 
-Emit final: `[CodeGraph] reverse-engineer complete — graph queries: <N>, file_reads: <N>`
+Final summary audit entry:
+```
+[CodeGraph] reverse-engineer complete — graph queries: <N>, file_reads: <N>
+```
 
-**When CodeGraph is absent:** use Glob/Grep/Read normally. Stay focused on reality — do NOT
-speculate about intent. If something is unclear, mark it `(unclear)` rather than invent.
+**When CodeGraph is absent:** use Glob/Grep/Read to scan code normally. Stay
+focused on reality — do NOT speculate about intent. If something is unclear,
+mark it `(unclear)` rather than invent.
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/reverse-engineer.output.yaml`.

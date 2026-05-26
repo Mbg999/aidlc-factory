@@ -170,7 +170,10 @@ Parse the JSON output and populate `workspace_state.codegraph_state`:
 - `files: <file_count from status>`
 - `backend: "native" | "wasm"` (from status; default `"native"` if absent)
 
-Emit: `[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm`
+Emit:
+```
+[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm
+```
 If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native install recommended`.
 
 **If NOT indexed AND `project_type == brownfield`:**
@@ -179,7 +182,7 @@ If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native
 - Set `codegraph_state: { indexed: false }` in `workspace_state`.
 
 **If NOT indexed AND `project_type == greenfield`:**
-Set `codegraph_state: { indexed: false }` in `workspace_state`.
+- Set `codegraph_state: { indexed: false }` in `workspace_state`. No suggestion needed.
 
 ### Step 2.7 — Design System Source Detection
 

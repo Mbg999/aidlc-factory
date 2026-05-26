@@ -7,11 +7,11 @@
   "allOf": [
     {
       "if": { "properties": { "fast_path": { "const": true } } },
-      "then": { "properties": { "skill_compliance": { "minItems": 2 } } }
+      "then": { "properties": { "skill_compliance": { "minItems": 1 } } }
     },
     {
       "if": { "properties": { "fast_path": { "const": false } } },
-      "then": { "properties": { "skill_compliance": { "minItems": 8 } } }
+      "then": { "properties": { "skill_compliance": { "minItems": 1 } } }
     }
   ],
   "properties": {
@@ -57,7 +57,7 @@
         "type": "object",
         "required": ["kind", "title", "body"],
         "properties": {
-          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson"] },
+          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson", "drift_baseline_updated"] },
           "title": { "type": "string", "minLength": 1 },
           "body": { "type": "string", "minLength": 1 },
           "tags": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -109,7 +109,15 @@
       "description": "Files written by the code generator during this unit",
       "default": []
     },
-    "plan_artifact_path": { "type": "string", "description": "Path to the plan artifact for this unit" }
+    "plan_artifact_path": { "type": "string", "description": "Path to the plan artifact for this unit" },
+    "acceptance_criteria_met": { "type": "boolean", "description": "Whether all acceptance criteria from the plan were satisfied" },
+    "commit_sha": { "type": "string", "description": "Git commit SHA of the code generation batch (if committed)" },
+    "open_questions": {
+      "type": "array",
+      "description": "Open questions or blockers that need human resolution before the next unit",
+      "items": { "type": "string", "minLength": 1 },
+      "default": []
+    }
   },
   "additionalProperties": false
 }

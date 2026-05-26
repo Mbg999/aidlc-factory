@@ -61,7 +61,7 @@
         "type": "object",
         "required": ["kind", "title", "body"],
         "properties": {
-          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson"] },
+          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson", "drift_baseline_updated"] },
           "title": { "type": "string", "minLength": 1 },
           "body": { "type": "string", "minLength": 1 },
           "tags": { "type": "array", "items": { "type": "string" }, "default": [] },

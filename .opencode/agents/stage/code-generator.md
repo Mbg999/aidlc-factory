@@ -121,11 +121,13 @@ together for a single approval gate.
 Before the first Red/Green/Refactor task, run the CodeGraph pre-flight:
 
 1. **Duplicate check** — `codegraph_search` for symbols matching the task description.
-   Note existing symbols that implement the same logic in `audit_entries[]` as
+   If existing symbols implement the same logic: note them in `audit_entries[]` as
    `[Impact] duplicate candidate: <symbol> at <file:line> — confirm intent before generating`.
 
 2. **Blast-radius check** — for each existing symbol the task will modify:
-   `codegraph_impact <symbol> --depth 2`
+   ```
+   codegraph_impact <symbol> --depth 2
+   ```
    Log: `[Impact] <symbol> → <callers_count> callers, <callees_count> callees`
 
 3. **Gate** — if `callers_count > 20` for any symbol being modified:
@@ -174,6 +176,7 @@ For each plan task (top to bottom):
    - On errors: feed `errors_text` back as context, retry up to 3 times
    - On persistent failure after 3 retries: set `status: blocked` and HALT
    - On clean: emit `[Validator] clean` and continue to next task
+
    Mark `[x]` in the construction plan file in the SAME interaction. Do NOT run `git commit`.
    Orchestrator commits after user approval gate.
 

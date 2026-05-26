@@ -19,12 +19,12 @@
         "required": ["path", "kind"],
         "properties": {
           "path": { "type": "string" },
-          "kind": { "type": "string", "enum": ["doc", "test", "config", "source"] },
+          "kind": { "type": "string", "enum": ["doc", "test", "config", "source", "handoff"] },
           "hash": { "type": "string" }
         },
         "additionalProperties": false
       },
-      "minItems": 2
+      "minItems": 1
     },
     "audit_entries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
     "skill_compliance": {
@@ -39,7 +39,7 @@
         },
         "additionalProperties": false
       },
-      "minItems": 8
+      "minItems": 1
     },
     "cost": { "type": "object" },
     "emitted_knowledge": {
@@ -48,7 +48,7 @@
         "type": "object",
         "required": ["kind", "title", "body"],
         "properties": {
-          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson"] },
+          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson", "drift_baseline_updated"] },
           "title": { "type": "string", "minLength": 1 },
           "body": { "type": "string", "minLength": 1 },
           "tags": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -60,7 +60,24 @@
       "default": []
     },
     "conflicts_detected": { "type": "array", "default": [] },
-    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] }
+    "locks_to_release": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "run_id": { "type": "string", "description": "Orchestrator run ID injected by the agent" },
+    "stage_id": { "const": "build-test-agent" },
+    "checks": {
+      "type": "array",
+      "description": "Build/test checks performed by the agent",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["PASS", "FAIL", "SKIPPED"] },
+          "evidence": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "default": []
+    }
   },
   "additionalProperties": false
 }

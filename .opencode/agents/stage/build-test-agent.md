@@ -113,7 +113,7 @@ For the unit specified in input:
    - If Playwright is not available: log `[Drift] Playwright not available — structural snapshot taken, visual diff skipped` and continue.
    - Thresholds are configurable via env var `AIDLC_DRIFT_THRESHOLD=<warning>,<blocking>` (default: 5,15).
 
-5. On failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
+5. On test failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
 6. Produce:
    - `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md` — reproducible command sequence
    - `aidlc-docs/construction/build-and-test/<run-id>-build-and-test-summary.md` — results + coverage + failures + remediation
@@ -143,6 +143,9 @@ Populate `emitted_knowledge[]` when:
   caught it but didn't.
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
+- Drift detected and human-approved → `kind: drift_baseline_updated`,
+  with `confidence: 0.8`. Include the diff percentage and components affected.
+  This reinforces that the new output is the canonical reference.
 
 Full guidance: `.opencode/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."

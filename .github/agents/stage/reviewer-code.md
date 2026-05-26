@@ -102,6 +102,11 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+## What you must NOT do
+- Do not fix code. Findings only.
+- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
 ---
 
 ## Design System Review (when design_system_path is set)
@@ -143,8 +148,3 @@ Findings format (standard):
   message: "Raw <button> used instead of Button primitive — design system drift"
   recommendation: "Replace with <Button variant='...' size='...' label='...' />"
 ```
-
-## What you must NOT do
-- Do not fix code. Findings only.
-- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

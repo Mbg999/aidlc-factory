@@ -90,7 +90,8 @@
               "version": { "type": "string" },
               "ecosystem": {
                 "type": "string",
-                "description": "Best-effort ecosystem identifier (e.g. npm, pip, maven, gradle, yarn, pnpm, composer)"
+                "enum": ["npm", "pip", "cargo", "go", "gem", "nuget", "maven", "gradle", "yarn", "pnpm", "composer"],
+                "description": "Best-effort ecosystem identifier (e.g. npm, pip, cargo, go, gem, nuget)"
               }
             },
             "additionalProperties": false
@@ -135,7 +136,7 @@
         "type": "object",
         "required": ["kind", "title", "body"],
         "properties": {
-          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson"] },
+          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson", "drift_baseline_updated"] },
           "title": { "type": "string", "minLength": 1 },
           "body": { "type": "string", "minLength": 1 },
           "tags": { "type": "array", "items": { "type": "string" }, "default": [] },

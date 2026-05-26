@@ -68,6 +68,7 @@ unit, version-bump without rationale, missing migration plan when
    d. Enforce memory cap:
       ```bash
       python3 aidlc-scripts/factory_design_system_learn.py trim
+      ```
    e. Log each saved example in `audit_entries[]`
 
 8. (Conditional) **Drift baseline reinforcement** → if drift snapshots exist
@@ -121,7 +122,7 @@ made during this run (covered by an ADR file), also emit a corresponding
 ADRs are the most valuable priors for future runs — they survive across
 projects (when explicitly opted in) and across sessions. Don't be sparse.
 
-Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`.
+Full guidance: `.cursor/agents/cross-cutting/knowledge-agent.md`.
 
 ## What you must NOT do
 - Do not push tags or remote branches. Local commits only; user pushes.

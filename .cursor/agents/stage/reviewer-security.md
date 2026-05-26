@@ -119,9 +119,15 @@ cause):
 - Body: describe the **root cause** and the attack vector, NOT the specific
   patch. Future runs need the failure shape, not your fix.
 
-Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`. Security
+Full guidance: `.cursor/agents/cross-cutting/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
+
+## What you must NOT do
+- Do not patch vulnerabilities. Findings only.
+- Do not soft-pedal P0s. If exploitable, mark P0.
+- Do not skip dependency review.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
 
 ---
 
@@ -157,9 +163,3 @@ Findings format (standard):
   message: "Icon-only button missing aria-label — screen reader users cannot identify the action"
   recommendation: "Add aria-label='Open menu' to the icon button"
 ```
-
-## What you must NOT do
-- Do not patch vulnerabilities. Findings only.
-- Do not soft-pedal P0s. If exploitable, mark P0.
-- Do not skip dependency review.
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

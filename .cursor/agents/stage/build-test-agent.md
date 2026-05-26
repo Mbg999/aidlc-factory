@@ -139,6 +139,9 @@ Populate `emitted_knowledge[]` when:
   caught it but didn't.
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
+- Drift detected and human-approved → `kind: drift_baseline_updated`,
+  with `confidence: 0.8`. Include the diff percentage and components affected.
+  This reinforces that the new output is the canonical reference.
 
 Full guidance: `.cursor/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."

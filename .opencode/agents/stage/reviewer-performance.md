@@ -107,6 +107,11 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+## What you must NOT do
+- Do not optimize. Findings only.
+- Do not flag style as performance.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
 ---
 
 ## Design System Review (when design_system_path is set)
@@ -146,8 +151,3 @@ Findings format (standard):
   message: "4 levels of nested Stack components cause cascading layout recalculation on every content change"
   recommendation: "Flatten to max 2 levels of Stack. Extract each section into independent Surface cards."
 ```
-
-## What you must NOT do
-- Do not optimize. Findings only.
-- Do not flag style as performance.
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

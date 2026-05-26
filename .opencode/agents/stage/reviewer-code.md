@@ -43,8 +43,6 @@ python3 aidlc-scripts/factory_validate.py \
 5. **LOG** — `skill_compliance[]` rows — one row per skill loaded, including framework skills.
 6. **BLOCK** — fail → `status: blocked`.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `code-review-and-quality`.
-
 ## Your job
 For each source file in the predecessor artifacts (code-generator output):
 - Apply the five-axis review.
@@ -109,6 +107,11 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+## What you must NOT do
+- Do not fix code. Findings only.
+- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
 ---
 
 ## Design System Review (when design_system_path is set)
@@ -150,8 +153,3 @@ Findings format (standard):
   message: "Raw <button> used instead of Button primitive — design system drift"
   recommendation: "Replace with <Button variant='...' size='...' label='...' />"
 ```
-
-## What you must NOT do
-- Do not fix code. Findings only.
-- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
