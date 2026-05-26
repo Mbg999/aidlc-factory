@@ -232,11 +232,11 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             status = result["overall"]
-            icon = {"ok": "✓", "degraded": "⚠", "unavailable": "✗"}.get(status, "?")
+            icon = {"ok": "[OK]", "degraded": "[WARN]", "unavailable": "[FAIL]"}.get(status, "?")
             print(f"Stitch MCP Health: {icon} {status}")
-            print(f"  Node: {result['node']['version']} "
-                  f"({'✓' if result['node']['ok'] else '✗'})")
-            print(f"  npx:  {'✓' if result['npx']['ok'] else '✗'}")
+            print(f"  Node: {result['node']['version'] } "
+                  f"({'[OK]' if result['node']['ok'] else '[FAIL]'})")
+            print(f"  npx:  {'[OK]' if result['npx']['ok'] else '[FAIL]'}")
             msg = result["stitch_mcp_package"]["message"]
             if msg:
                 print(f"  Stitch: {msg}")

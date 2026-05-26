@@ -351,7 +351,7 @@ def main() -> None:
         print(f"Loaded golden baseline: {args.baseline}")
         print(f"  Model: {golden.executor_model}")
     else:
-        print("No golden baseline found — comparison will be model-to-model only.")
+        print("No golden baseline found -- comparison will be model-to-model only.")
 
     # Discover model runs
     all_runs = find_model_runs(args.runs_dir)

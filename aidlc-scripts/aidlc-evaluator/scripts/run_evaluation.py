@@ -106,14 +106,14 @@ def _print_test_summary(test_status: dict | None) -> None:
     print("  Stage 2: Post-Run Test Results")
     print(f"{'=' * 60}\n")
     if test_status is None:
-        print("  No testable project detected — skipped.")
+        print("  No testable project detected -- skipped.")
         return
     if test_status["tests_passed"]:
         print(f"  PASS  {test_status['summary']}")
     else:
         print(f"  FAIL  {test_status['summary']}")
         if not test_status["install_ok"]:
-            print("        (dependency install failed — tests could not run)")
+            print("        (dependency install failed -- tests could not run)")
 
 
 def _run_cmd(cmd: list[str], label: str, **kwargs) -> subprocess.CompletedProcess:

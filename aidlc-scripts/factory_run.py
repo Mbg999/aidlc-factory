@@ -375,7 +375,7 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
     if appended:
         print(ts)
     else:
-        print(f"{ts} (dedupe skipped — identical block already present)")
+        print(f"{ts} (dedupe skipped -- identical block already present)")
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -538,23 +538,23 @@ def _print_latency(run_id: str, manifest: dict) -> None:
         elif e.get("evt") == "user_decision":
             sd = e.get("ts")
 
-    lines = [f"Approval Gate Latency: {run_id}", "─" * 60]
+    lines = [f"Approval Gate Latency: {run_id}", "-" * 60]
     if ne and sd:
         try:
             from datetime import datetime as dt
             dur = (dt.fromisoformat(sd) - dt.fromisoformat(ne)).total_seconds() / 60.0
-            lines.append(f"  needs_human → user_decision:  {dur:.1f}m")
+            lines.append(f"  needs_human -> user_decision:  {dur:.1f}m")
         except (ValueError, TypeError):
-            lines.append("  needs_human → user_decision:  parse error")
+            lines.append("  needs_human -> user_decision:  parse error")
     elif ne:
-        lines.append("  needs_human → user_decision:  pending (no decision yet)")
+        lines.append("  needs_human -> user_decision:  pending (no decision yet)")
     if sp and sd:
         try:
             from datetime import datetime as dt
             total = (dt.fromisoformat(sd) - dt.fromisoformat(sp)).total_seconds() / 60.0
-            lines.append(f"  spawn_end → user_decision:   {total:.1f}m")
+            lines.append(f"  spawn_end -> user_decision:   {total:.1f}m")
         except (ValueError, TypeError):
-            lines.append("  spawn_end → user_decision:    parse error")
+            lines.append("  spawn_end -> user_decision:    parse error")
 
     # Per-stage latency from timeline
     stage_events: dict[str, dict] = {}
@@ -585,11 +585,11 @@ def _print_latency(run_id: str, manifest: dict) -> None:
             try:
                 from datetime import datetime as dt
                 gate = (dt.fromisoformat(ts["decision"]) - dt.fromisoformat(ts["needs_human"])).total_seconds() / 60.0
-                lines.append(f"  {stage:30s}  └─ approval gate: {gate:.1f}m")
+                lines.append(f"  {stage:30s}  +- approval gate: {gate:.1f}m")
             except (ValueError, TypeError):
                 pass
 
-    lines.append("─" * 60)
+    lines.append("-" * 60)
     print("\n".join(lines))
 
 
@@ -826,19 +826,19 @@ def cmd_graph(args: argparse.Namespace) -> None:
 
     # Only show PHASE_ORDER stages
     bar_width = 12
-    lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "─" * 60]
+    lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "-" * 60]
     for stage in PHASE_ORDER:
         stats = stage_stats.get(stage, {})
         status = "  "
         prefix = "  "
         if stage in completed:
-            status = "✅"
+            status = "[OK]"
         elif stage in failed:
-            status = "❌"
+            status = "[FAIL]"
         elif stage in skipped:
-            status = "⚠️"
+            status = "[WARN]"
         elif manifest.get("current_stage") == stage:
-            status = "▶️ "
+            status = "> "
 
         duration_str = ""
         if stats.get("start") and stats.get("end"):
@@ -849,17 +849,17 @@ def cmd_graph(args: argparse.Namespace) -> None:
                 dur = (e - s).total_seconds() / 60.0
                 duration_str = f"{dur:.1f}m"
                 fill = min(int(dur / 5), bar_width)
-                bar = "█" * fill + "░" * (bar_width - fill)
+                bar = "#" * fill + "." * (bar_width - fill)
             except (ValueError, TypeError):
-                bar = "░" * bar_width
+                bar = "." * bar_width
         else:
-            bar = "░" * bar_width
+            bar = "." * bar_width
 
         lines.append(f"  {stage:30s} {bar} {duration_str:8s} {status}")
 
     token_pct = round((token_used / token_max) * 100, 1) if token_max > 0 else 0
     wall_pct = round((wall_used / wall_max) * 100, 1) if wall_max > 0 else 0
-    lines.append("─" * 60)
+    lines.append("-" * 60)
     lines.append(
         f"Budget: {token_used:,} / {token_max:,} tokens ({token_pct}%)  "
         f"{wall_used} / {wall_max} min ({wall_pct}%)"

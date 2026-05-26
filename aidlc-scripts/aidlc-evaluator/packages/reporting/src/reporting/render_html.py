@@ -233,7 +233,7 @@ def render_html(data: ReportData) -> str:
     w("<!DOCTYPE html>")
     w(f'<html lang="en"><head><meta charset="utf-8">')
     w(f'<meta name="viewport" content="width=device-width,initial-scale=1">')
-    w(f"<title>AIDLC Report — {_esc(run_name)}</title>")
+    w(f"<title>AIDLC Report -- {_esc(run_name)}</title>")
     w(f"<link rel='preconnect' href='https://fonts.googleapis.com'>")
     w(f"<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap' rel='stylesheet'>")
     w(f"<style>{CSS}</style>")
@@ -489,7 +489,7 @@ def render_html(data: ReportData) -> str:
             w("</div>")
 
         for phase in ql.phases:
-            w(f"<h3>{_esc(phase.phase.title())} Phase — Documents</h3>")
+            w(f"<h3>{_esc(phase.phase.title())} Phase -- Documents</h3>")
             w("<table><tr><th>Document</th><th class='num'>Intent</th><th class='num'>Design</th>"
               "<th class='num'>Completeness</th><th class='num'>Overall</th></tr>")
             for d in phase.documents:

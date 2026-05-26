@@ -334,11 +334,11 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             status = result["overall"]
-            icon = {"ok": "✓", "degraded": "⚠", "unavailable": "✗"}.get(status, "?")
+            icon = {"ok": "[OK]", "degraded": "[WARN]", "unavailable": "[FAIL]"}.get(status, "?")
             print(f"Figma MCP Health: {icon} {status} (mode: {args.mode})")
             print(f"  Node: {result['node']['version']} "
-                  f"({'✓' if result['node']['ok'] else '✗'})")
-            print(f"  npx:  {'✓' if result['npx']['ok'] else '✗'}")
+                  f"({'[OK]' if result['node']['ok'] else '[FAIL]'})")
+            print(f"  npx:  {'[OK]' if result['npx']['ok'] else '[FAIL]'}")
             if result["endpoint"]["message"]:
                 print(f"  Remote: {result['endpoint']['message']}")
             if result["package"]["message"]:

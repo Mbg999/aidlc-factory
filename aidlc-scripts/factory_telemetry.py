@@ -277,13 +277,13 @@ def _format_hot_path(report: dict) -> str:
     out.write(f"HOT-PATH REPORT: {report['source']}\n")
     out.write(f"total: {report['total_bytes']:,} bytes / {report['total_lines']:,} lines / "
               f"{report['section_count']} H2 sections\n")
-    out.write("─" * 100 + "\n")
+    out.write("-" * 100 + "\n")
     out.write(f"{'reach':<7} {'bytes':>7} {'lines':>5} {'redun':>5} {'boiler':>6} {'ptrs':>5}  title\n")
-    out.write("─" * 100 + "\n")
+    out.write("-" * 100 + "\n")
     for r in sorted(report["sections"], key=lambda r: r["bytes"], reverse=True):
         out.write(f"{r['reach']:<7} {r['bytes']:>7,} {r['lines']:>5,} "
                   f"{r['redundancy']:>5.2f} {r['boilerplate_hit_total']:>6} {r['pointer_hit_total']:>5}  {r['title'][:55]}\n")
-    out.write("─" * 100 + "\n")
+    out.write("-" * 100 + "\n")
 
     boiler_total = sum(r["boilerplate_hit_total"] for r in report["sections"])
     pointer_total = sum(r["pointer_hit_total"] for r in report["sections"])
@@ -313,7 +313,7 @@ def _format_hot_path(report: dict) -> str:
         out.write("\nREACH BREAKDOWN:\n")
         out.write(f"  always: {always:>7,} bytes ({always / total * 100:>5.1f}%)\n")
         out.write(f"  hot:    {hot:>7,} bytes ({hot   / total * 100:>5.1f}%)\n")
-        out.write(f"  cold:   {cold:>7,} bytes ({cold  / total * 100:>5.1f}%)  ← Phase 3 target\n")
+        out.write(f"  cold:   {cold:>7,} bytes ({cold  / total * 100:>5.1f}%)  <- Phase 3 target\n")
     return out.getvalue()
 
 
@@ -587,14 +587,14 @@ def cmd_discover(args: argparse.Namespace) -> None:
         print(f"wrote {len(runs)} runs to {out_path}", file=sys.stderr)
     # Human table
     print(f"DISCOVERED {len(runs)} run(s) across {len(set(r['repo_root'] for r in runs))} repo root(s):")
-    print("─" * 110)
+    print("-" * 110)
     print(f"{'tier':<8} {'status':<22} {'tokens':>9} {'stages':>6} {'evts':>5}  {'run_id':<35}  project")
-    print("─" * 110)
+    print("-" * 110)
     for r in runs:
         print(f"{r['tier']:<8} {r['status']:<22} {r['total_tokens']:>9,} "
               f"{len(r['completed_stages']):>6} {r['event_count']:>5}  "
               f"{r['run_id'][:35]:<35}  {r['project_slug']}")
-    print("─" * 110)
+    print("-" * 110)
 
 
 # ---------------------------------------------------------------------------
@@ -703,10 +703,10 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
         print(f"wrote aggregate to {out_path}", file=sys.stderr)
     # Human table
     print(f"AGGREGATE across {sum(t['run_count'] for t in agg.values())} run(s), {len(agg)} tier(s):")
-    print("─" * 100)
+    print("-" * 100)
     for tier in sorted(agg):
         data = agg[tier]
-        print(f"\nTier {tier} — {data['run_count']} run(s)")
+        print(f"\nTier {tier} -- {data['run_count']} run(s)")
         tt = data["total_tokens"]
         print(f"  total tokens/run: mean={tt['mean']:,} min={tt['min']:,} max={tt['max']:,} σ={tt['stddev']:,}")
         print(f"  {'stage':<28} {'mean':>9} {'min':>9} {'max':>9} {'σ':>8} {'wall_min(avg)':>14}  n")
@@ -714,7 +714,7 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
             t, w = s["tokens"], s["wall_min"]
             print(f"  {stage:<28} {t['mean']:>9,.0f} {t['min']:>9,.0f} {t['max']:>9,.0f} "
                   f"{t['stddev']:>8,.1f} {w['mean']:>14,.1f}  {t['n']}")
-    print("\n" + "─" * 100)
+    print("\n" + "-" * 100)
 
 
 # ---------------------------------------------------------------------------
@@ -733,7 +733,7 @@ def render_baseline_md(repo_root: Path,
                        aggregate: dict,
                        generated_at: str) -> str:
     out = io.StringIO()
-    out.write("# AIDLC Orchestrator — Refactor Baseline\n\n")
+    out.write("# AIDLC Orchestrator -- Refactor Baseline\n\n")
     out.write(f"**Generated:** {generated_at}\n")
     out.write(f"**Primary repo:** `{repo_root}`\n")
     out.write(f"**Tool:** `aidlc-scripts/factory_telemetry.py report`\n\n")
@@ -771,7 +771,7 @@ def render_baseline_md(repo_root: Path,
             rendered = f"<code>{phrase}</code>" if "`" in phrase else f"`{phrase}`"
             out.write(f"| {n} | {rendered} |\n")
     else:
-        out.write("_None — all boilerplate eliminated._\n")
+        out.write("_None -- all boilerplate eliminated._\n")
     out.write(f"\n**Pointer references** (target=N): {pointer_total}\n")
     if pointer_total:
         ptr_totals: Counter = Counter()
@@ -791,14 +791,14 @@ def render_baseline_md(repo_root: Path,
     out.write("**Reach breakdown:**\n\n")
     out.write(f"- always: {always:,} bytes\n")
     out.write(f"- hot:    {hot:,} bytes\n")
-    out.write(f"- cold:   {cold:,} bytes  ← TODO Phase 3 target\n\n")
+    out.write(f"- cold:   {cold:,} bytes  <- TODO Phase 3 target\n\n")
 
     out.write("---\n\n## 2. Discovered runs (real telemetry on disk)\n\n")
     out.write(f"**Total runs discovered:** {len(runs)}  across "
               f"{len(set(r['repo_root'] for r in runs))} repo root(s).\n\n")
     out.write("> **Tier legend:** `UNKNOWN` means the manifest has no `complexity_tier`\n"
               "> field and the heuristic (skip-stages + unit count) couldn't classify the\n"
-              "> run — normal for runs that crashed before the Complexity Routing Gate.\n"
+              "> run -- normal for runs that crashed before the Complexity Routing Gate.\n"
               "> The token data is still usable as a baseline.\n\n")
     out.write("| Tier | Status | Tokens | Stages | Events | Run ID | Project |\n")
     out.write("|---|---|---:|---:|---:|---|---|\n")
@@ -812,7 +812,7 @@ def render_baseline_md(repo_root: Path,
         out.write("_No runs discovered. Re-run with `--scan-siblings` or pass `--root`._\n\n")
     for tier in sorted(aggregate):
         data = aggregate[tier]
-        out.write(f"### Tier {tier} — {data['run_count']} run(s)\n\n")
+        out.write(f"### Tier {tier} -- {data['run_count']} run(s)\n\n")
         tt = data["total_tokens"]
         out.write(f"- **Total tokens/run:** mean={tt['mean']:,.0f}  "
                   f"min={tt['min']:,.0f}  max={tt['max']:,.0f}  σ={tt['stddev']:,.0f}  n={tt['n']}\n\n")

@@ -232,12 +232,12 @@ def main() -> None:
     results = []
 
     if args.check:
-        print(f"Checking {len(entries)} skill(s)…")
+        print(f"Checking {len(entries)} skill(s)...")
         for entry in entries:
             results.append(check_skill(entry))
     else:
         mode = "dry-run " if args.dry_run else ""
-        print(f"Installing {mode}{len(entries)} skill(s) from skill-sources.yaml…")
+        print(f"Installing {mode}{len(entries)} skill(s) from skill-sources.yaml...")
         for entry in entries:
             results.append(install_skill(entry, dry_run=args.dry_run))
 

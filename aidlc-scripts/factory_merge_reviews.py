@@ -241,7 +241,7 @@ def main() -> None:
             breakdown = ", ".join(
                 f"{r}: {len(v)}" for r, v in by_reviewer.items()
             )
-            md += [f"- `{file}` — {total} findings ({breakdown})"]
+            md += [f"- `{file}` -- {total} findings ({breakdown})"]
 
     output_path = REPO_ROOT / args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)

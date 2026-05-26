@@ -212,7 +212,7 @@ def main():
 
     report_path = comparison_dir / "extension-test-report.md"
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
-    print(f"\n✅ Extension test report regenerated: {report_path}")
+    print(f"\n[OK] Extension test report regenerated: {report_path}")
 
 
 if __name__ == "__main__":

@@ -143,7 +143,7 @@ def _resolve_node_runner() -> tuple[list[str], str] | None:
     nvm_dir = os.environ.get("NVM_DIR") or str(Path.home() / ".nvm")
     nvm_sh = Path(nvm_dir) / "nvm.sh"
     if nvm_sh.exists():
-        print(f"[Sync] bootstrapping Node 22 via nvm ({nvm_sh})…")
+        print(f"[Sync] bootstrapping Node 22 via nvm ({nvm_sh})...")
         bootstrap = (
             f'export NVM_DIR="{nvm_dir}" && '
             f'source "{nvm_sh}" && '
@@ -170,7 +170,7 @@ def _run_autoskills(
     Returns the list of skill directories created/updated by autoskills.
     """
     label = str(workspace_dir.name) or "."
-    print(f"  → {label}/ ", end="", flush=True)
+    print(f"  -> {label}/ ", end="", flush=True)
 
     if dry_run:
         print("[dry-run]")
@@ -216,8 +216,8 @@ def _run_autoskills(
     # Surface security warnings from autoskills stdout/stderr
     for line in (result.stdout + result.stderr).splitlines():
         lower = line.lower()
-        if any(kw in lower for kw in ("flagged", "⚠", "no skill", "warning:")):
-            print(f"    ⚠  {line.strip()}")
+        if any(kw in lower for kw in ("flagged", "warning", "no skill", "warning:")):
+            print(f"    [WARN] {line.strip()}")
 
     # Collect installed skill directories
     installed: list[Path] = []
@@ -290,20 +290,20 @@ def _consolidate(
             continue
 
         if _skill_is_current(src, dest):
-            print(f"    · {name} [skipped — up-to-date]")
+            print(f"    - {name} [skipped -- up-to-date]")
             skipped += 1
             if not dry_run:
                 _remove(src)
             continue
 
         if dry_run:
-            print(f"    ○ {name} [would install → .agents/skills/{name}/]")
+            print(f"    o {name} [would install -> .agents/skills/{name}/]")
             installed += 1
             continue
 
         _copy_skill(src, dest)
         _remove(src)
-        print(f"    ✓ {name}")
+        print(f"    [OK] {name}")
         installed += 1
 
     return installed, skipped
@@ -375,13 +375,13 @@ def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
     if not dry_run:
         root_skills_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[Sync] consolidating {len(all_found)} skill(s) → .agents/skills/")
+    print(f"[Sync] consolidating {len(all_found)} skill(s) -> .agents/skills/")
     installed, skipped = _consolidate(all_found, root_skills_dir, repo_root, dry_run)
     _cleanup_workspace_agents(workspace_dirs, repo_root, dry_run)
 
     suffix = " (dry-run)" if dry_run else ""
     print(
-        f"[Sync] done{suffix} — "
+        f"[Sync] done{suffix} -- "
         f"{installed} installed/updated, {skipped} skipped (up-to-date)"
     )
     return 0

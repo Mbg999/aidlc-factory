@@ -194,10 +194,10 @@ def main() -> None:
         print(json.dumps({"breaches": breaches, "slos_evaluated": len(slos),
                          "runs_count": agg.get("runs_count", 0)}, indent=2))
     else:
-        print(f"# SLO check — {dt.date.today().isoformat()}")
-        print(f"\nRuns analyzed: {agg.get('runs_count', 0)} · SLOs evaluated: {len(slos)}")
+        print(f"# SLO check -- {dt.date.today().isoformat()}")
+        print(f"\nRuns analyzed: {agg.get('runs_count', 0)} - SLOs evaluated: {len(slos)}")
         if not breaches:
-            print("\n✓ All SLOs within bounds.")
+            print("\n[OK] All SLOs within bounds.")
         else:
             unack = [b for b in breaches if not b["acknowledged"]]
             ack = [b for b in breaches if b["acknowledged"]]

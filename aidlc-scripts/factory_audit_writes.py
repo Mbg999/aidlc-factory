@@ -106,11 +106,11 @@ def main() -> None:
         print(f"Audit: {args.holder} @ {args.run_id}")
         print(f"  New files: {len(new_files)}")
         if violations:
-            print(f"  ❌ {len(violations)} violation(s) — files outside declared locks:")
+            print(f"  [FAIL] {len(violations)} violation(s) -- files outside declared locks:")
             for v in violations:
                 print(f"     - {v}")
         else:
-            print(f"  ✅ All files match lock globs")
+            print(f"  [OK] All files match lock globs")
         if not new_files and not violations:
             print(f"  (no new files detected)")
 

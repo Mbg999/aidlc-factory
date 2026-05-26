@@ -201,9 +201,9 @@ def main() -> None:
 
     if args.cmd == "list":
         for r in registry:
-            mark = "✓" if r["has_explicit_aidlc_stage_block"] else "·"
-            ic = "✓" if r["input_contract_present"] else "✗"
-            oc = "✓" if r["output_contract_present"] else "✗"
+            mark = "[OK]" if r["has_explicit_aidlc_stage_block"] else "-"
+            ic = "[OK]" if r["input_contract_present"] else "[FAIL]"
+            oc = "[OK]" if r["output_contract_present"] else "[FAIL]"
             phase = f"P{r['phase']}" if r["phase"] is not None else "?"
             print(
                 f"{mark} {r['name']:25}  {phase}  "
@@ -212,7 +212,7 @@ def main() -> None:
                 f"cmds={','.join(r['commands']) or '-'}"
             )
         print(f"\n{len(registry)} stage(s) discovered. "
-              f"✓ = explicit aidlc_stage block, · = inferred defaults")
+              f"[OK] = explicit aidlc_stage block, - = inferred defaults")
         return
 
     if args.cmd == "show":

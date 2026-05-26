@@ -131,7 +131,7 @@ def cmd_restore(args, repo_root: Path) -> int:
     stage_p = _stage_path(repo_root, args.stage)
     baseline_p = _baseline_path(repo_root, args.stage)
     if not baseline_p.exists():
-        _die(f"no baseline preserved for {args.stage} — nothing to restore")
+        _die(f"no baseline preserved for {args.stage} -- nothing to restore")
     shutil.copy2(baseline_p, stage_p)
     baseline_p.unlink()
     print(f"restored baseline for {args.stage}")
@@ -195,9 +195,9 @@ def cmd_compare(args, repo_root: Path) -> int:
             sign = "+" if pct >= 0 else ""
             mark = ""
             if lower_is_better:
-                mark = "  ⬇" if pct < -5 else ("  ⬆" if pct > 5 else "")
+                mark = "  v" if pct < -5 else ("  ^" if pct > 5 else "")
             else:
-                mark = "  ⬆" if pct > 5 else ("  ⬇" if pct < -5 else "")
+                mark = "  ^" if pct > 5 else ("  v" if pct < -5 else "")
             return f"{sign}{pct:.1f}%{mark}"
         return ""
 
@@ -205,10 +205,10 @@ def cmd_compare(args, repo_root: Path) -> int:
         print(json.dumps({"A": m_a, "B": m_b, "stage": args.stage}, indent=2))
         return 0
 
-    print(f"## A/B compare — stage: {args.stage}")
+    print(f"## A/B compare -- stage: {args.stage}")
     print(f"  A: {a.name}")
     print(f"  B: {b.name}\n")
-    print(f"  {'metric':28} {'A':>14} {'B':>14}   Δ (B vs A)")
+    print(f"  {'metric':28} {'A':>14} {'B':>14}   Delta (B vs A)")
     print(f"  {'-'*28} {'-'*14:>14} {'-'*14:>14}   {'-'*15}")
     for label, field, lower in [
         ("tokens_total",          "tokens_total",          True),
@@ -228,11 +228,11 @@ def cmd_compare(args, repo_root: Path) -> int:
     if (m_a["tokens_total"] > 0
             and m_b["tokens_total"] > m_a["tokens_total"] * 1.20
             and m_b["rationalization_count"] <= m_a["rationalization_count"]):
-        print("\n  ⚠ variant B uses >20% more tokens without producing more rigor "
+        print("\n  [WARN] variant B uses >20% more tokens without producing more rigor "
               "(rationalization_count did not increase). Consider reverting.")
         return 1
     if m_b["has_content_fail"] and not m_a["has_content_fail"]:
-        print("\n  ⚠ variant B introduced a [ContentValidator] FAIL not present in baseline.")
+        print("\n  [WARN] variant B introduced a [ContentValidator] FAIL not present in baseline.")
         return 1
 
     return 0

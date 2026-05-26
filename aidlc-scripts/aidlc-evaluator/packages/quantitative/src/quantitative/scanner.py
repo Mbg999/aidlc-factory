@@ -153,7 +153,7 @@ def print_report(report: QualityReport) -> None:
 
 def _print_tool(label: str, result: ToolResult) -> None:
     if not result.available:
-        print(f"\n{label} ({result.tool}): NOT AVAILABLE — {result.error}")
+        print(f"\n{label} ({result.tool}): NOT AVAILABLE -- {result.error}")
         return
     count = len(result.findings)
     status = "clean" if count == 0 else f"{count} finding(s)"

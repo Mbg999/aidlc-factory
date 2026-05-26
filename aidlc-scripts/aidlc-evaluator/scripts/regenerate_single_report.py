@@ -56,12 +56,12 @@ print(f"  - Simulator: {simulator:,}")
 print(f"\nRepeated Context: {data.metrics.repeated_context_tokens.total_tokens:,}")
 print(f"  ({repeated / api_total_tokens * 100:.1f}% of API total)")
 print(f"\nAPI Total: {data.metrics.api_total_tokens.total_tokens:,}")
-print(f"\nVerification: {unique_total:,} + {repeated:,} = {api_total_tokens:,} ✓")
+print(f"\nVerification: {unique_total:,} + {repeated:,} = {api_total_tokens:,} [OK]")
 
 # Generate markdown report
 output_file = run_folder / "report-regenerated.md"
 print(f"\n\nGenerating report: {output_file}")
 markdown = render_markdown(data)
 output_file.write_text(markdown)
-print(f"✓ Report generated")
+print(f"[OK] Report generated")
 print(f"\nView the Token Usage section in: {output_file}")

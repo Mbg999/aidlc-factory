@@ -300,7 +300,7 @@ class ClaudeCodeAdapter(CLIAdapter):
         except subprocess.TimeoutExpired:
             elapsed_seconds = time.monotonic() - start_time
             process.kill()
-            _log(f"Timeout after {elapsed_seconds:.0f}s — killed process")
+            _log(f"Timeout after {elapsed_seconds:.0f}s -- killed process")
             return AdapterResult(
                 success=False,
                 output_dir=config.output_dir,

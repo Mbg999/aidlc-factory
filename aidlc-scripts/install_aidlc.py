@@ -457,7 +457,7 @@ def update_requirements(target_root: Path, deps: list[str], dry_run: bool) -> No
         existing_pkgs = {pkg_name(line) for line in existing_text.splitlines() if line.strip() and not line.strip().startswith("#")}
         new_lines = [d for d in deps if pkg_name(d) not in existing_pkgs]
         if not new_lines:
-            print(f"  requirements.txt already lists AIDLC deps — no changes")
+            print(f"  requirements.txt already lists AIDLC deps -- no changes")
             return
         with req_path.open("a", encoding="utf-8") as f:
             if not existing_text.endswith("\n"):
@@ -489,7 +489,7 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
     new_lines = [e for e in entries if e not in existing_lines]
 
     if not force and not new_lines:
-        print(f"  .gitignore already lists orchestrator runtime patterns — no changes")
+        print(f"  .gitignore already lists orchestrator runtime patterns -- no changes")
         return
 
     lines_to_write = entries if force else new_lines
@@ -521,7 +521,7 @@ def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, d
         existing = claude_md_path.read_text(encoding="utf-8")
         if marker in existing:
             if not force:
-                print(f"  workflow doc already contains orchestrator pointer — no changes")
+                print(f"  workflow doc already contains orchestrator pointer -- no changes")
                 return
             # Replace content between markers (inclusive)
             start = existing.index(marker)
@@ -621,12 +621,12 @@ def _install_vscode_copilot_settings(target_root: Path, dry_run: bool) -> None:
         except (json.JSONDecodeError, OSError):
             pass
     if existing.get(key) is True:
-        print(f"  .vscode/settings.json already has {key} — skipping")
+        print(f"  .vscode/settings.json already has {key} -- skipping")
         return
     existing[key] = True
     vscode_settings.parent.mkdir(parents=True, exist_ok=True)
     vscode_settings.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
-    print(f"  .vscode/settings.json — set {key}=true")
+    print(f"  .vscode/settings.json -- set {key}=true")
 
 
 def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False, args: argparse.Namespace | None = None) -> None:
@@ -700,7 +700,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         if not src_cfg.exists():
             continue
         if dst_cfg.exists() and not force:
-            print(f"  {name} already exists — skipping (use --force to overwrite)")
+            print(f"  {name} already exists -- skipping (use --force to overwrite)")
             continue
         print(f"  {name} -> {dst_cfg.relative_to(target_root)}")
         copy_file(src_cfg, dst_cfg, dry_run)
@@ -760,7 +760,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             dst_mcp = target_root / mcp_rel
             if src_mcp.exists():
                 if dst_mcp.exists() and not force:
-                    print(f"  {mcp_rel} already exists — skipping (use --force to overwrite)")
+                    print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
                 else:
                     print(f"  mcp config -> {mcp_rel}")
                     copy_file(src_mcp, dst_mcp, dry_run)
@@ -908,7 +908,7 @@ def install_agent_skills(tool: str, skills_repo: Path, target_root: Path, dry_ru
         missing = sorted(set(WORKFLOW_REQUIRED_SKILLS) - installed_names)
         print(f"\n  Workflow skills coverage: {len(found)}/{len(WORKFLOW_REQUIRED_SKILLS)}")
         if missing:
-            print(f"  WARNING — Missing skills (workflow will use inline fallbacks): {', '.join(missing)}")
+            print(f"  WARNING -- Missing skills (workflow will use inline fallbacks): {', '.join(missing)}")
 
     return count
 
@@ -978,15 +978,15 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
     if not ok:
         return
 
-    print(f"\n--- CodeGraph detected ({cg_version}) — initializing index ---")
+    print(f"\n--- CodeGraph detected ({cg_version}) -- initializing index ---")
     if dry_run:
         print(f"[DRY-RUN] Would run: codegraph init -i in {target_root}")
         return
 
-    print("  Running codegraph init -i (may take 30s–4min)...")
+    print("  Running codegraph init -i (may take 30s-4min)...")
     init_result = _run_codegraph(["codegraph", "init", "-i"], target_root)
     if init_result.returncode != 0:
-        print("  WARNING: codegraph init -i exited with an error — index may be incomplete.")
+        print("  WARNING: codegraph init -i exited with an error -- index may be incomplete.")
         print(f"  Run manually:  cd {target_root} && codegraph init -i")
     else:
         print("  CodeGraph index built successfully.")
@@ -1015,12 +1015,12 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
             f"CodeGraph requires Node >= {CODEGRAPH_NODE_MIN}. "
             f"Detected: {version_str}. Install Node {CODEGRAPH_NODE_MIN}+ and retry."
         )
-    print(f"  Node: {version_str} (>= {CODEGRAPH_NODE_MIN}) — OK")
+    print(f"  Node: {version_str} (>= {CODEGRAPH_NODE_MIN}) -- OK")
 
     # Step 2: check if already installed
     ok, cg_version = _probe_version(["codegraph", "--version"])
     if ok:
-        print(f"  codegraph: {cg_version} — already installed, skipping npm install")
+        print(f"  codegraph: {cg_version} -- already installed, skipping npm install")
     elif dry_run:
         print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
     else:
@@ -1057,13 +1057,13 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
 
     existing.setdefault("mcpServers", {})
     if "codegraph" in existing["mcpServers"]:
-        print(f"  .mcp.json already has 'codegraph' MCP entry — skipping merge")
+        print(f"  .mcp.json already has 'codegraph' MCP entry -- skipping merge")
     else:
         existing["mcpServers"]["codegraph"] = CODEGRAPH_MCP_CONFIG["mcpServers"]["codegraph"]
         mcp_path.write_text(
             json.dumps(existing, indent=2) + "\n", encoding="utf-8"
         )
-        print(f"  .mcp.json — added 'codegraph' MCP server entry")
+        print(f"  .mcp.json -- added 'codegraph' MCP server entry")
 
 
 # ─── Engram persistent memory ────────────────────────────────────────────────
@@ -1112,13 +1112,13 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
                     try:
                         result = subprocess.run(cmd, timeout=60)
                         if result.returncode != 0:
-                            print(f"  WARNING: exited {result.returncode} — run manually: {cmd_str}")
+                            print(f"  WARNING: exited {result.returncode} -- run manually: {cmd_str}")
                             ok = False
                     except FileNotFoundError:
-                        print(f"  WARNING: '{cmd[0]}' not found — run manually: {cmd_str}")
+                        print(f"  WARNING: '{cmd[0]}' not found -- run manually: {cmd_str}")
                         ok = False
                     except subprocess.TimeoutExpired:
-                        print(f"  WARNING: command timed out — run manually: {cmd_str}")
+                        print(f"  WARNING: command timed out -- run manually: {cmd_str}")
                         ok = False
         elif tool in ENGRAM_MCP_TOOLS:
             mcp_path = target_root / ".mcp.json"
@@ -1137,7 +1137,7 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
                 mcp_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
                 print(f"  engram -> {mcp_path.name} ({tool})")
             else:
-                print(f"  .mcp.json already has 'engram' — skipping ({tool})")
+                print(f"  .mcp.json already has 'engram' -- skipping ({tool})")
 
     config_path = target_root / ENGRAM_PROJECT_CONFIG_RELPATH
     if dry_run:
@@ -1175,7 +1175,7 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
         src = repo_root / src_name
         dst = target_root / src_name
         if not src.exists():
-            print(f"  SKIP {src_name} — not found in repo")
+            print(f"  SKIP {src_name} -- not found in repo")
             continue
         if dry_run:
             print(f"[DRY-RUN] Would copy {src_name}/ -> {dst.parent}/")
@@ -1386,12 +1386,12 @@ def preflight_check(args: argparse.Namespace, tools: list[str] | None = None, la
     distinguishable in output (e.g. "core" / "tool-specific").
     """
     if getattr(args, "skip_preflight", False):
-        print(f"--- Preflight check skipped (--skip-preflight){' — ' + label if label else ''} ---")
+        print(f"--- Preflight check skipped (--skip-preflight){' -- ' + label if label else ''} ---")
         return 0
 
     header = "--- Preflight check (prerequisites)"
     if label:
-        header += f" — {label}"
+        header += f" -- {label}"
     header += " ---"
     print(f"\n{header}")
     specs = _preflight_specs(args, tools)
@@ -1401,36 +1401,36 @@ def preflight_check(args: argparse.Namespace, tools: list[str] | None = None, la
         skip_reason = spec[6] if len(spec) > 6 else None
         if not required_when():
             reason = skip_reason or "not required for this install"
-            print(f"  {name:18s} ⏭️  {reason}")
+            print(f"  {name:18s} [SKIP]  {reason}")
             continue
         ok, raw = _probe_version(cmd)
         if not ok:
             failures.append((name, "missing", min_v, url, hints, raw))
-            print(f"  {name:18s} ❌ {raw}")
+            print(f"  {name:18s} [FAIL] {raw}")
             continue
         if min_v is None:
-            print(f"  {name:18s} ✅ {raw}")
+            print(f"  {name:18s} [OK] {raw}")
             continue
         parsed = _parse_semver(raw)
         if parsed is None or parsed < min_v:
             failures.append((name, "version_too_old", min_v, url, hints, raw))
             min_v_str = ".".join(str(p) for p in min_v)
-            print(f"  {name:18s} ❌ {raw} (need >= {min_v_str})")
+            print(f"  {name:18s} [FAIL] {raw} (need >= {min_v_str})")
         else:
             min_v_str = ".".join(str(p) for p in min_v)
-            print(f"  {name:18s} ✅ {raw} (>= {min_v_str})")
+            print(f"  {name:18s} [OK] {raw} (>= {min_v_str})")
 
     if not failures:
         print("  All prerequisites satisfied.\n")
         return 0
 
     if args.dry_run:
-        print(f"\n[DRY-RUN] {len(failures)} prerequisite(s) would block this install — continuing dry-run.\n")
+        print(f"\n[DRY-RUN] {len(failures)} prerequisite(s) would block this install -- continuing dry-run.\n")
         return 0
 
     print()
     print("=" * 70)
-    print(f"❌ Cannot proceed — {len(failures)} prerequisite(s) missing.")
+    print(f"[FAIL] Cannot proceed -- {len(failures)} prerequisite(s) missing.")
     print("=" * 70)
     for name, kind, min_v, url, hints, raw in failures:
         print()
@@ -1438,7 +1438,7 @@ def preflight_check(args: argparse.Namespace, tools: list[str] | None = None, la
             print(f"  Missing: {name}")
         else:
             min_v_str = ".".join(str(p) for p in min_v)
-            print(f"  Outdated: {name} — detected {raw}, need >= {min_v_str}")
+            print(f"  Outdated: {name} -- detected {raw}, need >= {min_v_str}")
         print(f"  Docs:    {url}")
         for h in hints:
             print(f"    {h}")
@@ -1479,7 +1479,7 @@ def interactive_choose_tools() -> list[str]:
         try:
             indices = [int(x.strip()) - 1 for x in v.split(",") if x.strip()]
         except ValueError:
-            print(f"  That doesn't look right — enter numbers only (you entered: {v!r}).")
+            print(f"  That doesn't look right -- enter numbers only (you entered: {v!r}).")
             print(f"  Example: '2' or '2,4'.")
             continue
         if not indices:
@@ -1579,7 +1579,7 @@ def main() -> int:
     skills_dir = target_root / ".agents" / "skills"
     skills_already = skills_dir.exists() and any(skills_dir.iterdir()) if skills_dir.exists() else False
     if args.with_agent_skills and skills_already and not args.force:
-        print(f"\nAgent skills already installed at {skills_dir.relative_to(target_root)} — skipping (use --force to re-install).")
+        print(f"\nAgent skills already installed at {skills_dir.relative_to(target_root)} -- skipping (use --force to re-install).")
     elif args.with_agent_skills:
         print("\n--- Installing Agent Skills (addyosmani/agent-skills) ---")
 
@@ -1674,7 +1674,7 @@ def main() -> int:
             install_codegraph(target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing CodeGraph: {e}")
-            print("  CodeGraph is optional — AIDLC will degrade gracefully without it.")
+            print("  CodeGraph is optional -- AIDLC will degrade gracefully without it.")
 
     # --- Engram (default: install, opt-out via --no-engram) ---
     if args.with_engram:
@@ -1686,7 +1686,7 @@ def main() -> int:
             install_design_system(repo_root, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing design system: {e}")
-            print("  Design system is optional — AIDLC will degrade gracefully without it.")
+            print("  Design system is optional -- AIDLC will degrade gracefully without it.")
 
     # --- Python venv + dependencies ---
     if args.no_venv:
@@ -1694,7 +1694,7 @@ def main() -> int:
     else:
         req_path = ensure_target_requirements(repo_root, target_root, args.dry_run)
         if req_path is None:
-            print("\nNo requirements.txt found in target or source — skipping venv setup.")
+            print("\nNo requirements.txt found in target or source -- skipping venv setup.")
         else:
             print("\n--- Setting up Python venv + dependencies ---")
             try:

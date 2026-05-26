@@ -151,7 +151,7 @@ def main() -> None:
             for f in findings:
                 print(f"  - {f['path']}: {f['pattern']} match={f['match']}", file=sys.stderr)
         else:
-            print(f"OK {path.name} — no secrets detected")
+            print(f"OK {path.name} -- no secrets detected")
 
     sys.exit(1 if findings else 0)
 
