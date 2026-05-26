@@ -79,7 +79,7 @@ class TestCheckNode:
 class TestCheckNpx:
     @patch("factory_stitch_mcp.shutil.which")
     def test_npx_found(self, mock_which):
-        mock_which.return_value = "/usr/local/bin/npx"
+        mock_which.return_value = "npx"
         assert mod._check_npx() is True
 
     @patch("factory_stitch_mcp.shutil.which")

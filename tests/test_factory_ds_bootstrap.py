@@ -200,7 +200,7 @@ def test_import_missing_file(tmp_repo: Path):
     assert rc != 0
 
 
-def test_import_bad_format(tmp_repo: Path):
-    rc = cmd_import(tmp_repo, "/tmp/x.json", "badformat",
+def test_import_bad_format(tmp_repo: Path, tmp_path: Path):
+    rc = cmd_import(tmp_repo, str(tmp_path / "x.json"), "badformat",
                     force=False, dry_run=True)
     assert rc != 0
