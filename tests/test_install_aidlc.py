@@ -36,6 +36,9 @@ class TestParseToolsString:
     def test_lowercased(self):
         assert install_aidlc.parse_tools_string("CLAUDE,OpenCode") == ["claude", "opencode"]
 
+    def test_codex_accepted(self):
+        assert install_aidlc.parse_tools_string("codex,claude") == ["codex", "claude"]
+
     def test_invalid_raises(self):
         with pytest.raises(ValueError, match="bogus"):
             install_aidlc.parse_tools_string("claude,bogus")

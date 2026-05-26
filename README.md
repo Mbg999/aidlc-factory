@@ -95,11 +95,11 @@ The orchestrator is activated through `/factory-*` slash commands and executes
 - **Security scanning stack** — six integrated scanners (gitleaks, semgrep, grype, bandit, checkov, clamav) run daily via CI and on every PR, covering secret detection, SAST, SCA, IaC scanning, and malware scanning.
 
 The multi-agent orchestrator runs natively on **Claude Code, Cursor, GitHub
-Copilot, and OpenCode** — each ships with its own stage subagent tree under
-`.claude/agents/`, `.cursor/agents/`, `.github/agents/`, and `.opencode/agents/`
-respectively, and the installer wires the matching slash-command / prompt
-directory for that tool. `--tool other` falls back to the legacy single-agent
-workflow from upstream.
+Copilot, OpenCode, and Codex** — each ships with its own stage subagent tree
+(`.claude/agents/`, `.cursor/agents/`, `.github/agents/`, `.opencode/agents/`,
+`.codex/agents/`) and the installer wires the matching slash-command / prompt
+/ TOML directory for that tool. `--tool other` falls back to the legacy
+single-agent workflow from upstream.
 
 ---
 

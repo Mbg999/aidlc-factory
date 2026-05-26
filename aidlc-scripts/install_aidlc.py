@@ -232,7 +232,7 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 VALID_TOOLS = (
     "cursor", "claude",
-    "copilot", "opencode", "other",
+    "copilot", "opencode", "codex", "other",
 )
 
 
@@ -408,6 +408,24 @@ ORCHESTRATOR_CLAUDE_POINTER_BLOCK = (
      "- `/factory-replay <run-id> --from <stage>` — re-run from a specific stage\n\n"
     "Roles, contracts, budgets, and parallelism rules: see `.claude/agents/orchestrator.md`,\n"
     "`.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
+ORCHESTRATOR_CODEX_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. It is a multi-agent software-factory pipeline\n"
+    "that guides AI coding agents through Inception → Construction → Operations.\n\n"
+    "When the user asks to build a feature, fix a bug, or refactor code, use the orchestrator scripts:\n\n"
+    "- `python3 aidlc-scripts/factory_run.py <run-id>` — start or resume a full AIDLC run\n"
+    "- `python3 aidlc-scripts/factory_skill_sync.py sync` — install framework-specific skills\n"
+    "- `python3 aidlc-scripts/factory_skill_sync.py select --output json` — list available skills\n"
+    "- `python3 aidlc-scripts/factory_validate.py` — validate handoff contracts\n\n"
+    "Key directories:\n"
+    "- `.aidlc-orchestrator/contracts/` — JSON Schema handoff contracts for every stage I/O\n"
+    "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
+    "- `.agents/skills/` — framework + process skills (loaded by skill protocol)\n"
+    "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
     "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
 )
 
@@ -607,22 +625,25 @@ def _apply_mcp_config(config_path: Path, tool: str, with_stitch: bool, with_figm
     config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def _tool_agent_dir(tool: str) -> str:
-    """Return the agent directory for the given tool."""
+def _tool_agent_dir(tool: str) -> str | None:
+    """Return the agent directory for the given tool, or None if the tool
+    does not use a local agent tree."""
     return {
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
         "copilot": ".github/agents",
+        "codex": ".codex/agents",  # Codex custom agents are TOML files
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
-def _tool_commands_dir(tool: str) -> str:
-    """Return the commands directory for the given tool."""
+def _tool_commands_dir(tool: str) -> str | None:
+    """Return the commands directory for the given tool, or None."""
     return {
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
+        "codex": None,  # Codex built-in slash commands only; no custom commands dir
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -632,6 +653,7 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "claude": target_root / "CLAUDE.md",
         "opencode": target_root / "AGENTS.md",
         "copilot": target_root / ".github" / "copilot-instructions.md",
+        "codex": target_root / "AGENTS.md",  # Codex reads AGENTS.md per OpenAI spec
     }
     return mapping.get(tool)
 
@@ -752,16 +774,19 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
             src_cmds = repo_root / ".cursor" / "commands"
+        elif tool == "codex":
+            src_agents = repo_root / ".codex" / "agents"
+            src_cmds = None    # Codex built-in slash commands only
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
 
-        dst_agents = target_root / agent_dir
-        if src_agents is not None and src_agents.exists():
+        if agent_dir is not None and src_agents is not None and src_agents.exists():
+            dst_agents = target_root / agent_dir
             print(f"  agents -> {agent_dir}/")
             copy_tree(src_agents, dst_agents, dry_run)
 
-        if src_cmds is not None:
+        if cmd_dir is not None and src_cmds is not None:
             dst_cmds = target_root / cmd_dir
             if src_cmds.exists():
                 print(f"  slash commands -> {cmd_dir}/factory-*.md")
@@ -781,6 +806,17 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 print(f"  prompts -> .github/prompts/")
                 copy_tree(src_prompts, dst_prompts, dry_run)
             _install_vscode_copilot_settings(target_root, dry_run)
+
+        # Codex: copy project-level config.toml snippet
+        if tool == "codex":
+            src_codex_cfg = repo_root / ".codex" / "config.toml"
+            dst_codex_cfg = target_root / ".codex" / "config.toml"
+            if src_codex_cfg.exists():
+                if dst_codex_cfg.exists() and not force:
+                    print(f"  .codex/config.toml already exists -- skipping (use --force to overwrite)")
+                else:
+                    print(f"  codex config -> .codex/config.toml")
+                    copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
         # skip if destination already exists unless --force.
@@ -820,6 +856,8 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 ).replace(
                     "/factory-", " /orchestrator factory-"
                 )
+            elif tool == "codex":
+                pointer_block = ORCHESTRATOR_CODEX_POINTER_BLOCK
             else:
                 pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
             update_workflow_doc_pointer(
@@ -1274,6 +1312,7 @@ TOOL_DESCRIPTIONS = {
     "claude":   "Claude Code CLI — writes to .claude/agents/ and .claude/commands/",
     "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
     "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
+    "codex":    "OpenAI Codex CLI / IDE agent — writes .codex/agents/ (TOML custom agents) + AGENTS.md pointer",
     "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
 }
 
