@@ -967,11 +967,14 @@ CODEGRAPH_SAFE_ORCHESTRATOR_TOOLS = [
 
 def _check_node_version(min_major: int) -> tuple[bool, str]:
     """Return (ok, version_string). ok=False when node < min_major or not found."""
+    cmd: list[str] = ["node", "--version"]
+    if _is_windows():
+        cmd = ["cmd", "/c"] + cmd
     try:
         result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=10
+            cmd, capture_output=True, text=True, timeout=10
         )
-        version_str = result.stdout.strip()  # e.g. "v20.11.0"
+        version_str = result.stdout.strip()
         major = int(version_str.lstrip("v").split(".")[0])
         return major >= min_major, version_str
     except (FileNotFoundError, ValueError, subprocess.TimeoutExpired):
@@ -979,10 +982,10 @@ def _check_node_version(min_major: int) -> tuple[bool, str]:
 
 
 def _run_codegraph(cmd: list[str], target_root: Path | None = None, **kwargs) -> subprocess.CompletedProcess:
-    """Run a codegraph command, using PowerShell on Windows to resolve .ps1 wrappers."""
+    """Run a codegraph command, using cmd.exe on Windows to resolve .ps1/.cmd wrappers."""
     if _is_windows():
-        pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
-        return subprocess.run(pwsh_cmd, cwd=str(target_root) if target_root else None, **kwargs)
+        cmd_cmd = ["cmd", "/c"] + cmd
+        return subprocess.run(cmd_cmd, cwd=str(target_root) if target_root else None, **kwargs)
     return subprocess.run(cmd, cwd=str(target_root) if target_root else None, **kwargs)
 
 
@@ -1051,12 +1054,13 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
     else:
         print(f"  Installing {CODEGRAPH_NPM_PACKAGE} globally via npm...")
-        # On Windows npm may be a .ps1 script (not resolved by subprocess.run).
-        # Use PowerShell explicitly to handle this.
+        # On Windows npm is a .cmd script (not an .exe), so use cmd.exe /c
+        # to ensure subprocess resolves it via PATHEXT.
+        npm_install = ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE]
         npm_cmd = (
-            ["powershell", "-NoProfile", "-Command", f"npm install -g {CODEGRAPH_NPM_PACKAGE}"]
+            ["cmd", "/c"] + npm_install
             if _is_windows()
-            else ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE]
+            else npm_install
         )
         result = subprocess.run(npm_cmd, capture_output=False)
         if result.returncode != 0:
@@ -1287,12 +1291,14 @@ def _parse_semver(raw: str) -> tuple[int, ...] | None:
 def _probe_version(cmd: list[str]) -> tuple[bool, str]:
     """Run cmd and return (found, raw-version-string). found=False on any failure."""
     # Windows: many tools (npm, codegraph, …) are .cmd or .ps1 scripts that
-    # subprocess.run(CreateProcess) cannot launch directly. Use PowerShell
-    # as the primary strategy on Windows; direct subprocess as fallback.
+    # subprocess.run(CreateProcess) cannot launch directly. Use cmd.exe /c as
+    # the primary strategy on Windows; PowerShell as secondary; direct
+    # subprocess as last resort.
     attempts: list[list[str]] = [cmd]
     if _is_windows():
+        cmd_cmd = ["cmd", "/c"] + cmd   # cmd.exe resolves .cmd/.bat via PATHEXT
         pwsh_cmd = ["powershell", "-NoProfile", "-Command", " ".join(cmd)]
-        attempts = [pwsh_cmd, cmd]
+        attempts = [cmd_cmd, pwsh_cmd, cmd]
 
     for candidate in attempts:
         try:
