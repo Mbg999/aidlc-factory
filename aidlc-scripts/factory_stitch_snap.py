@@ -129,7 +129,7 @@ def _load_color_map(repo_root: Path) -> dict[str, str]:
     if not color_file.exists():
         return {}
     color_map: dict[str, str] = {}
-    for line in color_file.read_text().splitlines():
+    for line in color_file.read_text(encoding="utf-8").splitlines():
         m = re.match(r"\|\s*`([^`]+)`\s*\|\s*(#[0-9A-Fa-f]{3,8})\s*\|", line)
         if m:
             color_map[m.group(2)] = m.group(1)
@@ -322,7 +322,7 @@ def snap_designmd(content: str, repo_root: Path) -> dict:
         for e in entries:
             lines.append(f"| `{e['token']}` | `{e['value']}` | Stitch import |")
         lines.append("")
-        out_path.write_text("\n".join(lines))
+        out_path.write_text("\n".join(lines), encoding="utf-8")
         written.append(str(out_path))
 
     _write_stitch_tokens(
@@ -474,7 +474,7 @@ def main() -> int:
         result = snap_file(input_path, repo_root, spacing, radius, font_sizes, color_map)
         output_json = json.dumps(result, indent=2)
         if args.output:
-            Path(args.output).write_text(output_json)
+            Path(args.output).write_text(output_json, encoding="utf-8")
             print(f"Snapped -> {args.output} ({result.get('correction_count', 0)} corrections)")
         else:
             print(output_json)

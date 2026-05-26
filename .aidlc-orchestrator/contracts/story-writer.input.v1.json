@@ -17,7 +17,6 @@
     "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
     "model_override": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
     }
   },

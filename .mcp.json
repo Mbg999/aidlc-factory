@@ -11,16 +11,6 @@
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"],
       "env": {}
-    },
-    "stitch": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@_davideast/stitch-mcp", "proxy"],
-      "env": {}
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
     }
   }
 }

@@ -12,6 +12,9 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 - `workspace_state.programming_languages` contains `TypeScript|JavaScript|TSX|JSX` AND `workspace_state.project_structure` matches `/SPA|frontend|React|Vue|Svelte|Angular|Next|Nuxt|web/i`, OR
 - the workspace's `package.json` declares a UI framework dependency (`react`/`vue`/`svelte`/etc.)
 
+**`ui` is `false` if** the only detected UI framework dependency is `react-native` without `react-dom`
+(mobile-only React → no web design system needed).
+
 **`api = true` iff** EITHER:
 - the user_request matches `/endpoint|route|REST|GraphQL|API|webhook|\/[a-z][a-z0-9_-]+/i`, OR
 - the workspace has `express`/`fastify`/`hono`/`nestjs`/`fastapi`/`flask`/`django` in `package.json`/`pyproject.toml`/etc.
@@ -20,10 +23,28 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 - `workspace_state.reverse_engineering_artifacts_present == true`, OR
 - the user_request matches `/migrat|refactor|deprecat|legacy|rewrite|port/i`
 
+**`framework`** — when `ui: true`, detect from `workspace_state.tech_stack[]`:
+1. Scan `tech_stack[]` entries for known UI framework packages:
+   - `react`, `next` → `react`
+   - `@angular/core`, `angular` → `angular`
+   - `vue`, `nuxt` → `vue`
+   - `svelte`, `sveltekit` → `svelte`
+   - `flutter` (from `pubspec.yaml`) → `flutter`
+2. If multiple detected: use the one with the most references, emit `[Orchestrator] Multiple frameworks detected, selected <framework> by majority`
+3. If none found and `ui: true`: set `framework = "unknown"`
+4. Set `framework = <detected>` in project_profile (informational — the LLM uses this in prompts, no adapter needed)
+
 **`design_system_path`** — when `ui: true`:
 1. Check if `design-system/` exists at repo root
 2. If yes: set `design_system_path = "design-system/"`
-3. If no: set `design_system_path = null` (skill still runs with inline fallback)
+3. If no:
+   a. Run bootstrap to create a default DS:
+      ```bash
+      python3 aidlc-scripts/factory_ds_bootstrap.py init
+      ```
+   b. Set `design_system_path = "design-system/"`
+   c. Log: `[Bootstrap] Created default design system at design-system/`
+   d. After bootstrap, the system has full token enforcement, snap, and drift detection
 
 **`has_figma_data`** — when `ui: true`:
 1. Check if `figma/` directory exists OR any `*.figma.json` files exist in the workspace
@@ -32,13 +53,20 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 4. If no: set `has_figma_data = false`
 
 **Figma input snap** — when `has_figma_data == true`:
-1. Before code-generator runs, execute the snap step:
+1. Run snap to clean raw Figma values:
    ```bash
    python3 aidlc-scripts/factory_design_system_snap.py snap-file \
        --input figma/raw-data.json \
        --output figma/snapped.json
    ```
-2. Set `figma_snapped_path = "figma/snapped.json"` in the code-generator input
+2. If no `design-system/` existed before (just bootstrapped), optionally
+   import Figma's detected values to refine the DS:
+   ```bash
+   python3 aidlc-scripts/factory_ds_bootstrap.py import \
+       --source figma/snapped.json \
+       --format json --force
+   ```
+3. Set `figma_snapped_path = "figma/snapped.json"` in the code-generator input
 3. The snap script reports correction count. If >10 corrections, set flag
    `figma_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
    `design-system-composer` skill §7.
@@ -74,6 +102,7 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 
 **Inject into downstream handoffs:**
 When building input handoffs for code-generator, reviewers, build-test-agent, and ship-agent, add:
+- `framework` from the resolved value (when `ui: true`)
 - `design_system_path` from the resolved value
 - `has_figma_data` from the resolved value
 - `figma_snapped_path` when figma snapping ran
@@ -88,11 +117,13 @@ When building input handoffs for code-generator, reviewers, build-test-agent, an
 python3 aidlc-scripts/factory_run.py set <run-id> \
     --field project_profile.ui=<true|false> \
     --field project_profile.api=<true|false> \
-    --field project_profile.has_legacy=<true|false>
+    --field project_profile.has_legacy=<true|false> \
+    --field project_profile.framework=<detected|none> \
+    --field project_profile.design_system_path=<design-system/ when ui:true else empty>
 ```
 
 **Audit**: append a single bullet to the NEXT stage's audit block (NOT a standalone header):
-`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>`
+`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>, framework=<detected>, design_system_path=<path>`
 
 ## Conditional-skill injection (downstream consumer)
 

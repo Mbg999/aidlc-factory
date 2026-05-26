@@ -6,6 +6,10 @@ Screenshot-based reinforcement that converges UI output toward what humans
 actually approve. Run by `ship-agent` (FULL mode) or `build-test-agent`
 (FAST mode) when Playwright/Chrome is available.
 
+> **See also**: `factory_drift_detect.py` — the current drift detection tool.
+> Provides `diff-structural` (always available) and `diff-visual` (Playwright-optional)
+> modes, plus snapshot capture and baseline management.
+
 ---
 
 ## §1 Capture

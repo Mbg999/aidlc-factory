@@ -187,7 +187,7 @@ class KiroCLIAdapter(CLIAdapter):
                         _log(f"  aidlc-docs: {file_count} files, construction={'yes' if has_construction else 'no'}")
 
                         if has_construction:
-                            _log("Construction phase detected — workflow complete")
+                            _log("Construction phase detected -- workflow complete")
                             break
                     else:
                         _log("  aidlc-docs/ not yet created")
@@ -258,7 +258,7 @@ class KiroCLIAdapter(CLIAdapter):
         except subprocess.TimeoutExpired:
             elapsed_seconds = time.monotonic() - start_time
             process.kill()
-            _log(f"Timeout after {elapsed_seconds:.0f}s — killed process")
+            _log(f"Timeout after {elapsed_seconds:.0f}s -- killed process")
             return AdapterResult(
                 success=False,
                 output_dir=config.output_dir,

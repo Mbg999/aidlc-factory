@@ -55,6 +55,9 @@ trail.
 - No ADRs (ship stage skipped).
 - No build-test-agent stage (code-generator runs tests inline via TDD).
 - No conflict-resolver locks (single spawn, nothing to conflict with).
+- No project-profile classification — `design_system_path` is never set,
+  so **design system enforcement is skipped** even for UI changes.
+  TINY-tier UI work uses inline defaults only.
 - No orchestartor-level tracking; code-generator self-monitors.
 
 ## Bailout paths

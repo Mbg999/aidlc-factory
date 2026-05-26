@@ -76,15 +76,15 @@ def _die(msg: str, code: int = 2) -> None:
 
 
 def _warn(msg: str) -> None:
-    print(f"  ⚠  {msg}", file=sys.stderr)
+    print(f"  [WARN]  {msg}", file=sys.stderr)
 
 
 def _fail(msg: str) -> None:
-    print(f"  ✗ {msg}", file=sys.stderr)
+    print(f"  [FAIL] {msg}", file=sys.stderr)
 
 
 def _ok(msg: str) -> None:
-    print(f"  ✓ {msg}")
+    print(f"  [OK] {msg}")
 
 
 def _load_handoff_yaml(path: Path) -> dict:
@@ -205,7 +205,7 @@ def cmd_requirements(args: argparse.Namespace) -> int:
     handoff = _load_handoff_yaml(handoff_path)
     depth = handoff.get("depth", "standard")
     if depth not in REQUIRED_AXES_BY_DEPTH:
-        _warn(f"unrecognized depth '{depth}' — defaulting to 'standard'")
+        _warn(f"unrecognized depth '{depth}' -- defaulting to 'standard'")
         depth = "standard"
 
     required = REQUIRED_AXES_BY_DEPTH[depth]
@@ -232,7 +232,7 @@ def cmd_requirements(args: argparse.Namespace) -> int:
 
     if questions_path is None and not trivial_skip:
         issues.append(
-            "no questions artifact found — expected kind:questions or questions_artifact_path"
+            "no questions artifact found -- expected kind:questions or questions_artifact_path"
         )
     elif trivial_skip:
         _ok("questions skip path: Trivial + Clear + Single File")
@@ -288,7 +288,7 @@ def cmd_requirements(args: argparse.Namespace) -> int:
             if len(rtext.strip()) < 200:
                 issues.append(
                     f"Pass 2: requirements.md is suspiciously short "
-                    f"({len(rtext.strip())} chars) — likely empty spec"
+                    f"({len(rtext.strip())} chars) -- likely empty spec"
                 )
             else:
                 _ok(f"requirements.md present ({len(rtext)} chars)")
@@ -306,7 +306,7 @@ def cmd_requirements(args: argparse.Namespace) -> int:
         print("\nFAIL (strict mode)", file=sys.stderr)
         return 1
     else:
-        print("\nWARN (warn mode — non-blocking; flip to --mode strict to enforce)")
+        print("\nWARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
         return 0
 
 
@@ -356,7 +356,7 @@ def _verdict(issues: list[str], mode: str) -> int:
     if mode == "strict":
         print("\nFAIL (strict mode)", file=sys.stderr)
         return 1
-    print("\nWARN (warn mode — non-blocking; flip to --mode strict to enforce)")
+    print("\nWARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
     return 0
 
 
@@ -384,12 +384,12 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     if len(text.strip()) < 200:
         issues.append(
-            f"plan is suspiciously short ({len(text.strip())} chars) — likely empty"
+            f"plan is suspiciously short ({len(text.strip())} chars) -- likely empty"
         )
 
     # Mermaid diagram
     if not MERMAID_FENCE_RE.search(text):
-        issues.append("plan has no ```mermaid ``` fence — Mermaid diagram missing")
+        issues.append("plan has no ```mermaid ``` fence -- Mermaid diagram missing")
     else:
         _ok("Mermaid fence present")
 
@@ -403,17 +403,17 @@ def cmd_plan(args: argparse.Namespace) -> int:
     # Acceptance coverage — heuristic: each task should be close to an acceptance line
     ac_count = len(ACCEPTANCE_LINE_RE.findall(text))
     if ac_count == 0:
-        issues.append("plan has no Acceptance/AC line — every leaf task needs ≥1")
+        issues.append("plan has no Acceptance/AC line -- every leaf task needs >=1")
     elif ac_count < task_count // 2:
         issues.append(
-            f"plan has {ac_count} acceptance line(s) for {task_count} task(s) — coverage seems thin"
+            f"plan has {ac_count} acceptance line(s) for {task_count} task(s) -- coverage seems thin"
         )
 
     # Units list coherence
     units = handoff.get("units") or []
     declared_unit_names = {u.get("name") for u in units if isinstance(u, dict)}
     if not declared_unit_names:
-        issues.append("handoff `units[]` is empty — workflow-planner must declare units")
+        issues.append("handoff `units[]` is empty -- workflow-planner must declare units")
     else:
         # Each declared unit should be referenced in the plan text
         unreferenced = [
@@ -426,7 +426,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     # Mermaid validation flag
     if handoff.get("mermaid_validated") is False:
-        issues.append("handoff says mermaid_validated=false — diagram not validated")
+        issues.append("handoff says mermaid_validated=false -- diagram not validated")
 
     return _verdict(issues, args.mode)
 
@@ -459,14 +459,14 @@ def cmd_code(args: argparse.Namespace) -> int:
     test_files = _all_artifacts(handoff, repo_root, "test")
     if not test_files:
         issues.append(
-            "no test artifacts (kind:test) — TDD requires generated tests alongside source"
+            "no test artifacts (kind:test) -- TDD requires generated tests alongside source"
         )
     else:
         _ok(f"{len(test_files)} test file(s) declared")
 
     # locks_to_release — when populated, must include each touched glob
     if handoff.get("locks_to_release") is None:
-        issues.append("handoff has no locks_to_release[] — required for code stage")
+        issues.append("handoff has no locks_to_release[] -- required for code stage")
 
     return _verdict(issues, args.mode)
 
@@ -501,7 +501,7 @@ def cmd_tests(args: argparse.Namespace) -> int:
         text = p.read_text(encoding="utf-8").lower()
         if not any(tok in text for tok in ["pass", "passed", "ok", "green"]):
             issues.append(
-                f"{p.name}: no 'pass'/'passed'/'ok'/'green' token — "
+                f"{p.name}: no 'pass'/'passed'/'ok'/'green' token -- "
                 f"summary should attest to a build/test outcome"
             )
         else:
@@ -527,22 +527,22 @@ def cmd_ship(args: argparse.Namespace) -> int:
 
     if not any("release_notes" in p.name.lower() or "release-notes" in p.name.lower()
                for p in docs):
-        issues.append("no RELEASE_NOTES artifact (kind:doc) — ship-agent must produce release notes")
+        issues.append("no RELEASE_NOTES artifact (kind:doc) -- ship-agent must produce release notes")
 
     if not any("changelog" in p.name.lower() for p in docs):
-        issues.append("no CHANGELOG artifact (kind:doc) — ship-agent must update CHANGELOG")
+        issues.append("no CHANGELOG artifact (kind:doc) -- ship-agent must update CHANGELOG")
 
     if not ADR_PATH_RE.search(artifact_paths_str):
         # Don't fail on missing ADR — small ships may have no ADR-worthy decisions
         # but log a warning so reviewers notice.
         _warn(
-            "no ADR file under aidlc-docs/operations/adrs/ — acceptable for trivial "
+            "no ADR file under aidlc-docs/operations/adrs/ -- acceptable for trivial "
             "changes but most ships should record at least one ADR"
         )
 
     # version_proposed (custom field if present in ship contract)
     if handoff.get("version_proposed") is None and "version" not in str(handoff).lower():
-        _warn("handoff has no version field — bump intent should be captured somewhere")
+        _warn("handoff has no version field -- bump intent should be captured somewhere")
 
     return _verdict(issues, args.mode)
 

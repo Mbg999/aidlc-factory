@@ -30,10 +30,11 @@ def _venv_bin() -> str:
 def _allowed_bases() -> list[Path]:
     bases = [REPO_ROOT / "aidlc-scripts", REPO_ROOT / "bin", REPO_ROOT / _venv_bin()]
 
-    # Allow additional paths from environment variable (colon-separated)
+    # Allow additional paths from environment variable (colon-separated on POSIX, semicolon on Windows)
     extra = os.environ.get("EXECUTOR_ALLOW_BASES")
     if extra:
-        for p in extra.split(":"):
+        sep = ";" if os.name == "nt" else ":"
+        for p in extra.split(sep):
             p = p.strip()
             if p:
                 bases.append((REPO_ROOT / p) if not p.startswith("/") else Path(p))

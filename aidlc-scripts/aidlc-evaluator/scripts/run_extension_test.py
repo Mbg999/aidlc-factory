@@ -177,7 +177,7 @@ def run_evaluation_with_config(
     elapsed_min = elapsed_s / 60
 
     status = "success" if result.returncode == 0 else "failed"
-    print(f"  [{status.upper()}] {config_name} — {elapsed_min:.1f} min (exit code {result.returncode})")
+    print(f"  [{status.upper()}] {config_name} -- {elapsed_min:.1f} min (exit code {result.returncode})")
 
     # Find the new run folder (timestamped dir that didn't exist before)
     run_folder: Path | None = None

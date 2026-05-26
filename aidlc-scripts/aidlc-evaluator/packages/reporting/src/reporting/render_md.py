@@ -40,7 +40,7 @@ def _fmt_val(v: float | int | None) -> str:
 
 
 def _status_icon(ok: bool) -> str:
-    return "\u2705" if ok else "\u274c"
+    return "[OK]" if ok else "[FAIL]"
 
 
 def _fmt_delta_val(delta: float, metric_name: str) -> str:
@@ -135,7 +135,7 @@ def render_markdown(data: ReportData) -> str:
     w(f"| Simulator Model | `{data.meta.simulator_model}` |")
     w(f"| Region | `{data.meta.aws_region}` |")
     w(f"| Wall Clock | {_ms_to_human(data.metrics.wall_clock_ms)} |")
-    w(f"| Handoffs | {data.meta.total_handoffs} ({' → '.join(data.meta.node_history)}) |")
+    w(f"| Handoffs | {data.meta.total_handoffs} ({' -> '.join(data.meta.node_history)}) |")
     if data.meta.started_at:
         w(f"| Started | {data.meta.started_at} |")
     if data.meta.completed_at:
@@ -333,7 +333,7 @@ def render_markdown(data: ReportData) -> str:
                 if d.notes:
                     name = Path(d.path).name
                     short = d.notes[:200] + "..." if len(d.notes) > 200 else d.notes
-                    w(f"<details><summary><code>{name}</code> — {d.overall:.2f}</summary>")
+                    w(f"<details><summary><code>{name}</code> -- {d.overall:.2f}</summary>")
                     w(f"")
                     w(f"{d.notes}")
                     w(f"")

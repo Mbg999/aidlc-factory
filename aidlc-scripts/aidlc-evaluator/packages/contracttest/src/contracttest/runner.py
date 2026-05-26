@@ -224,7 +224,7 @@ def print_results(results: ContractTestResults) -> None:
         else:
             mark = "FAIL"
         status_info = f"[{case.actual_status}]" if case.actual_status else "[---]"
-        print(f"  {mark}  {case.method} {case.path} {status_info} — {case.name}")
+        print(f"  {mark}  {case.method} {case.path} {status_info} -- {case.name}")
         if case.error:
             print(f"        error: {case.error}")
         for f in case.failures:

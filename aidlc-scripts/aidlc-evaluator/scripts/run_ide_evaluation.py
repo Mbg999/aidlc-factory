@@ -98,7 +98,7 @@ def main() -> None:
 
     if args.check_only:
         ok, msg = adapter.check_prerequisites()
-        print(f"{adapter.name}: {'OK' if ok else 'FAIL'} — {msg}")
+        print(f"{adapter.name}: {'OK' if ok else 'FAIL'} -- {msg}")
         sys.exit(0 if ok else 1)
 
     # Resolve scenario and apply defaults

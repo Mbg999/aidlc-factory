@@ -199,7 +199,7 @@ def render_markdown(agg: dict) -> str:
         return f"# Quality Report — {today}\n\nNo runs found.\n"
 
     lines = [
-        f"# Quality Report — {today}",
+        f"# Quality Report -- {today}",
         "",
         f"Runs analyzed: **{agg['runs_count']}**",
         "",

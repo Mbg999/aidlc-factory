@@ -58,7 +58,7 @@ def _coerce_bool(v) -> bool:
     if s in FALSY:
         return False
     # Unknown — treat as false but warn
-    print(f"factory_features: warning: unrecognized truth value {v!r} — coerced to False",
+    print(f"factory_features: warning: unrecognized truth value {v!r} -- coerced to False",
           file=sys.stderr)
     return False
 

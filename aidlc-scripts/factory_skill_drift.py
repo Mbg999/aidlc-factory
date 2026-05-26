@@ -240,7 +240,7 @@ def _write_report(results: list[DriftResult], path: Path) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(lines), encoding="utf-8")
-    print(f"Report written → {path.relative_to(REPO_ROOT)}")
+    print(f"Report written -> {path.relative_to(REPO_ROOT)}")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -258,15 +258,15 @@ def main() -> None:
               else f"Skill '{args.skill}' not found.")
         sys.exit(2)
 
-    print(f"Checking {len(skills)} skill(s) for drift…\n")
+    print(f"Checking {len(skills)} skill(s) for drift...\n")
     results = []
     for skill in skills:
-        sys.stdout.write(f"  {skill.name} ({skill.framework or 'universal'}) … ")
+        sys.stdout.write(f"  {skill.name} ({skill.framework or 'universal'}) ... ")
         sys.stdout.flush()
         r = check_drift(skill)
         results.append(r)
-        icons = {"ok": "✓", "stale": "⚠ STALE", "unknown": "?",
-                 "no-applies_to": "·", "registry-error": "✗"}
+        icons = {"ok": "[OK]", "stale": "[WARN] STALE", "unknown": "?",
+                 "no-applies_to": "-", "registry-error": "[FAIL]"}
         print(icons.get(r.status, r.status))
         if r.detail and r.status not in ("ok", "no-applies_to"):
             print(f"    {r.detail}")

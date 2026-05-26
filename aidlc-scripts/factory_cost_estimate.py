@@ -197,7 +197,7 @@ def render_markdown(projection: dict, run_id: str = "<run-id>") -> str:
     lines = [
         f"## Pre-flight cost estimate — {run_id}",
         "",
-        f"Units: **{projection['unit_count']}** · Profile: `{projection['profile'] or 'default'}`",
+        f"Units: **{projection['unit_count']}** - Profile: `{projection['profile'] or 'default'}`",
         "",
         "| Stage | Est. tokens | Est. min | × | Confidence | Source |",
         "|---|---:|---:|---:|---|---|",

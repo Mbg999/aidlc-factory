@@ -72,7 +72,7 @@ def _load_validator():
     if jsonschema is None or not REVIEWER_OUTPUT_SCHEMA.exists():
         return None
     import json
-    schema = json.loads(REVIEWER_OUTPUT_SCHEMA.read_text())
+    schema = json.loads(REVIEWER_OUTPUT_SCHEMA.read_text(encoding="utf-8"))
     return jsonschema.Draft7Validator(schema)
 
 
@@ -140,7 +140,7 @@ def main() -> None:
             missing.append(reviewer)
             continue
         try:
-            data = yaml.safe_load(path.read_text())
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as e:
             invalid.append((reviewer, [f"YAML parse error: {e}"]))
             continue
@@ -241,11 +241,11 @@ def main() -> None:
             breakdown = ", ".join(
                 f"{r}: {len(v)}" for r, v in by_reviewer.items()
             )
-            md += [f"- `{file}` — {total} findings ({breakdown})"]
+            md += [f"- `{file}` -- {total} findings ({breakdown})"]
 
     output_path = REPO_ROOT / args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(md) + "\n")
+    output_path.write_text("\n".join(md) + "\n", encoding="utf-8")
     print(f"wrote {output_path} ({grand_total} total findings)")
 
 

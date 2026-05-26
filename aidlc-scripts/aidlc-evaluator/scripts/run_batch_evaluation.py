@@ -175,7 +175,7 @@ def run_model(
     elapsed_min = elapsed_s / 60
 
     status = "success" if result.returncode == 0 else "failed"
-    print(f"  [{status.upper()}] {name} — {elapsed_min:.1f} min (exit code {result.returncode})")
+    print(f"  [{status.upper()}] {name} -- {elapsed_min:.1f} min (exit code {result.returncode})")
 
     # Find the new run folder — prefer sentinel file over directory-diff.
     _sentinel_name = ".last_run_folder"

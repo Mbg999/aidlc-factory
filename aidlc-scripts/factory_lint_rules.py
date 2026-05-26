@@ -168,7 +168,7 @@ def lint(repo_root: Path) -> tuple[list[str], list[str]]:
             if not SKILL_TOKEN_RE.search(text):
                 warnings.append(
                     f"{stage_name}: no 'Skills required for this stage' block "
-                    f"AND no skill bullets in body — manual review recommended"
+                    f"AND no skill bullets in body -- manual review recommended"
                 )
             continue
 
@@ -229,7 +229,7 @@ def lint(repo_root: Path) -> tuple[list[str], list[str]]:
             if rule_block is None:
                 warnings.append(
                     f"{stage_name}: rule file {rule_path.name} has no "
-                    f"'## Agent Skills' block — stage agent declares skills "
+                    f"'## Agent Skills' block -- stage agent declares skills "
                     f"that the rule file does not list"
                 )
             else:
@@ -293,12 +293,12 @@ def main() -> None:
     if warnings:
         print("Warnings:", file=sys.stderr)
         for w in warnings:
-            print(f"  ⚠  {w}", file=sys.stderr)
+            print(f"  [WARN]  {w}", file=sys.stderr)
 
     if errors:
         print(f"\n{len(errors)} drift error(s) detected:", file=sys.stderr)
         for e in errors:
-            print(f"  ✗ {e}", file=sys.stderr)
+            print(f"  [FAIL] {e}", file=sys.stderr)
         sys.exit(1)
 
     if not args.quiet:

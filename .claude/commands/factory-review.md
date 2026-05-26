@@ -13,9 +13,12 @@ Adopt the role from @.claude/agents/orchestrator.md and execute the
 Sequence:
 1. Read `manifest.yaml`. Refuse if construction isn't complete.
 1.5. **Collect framework skills from build** (Pre-Review Step 0.5 per
-   `runtime/cmd-factory-review.md`): read `manifest.skill_paths` + all
-   `code-generator.*.output.yaml` handoffs; extract skills not in the base set.
-   Store as `framework_skill_paths`. Log the list even if empty.
+    `runtime/cmd-factory-review.md`): read `manifest.skill_paths` + all
+    `code-generator.*.output.yaml` handoffs; extract skills not in the base set.
+    Store as `framework_skill_paths`. Log the list even if empty.
+1.75. **Build validation** (Pre-Review Step 0.75 per
+    `runtime/cmd-factory-review.md`): detect build system, run compile/check
+    command, surface approval gate on failure. Skip if no build system detected.
 2. **Sequential knowledge queries** per active reviewer; build per-reviewer
    input handoff under `.aidlc-orchestrator/runs/<run-id>/handoffs/reviewer-<x>.input.yaml`
    with reviewer-specific tags and top-5 priors injected into `context_pointers[]`.

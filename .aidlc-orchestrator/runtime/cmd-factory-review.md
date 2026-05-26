@@ -90,6 +90,51 @@ If no code-generator handoffs exist (review invoked without a prior build): `fra
 
 ---
 
+### Pre-Review Step 0.75 — Build Validation
+
+Run inline before spawning reviewers. Goal: catch cross-unit integration issues
+that per-unit builds (Step B.3 of `/factory-build`) may miss — the full merged
+tree must still compile before quality review begins.
+
+1. **Detect build system** — probe workspace root for known build files in this
+   priority order. First match wins:
+
+   | Detection file | Build command | Notes |
+   |---|---|---|
+   | `package.json` | `npm run build 2>&1` | Uses the `build` script. If `build` script missing, fall back to `npx tsc --noEmit 2>&1` if `typescript` in devDependencies; else skip (log WARN). |
+   | `Cargo.toml` | `cargo check 2>&1` | Preferred over `cargo build` — faster, same correctness signal. |
+   | `go.mod` | `go build ./... 2>&1` | |
+   | `pyproject.toml` | `pip install -e . 2>&1 && python3 -c "import sys; sys.exit(0)"` | Install + import-check as a lightweight compile gate. |
+   | `Makefile` | `make build 2>&1 \|\| make all 2>&1 \|\| make 2>&1` | Tries `build` target first, then `all`, then default. |
+   | `pom.xml` | `mvn compile -q 2>&1` | |
+   | `build.gradle` | `gradle classes -q 2>&1` | |
+   | `requirements.txt` | `python3 -m py_compile $(find . -name '*.py' -not -path '*/\.*') 2>&1` | Pure-Python syntax check as a lightweight alternative. |
+
+   If multiple build files exist, use the first match in this table order.
+   If none found: log `[Build Validation] SKIPPED — no supported build system detected`
+   and proceed (skip build check).
+
+2. **Run build** — execute the detected command in the workspace root. Cap
+   execution at 120 seconds (use `timeout 120` prefix). Capture exit code +
+   merged stdout/stderr.
+
+3. **On failure** (exit ≠ 0):
+   ```
+   [Build Validation] FAILED — <tool> exited <code>
+   ```
+   Append full output to `aidlc-docs/audit.md` under `[Build Validation] FAILED`.
+   **Surface approval gate to user** with options:
+   - `Abort review, return to /factory-build` — set `current_stage: CONSTRUCTION`,
+     do NOT spawn reviewers.
+   - `Proceed with review anyway` — log `[Build Validation] BYPASSED` to audit.
+
+4. **On success** (exit = 0): log `[Build Validation] OK — <tool> <command>` to audit.
+
+5. **Store result** in orchestrator working state as `build_validation:
+   {status: "ok"|"failed"|"skipped", tool: "<name>", output: "<first-200-chars>"}`.
+
+---
+
 1. **Active set** — default `[reviewer-code, reviewer-security]`; use all four if `--full` flag set; constrain to `manifest.reviewer_pool[]` if set.
 2. **Knowledge queries** (sequential): `mem_search` per reviewer with specific tags; inject top-5.
 2.5. **Build reviewer input handoffs** — for each active reviewer:

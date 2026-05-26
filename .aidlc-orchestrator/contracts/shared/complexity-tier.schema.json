@@ -14,17 +14,7 @@
     "skip_stages": {
       "type": "array",
       "items": {
-        "type": "string",
-        "enum": [
-          "story-writer",
-          "unit-decomposer",
-          "reverse-engineer",
-          "workflow-planner",
-          "build-test-agent",
-          "reviewer-security",
-          "reviewer-performance",
-          "reviewer-simplifier"
-        ]
+        "type": "string"
       },
       "uniqueItems": true,
       "description": "Stage IDs that must be skipped for this tier. TINY and SMALL tiers skip stages; LARGE skips none."

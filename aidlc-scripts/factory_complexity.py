@@ -157,7 +157,7 @@ def cmd_assess(args: argparse.Namespace) -> None:
             "Run requirements-analyst stage before calling factory_complexity.py."
         )
 
-    raw = yaml.safe_load(handoff_path.read_text()) or {}
+    raw = yaml.safe_load(handoff_path.read_text(encoding="utf-8")) or {}
     classification = raw.get("request_classification")
     if not classification:
         _die(
@@ -196,14 +196,14 @@ def _apply_to_budget(run_id: str, tier: str, routing: dict) -> None:
         )
         return
 
-    state = yaml.safe_load(budget_path.read_text()) or {}
+    state = yaml.safe_load(budget_path.read_text(encoding="utf-8")) or {}
     state.setdefault("budget", {})
     state["budget"]["tokens_max"] = routing["tokens_max"]
     state["budget"]["wall_clock_max_min"] = routing["wall_clock_max_min"]
     state["complexity_tier"] = tier
 
     tmp = budget_path.with_suffix(".yaml.tmp")
-    tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False))
+    tmp.write_text(yaml.safe_dump(state, default_flow_style=False, sort_keys=False), encoding="utf-8")
     tmp.replace(budget_path)
     print(
         f"[ComplexityGov] Applied tier={tier}: tokens_max={routing['tokens_max']:,}, "

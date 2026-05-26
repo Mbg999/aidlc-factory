@@ -87,7 +87,7 @@ def approve(repo_root: Path, component: str, code: str,
         f"{json.dumps(tokens, indent=2)}\n"
     )
 
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
 
     # Trim to cap
     logs = _trim_primitive_examples(examples_dir)
@@ -186,7 +186,7 @@ def reject(repo_root: Path, component: str, reason: str,
         f"before finalizing output.\n"
     )
 
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
 
     return {"path": str(filepath), "logs": [f"Saved antipattern -> {filepath}"]}
 
@@ -220,7 +220,7 @@ def update_index(repo_root: Path) -> list[str]:
         return ["No approved examples to update INDEX.md"]
 
     # Read INDEX, find or append usage section
-    content = index_path.read_text()
+    content = index_path.read_text(encoding="utf-8")
     usage_lines = ["\n## Usage Count\n\n| Primitive | Approved Examples |\n|-----------|-----------------|\n"]
     for name in sorted(usage):
         usage_lines.append(f"| `{name}` | {usage[name]} |\n")
@@ -236,7 +236,7 @@ def update_index(repo_root: Path) -> list[str]:
     else:
         content += "\n" + usage_block
 
-    index_path.write_text(content)
+    index_path.write_text(content, encoding="utf-8")
     logs.append(f"Updated INDEX.md with {len(usage)} usage counts")
     return logs
 

@@ -86,7 +86,7 @@ def cmd_check(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     try:
-        cached = yaml.safe_load(cache_file.read_text()) if yaml else json.loads(cache_file.read_text())
+        cached = yaml.safe_load(cache_file.read_text(encoding="utf-8")) if yaml else json.loads(cache_file.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, yaml.YAMLError if yaml else ValueError):
         cached = {}
     print(json.dumps({
@@ -110,7 +110,7 @@ def cmd_save(args: argparse.Namespace) -> None:
         "status": args.status or "complete",
     }
     (CACHE_DIR / f"{hash_val}.yaml").write_text(
-        yaml.safe_dump(entry, sort_keys=False) if yaml else json.dumps(entry)
+        yaml.safe_dump(entry, sort_keys=False) if yaml else json.dumps(entry), encoding="utf-8"
     )
     print(f"saved build cache for {args.unit} (hash={hash_val})")
 

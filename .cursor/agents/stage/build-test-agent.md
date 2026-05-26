@@ -73,6 +73,42 @@ For the unit specified in input:
    - Never fail the build because `codegraph affected` is unavailable.
 
 4. Run tests → capture pass/fail counts, coverage if measured.
+
+4.5. **Drift detection hook** (when `project_profile.ui == true`):
+   - Check if the unit generated UI artifacts (HTML, TSX components).
+   - Run structural snapshot:
+     ```bash
+     python3 aidlc-scripts/factory_drift_detect.py snapshot \
+         --component <unit-name> \
+         --variant <variant> \
+         --code-dir <generated-output-dir> \
+         --output design-system/screenshots/snapshots/<unit-name>-current.json
+     ```
+   - If a baseline snapshot exists at `design-system/screenshots/snapshots/<unit-name>-baseline.json`:
+     ```bash
+     python3 aidlc-scripts/factory_drift_detect.py diff-structural \
+         --baseline design-system/screenshots/snapshots/<unit-name>-baseline.json \
+         --current design-system/screenshots/snapshots/<unit-name>-current.json
+     ```
+   - If Playwright is available and HTML output exists, capture screenshot:
+     ```bash
+     python3 aidlc-scripts/factory_drift_detect.py capture \
+         --html <generated-ui-html> \
+         --output design-system/screenshots/<unit-name>/current.png
+     ```
+     Then if a baseline screenshot exists, run visual diff:
+     ```bash
+     python3 aidlc-scripts/factory_drift_detect.py diff-visual \
+         --baseline design-system/screenshots/<unit-name>/baseline.png \
+         --current design-system/screenshots/<unit-name>/current.png \
+         --output-dir design-system/screenshots/diff
+     ```
+   - Log drift results in `audit_entries[]` with prefix `[Drift]`. Include:
+     - `passed` / `diff_percentage` / `structural_changes` count / `needs_human`
+   - If `needs_human == true`: set `status: needs_human` with reason "Drift above blocking threshold — human review required"
+   - If Playwright is not available: log `[Drift] Playwright not available — structural snapshot taken, visual diff skipped` and continue.
+   - Thresholds are configurable via env var `AIDLC_DRIFT_THRESHOLD=<warning>,<blocking>` (default: 5,15).
+
 5. On test failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
 6. Produce:
    - `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md` — reproducible command sequence

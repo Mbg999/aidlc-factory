@@ -206,7 +206,7 @@ def main() -> None:
     rows = parse_audit(text, run_id)
 
     if not rows:
-        print("factory_evidence_extract: no section headers found — empty extraction",
+        print("factory_evidence_extract: no section headers found -- empty extraction",
               file=sys.stderr)
         sys.exit(1)
 

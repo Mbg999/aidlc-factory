@@ -69,7 +69,7 @@ def discover(custom_only: bool = False) -> list[dict]:
             if custom_only and not is_custom:
                 continue
 
-            meta = _parse_frontmatter(f.read_text())
+            meta = _parse_frontmatter(f.read_text(encoding="utf-8"))
             agents.append({
                 "name": name,
                 "description": meta.get("description", "(no description)"),

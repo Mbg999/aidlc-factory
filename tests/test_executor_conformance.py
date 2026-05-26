@@ -7,6 +7,7 @@ marker so failures don't fire prematurely.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -15,6 +16,17 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "aidlc-scripts"))
+
+
+def _symlink_or_copy(target: Path, source: Path):
+    """Symlink target→source, falling back to copy2/copytree on Windows."""
+    try:
+        target.symlink_to(source)
+    except (OSError, NotImplementedError, PermissionError):
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
 
 from executors import (
     ClaudeCodeExecutor,
@@ -64,7 +76,7 @@ def minimal_workspace(tmp_path: Path) -> Path:
     # Symlink factory_validate so the adapter can invoke it.
     scripts = tmp_path / "aidlc-scripts"
     scripts.mkdir()
-    (scripts / "factory_validate.py").symlink_to(REPO_ROOT / "aidlc-scripts" / "factory_validate.py")
+    _symlink_or_copy(scripts / "factory_validate.py", REPO_ROOT / "aidlc-scripts" / "factory_validate.py")
     (scripts / "VERSION").write_text("0.2.0\n")
 
     # Handoffs dir
@@ -197,14 +209,14 @@ def test_opencode_stub_spawn_returns_unsupported(minimal_workspace):
     assert "stub" in (result.error or "").lower() or "NotImplementedError" in (result.error or "")
 
 
-def test_opencode_health_check_false():
+def test_opencode_health_check_false(tmp_path):
     """Stub MUST advertise itself as unavailable so the orchestrator falls back."""
-    ad = OpenCodeExecutor(Path("/tmp"))
+    ad = OpenCodeExecutor(tmp_path)
     assert ad.health_check() is False
 
 
-def test_claude_health_check_true():
-    ad = ClaudeCodeExecutor(Path("/tmp"))
+def test_claude_health_check_true(tmp_path):
+    ad = ClaudeCodeExecutor(tmp_path)
     assert ad.health_check() is True
 
 

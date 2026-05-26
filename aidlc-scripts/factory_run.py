@@ -129,21 +129,21 @@ def load_manifest(run_id: str) -> dict:
     p = manifest_path(run_id)
     if not p.exists():
         _die(f"manifest not found: {p}")
-    return yaml.safe_load(p.read_text()) or {}
+    return yaml.safe_load(p.read_text(encoding="utf-8")) or {}
 
 
 def save_manifest_atomic(run_id: str, data: dict) -> None:
     p = manifest_path(run_id)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".yaml.tmp")
-    tmp.write_text(yaml.safe_dump(data, default_flow_style=False, sort_keys=False))
+    tmp.write_text(yaml.safe_dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8")
     tmp.replace(p)
 
 
 def append_event(run_id: str, event: dict) -> None:
     p = timeline_path(run_id)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a") as f:
+    with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(event) + "\n")
 
 
@@ -213,7 +213,7 @@ def _read_last_h2(audit_path: Path) -> tuple[str, str] | None:
     if not audit_path.exists():
         return None
     last = None
-    for line in audit_path.read_text().splitlines():
+    for line in audit_path.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             last = line
     if not last:
@@ -284,7 +284,7 @@ def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> 
     with _flock(audit):
         if not audit.exists():
             audit.parent.mkdir(parents=True, exist_ok=True)
-            audit.write_text("# Audit Log\n\n")
+            audit.write_text("# Audit Log\n\n", encoding="utf-8")
 
         last = _read_last_h2(audit)
         new_rest = f"{phase} - {label}"
@@ -301,13 +301,13 @@ def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> 
                 pass  # unparseable — let it through rather than blocking
 
         # Build the block. Always separate from preceding content by a blank line.
-        prior = audit.read_text()
+        prior = audit.read_text(encoding="utf-8")
         sep = "" if prior.endswith("\n\n") else ("\n" if prior.endswith("\n") else "\n\n")
         block = f"{sep}## {ts} {new_rest}\n"
         for b in bullets:
             block += f"- {b}\n"
         block += "\n"
-        with audit.open("a") as f:
+        with audit.open("a", encoding="utf-8") as f:
             f.write(block)
     return True
 
@@ -375,7 +375,7 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
     if appended:
         print(ts)
     else:
-        print(f"{ts} (dedupe skipped — identical block already present)")
+        print(f"{ts} (dedupe skipped -- identical block already present)")
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -387,7 +387,7 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     orch_version = "unknown"
     if SCRIPTS_VERSION.exists():
-        orch_version = SCRIPTS_VERSION.read_text().strip()
+        orch_version = SCRIPTS_VERSION.read_text(encoding="utf-8").strip()
     manifest = {
         "run_id": args.run_id,
         "started_at": now_iso(),
@@ -435,12 +435,12 @@ def _reconcile_state(run_id: str) -> dict:
     manifest_p = manifest_path(run_id)
     if not manifest_p.exists():
         return drift
-    manifest = yaml.safe_load(manifest_p.read_text()) or {}
+    manifest = yaml.safe_load(manifest_p.read_text(encoding="utf-8")) or {}
 
     timeline_p = timeline_path(run_id)
     timeline_stages: set[str] = set()
     if timeline_p.exists():
-        for line in timeline_p.read_text().splitlines():
+        for line in timeline_p.read_text(encoding="utf-8").splitlines():
             try:
                 e = json.loads(line)
                 if e.get("evt") == "stage_complete" and e.get("stage"):
@@ -523,7 +523,7 @@ def _print_latency(run_id: str, manifest: dict) -> None:
         print("no timeline available")
         return
     events: list[dict] = []
-    for line in timeline_p.read_text().splitlines():
+    for line in timeline_p.read_text(encoding="utf-8").splitlines():
         try:
             events.append(json.loads(line))
         except json.JSONDecodeError:
@@ -538,23 +538,23 @@ def _print_latency(run_id: str, manifest: dict) -> None:
         elif e.get("evt") == "user_decision":
             sd = e.get("ts")
 
-    lines = [f"Approval Gate Latency: {run_id}", "─" * 60]
+    lines = [f"Approval Gate Latency: {run_id}", "-" * 60]
     if ne and sd:
         try:
             from datetime import datetime as dt
             dur = (dt.fromisoformat(sd) - dt.fromisoformat(ne)).total_seconds() / 60.0
-            lines.append(f"  needs_human → user_decision:  {dur:.1f}m")
+            lines.append(f"  needs_human -> user_decision:  {dur:.1f}m")
         except (ValueError, TypeError):
-            lines.append("  needs_human → user_decision:  parse error")
+            lines.append("  needs_human -> user_decision:  parse error")
     elif ne:
-        lines.append("  needs_human → user_decision:  pending (no decision yet)")
+        lines.append("  needs_human -> user_decision:  pending (no decision yet)")
     if sp and sd:
         try:
             from datetime import datetime as dt
             total = (dt.fromisoformat(sd) - dt.fromisoformat(sp)).total_seconds() / 60.0
-            lines.append(f"  spawn_end → user_decision:   {total:.1f}m")
+            lines.append(f"  spawn_end -> user_decision:   {total:.1f}m")
         except (ValueError, TypeError):
-            lines.append("  spawn_end → user_decision:    parse error")
+            lines.append("  spawn_end -> user_decision:    parse error")
 
     # Per-stage latency from timeline
     stage_events: dict[str, dict] = {}
@@ -585,11 +585,11 @@ def _print_latency(run_id: str, manifest: dict) -> None:
             try:
                 from datetime import datetime as dt
                 gate = (dt.fromisoformat(ts["decision"]) - dt.fromisoformat(ts["needs_human"])).total_seconds() / 60.0
-                lines.append(f"  {stage:30s}  └─ approval gate: {gate:.1f}m")
+                lines.append(f"  {stage:30s}  +- approval gate: {gate:.1f}m")
             except (ValueError, TypeError):
                 pass
 
-    lines.append("─" * 60)
+    lines.append("-" * 60)
     print("\n".join(lines))
 
 
@@ -696,7 +696,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
 
     # Version compatibility check
     if SCRIPTS_VERSION.exists():
-        current_ver = SCRIPTS_VERSION.read_text().strip()
+        current_ver = SCRIPTS_VERSION.read_text(encoding="utf-8").strip()
         manifest_ver = manifest.get("orchestrator_version", "0.0.0")
         if manifest_ver != current_ver:
             result["version_warning"] = (
@@ -781,7 +781,7 @@ def cmd_graph(args: argparse.Namespace) -> None:
 
     # Parse events
     events: list[dict] = []
-    for line in timeline_p.read_text().splitlines():
+    for line in timeline_p.read_text(encoding="utf-8").splitlines():
         try:
             events.append(json.loads(line))
         except json.JSONDecodeError:
@@ -816,7 +816,7 @@ def cmd_graph(args: argparse.Namespace) -> None:
     wall_used = 0.0
     if budget_p and budget_p.exists():
         try:
-            budget_data = yaml.safe_load(budget_p.read_text()) or {}
+            budget_data = yaml.safe_load(budget_p.read_text(encoding="utf-8")) or {}
             token_used = int(budget_data.get("used", {}).get("tokens", 0))
             wall_used = float(budget_data.get("used", {}).get("wall_clock_min", 0.0))
             token_max = int(budget_data.get("budget", {}).get("tokens_max", token_max))
@@ -826,19 +826,19 @@ def cmd_graph(args: argparse.Namespace) -> None:
 
     # Only show PHASE_ORDER stages
     bar_width = 12
-    lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "─" * 60]
+    lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "-" * 60]
     for stage in PHASE_ORDER:
         stats = stage_stats.get(stage, {})
         status = "  "
         prefix = "  "
         if stage in completed:
-            status = "✅"
+            status = "[OK]"
         elif stage in failed:
-            status = "❌"
+            status = "[FAIL]"
         elif stage in skipped:
-            status = "⚠️"
+            status = "[WARN]"
         elif manifest.get("current_stage") == stage:
-            status = "▶️ "
+            status = "> "
 
         duration_str = ""
         if stats.get("start") and stats.get("end"):
@@ -849,17 +849,17 @@ def cmd_graph(args: argparse.Namespace) -> None:
                 dur = (e - s).total_seconds() / 60.0
                 duration_str = f"{dur:.1f}m"
                 fill = min(int(dur / 5), bar_width)
-                bar = "█" * fill + "░" * (bar_width - fill)
+                bar = "#" * fill + "." * (bar_width - fill)
             except (ValueError, TypeError):
-                bar = "░" * bar_width
+                bar = "." * bar_width
         else:
-            bar = "░" * bar_width
+            bar = "." * bar_width
 
         lines.append(f"  {stage:30s} {bar} {duration_str:8s} {status}")
 
     token_pct = round((token_used / token_max) * 100, 1) if token_max > 0 else 0
     wall_pct = round((wall_used / wall_max) * 100, 1) if wall_max > 0 else 0
-    lines.append("─" * 60)
+    lines.append("-" * 60)
     lines.append(
         f"Budget: {token_used:,} / {token_max:,} tokens ({token_pct}%)  "
         f"{wall_used} / {wall_max} min ({wall_pct}%)"
@@ -874,11 +874,11 @@ def cmd_tail(args: argparse.Namespace) -> None:
         _die(f"no timeline at {p}")
 
     if not args.follow:
-        for line in p.read_text().splitlines():
+        for line in p.read_text(encoding="utf-8").splitlines():
             _print_event(line, args.json)
         return
 
-    with p.open() as f:
+    with p.open(encoding="utf-8") as f:
         for line in f:
             _print_event(line.rstrip("\n"), args.json)
         try:

@@ -100,7 +100,16 @@
         "additionalProperties": false
       },
       "default": []
-    }
+    },
+    "run_id": { "type": "string", "description": "Orchestrator run ID injected by the agent" },
+    "stage_id": { "const": "code-generator" },
+    "files_written": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files written by the code generator during this unit",
+      "default": []
+    },
+    "plan_artifact_path": { "type": "string", "description": "Path to the plan artifact for this unit" }
   },
   "additionalProperties": false
 }

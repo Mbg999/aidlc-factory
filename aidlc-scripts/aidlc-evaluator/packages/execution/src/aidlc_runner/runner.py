@@ -282,7 +282,7 @@ def run(config: RunnerConfig, vision_path: Path, tech_env_path: Path | None = No
         if test_results_path:
             print(f"Test results written to: {test_results_path}")
         else:
-            print("No testable project detected in workspace/ — skipped.")
+            print("No testable project detected in workspace/ -- skipped.")
     else:
         print("Post-run test evaluation disabled.")
 

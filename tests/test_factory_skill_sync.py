@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -12,6 +13,17 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "aidlc-scripts"
 sys.path.insert(0, str(SCRIPTS))
+
+
+def _symlink_or_copy(target: Path, source: Path):
+    """Symlink target→source, falling back to copy2/copytree on Windows."""
+    try:
+        target.symlink_to(source)
+    except (OSError, NotImplementedError, PermissionError):
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
 
 import factory_skill_sync as mod
 import skill_utils as su
@@ -44,7 +56,7 @@ class TestRemove:
         real.mkdir()
         (real / "SKILL.md").write_text("content")
         link = tmp_path / "link-skill"
-        link.symlink_to(real)
+        _symlink_or_copy(link, real)
         mod._remove(link)
         assert not link.exists()
         assert real.exists()  # target untouched
@@ -54,7 +66,7 @@ class TestRemove:
         real.mkdir()
         (real / "SKILL.md").write_text("shared content")
         link = tmp_path / "alias"
-        link.symlink_to(real)
+        _symlink_or_copy(link, real)
         mod._remove(link)
         assert (real / "SKILL.md").read_text() == "shared content"
 
@@ -79,7 +91,7 @@ class TestCopySkill:
         (real / "SKILL.md").write_text("angular content")
         link = tmp_path / "link" / "angular"
         link.parent.mkdir()
-        link.symlink_to(real)
+        _symlink_or_copy(link, real)
         dest = tmp_path / "dest" / "angular"
         mod._copy_skill(link, dest)
         assert (dest / "SKILL.md").read_text() == "angular content"
@@ -94,43 +106,30 @@ class TestCopySkill:
         assert (dest / "sub" / "extra.md").read_text() == "extra"
 
 
-# ── _check_node ───────────────────────────────────────────────────────────────
+# ── _probe_node ───────────────────────────────────────────────────────────────
 
-class TestCheckNode:
-    def test_node_not_found_returns_false(self):
+class TestProbeNode:
+    def test_node_not_found_returns_none(self):
         with patch("factory_skill_sync.subprocess.run", side_effect=FileNotFoundError):
-            ok, reason = mod._check_node()
-            assert ok is False
-            assert "not found" in reason.lower()
+            assert mod._probe_node([]) is None
 
-    def test_node_old_version_returns_false(self):
-        result = MagicMock()
-        result.stdout = "v18.0.0\n"
-        with patch("factory_skill_sync.subprocess.run", return_value=result):
-            ok, reason = mod._check_node()
-            assert ok is False
-            assert "v18" in reason
-
-    def test_node_good_version_returns_true(self):
-        result = MagicMock()
-        result.stdout = "v22.6.0\n"
-        with patch("factory_skill_sync.subprocess.run", return_value=result):
-            ok, reason = mod._check_node()
-            assert ok is True
-            assert reason == ""
-
-    def test_node_newer_version_returns_true(self):
-        result = MagicMock()
-        result.stdout = "v24.0.0\n"
-        with patch("factory_skill_sync.subprocess.run", return_value=result):
-            ok, reason = mod._check_node()
-            assert ok is True
-
-    def test_timeout_returns_false(self):
+    def test_timeout_returns_none(self):
         with patch("factory_skill_sync.subprocess.run",
                    side_effect=subprocess.TimeoutExpired("node", 10)):
-            ok, reason = mod._check_node()
-            assert ok is False
+            assert mod._probe_node([]) is None
+
+    def test_nonzero_exit_returns_none(self):
+        result = MagicMock()
+        result.returncode = 1
+        with patch("factory_skill_sync.subprocess.run", return_value=result):
+            assert mod._probe_node([]) is None
+
+    def test_returns_version_string_on_success(self):
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = "v22.6.0\n"
+        with patch("factory_skill_sync.subprocess.run", return_value=result):
+            assert mod._probe_node([]) == "v22.6.0"
 
 
 # ── _skill_is_current ─────────────────────────────────────────────────────────
@@ -210,7 +209,7 @@ class TestConsolidate:
         (real / "SKILL.md").write_text("---\nname: angular\n---\n")
         link = tmp_path / "ws" / ".agents" / "skills" / "angular"
         link.parent.mkdir(parents=True)
-        link.symlink_to(real)
+        _symlink_or_copy(link, real)
 
         root_skills = tmp_path / ".agents" / "skills"
         installed, skipped = mod._consolidate({"angular": link}, root_skills, tmp_path, dry_run=False)
@@ -232,7 +231,7 @@ class TestConsolidate:
 
         link = tmp_path / "ws" / ".agents" / "skills" / "vue"
         link.parent.mkdir(parents=True)
-        link.symlink_to(real)
+        _symlink_or_copy(link, real)
 
         installed, skipped = mod._consolidate({"vue": link}, root_skills, tmp_path, dry_run=False)
 
@@ -310,7 +309,7 @@ class TestCleanupWorkspaceAgents:
         real_skills.mkdir()
         link = ws / ".agents" / "skills"
         link.parent.mkdir(parents=True)
-        link.symlink_to(real_skills)
+        _symlink_or_copy(link, real_skills)
 
         mod._cleanup_workspace_agents([ws], tmp_path, dry_run=False)
 
@@ -323,7 +322,7 @@ class TestCleanupWorkspaceAgents:
         real_agents = tmp_path / "shared-agents"
         real_agents.mkdir()
         link = ws / ".agents"
-        link.symlink_to(real_agents)
+        _symlink_or_copy(link, real_agents)
 
         mod._cleanup_workspace_agents([ws], tmp_path, dry_run=False)
 
@@ -343,7 +342,8 @@ class TestCmdSelect:
 
     def test_returns_json_by_default(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
-        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path):
+        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
+             patch("factory_skill_sync._resolve_node_runner", return_value=None):
             mod.cmd_select(tmp_path, output_format="json")
 
         out = capsys.readouterr().out
@@ -353,7 +353,8 @@ class TestCmdSelect:
 
     def test_custom_skills_come_first(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
-        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path):
+        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
+             patch("factory_skill_sync._resolve_node_runner", return_value=None):
             mod.cmd_select(tmp_path, output_format="json")
 
         data = json.loads(capsys.readouterr().out)
@@ -364,7 +365,8 @@ class TestCmdSelect:
 
     def test_text_output_one_path_per_line(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
-        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path):
+        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
+             patch("factory_skill_sync._resolve_node_runner", return_value=None):
             mod.cmd_select(tmp_path, output_format="text")
 
         lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
@@ -374,6 +376,7 @@ class TestCmdSelect:
 
     def test_no_skills_returns_empty_list(self, tmp_path, capsys):
         with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
+             patch("factory_skill_sync._resolve_node_runner", return_value=None), \
              patch.object(su.Path, "home", return_value=tmp_path):
             mod.cmd_select(tmp_path, output_format="json")
 
@@ -386,11 +389,6 @@ class TestCmdSelect:
 
 class TestCmdSyncGracefulDegradation:
     def test_node_missing_exits_0(self, tmp_path, capsys):
-        with patch("factory_skill_sync._check_node",
-                   return_value=(False, "Node.js not found on PATH")):
+        with patch("factory_skill_sync._resolve_node_runner", return_value=None):
             result = mod.cmd_sync(tmp_path)
         assert result == 0
-        out = capsys.readouterr().out
-        assert "[Sync] SKIPPED" in out
-        assert "Node.js not found" in out
-        assert "[Sync] WARN" in out

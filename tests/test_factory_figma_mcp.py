@@ -83,7 +83,7 @@ class TestCheckNode:
 class TestCheckNpx:
     @patch("factory_figma_mcp.shutil.which")
     def test_npx_found(self, mock_which):
-        mock_which.return_value = "/usr/local/bin/npx"
+        mock_which.return_value = "npx"
         assert mod._check_npx() is True
 
     @patch("factory_figma_mcp.shutil.which")
@@ -95,7 +95,7 @@ class TestCheckNpx:
 class TestDoctor:
     @patch("factory_figma_mcp._check_node", return_value=(True, "v20.11.0"))
     @patch("factory_figma_mcp._check_npx", return_value=True)
-    @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")
+    @patch("factory_figma_mcp.shutil.which", return_value="curl")
     @patch("factory_figma_mcp.subprocess.run")
     def test_remote_mode_ok(self, mock_run, *_):
         mock_run.return_value = MagicMock(stdout="200\n", returncode=0)
@@ -103,7 +103,7 @@ class TestDoctor:
         assert result["overall"] == "ok"
         assert result["endpoint"]["ok"] is True
 
-    @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")
+    @patch("factory_figma_mcp.shutil.which", return_value="curl")
     @patch("factory_figma_mcp.subprocess.run")
     def test_remote_curl_no_dev_null_arg(self, mock_run, *_):
         """Bug 6 regression: uses os.devnull instead of hardcoded /dev/null."""
@@ -122,7 +122,7 @@ class TestDoctor:
 
     @patch("factory_figma_mcp._check_node", return_value=(True, "v20.11.0"))
     @patch("factory_figma_mcp._check_npx", return_value=True)
-    @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")
+    @patch("factory_figma_mcp.shutil.which", return_value="curl")
     @patch("factory_figma_mcp.subprocess.run")
     def test_remote_mode_405_is_degraded(self, mock_run, *_):
         mock_run.return_value = MagicMock(stdout="405\n", returncode=0)
@@ -171,7 +171,7 @@ class TestDoctor:
 
     @patch("factory_figma_mcp._check_node", return_value=(True, "v20.11.0"))
     @patch("factory_figma_mcp._check_npx", return_value=True)
-    @patch("factory_figma_mcp.shutil.which", return_value="/usr/bin/curl")
+    @patch("factory_figma_mcp.shutil.which", return_value="curl")
     @patch("factory_figma_mcp.subprocess.run")
     def test_auto_mode_fallback_to_community(self, mock_run, *_):
         mock_run.return_value = MagicMock(stdout="500\n", returncode=0)

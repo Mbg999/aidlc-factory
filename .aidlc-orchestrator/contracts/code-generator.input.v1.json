@@ -24,7 +24,6 @@
     "repo_root": { "type": "string", "default": ".", "description": "FAST_PATH working directory" },
     "model_override": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
     },
     "design_system_path": {

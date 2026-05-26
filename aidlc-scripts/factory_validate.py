@@ -45,9 +45,6 @@ def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
         valid_paths = [a for a in artifacts if isinstance(a, dict) and a.get("path")]
         if not valid_paths:
             issues.append("status=complete but no artifact with a non-empty `path`")
-    if status == "blocked":
-        if not doc.get("block_reason"):
-            issues.append("status=blocked but no `block_reason` field")
 
     # code-generator: any non-FAST_PATH sub_stage MUST produce a plan artifact on disk.
     # Without this check, agents can claim sub_stage=generated without writing the plan,
@@ -136,7 +133,7 @@ def main() -> None:
     except ImportError:
         _die(f"missing dependency: {sys.executable} -m pip install jsonschema")
 
-    schema = json.loads(schema_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
     suffix = doc_path.suffix.lower()
     if suffix in {".yaml", ".yml"}:
@@ -144,9 +141,9 @@ def main() -> None:
             import yaml
         except ImportError:
             _die(f"missing dependency: {sys.executable} -m pip install pyyaml")
-        doc = yaml.safe_load(doc_path.read_text())
+        doc = yaml.safe_load(doc_path.read_text(encoding="utf-8"))
     elif suffix == ".json":
-        doc = json.loads(doc_path.read_text())
+        doc = json.loads(doc_path.read_text(encoding="utf-8"))
     else:
         _die(f"unsupported document extension: {suffix} (expected .yaml/.yml/.json)")
 

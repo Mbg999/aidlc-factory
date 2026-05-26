@@ -11,9 +11,10 @@
     "predecessor_artifacts": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "workspace_state": {
       "type": "object",
+      "additionalProperties": true,
       "properties": {
         "project_type": { "type": "string", "description": "Type of project (greenfield, legacy, monorepo, etc.)" },
-        "existing_code": { "type": "string", "description": "Description of existing codebase" },
+        "existing_code": { "type": "boolean", "description": "Whether existing code was detected in the workspace" },
         "next_phase": { "type": "string", "description": "Next phase recommendation from workspace-scout" },
         "tech_stack_summary": { "type": "string", "description": "Detected technology stack summary" },
         "legacy_patterns": { "type": "array", "items": { "type": "string" }, "description": "Patterns detected in legacy code" }
@@ -28,7 +29,6 @@
     "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
     "model_override": {
       "type": "string",
-      "enum": ["sonnet", "opus", "haiku"],
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
     }
   },

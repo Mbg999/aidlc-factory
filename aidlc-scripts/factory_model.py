@@ -58,7 +58,7 @@ def resolve(stage: str, budget_path: Path | None = None) -> str:
     bp = budget_path or DEFAULT_BUDGET
     if bp.exists() and yaml:
         try:
-            budget = yaml.safe_load(bp.read_text())
+            budget = yaml.safe_load(bp.read_text(encoding="utf-8"))
             per_stage = budget.get("per_stage", {})
             # reviewer-* wildcard fallback
             entry = per_stage.get(stage)

@@ -706,116 +706,83 @@ class TestEngramIntegration:
         assert "engram" in config.get("mcpServers", {})
 
 
-# ---------- _filter_mcp_config ----------
+# ---------- _apply_mcp_config ----------
 
-class TestFilterMCPConfig:
-    def test_removes_stitch_when_not_selected(self, tmp_path: Path):
+class TestApplyMCPConfig:
+    def test_adds_stitch_and_figma_when_opted_in(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text(json.dumps({
             "mcpServers": {
                 "context7": {"command": "npx", "args": ["-y", "context7"]},
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
             }
         }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=True, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "stitch" not in data["mcpServers"]
+        assert "stitch" in data["mcpServers"]
         assert "figma" in data["mcpServers"]
         assert "context7" in data["mcpServers"]
 
-    def test_removes_figma_when_not_selected(self, tmp_path: Path):
+    def test_adds_only_stitch_when_only_stitch_opted(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "figma" not in data["mcpServers"]
         assert "stitch" in data["mcpServers"]
+        assert "figma" not in data["mcpServers"]
 
-    def test_removes_both_when_none_selected(self, tmp_path: Path):
+    def test_adds_only_figma_when_only_figma_opted(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=True, dry_run=False)
+        data = json.loads(cfg.read_text())
+        assert "figma" in data["mcpServers"]
+        assert "stitch" not in data["mcpServers"]
+
+    def test_adds_nothing_when_both_skipped(self, tmp_path: Path):
+        cfg = tmp_path / ".mcp.json"
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
         assert "stitch" not in data["mcpServers"]
         assert "figma" not in data["mcpServers"]
 
-    def test_keeps_both_when_selected(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" in data["mcpServers"]
-        assert "figma" in data["mcpServers"]
-
-    def test_handles_opencode_format(self, tmp_path: Path):
+    def test_adds_opencode_format_correctly(self, tmp_path: Path):
         cfg = tmp_path / "opencode.json"
-        cfg.write_text(json.dumps({
-            "mcp": {
-                "stitch": {"type": "local", "command": ["npx", "-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=True, dry_run=False)
+        cfg.write_text(json.dumps({"mcp": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="opencode", with_stitch=False, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "stitch" not in data["mcp"]
         assert "figma" in data["mcp"]
+        assert data["mcp"]["figma"]["enabled"] is True
 
-    def test_handles_vscode_format(self, tmp_path: Path):
+    def test_adds_vscode_format_correctly(self, tmp_path: Path):
         cfg = tmp_path / ".vscode" / "mcp.json"
         cfg.parent.mkdir(parents=True)
-        cfg.write_text(json.dumps({
-            "servers": {
-                "stitch": {"type": "stdio", "command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"servers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="copilot", with_stitch=True, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "figma" not in data["servers"]
         assert "stitch" in data["servers"]
 
     def test_dry_run_does_not_modify(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        original = {
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }
+        original = {"mcpServers": {}}
         cfg.write_text(json.dumps(original))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=True)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=True)
         data = json.loads(cfg.read_text())
         assert data == original
 
     def test_noop_when_file_missing(self, tmp_path: Path):
         cfg = tmp_path / "nope.json"
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
 
     def test_noop_when_invalid_json(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text("{invalid")
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
 
-    def test_preserves_other_servers_when_no_servers_key(self, tmp_path: Path):
+    def test_preserves_config_when_no_servers_key(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text(json.dumps({"version": 1}))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
         assert data == {"version": 1}
 
@@ -883,9 +850,35 @@ class TestIsWindows:
     def test_returns_bool(self):
         assert isinstance(install_aidlc._is_windows(), bool)
 
-    def test_consistent_with_platform_module(self):
-        import platform
-        assert install_aidlc._is_windows() == (platform.system() == "Windows")
+    def test_true_when_platform_is_windows(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Windows")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_msys(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "msys")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "MSYS_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_mingw(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "MINGW64_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_true_when_cygwin(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "cygwin")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "CYGWIN_NT-10.0-19045")
+        assert install_aidlc._is_windows() is True
+
+    def test_false_on_macos(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Darwin")
+        assert install_aidlc._is_windows() is False
+
+    def test_false_on_linux(self, monkeypatch):
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr(install_aidlc._platform, "system", lambda: "Linux")
+        assert install_aidlc._is_windows() is False
 
 
 # ---------- update_gitignore — force preserves existing content ----------
@@ -993,10 +986,10 @@ class TestWindowsPythonCmds:
         )
 
 
-# ---------- _probe_version (Windows .ps1 fallback) ----------
+# ---------- _probe_version (Windows cmd /c fallback) ----------
 
 class TestProbeVersion:
-    """Unit tests for _probe_version() — especially the Windows .ps1 fallback."""
+    """Unit tests for _probe_version() — especially the Windows cmd /c / pwsh fallback."""
 
     def test_successful_probe(self):
         ok, ver = install_aidlc._probe_version([sys.executable, "--version"])
@@ -1031,7 +1024,28 @@ class TestProbeVersion:
         assert not ok
         assert ver == "not found"
 
-    def test_file_not_found_on_windows_falls_back_to_powershell(self, monkeypatch):
+    def test_cmd_c_succeeds_first_on_windows(self, monkeypatch):
+        """On Windows, cmd /c is tried first — succeed immediately."""
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+
+        calls = []
+
+        def _run(cmd, **kw):
+            calls.append(cmd)
+            mock = MagicMock()
+            mock.returncode = 0
+            mock.stdout = "11.4.2\n"
+            return mock
+
+        monkeypatch.setattr("subprocess.run", _run)
+        ok, ver = install_aidlc._probe_version(["npm", "--version"])
+        assert ok
+        assert ver == "11.4.2"
+        assert len(calls) == 1
+        assert calls[0] == ["cmd", "/c", "npm", "--version"]
+
+    def test_cmd_c_fails_falls_back_to_powershell(self, monkeypatch):
+        """When cmd /c fails, PowerShell is tried next."""
         monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
 
         calls = []
@@ -1039,8 +1053,8 @@ class TestProbeVersion:
         def _run(cmd, **kw):
             calls.append(cmd)
             if len(calls) == 1:
-                raise FileNotFoundError("not found — simulated missing .exe/.cmd")
-            # Second call is the PowerShell fallback — succeed
+                raise FileNotFoundError("cmd /c not found")
+            # Second call is PowerShell — succeed
             mock = MagicMock()
             mock.returncode = 0
             mock.stdout = "11.4.2\n"
@@ -1051,11 +1065,36 @@ class TestProbeVersion:
         assert ok
         assert ver == "11.4.2"
         assert len(calls) == 2
-        assert calls[0] == ["npm", "--version"]
+        assert calls[0] == ["cmd", "/c", "npm", "--version"]
         assert "powershell" in calls[1][0].lower()
         assert "npm --version" in " ".join(calls[1])
 
-    def test_file_not_found_windows_fallback_also_fails(self, monkeypatch):
+    def test_cmd_c_and_powershell_fail_falls_back_to_direct(self, monkeypatch):
+        """When cmd /c and PowerShell both fail, raw subprocess is tried last."""
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+
+        calls = []
+
+        def _run(cmd, **kw):
+            calls.append(cmd)
+            if len(calls) <= 2:
+                raise FileNotFoundError("not found")
+            # Third call is raw subprocess — succeed
+            mock = MagicMock()
+            mock.returncode = 0
+            mock.stdout = "11.4.2\n"
+            return mock
+
+        monkeypatch.setattr("subprocess.run", _run)
+        ok, ver = install_aidlc._probe_version(["npm", "--version"])
+        assert ok
+        assert ver == "11.4.2"
+        assert len(calls) == 3
+        assert calls[0] == ["cmd", "/c", "npm", "--version"]
+        assert "powershell" in calls[1][0].lower()
+        assert calls[2] == ["npm", "--version"]
+
+    def test_all_windows_fallbacks_fail(self, monkeypatch):
         monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
 
         def _raise(*a, **kw):
@@ -1083,3 +1122,69 @@ class TestProbeVersion:
         ok, ver = install_aidlc._probe_version(["cmd", "--version"])
         assert ok
         assert ver == "first line"
+
+
+# ---------- _check_node_version (Windows cmd /c fallback) ----------
+
+class TestCheckNodeVersion:
+    def test_ok_when_version_sufficient(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stdout = "v22.0.0\n"
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        ok, ver = install_aidlc._check_node_version(18)
+        assert ok
+        assert ver == "v22.0.0"
+
+    def test_fail_when_version_too_low(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stdout = "v16.0.0\n"
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock)
+        ok, ver = install_aidlc._check_node_version(18)
+        assert not ok
+        assert ver == "v16.0.0"
+
+    def test_cmd_c_on_windows(self, monkeypatch):
+        """On Windows, _check_node_version uses cmd /c to resolve node.exe."""
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+
+        calls = []
+
+        def _run(cmd, **kw):
+            calls.append(cmd)
+            mock = MagicMock()
+            mock.returncode = 0
+            mock.stdout = "v22.0.0\n"
+            return mock
+
+        monkeypatch.setattr("subprocess.run", _run)
+        ok, ver = install_aidlc._check_node_version(18)
+        assert ok
+        assert ver == "v22.0.0"
+        assert len(calls) == 1
+        assert calls[0] == ["cmd", "/c", "node", "--version"]
+
+    def test_file_not_found_returns_not_found(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        def _raise(*a, **kw):
+            raise FileNotFoundError("not found")
+        monkeypatch.setattr("subprocess.run", _raise)
+        ok, ver = install_aidlc._check_node_version(18)
+        assert not ok
+        assert ver == "not found"
+
+    def test_timeout_returns_not_found(self, monkeypatch):
+        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+
+        def _raise(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="node", timeout=10)
+        monkeypatch.setattr("subprocess.run", _raise)
+        ok, ver = install_aidlc._check_node_version(18)
+        assert not ok
+        assert ver == "not found"
