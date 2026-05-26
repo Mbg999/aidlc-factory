@@ -65,9 +65,33 @@ unit, version-bump without rationale, missing migration plan when
       ```
    d. Enforce memory cap:
       ```bash
-      python3 aidlc-scripts/factory_design_system_resolve.py trim
+      python3 aidlc-scripts/factory_design_system_learn.py trim
       ```
    e. Log each saved example in `audit_entries[]`
+
+8. (Conditional) **Drift baseline reinforcement** → if drift snapshots exist
+   in `design-system/screenshots/snapshots/`:
+   a. Check for drift snapshot pairs where the human approved (status: complete,
+      or drift was below warning threshold):
+      - Current snapshot at `<run-id>/<unit-name>-current.json`
+      - If no baseline exists, copy current → baseline to establish initial baseline
+   b. For each approved unit with a drift snapshot, promote the current snapshot
+      to the new canonical baseline:
+      ```bash
+      python3 aidlc-scripts/factory_drift_detect.py diff-structural \
+          --baseline design-system/screenshots/snapshots/<unit-name>-baseline.json \
+          --current design-system/screenshots/snapshots/<unit-name>-current.json
+      ```
+      If `passed == true` or user approved, copy current over baseline:
+      ```bash
+      cp design-system/screenshots/snapshots/<unit-name>-current.json \
+         design-system/screenshots/snapshots/<unit-name>-baseline.json
+      ```
+   c. Emit knowledge entries for each reinforced baseline:
+      - `kind: drift_baseline_updated`, `confidence: 0.9`
+      - `body`: What/Why/Where/Learned format. What: baseline updated for unit.
+        Why: drift approved after review. Where: snapshot paths.
+   d. Log each baseline promotion in `audit_entries[]` with `[Drift]` prefix
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/ship-agent.output.yaml`.

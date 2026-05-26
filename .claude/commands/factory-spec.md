@@ -34,6 +34,12 @@ Execute the Phase 0 sequence end-to-end:
    orchestrator.md Step 3.5):
    - Set `project_profile.ui/api/has_legacy` via `factory_run.py set --field` based
      on heuristics from workspace-scout's output + user_request.
+   - **If `ui: true` AND `design-system/` doesn't exist at repo root**:
+     ```bash
+     python3 aidlc-scripts/factory_ds_bootstrap.py init
+     ```
+     Then set `project_profile.design_system_path = "design-system/"`.
+     Log `[Bootstrap] Created default design system at design-system/`.
    - If workspace-scout flagged `next_phase: reverse-engineering` AND no RE
      artifacts present → surface the approval gate to the user. If yes, spawn
      `reverse-engineer` stage before requirements-analyst. If no, mark

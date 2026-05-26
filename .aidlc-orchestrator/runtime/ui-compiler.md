@@ -2,6 +2,11 @@
 
 PRIORITY: P2
 
+The LLM generates **intent** using primitives and semantic tokens.
+The "compiler" is the process the LLM follows — not a separate software component.
+Snap pre-processing (`factory_design_system_snap.py`) cleans the input;
+drift detection (`factory_drift_detect.py`) verifies the output.
+
 Transforms semantic UI intent into token-compliant code. Runs as a
 post-processing step in code-generator's TDD loop, applied after each
 Green step.
