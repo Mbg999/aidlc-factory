@@ -706,116 +706,83 @@ class TestEngramIntegration:
         assert "engram" in config.get("mcpServers", {})
 
 
-# ---------- _filter_mcp_config ----------
+# ---------- _apply_mcp_config ----------
 
-class TestFilterMCPConfig:
-    def test_removes_stitch_when_not_selected(self, tmp_path: Path):
+class TestApplyMCPConfig:
+    def test_adds_stitch_and_figma_when_opted_in(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text(json.dumps({
             "mcpServers": {
                 "context7": {"command": "npx", "args": ["-y", "context7"]},
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
             }
         }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=True, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "stitch" not in data["mcpServers"]
+        assert "stitch" in data["mcpServers"]
         assert "figma" in data["mcpServers"]
         assert "context7" in data["mcpServers"]
 
-    def test_removes_figma_when_not_selected(self, tmp_path: Path):
+    def test_adds_only_stitch_when_only_stitch_opted(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "figma" not in data["mcpServers"]
         assert "stitch" in data["mcpServers"]
+        assert "figma" not in data["mcpServers"]
 
-    def test_removes_both_when_none_selected(self, tmp_path: Path):
+    def test_adds_only_figma_when_only_figma_opted(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=True, dry_run=False)
+        data = json.loads(cfg.read_text())
+        assert "figma" in data["mcpServers"]
+        assert "stitch" not in data["mcpServers"]
+
+    def test_adds_nothing_when_both_skipped(self, tmp_path: Path):
+        cfg = tmp_path / ".mcp.json"
+        cfg.write_text(json.dumps({"mcpServers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
         assert "stitch" not in data["mcpServers"]
         assert "figma" not in data["mcpServers"]
 
-    def test_keeps_both_when_selected(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" in data["mcpServers"]
-        assert "figma" in data["mcpServers"]
-
-    def test_handles_opencode_format(self, tmp_path: Path):
+    def test_adds_opencode_format_correctly(self, tmp_path: Path):
         cfg = tmp_path / "opencode.json"
-        cfg.write_text(json.dumps({
-            "mcp": {
-                "stitch": {"type": "local", "command": ["npx", "-y", "stitch"]},
-                "figma": {"type": "http", "url": "https://mcp.figma.com/mcp"},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=True, dry_run=False)
+        cfg.write_text(json.dumps({"mcp": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="opencode", with_stitch=False, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "stitch" not in data["mcp"]
         assert "figma" in data["mcp"]
+        assert data["mcp"]["figma"]["enabled"] is True
 
-    def test_handles_vscode_format(self, tmp_path: Path):
+    def test_adds_vscode_format_correctly(self, tmp_path: Path):
         cfg = tmp_path / ".vscode" / "mcp.json"
         cfg.parent.mkdir(parents=True)
-        cfg.write_text(json.dumps({
-            "servers": {
-                "stitch": {"type": "stdio", "command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma"]},
-            }
-        }))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=True, with_figma=False, dry_run=False)
+        cfg.write_text(json.dumps({"servers": {}}))
+        install_aidlc._apply_mcp_config(cfg, tool="copilot", with_stitch=True, with_figma=False, dry_run=False)
         data = json.loads(cfg.read_text())
-        assert "figma" not in data["servers"]
         assert "stitch" in data["servers"]
 
     def test_dry_run_does_not_modify(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
-        original = {
-            "mcpServers": {
-                "stitch": {"command": "npx", "args": ["-y", "stitch"]},
-                "figma": {"command": "npx", "args": ["-y", "figma"]},
-            }
-        }
+        original = {"mcpServers": {}}
         cfg.write_text(json.dumps(original))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=True)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=True)
         data = json.loads(cfg.read_text())
         assert data == original
 
     def test_noop_when_file_missing(self, tmp_path: Path):
         cfg = tmp_path / "nope.json"
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
 
     def test_noop_when_invalid_json(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text("{invalid")
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
 
-    def test_preserves_other_servers_when_no_servers_key(self, tmp_path: Path):
+    def test_preserves_config_when_no_servers_key(self, tmp_path: Path):
         cfg = tmp_path / ".mcp.json"
         cfg.write_text(json.dumps({"version": 1}))
-        install_aidlc._filter_mcp_config(cfg, with_stitch=False, with_figma=False, dry_run=False)
+        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
         data = json.loads(cfg.read_text())
         assert data == {"version": 1}
 

@@ -542,8 +542,25 @@ def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, d
         print(f"  created {claude_md_path.name} with orchestrator pointer")
 
 
-def _filter_mcp_config(config_path: Path, with_stitch: bool, with_figma: bool, dry_run: bool) -> None:
-    """Remove unselected MCP server entries from a copied config file.
+# Stitch MCP entries — format varies per tool config format.
+STITCH_MCP_ENTRIES = {
+    "claude":   {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"], "env": {}}},
+    "cursor":   {"stitch": {"command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
+    "copilot":  {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
+    "opencode": {"stitch": {"type": "local", "command": ["npx", "-y", "@_davideast/stitch-mcp", "proxy"], "enabled": True}},
+}
+
+# Figma MCP entries — format varies per tool config format.
+FIGMA_MCP_ENTRIES = {
+    "claude":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
+    "cursor":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
+    "copilot":  {"figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma-mcp"]}},
+    "opencode": {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp", "enabled": True}},
+}
+
+
+def _apply_mcp_config(config_path: Path, tool: str, with_stitch: bool, with_figma: bool, dry_run: bool) -> None:
+    """Add Stitch/Figma MCP server entries to config only when user opted in.
 
     Handles all config formats:
       - .mcp.json / .cursor/mcp.json: { "mcpServers": { ... } }
@@ -553,6 +570,10 @@ def _filter_mcp_config(config_path: Path, with_stitch: bool, with_figma: bool, d
     if not config_path.exists():
         return
     if dry_run:
+        if with_stitch:
+            print(f"  [DRY-RUN] Would add stitch MCP entry to {config_path.name}")
+        if with_figma:
+            print(f"  [DRY-RUN] Would add figma MCP entry to {config_path.name}")
         return
     import json
     try:
@@ -560,19 +581,23 @@ def _filter_mcp_config(config_path: Path, with_stitch: bool, with_figma: bool, d
     except (json.JSONDecodeError, OSError):
         return
 
-    # Find the servers dict (varies by format)
     servers: dict | None = None
+    servers_key: str | None = None
     for key in ("mcpServers", "servers", "mcp"):
         if key in data and isinstance(data[key], dict):
             servers = data[key]
+            servers_key = key
             break
-    if servers is None:
+    if servers is None or servers_key is None:
         return
 
-    if not with_stitch and "stitch" in servers:
-        del servers["stitch"]
-    if not with_figma and "figma" in servers:
-        del servers["figma"]
+    if with_stitch and "stitch" not in servers:
+        stitch_data = STITCH_MCP_ENTRIES.get(tool, STITCH_MCP_ENTRIES["claude"])
+        servers["stitch"] = stitch_data["stitch"]
+
+    if with_figma and "figma" not in servers:
+        figma_data = FIGMA_MCP_ENTRIES.get(tool, FIGMA_MCP_ENTRIES["claude"])
+        servers["figma"] = figma_data["figma"]
 
     config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
@@ -764,9 +789,10 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 else:
                     print(f"  mcp config -> {mcp_rel}")
                     copy_file(src_mcp, dst_mcp, dry_run)
-                    # Filter out unselected MCP servers (Stitch, Figma)
-                    _filter_mcp_config(
+                    # Add Stitch/Figma MCP servers only when user opted in
+                    _apply_mcp_config(
                         dst_mcp,
+                        tool=tool,
                         with_stitch=bool(args and args.with_stitch_mcp),
                         with_figma=bool(args and args.with_figma_mcp),
                         dry_run=dry_run,
