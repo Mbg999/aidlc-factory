@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""factory_skill_sync.py — Sync skills from autoskills across all workspace dirs.
+"""factory_skill_sync.py — Sync skills using a local clone of autoskills.
 
-Requires: POSIX OS with bash and nvm installed. Does not support Windows (nvm is inherently POSIX).
+Instead of running `npx autoskills`, this script:
+  1. Shallow-clones the autoskills fork into a local cache
+  2. Builds the TypeScript package (cached when already built)
+  3. Runs the compiled CLI directly with `node`
+
+The fork already handles monorepo scanning internally, so this script
+no longer performs its own workspace discovery.
 
 Two subcommands:
 
-  sync   Run `npx autoskills --yes` in every workspace directory, then
-         consolidate all installed skills to <repo-root>/.agents/skills/.
-         Deduplicates by skill name (first seen wins). Idempotent — skips
-         files whose SHA-256 already matches.
+  sync   Run autoskills CLI in the project root. For greenfield projects
+         (no manifest files), pass --tech to force technologies.
 
-  select List all skills currently installed across all tiers and output
-         their paths for use in stage input handoffs (skill_paths_resolved[]).
+  select List all skills currently installed and output their paths for use
+         in stage input handoffs (skill_paths_resolved[]).
 
 Usage:
-    python3 aidlc-scripts/factory_skill_sync.py sync [--repo-root PATH] [--dry-run]
+    python3 aidlc-scripts/factory_skill_sync.py sync [--repo-root PATH] [--dry-run] [--tech react,nextjs]
     python3 aidlc-scripts/factory_skill_sync.py select [--repo-root PATH] [--output json|text]
 
 Exit codes:
@@ -26,6 +30,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -37,26 +42,30 @@ _SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT_DEFAULT = _SCRIPT_DIR.parent
 
 sys.path.insert(0, str(_SCRIPT_DIR))
-from skill_utils import discover_skills, find_workspace_dirs, sha256_file
+from skill_utils import discover_skills, sha256_file
 
 
-# ── Node.js resolution ────────────────────────────────────────────────────────
-#
-# autoskills (the upstream Node CLI) requires Node >= 22.12.0. If the system
-# Node satisfies that, we use it directly. Otherwise we try a chain of node
-# version managers (fnm → volta → nvm) to source a compatible Node without
-# asking the user to install anything globally. If none of those work we skip
-# silently — autoskills is best-effort, never blocking.
+# ── Constants ─────────────────────────────────────────────────────────────────
 
-NODE_MIN_VERSION = "22.12.0"
-_NODE_MIN_TUPLE = (22, 12, 0)
+AUTOSKILLS_REPO = "https://github.com/Mbg999/autoskills-for-aidlc-factory.git"
+AUTOSKILLS_PKG_DIR = Path("packages/autoskills")
+AUTOSKILLS_CACHE_DIR = Path(".autoskills-cache")
+AUTOSKILLS_ENTRY = AUTOSKILLS_PKG_DIR / "dist" / "main.js"
+AUTOSKILLS_NODE_MIN = (22, 6, 0)
 
+# Manifest files used to detect whether a project is greenfield.
+_MANIFEST_FILES = frozenset({
+    "package.json", "pyproject.toml", "Cargo.toml", "go.mod",
+    "requirements.txt", "setup.py", "Pipfile", "Gemfile",
+    "composer.json", "build.gradle", "build.gradle.kts", "pom.xml",
+    "deno.json", "deno.jsonc", "bun.lockb", "bun.lock", "bunfig.toml",
+})
+
+
+# ── Node.js resolution (simplified) ───────────────────────────────────────────
 
 def _parse_node_version(version_str: str) -> tuple[int, int, int] | None:
-    """Parse 'v22.12.0' / '22.12.0' / '22.12' / '22' → (major, minor, patch).
-
-    Returns None if the string can't be parsed.
-    """
+    """Parse 'v22.12.0' / '22.12.0' / '22.12' / '22' → (major, minor, patch)."""
     raw = version_str.strip().lstrip("v")
     if not raw:
         return None
@@ -70,136 +79,160 @@ def _parse_node_version(version_str: str) -> tuple[int, int, int] | None:
     return (nums[0], nums[1], nums[2])
 
 
-def _meets_min(version_str: str) -> bool:
-    parsed = _parse_node_version(version_str)
-    return parsed is not None and parsed >= _NODE_MIN_TUPLE
+def _resolve_node() -> tuple[list[str], str] | None:
+    """Find Node >= 22.6.0. Returns (prefix cmd list, label) or None."""
+    for cmd in (["node"], ["fnm", "exec", "--using=22", "--"],
+                ["volta", "run", "--node", "22"]):
+        try:
+            result = subprocess.run(
+                cmd + ["--version"], capture_output=True, text=True, timeout=10
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            continue
+        if result.returncode != 0:
+            continue
+        version = result.stdout.strip()
+        parsed = _parse_node_version(version)
+        if parsed is not None and parsed >= AUTOSKILLS_NODE_MIN:
+            return cmd, f"{cmd[0]} ({version})"
 
-
-def _probe_node(cmd: list[str], *, timeout: int = 30) -> str | None:
-    """Run `<cmd> node --version` and return version string if it succeeds."""
-    try:
-        result = subprocess.run(
-            cmd + ["node", "--version"],
-            capture_output=True, text=True, timeout=timeout,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip()
-
-
-def _probe_shell(shell_cmd: str, *, timeout: int = 180) -> str | None:
-    """Run a bash login shell command, expect Node version on last line."""
-    try:
-        result = subprocess.run(
-            ["bash", "-lc", shell_cmd],
-            capture_output=True, text=True, timeout=timeout,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return None
-    if result.returncode != 0:
-        return None
-    # Last non-empty line is the version (other lines may be nvm noise)
-    lines = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
-    return lines[-1] if lines else None
-
-
-# Sentinel returned by _resolve_node_runner to signal "wrap commands in a
-# bash login shell with nvm sourced". _run_autoskills knows how to handle it.
-_NVM_SHELL_SENTINEL = "__NVM_SHELL__"
-
-
-def _resolve_node_runner() -> tuple[list[str], str] | None:
-    """Find a way to invoke `npx` with Node >= 22.12.0.
-
-    Returns (prefix, source_label) or None.
-
-    Resolution order (fastest first):
-      1. System `node` already on PATH at correct version → prefix = []
-      2. fnm    → prefix = ["fnm", "exec", "--using=22", "--"]
-      3. volta  → prefix = ["volta", "run", "--node", "22"]
-      4. nvm    → prefix = [_NVM_SHELL_SENTINEL, "<path to nvm.sh>"]
-                  (handled specially by _run_autoskills)
-    """
-    # 1. System node
-    version = _probe_node([])
-    if version and _meets_min(version):
-        return [], f"system node {version}"
-
-    # 2. fnm — binary, fast to probe
-    if shutil.which("fnm"):
-        version = _probe_node(["fnm", "exec", "--using=22", "--"])
-        if version and _meets_min(version):
-            return ["fnm", "exec", "--using=22", "--"], f"fnm ({version})"
-
-    # 3. volta — binary, fast to probe
-    if shutil.which("volta"):
-        version = _probe_node(["volta", "run", "--node", "22"])
-        if version and _meets_min(version):
-            return ["volta", "run", "--node", "22"], f"volta ({version})"
-
-    # 4. nvm — shell function; must be sourced. Will install Node 22 if absent.
+    # nvm fallback
     nvm_dir = os.environ.get("NVM_DIR") or str(Path.home() / ".nvm")
     nvm_sh = Path(nvm_dir) / "nvm.sh"
     if nvm_sh.exists():
-        print(f"[Sync] bootstrapping Node 22 via nvm ({nvm_sh})...")
-        bootstrap = (
-            f'export NVM_DIR="{nvm_dir}" && '
-            f'source "{nvm_sh}" && '
-            f'nvm install 22 >/dev/null 2>&1 && '
-            f'nvm use 22 >/dev/null 2>&1 && '
-            f'node --version'
-        )
-        version = _probe_shell(bootstrap, timeout=300)
-        if version and _meets_min(version):
-            return [_NVM_SHELL_SENTINEL, str(nvm_sh)], f"nvm ({version})"
-
+        try:
+            result = subprocess.run(
+                ["bash", "-lc",
+                 f'export NVM_DIR="{nvm_dir}" && source "{nvm_sh}" && '
+                 'nvm install 22 >/dev/null 2>&1 && nvm use 22 >/dev/null 2>&1 && node --version'],
+                capture_output=True, text=True, timeout=300,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            result = None
+        if result and result.returncode == 0:
+            version = result.stdout.strip().splitlines()[-1].strip()
+            parsed = _parse_node_version(version)
+            if parsed is not None and parsed >= AUTOSKILLS_NODE_MIN:
+                return ["bash", "-lc",
+                        f'export NVM_DIR="{nvm_dir}" && source "{nvm_sh}" && nvm use 22 >/dev/null 2>&1 && node'], \
+                       f"nvm ({version})"
     return None
 
 
-# ── autoskills runner ─────────────────────────────────────────────────────────
+# ── Clone helper ──────────────────────────────────────────────────────────────
 
-def _run_autoskills(
-    workspace_dir: Path,
-    runner_prefix: list[str],
+def clone_autoskills(dest: Path, dry_run: bool) -> Path:
+    """Shallow-clone the autoskills fork."""
+    if dry_run:
+        print(f"[DRY-RUN] Would clone {AUTOSKILLS_REPO} into {dest}")
+        return dest
+    if dest.exists() and (dest / ".git").exists():
+        print(f"autoskills repo already at {dest}, pulling latest...")
+        subprocess.run(
+            ["git", "-C", str(dest), "pull", "--ff-only"],
+            check=False, capture_output=True,
+        )
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Cloning autoskills from {AUTOSKILLS_REPO}...")
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "--single-branch", "--no-tags",
+         AUTOSKILLS_REPO, str(dest)],
+        check=True,
+    )
+    return dest
+
+
+# ── Build helper ──────────────────────────────────────────────────────────────
+
+def _build_autoskills(autoskills_dir: Path, dry_run: bool) -> None:
+    """Install deps and build the TypeScript package (noop when already built)."""
+    pkg_dir = autoskills_dir / AUTOSKILLS_PKG_DIR
+    entry = pkg_dir / AUTOSKILLS_ENTRY
+
+    # Cache: skip if dist/main.js exists and is newer than all *.ts sources
+    if entry.exists():
+        entry_mtime = entry.stat().st_mtime
+        ts_files = list(pkg_dir.glob("*.ts"))
+        if ts_files and all(entry_mtime >= f.stat().st_mtime for f in ts_files):
+            print("  autoskills already built (cache hit)")
+            return
+
+    pkg_mgr = "pnpm" if (pkg_dir / "pnpm-lock.yaml").exists() else "npm"
+
+    if dry_run:
+        print(f"[DRY-RUN] Would build autoskills in {pkg_dir} ({pkg_mgr})")
+        return
+
+    print(f"  Building autoskills ({pkg_mgr})...")
+    for step, args in (("install", [pkg_mgr, "install"]),
+                       ("build", [pkg_mgr, "run", "build"])):
+        result = subprocess.run(
+            args, cwd=str(pkg_dir), capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"autoskills {step} failed in {pkg_dir}: {result.stderr.strip()[:200]}"
+            )
+
+    if not entry.exists():
+        raise RuntimeError(
+            f"autoskills build did not produce {AUTOSKILLS_ENTRY}"
+        )
+    print("  autoskills built successfully")
+
+
+# ── Local autoskills runner ───────────────────────────────────────────────────
+
+def _run_local_autoskills(
+    project_dir: Path,
+    autoskills_dir: Path,
+    techs: list[str] | None = None,
     dry_run: bool = False,
 ) -> list[Path]:
-    """Run `npx --yes autoskills --yes` in workspace_dir using the resolved runner.
-
-    Returns the list of skill directories created/updated by autoskills.
-    """
-    label = str(workspace_dir.name) or "."
+    """Run the compiled autoskills CLI directly with node."""
+    label = str(project_dir.name) or "."
     print(f"  -> {label}/ ", end="", flush=True)
 
     if dry_run:
         print("[dry-run]")
         return []
 
+    node_cmd, _ = _resolve_node() or ([], "")
+    if not node_cmd:
+        print("SKIP (no node)")
+        return []
+
+    entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
+    cmd = node_cmd + [str(entry), "-y"]
+    if dry_run:
+        cmd.append("--dry-run")
+    if techs:
+        cmd.extend(["--tech", ",".join(techs)])
+
     try:
-        if runner_prefix and runner_prefix[0] == _NVM_SHELL_SENTINEL:
-            nvm_sh = runner_prefix[1]
-            nvm_dir = os.environ.get("NVM_DIR") or str(Path(nvm_sh).parent)
-            shell_cmd = (
-                f'export NVM_DIR="{nvm_dir}" && '
-                f'source "{nvm_sh}" && '
-                f'nvm use 22 >/dev/null 2>&1 && '
-                f'npx --yes autoskills --yes'
-            )
+        if node_cmd[0] == "bash":
+            # node_cmd is a bash -lc wrapper; append the script + args to the command string
+            base_cmd = " ".join(node_cmd[1:])  # the -lc part is the command string... wait
+            # Actually node_cmd is ["bash", "-lc", "... node"] for nvm. We need to append the entry.
+            # The nvm node_cmd is the full bash -lc command ending with "node". We need to run node <entry>.
+            # Let's reconstruct.
+            bash_cmd = node_cmd[2]  # the -c argument
+            # Replace trailing "node" with the full command
+            full_bash = bash_cmd.rstrip() + " " + str(entry) + " -y"
+            if techs:
+                full_bash += " --tech " + ",".join(techs)
             result = subprocess.run(
-                ["bash", "-lc", shell_cmd],
-                cwd=workspace_dir,
-                capture_output=True, text=True, timeout=180,
+                ["bash", "-lc", full_bash],
+                cwd=str(project_dir), capture_output=True, text=True, timeout=180,
             )
         else:
             result = subprocess.run(
-                runner_prefix + ["npx", "--yes", "autoskills", "--yes"],
-                cwd=workspace_dir,
-                capture_output=True, text=True, timeout=180,
+                cmd, cwd=str(project_dir), capture_output=True, text=True, timeout=180,
             )
     except subprocess.TimeoutExpired:
         print("TIMEOUT")
-        print(f"    WARNING: autoskills timed out in {workspace_dir}", file=sys.stderr)
+        print(f"    WARNING: autoskills timed out in {project_dir}", file=sys.stderr)
         return []
     except FileNotFoundError:
         print("SKIP (runner not found)")
@@ -213,7 +246,6 @@ def _run_autoskills(
 
     print("done")
 
-    # Surface security warnings from autoskills stdout/stderr
     for line in (result.stdout + result.stderr).splitlines():
         lower = line.lower()
         if any(kw in lower for kw in ("flagged", "warning", "no skill", "warning:")):
@@ -221,23 +253,36 @@ def _run_autoskills(
 
     # Collect installed skill directories
     installed: list[Path] = []
-    skills_dir = workspace_dir / ".agents" / "skills"
+    skills_dir = project_dir / ".agents" / "skills"
     if skills_dir.exists():
         for skill_dir in skills_dir.iterdir():
             if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
                 installed.append(skill_dir)
-
     return installed
 
 
-# ── consolidation helpers ─────────────────────────────────────────────────────
+# ── Greenfield detection ──────────────────────────────────────────────────────
+
+def _is_greenfield(project_dir: Path) -> bool:
+    """True if no recognised manifest files exist in project_dir."""
+    return not any((project_dir / m).exists() for m in _MANIFEST_FILES)
+
+
+def _infer_techs_for_greenfield(project_dir: Path) -> list[str]:
+    """Best-effort tech inference when no manifests are present.
+
+    For AIDLC repos (this codebase), we detect Python via requirements.txt
+    or pyproject.toml — but those would make _is_greenfield return False.
+    When truly greenfield, we return an empty list and let the user pass
+    --tech if they want to force something.
+    """
+    return []
+
+
+# ── consolidation helpers (kept for edge-cases) ─────────────────────────────
 
 def _copy_skill(src: Path, dest: Path) -> None:
-    """Copy all files from src skill dir to dest, preserving sub-structure.
-
-    Follows symlinks so that symlinked skill dirs created by autoskills CLI
-    are read through to their real content.
-    """
+    """Copy all files from src skill dir to dest, preserving sub-structure."""
     real_src = src.resolve() if src.is_symlink() else src
     dest.mkdir(parents=True, exist_ok=True)
     for file in real_src.rglob("*"):
@@ -249,12 +294,7 @@ def _copy_skill(src: Path, dest: Path) -> None:
 
 
 def _remove(path: Path) -> None:
-    """Remove a path whether it is a directory, a symlink, or a symlink-to-dir.
-
-    shutil.rmtree() raises NotADirectoryError on symlinks in Python 3.12+,
-    which is silently swallowed by ignore_errors=True — leaving the symlink
-    in place. This helper handles both cases explicitly.
-    """
+    """Remove a path whether it is a directory, a symlink, or a symlink-to-dir."""
     if path.is_symlink():
         path.unlink()
     elif path.is_dir():
@@ -272,118 +312,45 @@ def _skill_is_current(src: Path, dest: Path) -> bool:
     )
 
 
-def _consolidate(
-    all_found: dict[str, Path],
-    root_skills_dir: Path,
-    repo_root: Path,
-    dry_run: bool,
-) -> tuple[int, int]:
-    """Move/copy skills into root .agents/skills/. Returns (installed, skipped)."""
-    installed = skipped = 0
-
-    for name, src in all_found.items():
-        dest = root_skills_dir / name
-
-        if src.resolve() == dest.resolve():
-            # autoskills ran in root workspace — already in the right place
-            skipped += 1
-            continue
-
-        if _skill_is_current(src, dest):
-            print(f"    - {name} [skipped -- up-to-date]")
-            skipped += 1
-            if not dry_run:
-                _remove(src)
-            continue
-
-        if dry_run:
-            print(f"    o {name} [would install -> .agents/skills/{name}/]")
-            installed += 1
-            continue
-
-        _copy_skill(src, dest)
-        _remove(src)
-        print(f"    [OK] {name}")
-        installed += 1
-
-    return installed, skipped
-
-
-def _cleanup_workspace_agents(
-    workspace_dirs: list[Path], repo_root: Path, dry_run: bool
-) -> None:
-    """Remove empty workspace-level .agents/ dirs created by autoskills."""
-    for workspace_dir in workspace_dirs:
-        if workspace_dir.resolve() == repo_root.resolve():
-            continue
-
-        lock = workspace_dir / "skills-lock.json"
-        if lock.exists() and not dry_run:
-            lock.unlink(missing_ok=True)
-
-        ws_agents = workspace_dir / ".agents"
-        if not ws_agents.exists():
-            continue
-
-        ws_skills = ws_agents / "skills"
-        if ws_skills.is_symlink():
-            if not dry_run:
-                ws_skills.unlink()
-        elif ws_skills.exists() and not any(ws_skills.iterdir()):
-            if not dry_run:
-                ws_skills.rmdir()
-
-        if ws_agents.is_symlink():
-            if not dry_run:
-                ws_agents.unlink()
-        elif ws_agents.exists() and not any(ws_agents.iterdir()):
-            if not dry_run:
-                ws_agents.rmdir()
-
-
 # ── sync subcommand ───────────────────────────────────────────────────────────
 
-def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
-    runner = _resolve_node_runner()
-    if runner is None:
-        # Silent skip — autoskills is best-effort, never blocking. Pre-shipped
-        # skills (`.agents/custom-skills/` and `.agents/skills/`) still apply.
+def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = None) -> int:
+    node = _resolve_node()
+    if node is None:
+        # Silent skip — autoskills is best-effort, never blocking.
         return 0
-    runner_prefix, runner_label = runner
-    print(f"[Sync] using {runner_label}")
+    node_cmd, node_label = node
+    print(f"[Sync] using {node_label}")
 
-    workspace_dirs = find_workspace_dirs(repo_root)
-    labels = ", ".join(
-        "." if d == repo_root else str(d.relative_to(repo_root))
-        for d in workspace_dirs
+    autoskills_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    try:
+        clone_autoskills(autoskills_dir, dry_run)
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: failed to clone autoskills: {e}")
+        return 0
+
+    try:
+        _build_autoskills(autoskills_dir, dry_run)
+    except RuntimeError as e:
+        print(f"WARNING: autoskills build failed: {e}")
+        return 0
+
+    # Determine whether to pass --tech
+    inferred_techs = techs
+    if inferred_techs is None and _is_greenfield(repo_root):
+        inferred_techs = _infer_techs_for_greenfield(repo_root)
+        if inferred_techs:
+            print(f"[Sync] greenfield project — forcing techs: {','.join(inferred_techs)}")
+
+    installed = _run_local_autoskills(
+        repo_root, autoskills_dir, techs=inferred_techs, dry_run=dry_run
     )
-    print(f"[Sync] {len(workspace_dirs)} workspace(s): {labels}")
 
-    # Run autoskills in each workspace; first-seen-per-name wins
-    all_found: dict[str, Path] = {}
-    for workspace_dir in workspace_dirs:
-        for skill_dir in _run_autoskills(workspace_dir, runner_prefix, dry_run=dry_run):
-            name = skill_dir.name
-            if name not in all_found:
-                all_found[name] = skill_dir
-
-    if not all_found:
+    if not installed and not dry_run:
         print("[Sync] autoskills installed no skills (no matching technologies detected)")
-        return 0
-
-    root_skills_dir = repo_root / ".agents" / "skills"
-    if not dry_run:
-        root_skills_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"[Sync] consolidating {len(all_found)} skill(s) -> .agents/skills/")
-    installed, skipped = _consolidate(all_found, root_skills_dir, repo_root, dry_run)
-    _cleanup_workspace_agents(workspace_dirs, repo_root, dry_run)
 
     suffix = " (dry-run)" if dry_run else ""
-    print(
-        f"[Sync] done{suffix} -- "
-        f"{installed} installed/updated, {skipped} skipped (up-to-date)"
-    )
+    print(f"[Sync] done{suffix} — {len(installed)} skill(s) in .agents/skills/")
     return 0
 
 
@@ -392,7 +359,6 @@ def cmd_sync(repo_root: Path, dry_run: bool = False) -> int:
 def cmd_select(repo_root: Path, output_format: str = "json") -> int:
     """Resolve skill_paths_resolved[] for stage input handoffs.
 
-    autoskills already performed tech-aware filtering during installation, so
     ALL skills in .agents/skills/ are relevant. Custom-skills (process skills)
     come first to match the skill-protocol load order.
     """
@@ -416,11 +382,10 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
     skill_paths_resolved = custom_paths + framework_paths
 
     warnings: list[str] = []
-    node_runner = _resolve_node_runner()
-    if node_runner is None:
+    node = _resolve_node()
+    if node is None:
         warnings.append(
-            f"autoskills sync was SKIPPED: no Node >= {NODE_MIN_VERSION} available "
-            f"(tried system node, fnm, volta, nvm) — lockfile-aware skills are not in this set"
+            f"autoskills build/run was SKIPPED: no Node >= {AUTOSKILLS_NODE_MIN[0]}.{AUTOSKILLS_NODE_MIN[1]} available"
         )
     elif not framework_paths:
         warnings.append(
@@ -455,9 +420,11 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_sync = sub.add_parser("sync", help="Install skills via autoskills across all workspaces")
+    p_sync = sub.add_parser("sync", help="Install skills via autoskills")
     p_sync.add_argument("--dry-run", action="store_true",
                         help="Preview actions without writing files")
+    p_sync.add_argument("--tech", type=str, default=None,
+                        help="Force specific technologies (comma-separated), e.g. react,nextjs,python")
 
     p_select = sub.add_parser("select", help="Output skill_paths_resolved[] for stage handoffs")
     p_select.add_argument("--output", choices=["json", "text"], default="json",
@@ -467,7 +434,10 @@ def main() -> None:
     repo_root = args.repo_root or REPO_ROOT_DEFAULT
 
     if args.command == "sync":
-        sys.exit(cmd_sync(repo_root, dry_run=getattr(args, "dry_run", False)))
+        techs = None
+        if args.tech:
+            techs = [t.strip() for t in args.tech.split(",") if t.strip()]
+        sys.exit(cmd_sync(repo_root, dry_run=getattr(args, "dry_run", False), techs=techs))
     elif args.command == "select":
         sys.exit(cmd_select(repo_root, output_format=getattr(args, "output", "json")))
     else:

@@ -16,9 +16,13 @@ the execution plan is loaded.
 
 Runs ONCE before any unit is spawned.
 
-1. **Sync** — install framework skills via autoskills across all workspace dirs:
+1. **Sync** — install framework skills via the local autoskills fork:
    ```bash
    python3 aidlc-scripts/factory_skill_sync.py sync
+   ```
+   For greenfield projects (no manifest files detected), force technologies:
+   ```bash
+   python3 aidlc-scripts/factory_skill_sync.py sync --tech react,nextjs
    ```
    Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
    On non-zero exit or Node.js missing: log warning and continue — skill failure

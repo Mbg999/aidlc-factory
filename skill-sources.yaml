@@ -7,9 +7,10 @@
 #   - Any skill you want to pin to a specific URL + SHA-256
 #
 # For public framework skills (Next.js, Angular, Express, Vue, etc.),
-# use factory_skill_sync.py instead — it wraps the autoskills CLI and handles
-# monorepo workspaces automatically:
+# use factory_skill_sync.py instead — it clones and runs a local autoskills fork
+# which handles monorepo scanning internally:
 #   python3 aidlc-scripts/factory_skill_sync.py sync
+#   python3 aidlc-scripts/factory_skill_sync.py sync --tech react,nextjs  # greenfield override
 #
 # Both installers write to .agents/skills/<name>/ and coexist safely.
 #
