@@ -138,7 +138,7 @@ def _stub_skills(target: Path) -> None:
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(INSTALL_PY), *args],
+        [sys.executable, str(INSTALL_PY), "--skip-preflight", *args],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,

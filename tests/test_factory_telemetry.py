@@ -470,7 +470,7 @@ def test_report_writes_markdown(multi_repo, tmp_path: Path):
     assert r.returncode == 0, r.stderr
     assert out_md.exists()
     text = out_md.read_text()
-    assert "AIDLC Orchestrator — Refactor Baseline" in text
+    assert "AIDLC Orchestrator -- Refactor Baseline" in text
     assert "BASELINE_KERNEL_BYTES" in text
     assert "BASELINE_SMALL_TOKENS_MEAN" in text
     assert "BASELINE_MEDIUM_TOKENS_MEAN" in text
