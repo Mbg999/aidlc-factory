@@ -324,6 +324,7 @@ ORCHESTRATOR_TOOL_MCP_CONFIGS = {
     "cursor":   Path(".cursor/mcp.json"),
     "copilot":  Path(".vscode/mcp.json"),
     "opencode": Path("opencode.json"),
+    "other":    Path(".other/mcp.json"),
 }
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
@@ -387,6 +388,28 @@ ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "```json\n"
     '{ "chat.subagents.allowInvocationsFromSubagents": true }\n'
     "```\n"
+)
+
+ORCHESTRATOR_OTHER_POINTER_BLOCK = (
+    "\n<!-- AIDLC-ORCHESTRATOR-POINTER -->\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. Stage agents: `.other/agents/stage/`;\n"
+    "cross-cutting agents: `.other/agents/cross-cutting/`; orchestrator: `.other/agents/orchestrator.md`;\n"
+    "commands (user-invocable prompts): `.other/commands/`.\n\n"
+    "Invoke by loading the orchestrator prompt from `.other/commands/factory-*.md`:\n\n"
+    "- `/factory-code-tour` — dependency-ordered codebase tour\n"
+    "- `/factory-spec` — workspace scout + requirements + plan\n"
+    "- `/factory-plan` — decompose plan into per-unit specs\n"
+    "- `/factory-build` — layer-parallel code generation\n"
+    "- `/factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `/factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `/factory-resume` — resume an interrupted run\n"
+    "- `/factory-replay` — re-run from a specific stage\n"
+    "- `/factory-state` — show run status, stage, budget\n\n"
+    "Roles, contracts, budgets: `.aidlc-orchestrator/contracts/`, `.aidlc-orchestrator/budgets/default.yaml`.\n"
+    "Runtime architecture: `.aidlc-orchestrator/runtime/index.md`.\n"
+    "Model capability tiers (`fast` / `capable` / `high-capability`) are defined per stage\n"
+    "in the budget. Map them to your tool's equivalent models.\n"
 )
 
 ORCHESTRATOR_CLAUDE_POINTER_MARKER = "<!-- AIDLC-ORCHESTRATOR-POINTER -->"
@@ -553,6 +576,7 @@ STITCH_MCP_ENTRIES = {
     "cursor":   {"stitch": {"command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
     "copilot":  {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
     "opencode": {"stitch": {"type": "local", "command": ["npx", "-y", "@_davideast/stitch-mcp", "proxy"], "enabled": True}},
+    "other":    {"stitch": {"command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
 }
 
 # Figma MCP entries — format varies per tool config format.
@@ -561,6 +585,7 @@ FIGMA_MCP_ENTRIES = {
     "cursor":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
     "copilot":  {"figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma-mcp"]}},
     "opencode": {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp", "enabled": True}},
+    "other":    {"figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma-mcp"]}},
 }
 
 
@@ -614,6 +639,7 @@ def _tool_agent_dir(tool: str) -> str:
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
         "copilot": ".github/agents",
+        "other": ".other/agents",
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
@@ -623,6 +649,7 @@ def _tool_commands_dir(tool: str) -> str:
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
+        "other": ".other/commands",
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -632,6 +659,7 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "claude": target_root / "CLAUDE.md",
         "opencode": target_root / "AGENTS.md",
         "copilot": target_root / ".github" / "copilot-instructions.md",
+        "other": target_root / "AGENTS.md",
     }
     return mapping.get(tool)
 
@@ -701,11 +729,25 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         print(f"  runtime -> {dst_runtime.relative_to(target_root)}/")
         copy_tree(src_runtime, dst_runtime, dry_run)
 
-    src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
-    dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
-    if src_budget.exists():
-        print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
-        copy_file(src_budget, dst_budget, dry_run)
+    # Tool-specific budget: Claude model names for Claude; generic capability tiers for others
+    if "other" in tools:
+        src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.other.yaml"
+        dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+        if src_budget.exists():
+            print(f"  generic budget (capability tiers) -> {dst_budget.relative_to(target_root)}")
+            copy_file(src_budget, dst_budget, dry_run)
+        # Also keep the Claude-specific budget as reference
+        src_claude_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+        dst_claude_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.claude.yaml"
+        if src_claude_budget.exists():
+            print(f"  claude budget (reference) -> {dst_claude_budget.relative_to(target_root)}")
+            copy_file(src_claude_budget, dst_claude_budget, dry_run)
+    else:
+        src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+        dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+        if src_budget.exists():
+            print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
+            copy_file(src_budget, dst_budget, dry_run)
 
     # Shared Layer 1: executor adapter package (Phase 5 — tool-agnostic spawn)
     src_executors = repo_root / ORCHESTRATOR_EXECUTOR_PKG_DIR
@@ -742,7 +784,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         cmd_dir = _tool_commands_dir(tool)
 
         # Source agent/command dirs vary per tool
-        # OpenCode and Cursor have pre-adapted agent files; others use the canonical Claude source
+        # OpenCode, Cursor, and Other have pre-adapted agent files; others use the canonical Claude source
         if tool == "opencode":
             src_agents = repo_root / ".opencode" / "agents"
             src_cmds = repo_root / ".opencode" / "commands"
@@ -752,6 +794,9 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
             src_cmds = repo_root / ".cursor" / "commands"
+        elif tool == "other":
+            src_agents = repo_root / ".other" / "agents"
+            src_cmds = repo_root / ".other" / "commands"
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
@@ -820,6 +865,8 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 ).replace(
                     "/factory-", " /orchestrator factory-"
                 )
+            elif tool == "other":
+                pointer_block = ORCHESTRATOR_OTHER_POINTER_BLOCK
             else:
                 pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
             update_workflow_doc_pointer(
@@ -1273,7 +1320,7 @@ TOOL_DESCRIPTIONS = {
     "claude":   "Claude Code CLI — writes to .claude/agents/ and .claude/commands/",
     "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
     "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
-    "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
+    "other":    "Generic install — writes to .other/agents/ and .other/commands/ (AGENTS.md-compatible, tool-agnostic)",
 }
 
 
