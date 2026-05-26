@@ -296,7 +296,7 @@ winget install OpenJS.NodeJS.LTS
 
 ```bash
 python3 aidlc-scripts/install_aidlc.py \
-    --tool <claude|cursor|copilot|opencode> \
+    --tool <claude|cursor|copilot|opencode|codex> \
     --dest /path/to/your/project \
     --with-agent-skills \
     --with-codegraph \
@@ -308,13 +308,13 @@ python3 aidlc-scripts/install_aidlc.py \
 
 | Flag | Default | What it controls |
 |---|---|---|
-| `--tool <name>` | required | `cursor`, `claude`, `copilot`, `opencode`, `other`. Comma-separate for multiple. |
+| `--tool <name>` | required | `cursor`, `claude`, `copilot`, `opencode`, `codex`, `other`. Comma-separate for multiple. |
 | `--dest <path>` | `.` (cwd) | Project to install into. |
 | `--source <path>` | packaged | Override the rules source (advanced). |
 | `--with-agent-skills` | on | Install the engineering-process skills from `addyosmani/agent-skills`. |
 | `--agent-skills-path <path>` | — | Use a local clone instead of cloning fresh. |
 | `--custom-skills-path <path>` | — | Add project-specific skills. Each subdirectory needs a `SKILL.md`. Overrides agent-skills with the same name. |
-| `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator. Effective for `claude`, `cursor`, `copilot`, `opencode`. |
+| `--with-orchestrator` / `--no-orchestrator` | prompt | Install the multi-agent orchestrator. Effective for `claude`, `cursor`, `copilot`, `opencode`, `codex`. |
 | `--with-codegraph` | off | Install CodeGraph npm package + write `.mcp.json`. |
 | `--with-engram` | off | Set up Engram persistent memory. CLI tools get the tool-specific command; MCP tools get an `.mcp.json` entry. |
 | `--with-design-system` | on | Install design-system tokens + UI skills. |
@@ -336,6 +336,7 @@ directories vary per `--tool`:
 | `cursor` | `.cursor/agents/` | `.cursor/commands/` | — | `.cursor/mcp.json` (`mcpServers`) |
 | `copilot` | `.github/agents/` | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
 | `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
+| `codex` | `.codex/agents/` | `.codex/config.toml` | `AGENTS.md` | `codex.json` (`mcp` / `type: local`) |
 
 > **MCP servers shipped in this repo:** The per-tool MCP configs include two
 > servers by default — `@upstash/context7-mcp` (library docs) and
