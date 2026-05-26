@@ -44,26 +44,29 @@ stage pipeline, and more.
 ## Quick Start
 
 ```bash
-# 1. Clone and enter the repo
+# 1. Clone the repo
 git clone <this-fork-url>
 cd <repo>
 
-# 2. Install AIDLC into your target project
-#    --tool accepts: claude, cursor, copilot, opencode, other (comma-separate for multiple)
-python3 aidlc-scripts/install_aidlc.py \
-    --tool <claude|cursor|copilot|opencode> \
-    --dest /path/to/your/project \
-    --with-agent-skills \
-    --with-codegraph \
-    --with-engram
+# 2. Create and activate a virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-# 3. In your project, start an AIDLC run
-cd /path/to/your/project
-# Inside your agentic coding tool (Claude Code, Cursor, Copilot Chat, or OpenCode):
-/factory-spec "Build a user authentication service with JWT"
+# (Windows PowerShell)
+# python -m venv .venv
+# .\\.venv\\Scripts\\Activate.ps1
+# pip install -r requirements.txt
+
+# 3. Run the installer to set up the AIDLC harness in the project
+python3 aidlc-scripts/install_aidlc.py
+
+# 4. Open your agentic coding tool and run:
+# /factory-onboarding
+# /factory-spec "<your idea>"   # describe your idea and follow the prompts
 ```
 
-The orchestrator will walk you through:
+Short summary: clone the repo, create/activate a venv and install dependencies, run the installer, then use `/factory-onboarding` or `/factory-spec` inside your agent tool to get guided steps. Add `--yes` to the installer to skip interactive prompts.
 **Spec → Plan → Code → Review → Ship**, halting at each approval gate.
 
 ---
