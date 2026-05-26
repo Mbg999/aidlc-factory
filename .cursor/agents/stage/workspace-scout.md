@@ -179,6 +179,34 @@ If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native
 **If NOT indexed AND `project_type == greenfield`:**
 - Set `codegraph_state: { indexed: false }` in `workspace_state`. No suggestion needed.
 
+### Step 2.7 — Design System Source Detection
+
+Scan for external design system inputs that should be snapped and imported.
+
+**Figma data:**
+```bash
+test -d figma && echo "figma-dir-found"
+find . -maxdepth 3 -name "*.figma.json" -not -path "*/node_modules/*" | head -5
+```
+If `figma/` directory exists OR any `*.figma.json` files are found:
+- Set `workspace_state.has_figma_data: true`
+- Record path(s) in `workspace_state.figma_paths[]`
+- Emit: `[DesignSystem] Figma data detected — N file(s) / figma/ dir`
+
+If nothing found: `workspace_state.has_figma_data: false`
+
+**Stitch data:**
+```bash
+test -d stitch && echo "stitch-dir-found"
+find . -maxdepth 3 \( -name "*.stitch.json" -o -name ".stitch-project.json" \) -not -path "*/node_modules/*" | head -5
+```
+If `stitch/` directory exists OR any `*.stitch.json` / `.stitch-project.json` files are found:
+- Set `workspace_state.has_stitch_data: true`
+- Record path(s) in `workspace_state.stitch_paths[]`
+- Emit: `[DesignSystem] Stitch data detected — N file(s) / stitch/ dir`
+
+If nothing found: `workspace_state.has_stitch_data: false`
+
 ### Step 3 — Determine next phase
 - Empty workspace → `project_type: greenfield`, `next_phase: requirements-analysis`
 - Existing code, no `aidlc-docs/inception/reverse-engineering/` artifacts →

@@ -23,6 +23,14 @@
     "design_system_path": {
       "type": "string",
       "description": "Path to design-system/ root. Set by project-profile when ui=true. Injected by orchestrator Step B.3 alongside browser-testing-with-devtools skill. Null/absent means no design system available."
+    },
+    "has_figma_data": {
+      "type": "boolean",
+      "description": "Set by project-profile when figma/ dir or *.figma.json files exist in the workspace."
+    },
+    "has_stitch_data": {
+      "type": "boolean",
+      "description": "Set by project-profile when stitch/ dir or *.stitch.json files exist in the workspace."
     }
   },
   "additionalProperties": false

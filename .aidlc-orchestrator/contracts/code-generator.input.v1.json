@@ -43,6 +43,19 @@
       "default": false,
       "description": "Set when >10 corrections made during figma snap — triggers Arqueólogo fallback in code-generator."
     },
+    "has_stitch_data": {
+      "type": "boolean",
+      "description": "Set by project-profile when stitch/ dir or *.stitch.json files exist in the workspace."
+    },
+    "stitch_snapped_path": {
+      "type": "string",
+      "description": "Path to stitch/snapped.json after stitch-snap ran. Absent when has_stitch_data is false."
+    },
+    "stitch_archaeologist_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set when >10 corrections made during stitch snap — triggers Arqueólogo fallback in code-generator."
+    },
     "inception_plan_path": {
       "type": "string",
       "description": "Path to the inception execution plan markdown (aidlc-docs/inception/plans/<run-id>-execution-plan.md). Set by orchestrator so code-generator can tick off inception tasks after unit completion."

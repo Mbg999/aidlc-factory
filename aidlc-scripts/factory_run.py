@@ -399,7 +399,15 @@ def cmd_init(args: argparse.Namespace) -> None:
         "skipped_stages": [],
         "failed_stages": [],
         "orchestrator_version": orch_version,
-        "project_profile": {"ui": False, "api": False, "has_legacy": False},
+        "project_profile": {
+            "ui": False,
+            "api": False,
+            "has_legacy": False,
+            "framework": "none",
+            "design_system_path": "",
+            "has_figma_data": False,
+            "has_stitch_data": False,
+        },
         "units": [],
         "skill_paths": {},
     }

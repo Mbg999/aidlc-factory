@@ -113,6 +113,18 @@
             "backend": { "type": "string", "enum": ["native", "wasm"] }
           },
           "additionalProperties": false
+        },
+        "has_figma_data": { "type": "boolean", "default": false },
+        "figma_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "has_stitch_data": { "type": "boolean", "default": false },
+        "stitch_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         }
       },
       "additionalProperties": false
