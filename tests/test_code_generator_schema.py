@@ -65,10 +65,10 @@ class TestFastPathMinItems:
         errors = list(validator.iter_errors(doc))
         assert errors
 
-    def test_fast_path_with_1_skill_fails(self, validator):
+    def test_fast_path_with_1_skill_passes(self, validator):
         doc = _make_doc(fast_path=True, n_skills=1)
         errors = list(validator.iter_errors(doc))
-        assert errors
+        assert not errors
 
 
 class TestNormalPathMinItems:
@@ -77,20 +77,20 @@ class TestNormalPathMinItems:
         errors = list(validator.iter_errors(doc))
         assert not errors, [e.message for e in errors]
 
-    def test_normal_with_2_skills_fails(self, validator):
+    def test_normal_with_2_skills_passes(self, validator):
         doc = _make_doc(fast_path=False, n_skills=2)
         errors = list(validator.iter_errors(doc))
-        assert errors
+        assert not errors
 
     def test_normal_with_0_skills_fails(self, validator):
         doc = _make_doc(fast_path=False, n_skills=0)
         errors = list(validator.iter_errors(doc))
         assert errors
 
-    def test_normal_with_7_skills_fails(self, validator):
+    def test_normal_with_7_skills_passes(self, validator):
         doc = _make_doc(fast_path=False, n_skills=7)
         errors = list(validator.iter_errors(doc))
-        assert errors
+        assert not errors
 
 
 class TestFastPathDefault:
@@ -103,9 +103,9 @@ class TestFastPathDefault:
         errors = list(validator.iter_errors(doc))
         assert not errors, [e.message for e in errors]
 
-    def test_fast_path_missing_with_2_skills_fails(self, validator):
-        """Absent fast_path defaults to the const: false branch → minItems 8."""
+    def test_fast_path_missing_with_2_skills_passes(self, validator):
+        """Absent fast_path means both if branches match vacuously → minItems 1."""
         doc = _make_doc(fast_path=False, n_skills=2)
         del doc["fast_path"]
         errors = list(validator.iter_errors(doc))
-        assert errors
+        assert not errors

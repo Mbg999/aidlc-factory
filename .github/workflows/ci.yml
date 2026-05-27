@@ -40,7 +40,7 @@ jobs:
           python-version: "3.11"
       - name: Dry-run install with agent-skills
         run: |
-          python scripts/install_aidlc.py \
+          python aidlc-scripts/install_aidlc.py \
             --tool ${{ matrix.tool }} \
             --dest /tmp/aidlc-test \
             --yes \
@@ -59,7 +59,7 @@ jobs:
           python-version: "3.11"
       - name: Install for Copilot with agent-skills
         run: |
-          python scripts/install_aidlc.py \
+          python aidlc-scripts/install_aidlc.py \
             --tool copilot \
             --dest /tmp/aidlc-copilot \
             --yes \
@@ -88,17 +88,17 @@ jobs:
       - name: Run orchestrator script tests
         run: pytest tests/ --tb=short -v
       - name: Smoke test triage
-        run: python3 scripts/factory_triage.py "add healthz endpoint" | grep TINY
+        run: python3 aidlc-scripts/factory_triage.py prefilter "add healthz endpoint" | grep TINY
       - name: Smoke test triage dry-run
-        run: python3 scripts/factory_triage.py "refactor auth" --dry-run | grep "FULL pipeline"
+        run: python3 aidlc-scripts/factory_triage.py prefilter "refactor auth" --dry-run | grep "FULL pipeline"
       - name: Smoke test triage explain
-        run: python3 scripts/factory_triage.py "add healthz" --explain 2>&1 | grep "TRIAGE"
+        run: python3 aidlc-scripts/factory_triage.py prefilter "add healthz" --explain 2>&1 | grep "TRIAGE"
       - name: Smoke test secretscan (clean file)
-        run: python3 scripts/factory_secretscan.py .claude/commands/factory-spec.md
+        run: python3 aidlc-scripts/factory_secretscan.py .claude/commands/factory-spec.md
       - name: Smoke test secretscan (with mock secret)
         run: |
           echo '{"body": "My API key is sk-abc123def456ghi789jkl"}' > /tmp/test-secret.json
-          python3 scripts/factory_secretscan.py /tmp/test-secret.json --json | grep secrets_found
+          python3 aidlc-scripts/factory_secretscan.py /tmp/test-secret.json --json | grep secrets_found
           rm /tmp/test-secret.json
       - name: Smoke test audit writes
-        run: python3 scripts/factory_audit_writes.py test-run unit-a --locks src/** --repo-root . --json | grep '"status": "ok"'
+        run: python3 aidlc-scripts/factory_audit_writes.py test-run unit-a --locks src/** --repo-root . --json | grep '"status": "ok"'

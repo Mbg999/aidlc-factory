@@ -382,6 +382,19 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
         print(f"{ts} (dedupe skipped -- identical block already present)")
 
 
+def cmd_list(args: argparse.Namespace) -> None:
+    """List all runs sorted by modification time (newest first)."""
+    if not RUNS_ROOT.exists():
+        return
+    entries = sorted(
+        (e for e in RUNS_ROOT.iterdir() if e.is_dir() and (e / "manifest.yaml").exists()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for e in entries:
+        print(e.name)
+
+
 def cmd_generate_run_id(args: argparse.Namespace) -> None:
     """Generate a run-id of the form YYYY-MM-DDTHH-MM-SSZ-<slug>.
 
@@ -926,6 +939,10 @@ def cmd_tail(args: argparse.Namespace) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="AIDLC Orchestrator Run Manager")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_list = sub.add_parser("list",
+        help="List all runs (directories with manifest.yaml)")
+    p_list.set_defaults(func=cmd_list)
 
     p_gen = sub.add_parser("generate-run-id",
         help="Generate a run-id: YYYY-MM-DDTHH-MM-SSZ-<slug> (cross-platform)")
