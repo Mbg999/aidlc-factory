@@ -32,7 +32,28 @@ python3 aidlc-scripts/factory_validate.py \
 **Skills:** `using-agent-skills`, `planning-and-task-breakdown`.
 
 ## Your job
-Follow `aidlc-rules/aws-aidlc-rule-details/inception/units-generation.md`.
+Per upstream rule `inception/units-generation.md` (content embedded in this agent — not read from disk).
+
+### Sub-stage 1: Plan
+
+Generate a unit decomposition plan with questions and approval gate:
+
+1. **Generate questions** across these categories:
+   - **Story Grouping** — grouping strategy, story affinity, logical clustering
+   - **Dependencies** — integration approach, shared resources, inter-unit communication
+   - **Team Alignment** — team structure, ownership boundaries, collaboration
+   - **Technical Considerations** — scalability/deployment differences across units
+   - **Business Domain** — domain boundaries, bounded contexts, capability alignment
+   - **Code Organization** (greenfield multi-unit only) — deployment model, directory structure
+
+2. **Produce planning artifacts**:
+   - `aidlc-docs/inception/plans/<run-id>-unit-of-work-plan.md` — unit definitions and responsibilities
+   - `aidlc-docs/inception/plans/<run-id>-unit-of-work-dependency.md` — dependency matrix
+   - `aidlc-docs/inception/plans/<run-id>-unit-of-work-story-map.md` — story-to-unit mappings
+
+3. **Get approval**: Present the plan with dependency matrix and story map. Set `status: needs_human` with `sub_stage: plan`. HALT — do NOT proceed to decomposition without explicit approval.
+
+### Sub-stage 2: Decompose (re-spawned with approved plan)
 
 For each unit listed in the workflow planner output's `units[]`:
 1. Read tasks from `<run-id>-execution-plan.md` tagged with that unit.
@@ -82,6 +103,12 @@ Required:
   populated per the rules above
 
 Return: `<status> <output-path>`.
+
+## Question Format Guide (embedded from upstream `common/question-format-guide.md`)
+Every question: axis tag `<!-- axis: <Name> -->`, MCQ with `X) Other` as last option, `[Answer]:` tag. Never ask questions in chat. Detect contradictions after answers; create clarification file if needed.
+
+## Stage Conventions (inline summary — embedded from upstream)
+Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
 
 ## What you must NOT do
 - Do not invent units that weren't in the planner's `units[]`.

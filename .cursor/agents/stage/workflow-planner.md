@@ -49,19 +49,39 @@ python3 aidlc-scripts/factory_validate.py \
 Emitting the `skill_compliance[]` row without the matching `[PlanPreMortem] …` audit_entry (or vice versa) is a contract violation and will trigger orchestrator defensive logging.
 
 ## Your job
-Follow `aidlc-rules/aws-aidlc-rule-details/inception/workflow-planning.md` and
-`aidlc-rules/aws-aidlc-rule-details/common/ascii-diagram-standards.md`.
+Per upstream rules `inception/workflow-planning.md` and `common/ascii-diagram-standards.md` (content embedded in this agent — not read from disk).
 
 Steps:
 1. Load predecessor artifacts: requirements doc, (optional) stories, (if brownfield) reverse-engineering artifacts.
-2. Decide phases + depth (minimal/standard/comprehensive) — match to requirements depth.
+
+2. **Scope, Impact, and Risk Analysis** (embedded from upstream `workflow-planning.md` Step 2):
+   - **2.1 Transformation Scope** (brownfield only): single component vs architectural transformation; infrastructure vs application changes; cross-package impact.
+   - **2.2 Change Impact Assessment**: evaluate user-facing, structural, data model, API, and NFR impact of each change area.
+   - **2.3 Component Relationships** (brownfield only): map primary, infrastructure, shared, dependent, and supporting components. Per component: change type (Major/Minor/Config), reason, priority (Critical/Important/Optional).
+   - **2.4 Risk Assessment**: classify each risk as Low (isolated, easy rollback), Medium (multi-component, moderate rollback), High (system-wide, complex rollback), or Critical (production-critical, difficult rollback).
+   - Include risk assessment section in the execution plan.
+
+3. Decide phases + depth (minimal/standard/comprehensive) — match to requirements depth.
    - **If input contains `depth_override`**: use that value instead.
-3. Identify multi-package change boundaries if any (front-end + back-end + infra).
-4. Generate a **Mermaid diagram** of the workflow. Validate syntax (Mermaid live editor rules — no unescaped special chars, fences ` ```mermaid `).
-5. Decompose into tasks (the `planning-and-task-breakdown` skill governs depth):
+
+4. Identify multi-package change boundaries if any (front-end + back-end + infra).
+
+5. **Multi-Module Coordination** (brownfield only, when `unit_count > 1`):
+   - Analyze dependencies (build-time vs runtime) between modules
+   - Determine update sequence (critical path) — which module builds first
+   - Identify parallelization opportunities
+   - Plan testing strategy (integration contract tests between modules)
+   - Define rollback plan per module
+   - Produce a "Package Update Sequence" section in the execution plan
+
+6. Generate a **Mermaid diagram** of the workflow. Validate syntax (Mermaid live editor rules — no unescaped special chars, fences ` ```mermaid `).
+
+7. Decompose into tasks (the `planning-and-task-breakdown` skill governs depth):
    - Each task has: `id`, `title`, `description`, `acceptance_criteria` (≥1), `depends_on[]`, `unit` (which unit it belongs to — used by `/factory-build`).
-6. Write `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with: overview, Mermaid diagram, task tree (Markdown task list with checkboxes), acceptance criteria table.
-7. Emit `status: needs_human` for user approval before construction.
+
+8. Write `aidlc-docs/inception/plans/<run-id>-execution-plan.md` with: overview, risk assessment, component relationships table, Mermaid diagram, task tree (Markdown task list with checkboxes), acceptance criteria table, package update sequence (if brownfield multi-module).
+
+9. Emit `status: needs_human` for user approval before construction.
 
 ## Your output
 Write to `.aidlc-orchestrator/runs/<run-id>/handoffs/workflow-planner.output.yaml`.
@@ -75,6 +95,15 @@ Required fields:
 - `mermaid_validated`: boolean
 
 Return: `<status> <output-path>`.
+
+## Depth Levels (embedded from upstream `common/depth-levels.md`)
+- **minimal**: Clear + simple → fewer tasks, compact artifacts.
+- **standard**: Needs clarification → standard artifact set.
+- **comprehensive**: Complex/high-risk → all artifacts, full detail.
+Respect `depth_mode` from input handoff. Silent steps: workspace scan, skill loading produce NO chat output.
+
+## Stage Conventions (inline summary — embedded from upstream)
+Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
 
 ## What you must NOT do
 - Do not produce a plan without acceptance criteria. Every leaf task needs ≥1.

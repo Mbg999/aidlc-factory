@@ -131,6 +131,35 @@ of relevance score (cheap to ignore, expensive to miss).
 
 ---
 
+## Security Baseline Compliance Check (embedded from upstream `extensions/security/baseline/security-baseline.md`)
+
+Before completing review, run the 15-rule baseline compliance check. Map each SECURITY-NN to a concrete verification:
+
+| Rule | Check | Evidence |
+|------|-------|----------|
+| **SECURITY-01** Encryption at rest/transit | Verify all data stores have encryption config (TLS 1.2+, storage encryption) | PASS / FAIL / N/A |
+| **SECURITY-02** Access logging on network intermediaries | Verify LBs, API gateways, CDNs have access logging enabled | PASS / FAIL / N/A |
+| **SECURITY-03** Application-level logging | Verify structured logging configured at every entry point; no secrets in logs | PASS / FAIL / N/A |
+| **SECURITY-04** HTTP security headers (web apps) | Verify CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy set | PASS / FAIL / N/A |
+| **SECURITY-05** Input validation | Verify all API entry points validate inputs (type, length, format, injection prevention) | PASS / FAIL / N/A |
+| **SECURITY-06** Least-privilege access | Verify IAM policies use specific resources/actions; no wildcards without exception | PASS / FAIL / N/A |
+| **SECURITY-07** Restrictive network config | Verify deny-by-default; no `0.0.0.0/0` inbound except LB ports; private subnets | PASS / FAIL / N/A |
+| **SECURITY-08** Application-level access control | Verify deny-by-default auth, object-level authz, CORS restricted, server-side token validation | PASS / FAIL / N/A |
+| **SECURITY-09** Security hardening | Verify no default creds, no stack traces in prod, directory listing disabled | PASS / FAIL / N/A |
+| **SECURITY-10** Software supply chain | Verify lock files committed, no `latest` tags, unused deps removed | PASS / FAIL / N/A |
+| **SECURITY-11** Secure design principles | Verify security-critical logic separated, rate limiting configured, abuse cases considered | PASS / FAIL / N/A |
+| **SECURITY-12** Auth & credential management | Verify adaptive hashing, secure cookies, brute-force protection, no hardcoded creds, MFA for admin | PASS / FAIL / N/A |
+| **SECURITY-13** Software & data integrity | Verify safe deserialization, SRI on CDN resources, CI/CD access-controlled | PASS / FAIL / N/A |
+| **SECURITY-14** Alerting & monitoring | Verify auth failure alerts, append-only log storage, min 90-day retention | PASS / FAIL / N/A |
+| **SECURITY-15** Exception handling & fail-safe | Verify all external calls have error handling, fail closed, global error handler | PASS / FAIL / N/A |
+
+**Non-compliance behavior**: Any FAIL → set `status: blocked` with `[SecurityBaseline] SECURITY-NN: <finding>`. Do NOT present completion with FAIL rows. N/A rules (e.g., SECURITY-01 when no data stores) are not blocking.
+
+Include the compliance table in `audit_entries[]` as a summary:
+`[SecurityBaseline] 01: PASS | 02: N/A | 03: FAIL — missing structured logging in auth handler`
+
+---
+
 ## Design System Review (when design_system_path is set)
 
 If `design_system_path` is set in your input handoff:

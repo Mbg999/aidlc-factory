@@ -47,7 +47,17 @@ with `[Skills]` prefix in `audit_entries[]`.
 **`environment-detection` runs FIRST** — before any `npm install` / `pip install` / `brew install` / equivalent. The skill enforces detect-before-install: check `command -v <tool>` and `<tool> --version` for every required runtime, USE the existing installation when version is compatible, prefer fast version managers (nvm / asdf / mise / pyenv) when not, and treat brew as a last resort. Source-built brew installs are the single largest avoidable cost in this stage and have caused 180s timeouts on `brew install node@20` when node was already on `$PATH` via nvm. Log every detection result to `audit_entries[]` with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
 
 ## Your job
-Follow `aidlc-rules/aws-aidlc-rule-details/construction/build-and-test.md`.
+Per upstream rule `construction/build-and-test.md` (content embedded in this agent — not read from disk):
+
+### Pre-flight check (BLOCKING)
+
+Before proceeding to Step 1, verify:
+1. **Code gen plans exist**: `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` for each unit, with all checkboxes `[x]`
+2. **Audit completeness**: `aidlc-docs/audit.md` has entries for every completed Code Generation unit (plan approval + completion + skill compliance)
+3. **Execution plan updated**: `aidlc-docs/inception/plans/` execution plan has `[x]` on all code-gen tasks
+4. **State file current**: `aidlc-state.md` `Current Stage` reflects the last completed Code Generation unit
+
+If ANY verification fails, set `status: blocked` with `[BuildPreFlight]` audit entry describing precisely which check failed. Do NOT proceed without complete tracking.
 
 For the unit specified in input:
 1. Detect or read build commands (from build files: package.json scripts, pyproject.toml, Makefile, etc.).
@@ -71,6 +81,13 @@ For the unit specified in input:
    - Never fail the build because `codegraph affected` is unavailable.
 
 4. Run tests → capture pass/fail counts, coverage if measured.
+
+4.2. **PBT verification** (when PBT tests exist):
+   - Verify PBT tests ran and passed (scan output for property test indicators)
+   - Verify shrinking output is logged for reproducibility
+   - If PBT tests found counterexamples: emit `[PBT] N properties tested, M counterexamples found — shrinking seed: <seed>`
+   - If all properties passed: emit `[PBT] N properties, all passed`
+   - If no PBT tests were generated: skip this step silently
 
 4.5. **Drift detection hook** (when `project_profile.ui == true`):
    - Check if the unit generated UI artifacts (HTML, TSX components).
@@ -143,6 +160,26 @@ Populate `emitted_knowledge[]` when:
 
 Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
+
+## Stage Conventions (inline summary — embedded from upstream)
+Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
+
+## Error Handling (embedded from upstream `common/error-handling.md`)
+
+### Build Failure Escalation
+1. Load `debugging-and-error-recovery` skill and follow its triage Process: reproduce → localize → reduce → fix → guard
+2. If root cause is in code-generator's output: mark unit `failed`, emit findings with file paths and line numbers
+3. If root cause is environmental (missing deps, wrong versions): document the fix, apply it, continue
+4. If build fails after 3 retries with the same error: set `status: blocked` with `[BuildFailure] <error>` audit entry
+5. If the error requires human judgement (unclear which fix is correct): set `status: needs_human`
+
+### Test Failure Recovery
+1. Capture test output (stdout/stderr) with full failure messages
+2. Apply `debugging-and-error-recovery` root-cause analysis
+3. If the failure is in the test itself (bad assertion, wrong fixture): document as lesson, do NOT patch the test
+4. If the failure is in production code: mark unit `failed`, emit findings for code-generator
+5. If the failure is a flaky test: run 3 more times; if inconsistent, log `[Flaky] diagnosed: <root cause>` and set `status: needs_human`
+6. Do NOT dismiss test failures as "unrelated" or "flaky" without investigation — that is a workflow violation
 
 ## What you must NOT do
 - Do not edit source code. Failed tests → emit findings; do not patch.
