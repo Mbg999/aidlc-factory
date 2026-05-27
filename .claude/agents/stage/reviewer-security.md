@@ -21,9 +21,11 @@ python3 aidlc-scripts/factory_validate.py \
 ## Skill Execution Protocol
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, `security-and-hardening`, and
-   `secret-knowledge` (Section A: Security Toolkit + Section D: Web Security). Load every skill file present.
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
+   `codegraph-aware-exploration`, `security-and-hardening`, `secret-knowledge`)
+   PLUS any security-related framework skills injected from the build phase (name
+   contains `security`, `auth`, or `hardening`). **Load EVERY skill file present —
+   no exceptions.** Framework skills sharpen your security review for specific tech stacks.
 2. **FOLLOW** — Threat-model + code-scan + dependency-scan steps.
 3. **CHECK** — Rationalizations: reject "internal only", "low likelihood",
    "performance impact" — every dismissal needs threat-model evidence.

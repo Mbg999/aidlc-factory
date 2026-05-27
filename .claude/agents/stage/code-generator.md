@@ -26,21 +26,27 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 ## Skill Execution Protocol
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
    `codegraph-aware-exploration`, `environment-detection`, `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`, `validator-retry`, and
-   `secret-knowledge`. It may also include framework skills propagated from the build
-   phase (e.g., `vue`, `react-best-practices`, `typescript-advanced-types`) and
-   conditional skills from project profile (`frontend-ui-engineering`,
-   `design-system-composer`, `ui-constraint-validator`, `api-and-interface-design`).
-   Load every skill file present.
-2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
-   Incremental = thin vertical slices, each green before next.
+   `test-driven-development`, `source-driven-development`, `validator-retry`,
+   `secret-knowledge`) PLUS conditional skills from project profile
+   (`frontend-ui-engineering`, `design-system-composer`, `ui-constraint-validator`,
+   `api-and-interface-design`) PLUS framework skills propagated from the build
+   phase (e.g. `react-best-practices`, `typescript-advanced-types`, `vite`, etc.).
+   **Load EVERY skill file present in `skill_paths_resolved[]` — no exceptions.**
+2. **FOLLOW** — Each skill's *Process* in order. For framework skills, apply their
+   tech-specific guidance (e.g. React patterns, TypeScript conventions, Vite config)
+   during code generation. Do not skip or "bundle" them — each must be executed.
 3. **CHECK** — Common Rationalizations. Reject "I'll add tests later",
-   "this is too small to test", "the type system is enough".
+   "this is too small to test", "the type system is enough", and **"framework
+   skills are bundled/inline"** — they are NOT. Each is a separate skill to execute.
 4. **VERIFY** — Concrete: commit hashes per slice, test counts (added vs total),
    each slice's tests green, plan checkboxes ticked.
-5. **LOG** — `skill_compliance[]` row per skill with concrete evidence.
+5. **LOG** — **Every single skill in `skills_required[]` MUST have a row in
+   `skill_compliance[]` with status PASS/FAIL/N/A and concrete evidence.**
+   "Bundled" or "inline" is NOT an acceptable status — if you loaded and applied
+   a framework skill, report it as PASS with evidence of what guidance you followed.
+   If you skipped it, report it as SKIPPED with a justification.
 6. **BLOCK** — Verification fail → `status: blocked`.
 
 **Anti-bypass:** "obvious", "trivial", "later" are rationalizations. Produce evidence.
