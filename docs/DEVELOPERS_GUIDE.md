@@ -270,3 +270,57 @@ act --platform ubuntu-latest=-self-hosted \
     --env ACT_CODEBUILD_DIR=$PWD/.codebuild/downloads \
     --bind
 ```
+
+---
+
+## Publishing the PyPI package
+
+The `aidlc-factory-installer` PyPI package (`aidlc_installer/`) is a tiny bootstrap
+that downloads the full AIDLC source from GitHub at runtime. Publishing a new
+version makes `pipx run aidlc-factory-installer` and `uvx aidlc-factory-installer` available
+to all users.
+
+The CI workflow at `.github/workflows/publish-pypi.yml` handles the build and
+publish automatically.
+
+### Via CI (recommended)
+
+1. **Bump the version** in `pyproject.toml` (follow [SemVer](https://semver.org/)).
+2. **Push a tag** matching `v*` (e.g. `v0.2.1`):
+   ```bash
+   git tag v0.2.1 && git push origin v0.2.1
+   ```
+3. The workflow builds the wheel and publishes to **PyPI** via trusted
+   publishing (OIDC).
+
+### Via CI (manual)
+
+Trigger the `Publish to PyPI` workflow from the GitHub UI with `workflow_dispatch`
+and select `test-pypi` or `pypi` as the destination.
+
+### First-time setup
+
+Before the workflow can publish, you need to configure **trusted publishing**
+on PyPI:
+
+1. **Go to** `https://pypi.org/manage/project/aidlc-factory-installer/settings/publishing/`
+2. **Add a new trusted publisher** with:
+   - GitHub owner: `Mbg999`
+   - Repository: `aidlc-factory`
+   - Workflow name: `publish-pypi.yml`
+   - Environment name: `pypi`
+
+3. (Optional) Repeat for **TestPyPI** at
+   `https://test.pypi.org/manage/project/aidlc-factory-installer/settings/publishing/`.
+
+### Manual publish (local)
+
+```bash
+pip install build twine
+python -m build
+python -m twine upload dist/*
+```
+
+> **Security note:** The `aidlc_installer/` package has zero external
+> dependencies (only stdlib). Keep it that way — the real dependencies
+> are inside the downloaded source, not the PyPI bootstrap.

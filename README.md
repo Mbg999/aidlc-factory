@@ -44,30 +44,38 @@ stage pipeline, and more.
 ## Quick Start
 
 ```bash
-# 1. Clone the repo
-git clone <this-fork-url>
-cd <repo>
+# One command — no cloning, no venv setup, no PyPI account needed:
+pipx run aidlc-factory-installer --tool claude --dest /path/to/your/project
 
-# 2. Create and activate a virtual environment and install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# Or with uv (Rust-based, even faster):
+uvx aidlc-factory-installer --tool claude --dest /path/to/your/project
 
-# (Windows PowerShell)
-# python -m venv .venv
-# .\\.venv\\Scripts\\Activate.ps1
-# pip install -r requirements.txt
-
-# 3. Run the installer to set up the AIDLC harness in the project
-python3 aidlc-scripts/install_aidlc.py
-
-# 4. Open your agentic coding tool and run:
+# Then open your agentic coding tool and run:
 # /factory-onboarding
-# /factory-spec "<your idea>"   # describe your idea and follow the prompts
+# /factory-spec "<your idea>"
 ```
 
-Short summary: clone the repo, create/activate a venv and install dependencies, run the installer, then use `/factory-onboarding` or `/factory-spec` inside your agent tool to get guided steps. Add `--yes` to the installer to skip interactive prompts.
+No cloning, no venv, no `pip install`. Works anywhere Python 3.10+ is installed.
 **Spec → Plan → Code → Review → Ship**, halting at each approval gate.
+
+If you don't have `pipx` yet:
+```bash
+pip install pipx && pipx ensurepath
+# Or: brew install pipx && pipx ensurepath
+```
+
+> **About the PyPI package:** `aidlc-factory-installer` on PyPI is a tiny (5 KB) bootstrap
+> that downloads the latest AIDLC source from GitHub at runtime — the real
+> installer, agents, contracts, and scripts stay on GitHub. This keeps the
+> `pipx run` instant and the PyPI package minimal.
+
+For users who prefer cloning the repo:
+```bash
+git clone <this-fork-url> && cd <repo>
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 aidlc-scripts/install_aidlc.py
+```
 
 ---
 
@@ -292,9 +300,26 @@ winget install OpenJS.NodeJS.LTS
 
 ---
 
-### One-line install
+### One-line install (pipx/uvx — recommended)
 
 ```bash
+pipx run aidlc-factory-installer --tool claude --dest /path/to/your/project
+
+# Or with uv (Rust-based, faster cold start):
+uvx aidlc-factory-installer --tool claude --dest /path/to/your/project
+```
+
+No cloning, no venv setup, no `pip install`. The `aidlc-factory-installer` PyPI package
+is a 5 KB bootstrap that downloads the latest AIDLC source from GitHub at
+runtime and delegates to the real installer.
+
+### Traditional install (local clone)
+
+```bash
+git clone https://github.com/Mbg999/aidlc-factory.git
+cd aidlc-factory
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 python3 aidlc-scripts/install_aidlc.py \
     --tool <claude|cursor|copilot|opencode|codex> \
     --dest /path/to/your/project \

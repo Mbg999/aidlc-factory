@@ -1302,13 +1302,22 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
+    p = argparse.ArgumentParser(
+        description="Install AI-DLC rules into a project for one or more agent tools",
+        epilog="Examples:\n"
+               "  pipx run aidlc-factory-installer --tool claude --dest ./my-project\n"
+               "  uvx aidlc-factory-installer --tool claude --dest ./my-project\n"
+               "  python aidlc-scripts/install_aidlc.py --tool claude",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--tool", required=False,
                    help="Target agent/tool(s) to install rules for. Comma-separated for multiple "
                         "(e.g., --tool claude,opencode). Valid: " + ", ".join(VALID_TOOLS))
     p.add_argument("--yes", action="store_true", help="Assume yes for confirmations")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
-    p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
+    p.add_argument("--source", type=str, default=None,
+                   help="Source path for AIDLC files (defaults to the repo clone containing this script; "
+                        "used by pipx/uvx bootstrap to point at the downloaded repo)")
     p.add_argument("--dest", type=str, default=None, help="Destination path to install rules into (defaults to current directory)")
     p.add_argument("--with-agent-skills", action="store_true", default=True,
                    help="Always install engineering process skills from github.com/addyosmani/agent-skills (default: install)")
@@ -1648,7 +1657,15 @@ def main() -> int:
         target_root = Path(args.dest).expanduser().resolve()
     else:
         target_root = _prompt_destination()
-    repo_root = Path(__file__).resolve().parent.parent
+
+    if args.source:
+        src = Path(args.source).expanduser().resolve()
+        if not src.exists():
+            print(f"ERROR: --source path does not exist: {src}")
+            return 3
+        repo_root = src
+    else:
+        repo_root = Path(__file__).resolve().parent.parent
 
     if args.tool:
         try:
