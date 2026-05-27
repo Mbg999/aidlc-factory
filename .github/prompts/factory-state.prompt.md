@@ -1,5 +1,6 @@
 ---
 agent: orchestrator
+mode: agent
 description: Show the current state of a run — completed stages, current stage, next steps, budget, and any issues.
 ---
 

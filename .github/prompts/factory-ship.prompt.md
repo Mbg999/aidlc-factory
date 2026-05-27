@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC ship stage — release notes, ADRs, CHANGELOG, version proposal, optional CI/CD wiring and migration plan. Final stage of the orchestrator.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-ship <run-id>` sequence.
 
 **STOP before committing — do NOT auto-commit.** Present all shipping artifacts to the user and wait for explicit approval before running any git command.
@@ -31,5 +32,5 @@ Sequence:
    - Release notes path
    - "Ready to push: review the commits before `git push`"
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 **This agent does NOT push tags or remote branches.** User pushes manually.

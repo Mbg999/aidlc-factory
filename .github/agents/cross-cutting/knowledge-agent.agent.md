@@ -1,7 +1,7 @@
 ---
 name: knowledge-agent
 description: AIDLC Orchestrator's persistent knowledge layer. Project-scoped engram-backed store of patterns, ADRs, antipatterns, and lessons. Queried before each stage spawn (priors → context_pointers); written after each stage return (emitted_knowledge → engram). NOT invoked as a agent tool subagent — orchestrator uses engram MCP tools directly per the protocol below.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/node', 'codegraph/callers']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/node', 'codegraph/callers']
 user-invocable: false
 ---
 

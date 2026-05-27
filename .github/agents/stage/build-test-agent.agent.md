@@ -1,7 +1,7 @@
 ---
 name: build-test-agent
 description: Runs build + tests for one unit (or the whole project after final unit). Produces build-instructions.md and build-and-test-summary.md. Applies debugging-and-error-recovery skill on failures.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 
@@ -142,7 +142,7 @@ Populate `emitted_knowledge[]` when:
   with `confidence: 0.8`. Include the diff percentage and components affected.
   This reinforces that the new output is the canonical reference.
 
-Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`. Don't emit
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
 
 ## What you must NOT do

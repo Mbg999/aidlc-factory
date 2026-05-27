@@ -1,7 +1,7 @@
 ---
 name: conflict-resolver
 description: AIDLC Orchestrator's parallel-safety layer. Owns the file-glob lock registry and Python AST symbol-drift detection. Detects conflicts when multiple parallel agents touch overlapping paths or change shared interfaces. NOT an agent tool subagent — orchestrator invokes aidlc-scripts/factory_conflict.py directly.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

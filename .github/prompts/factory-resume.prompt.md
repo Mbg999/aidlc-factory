@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Resume an interrupted AIDLC orchestrator run from its last checkpoint.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **Argument:** _(run-id from the user's message)_
 
@@ -39,4 +40,4 @@ If a run-id was provided: this is a **resume** request.
    invoke `/factory-spec` continuation in this same session, or you can
    spawn the agent directly per the orchestrator protocol).
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

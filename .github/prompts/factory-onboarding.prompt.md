@@ -1,5 +1,6 @@
 ---
 agent: orchestrator
+mode: agent
 description: Walk through the AIDLC orchestrator system. Learn how runs work, what commands to use, and how to recover from failures.
 ---
 

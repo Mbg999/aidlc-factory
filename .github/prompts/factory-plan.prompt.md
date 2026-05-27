@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC workflow planning (optional stories + execution plan + optional unit decomposition) for an existing run. Phase 1 of the orchestrator.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-plan <run-id>` sequence (see "Phase 1 sequences" in the orchestrator
 spec).
 
@@ -54,4 +55,4 @@ Sequence:
    the ready-to-paste command, OR format manually as `/factory-build <RUN_ID_LITERAL>`
    with the actual run_id. **Never present `<run-id>` literally to the user.**
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

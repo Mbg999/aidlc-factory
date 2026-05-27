@@ -366,13 +366,19 @@ ORCHESTRATOR_GITIGNORE_ENTRIES = [
 ]
 ORCHESTRATOR_GITIGNORE_HEADER = "# AIDLC orchestrator runtime state"
 
+ORCHESTRATOR_COPILOT_INSTRUCTION_FILES = (
+    "copilot-commit-instructions.md",
+    "copilot-review-instructions.md",
+    "copilot-pull-request-instructions.md",
+)
+
 ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "\n<!-- AIDLC-ORCHESTRATOR-POINTER -->\n"
     "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
     "This project ships with the AIDLC orchestrator. Stage agents: `.github/agents/stage/`;\n"
-    "cross-cutting agents: `.github/agents/cross-cutting/`; orchestrator: `.github/agents/orchestrator.md`;\n"
+    "cross-cutting agents: `.github/agents/cross-cutting/`; orchestrator: `.github/agents/orchestrator.agent.md`;\n"
     "skills: `.github/skills/`; prompts (user-invocable commands): `.github/prompts/`.\n\n"
-    "Invoke from Copilot Chat by typing `/` and selecting the prompt:\n\n"
+    "Invoke from Copilot Chat in **Agent mode** by typing `/` and selecting the prompt:\n\n"
     "- `/factory-code-tour` — dependency-ordered codebase tour: foundations → entry points\n"
     "- `/factory-spec` — workspace scout + requirements + plan\n"
     "- `/factory-plan` — decompose plan into per-unit specs\n"
@@ -383,9 +389,13 @@ ORCHESTRATOR_COPILOT_POINTER_BLOCK = (
     "- `/factory-replay` — re-run from a specific stage\n"
     "- `/factory-state` — show run status, stage, budget\n\n"
     "Roles, contracts, budgets: `.aidlc-orchestrator/contracts/`, `.aidlc-orchestrator/budgets/default.yaml`.\n\n"
-    "**Required VS Code setting** (enables nested subagent spawning):\n"
+    "**Required VS Code settings** (enables nested subagent spawning + AIDLC paths):\n"
     "```json\n"
-    '{ "chat.subagents.allowInvocationsFromSubagents": true }\n'
+    '{\n'
+    '  "chat.subagents.allowInvocationsFromSubagents": true,\n'
+    '  "chat.agentFilesLocations": { ".github/agents": true },\n'
+    '  "chat.promptFilesLocations": { ".github/prompts": true }\n'
+    '}\n'
     "```\n"
 )
 
@@ -637,12 +647,17 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
 
 
 def _install_vscode_copilot_settings(target_root: Path, dry_run: bool) -> None:
-    """Write/merge .vscode/settings.json with Copilot subagent setting."""
+    """Write/merge .vscode/settings.json with Copilot subagent + path settings."""
     import json
     vscode_settings = target_root / ".vscode" / "settings.json"
-    key = "chat.subagents.allowInvocationsFromSubagents"
+    desired: dict = {
+        "chat.subagents.allowInvocationsFromSubagents": True,
+        "chat.agentFilesLocations": {".github/agents": True},
+        "chat.promptFilesLocations": {".github/prompts": True},
+        "chat.instructionsFilesLocations": {".github/instructions": True},
+    }
     if dry_run:
-        print(f"[DRY-RUN] Would set {key}=true in {vscode_settings}")
+        print(f"[DRY-RUN] Would merge Copilot settings into {vscode_settings}")
         return
     existing: dict = {}
     if vscode_settings.exists():
@@ -650,13 +665,33 @@ def _install_vscode_copilot_settings(target_root: Path, dry_run: bool) -> None:
             existing = json.loads(vscode_settings.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             pass
-    if existing.get(key) is True:
-        print(f"  .vscode/settings.json already has {key} -- skipping")
+    changed = False
+    for key, value in desired.items():
+        if existing.get(key) != value:
+            existing[key] = value
+            changed = True
+    if not changed:
+        print(f"  .vscode/settings.json already has Copilot AIDLC settings -- skipping")
         return
-    existing[key] = True
     vscode_settings.parent.mkdir(parents=True, exist_ok=True)
     vscode_settings.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
-    print(f"  .vscode/settings.json -- set {key}=true")
+    print(f"  .vscode/settings.json -- merged Copilot AIDLC settings")
+
+
+def _install_copilot_instruction_files(repo_root: Path, target_root: Path, dry_run: bool, force: bool) -> None:
+    """Copy copilot-commit/review/pr instruction files to target .github/."""
+    src_github = repo_root / ".github"
+    dst_github = target_root / ".github"
+    for name in ORCHESTRATOR_COPILOT_INSTRUCTION_FILES:
+        src = src_github / name
+        dst = dst_github / name
+        if not src.exists():
+            continue
+        if dst.exists() and not force:
+            print(f"  {name} already exists -- skipping (use --force to overwrite)")
+            continue
+        print(f"  {name} -> .github/{name}")
+        copy_file(src, dst, dry_run)
 
 
 def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False, args: argparse.Namespace | None = None) -> None:
@@ -768,18 +803,26 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
                     copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
-        # Copilot: copy skills + prompts and write VS Code settings
+        # Copilot: copy skills + prompts, instruction files, and VS Code settings
         if tool == "copilot":
             src_skills = repo_root / ".agents" / "custom-skills"
-            dst_skills = target_root / ".github" / "skills"
+            dst_skills_github = target_root / ".github" / "skills"
+            dst_skills_custom = target_root / ".agents" / "custom-skills"
             if src_skills.exists():
-                print(f"  skills -> .github/skills/")
-                copy_tree(src_skills, dst_skills, dry_run)
+                print(f"  skills -> .github/skills/ + .agents/custom-skills/")
+                copy_tree(src_skills, dst_skills_github, dry_run)
+                copy_tree(src_skills, dst_skills_custom, dry_run)
             src_prompts = repo_root / ".github" / "prompts"
             dst_prompts = target_root / ".github" / "prompts"
             if src_prompts.exists():
                 print(f"  prompts -> .github/prompts/")
                 copy_tree(src_prompts, dst_prompts, dry_run)
+            src_instructions = repo_root / ".github" / "instructions"
+            dst_instructions = target_root / ".github" / "instructions"
+            if src_instructions.exists():
+                print(f"  instructions -> .github/instructions/")
+                copy_tree(src_instructions, dst_instructions, dry_run)
+            _install_copilot_instruction_files(repo_root, target_root, dry_run, force)
             _install_vscode_copilot_settings(target_root, dry_run)
 
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —

@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC post-generation reviewer pool (code quality, security, performance, simplification) in parallel. Phase 4 of the orchestrator.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-review <run-id>` sequence (now **parallel fan-out** per Phase 4).
 
 **STOP at the approval gate — do NOT auto-commit.** Surface the merged review report and wait for explicit user approval before committing or routing to the next stage.
@@ -47,7 +48,7 @@ Sequence:
      `/factory-ship <RUN_ID_LITERAL>` with the actual run_id.
      **Never present `<run-id>` literally to the user.**
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 
 **Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`,
 not sum. Track via `manifest.events[]` timestamps and reviewer `cost.wall_clock_min`.

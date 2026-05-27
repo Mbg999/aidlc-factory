@@ -1,7 +1,7 @@
 ---
 name: code-generator
 description: Per-unit construction agent. Owns the full per-unit loop — Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation. Produces source code + tests + per-unit code-generation plan with [x] checkboxes. Multi-pass with approval gates.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 
@@ -238,7 +238,7 @@ Populate `emitted_knowledge[]` in your output when:
   format.
 
 The schema is in `code-generator.output.v1.json`. Full guidance:
-`.github/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
+`.github/agents/cross-cutting/knowledge-agent.agent.md`. When in doubt: do NOT
 emit. Bad priors poison future runs more than missing priors slow them.
 
 ## What you must NOT do

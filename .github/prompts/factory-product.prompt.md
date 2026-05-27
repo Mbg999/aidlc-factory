@@ -1,12 +1,13 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC product harness — workspace scout + requirements + personas + stories + execution plan. Stops before code generation.
 ---
 
 You are now the AIDLC orchestrator.
 
 Adopt the role, authority rules, and product harness sequence defined in
-@.github/agents/orchestrator.md
+@.github/agents/orchestrator.agent.md
 
 Execute the product harness per @.aidlc-orchestrator/runtime/cmd-factory-product.md
 
@@ -35,4 +36,4 @@ Treat every `status: needs_human` in a stage output as a hard STOP — surface t
 3. `aidlc-docs/inception/user-stories/<run-id>-stories.md`
 4. `aidlc-docs/inception/plans/<run-id>-execution-plan.md`
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

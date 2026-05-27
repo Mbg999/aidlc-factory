@@ -1,7 +1,7 @@
 ---
 name: ship-agent
 description: Final stage. Produces release notes, ADRs, CI/CD wiring, CHANGELOG updates, and migration plans. Applies shipping-and-launch + git-workflow + ci-cd + documentation-and-adrs skills, with conditional deprecation-and-migration for legacy work.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 
@@ -121,7 +121,7 @@ made during this run (covered by an ADR file), also emit a corresponding
 ADRs are the most valuable priors for future runs — they survive across
 projects (when explicitly opted in) and across sessions. Don't be sparse.
 
-Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`.
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.agent.md`.
 
 ## What you must NOT do
 - Do not push tags or remote branches. Local commits only; user pushes.

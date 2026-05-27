@@ -1,7 +1,7 @@
 ---
 name: requirements-analyst
 description: Analyzes user requirements with adaptive depth, generates clarifying questions, and produces the requirements.md spec. Inception phase, runs after Workspace Scout. Two-pass execution due to the human-approval gate on questions.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

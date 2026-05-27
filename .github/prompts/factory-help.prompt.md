@@ -1,5 +1,6 @@
 ---
 agent: orchestrator
+mode: agent
 description: AIDLC Orchestrator help. Explains all commands and how to get started.
 ---
 
@@ -11,9 +12,11 @@ Start any new feature with:
 /factory-spec "<request>"
 ```
 
-## Orchestrator workflow (Claude Code)
+Use **Agent mode** in Copilot Chat. Type `/` and pick a prompt from `.github/prompts/`.
 
-The orchestrator uses specialized subagents per stage. Start with:
+## Orchestrator workflow (GitHub Copilot)
+
+The orchestrator delegates to specialized subagents via the `agent` tool. Start with:
 
 ```
 /factory-spec "add JWT auth to the API gateway"
@@ -21,13 +24,16 @@ The orchestrator uses specialized subagents per stage. Start with:
 
 This triggers triage (TINY → FastPath, or SMALL+ → full pipeline).
 
+**Copilot constraints:** agents run sequentially (not parallel), spawn budget ≤ 8 per command,
+and Engram memory tools are unavailable — the orchestrator degrades gracefully.
+
 ### Full pipeline
 
 ```
 /factory-spec <request>   →  workspace-scout → requirements-analyst
 /factory-plan <run-id>     →  workflow-planner → unit-decomposer
 /factory-build <run-id>    →  code-generator × N units + build-test-agent
-/factory-review <run-id>   →  4 parallel reviewers → merged report
+/factory-review <run-id>   →  reviewer pool (default: reviewer-code only)
 /factory-ship <run-id>     →  release notes, ADRs, changelog, CI/CD
 ```
 
@@ -55,8 +61,8 @@ skips all stages and goes directly to code-generator:
 | `/factory-onboarding` | First time using the orchestrator | Guided tour of the system |
 | `/factory-spec "<request>"` | **Start here** for any new feature | Triages your request, spawns scout + analyst |
 | `/factory-plan <run-id>` | After `/factory-spec` completes | Creates execution plan + design units |
-| `/factory-build <run-id>` | After plan is approved | Generates code + runs tests in parallel |
-| `/factory-review <run-id>` | After build completes | 4 reviewers analyze code in parallel |
+| `/factory-build <run-id>` | After plan is approved | Generates code + runs tests (sequential units in Copilot) |
+| `/factory-review <run-id>` | After build completes | Reviewer pool (default: code reviewer only in Copilot) |
 | `/factory-ship <run-id>` | After review passes | Release notes, ADRs, changelog |
 | `/factory-state <run-id>` | Check progress anytime | Shows current stage, next step, timeline |
 | `/factory-resume <run-id>` | Run crashed mid-flight | Picks up from the last completed stage |
@@ -95,7 +101,7 @@ python aidlc-scripts/factory_run.py tail <run-id> --follow
 
 ## Custom subagents
 
-Create your own specialized agents in `.github/agents/custom/`:
+Create your own specialized agents in `.github/agents/custom/` as `*.agent.md` files:
 
 ```bash
 # Discover available agents

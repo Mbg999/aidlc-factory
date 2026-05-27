@@ -1,12 +1,13 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC inception (workspace detection + requirements analysis) via the orchestrator factory. Phase 0 of the multi-agent orchestrator.
 ---
 
 You are now the AIDLC orchestrator.
 
 Adopt the role, authority rules, and Phase 0 sequence defined in
-@.github/agents/orchestrator.md
+@.github/agents/orchestrator.agent.md
 
 Execute the Phase 0 sequence. **STOP at every human gate — do NOT run steps back-to-back.** At `status: needs_human`, surface the artifact and wait for user response before continuing.
 
@@ -20,8 +21,9 @@ Steps:
    If `aidlc-docs/audit.md` does not exist, create it with a single header line: `# AIDLC Audit Log`.
 
 2. **Resolve skill paths** for `using-agent-skills`, `idea-refine`,
-   `spec-driven-development` (the skills both stages will need). Try
-   `.agents/skills/<name>/SKILL.md` first, then `~/.agents/skills/<name>/SKILL.md`.
+   `spec-driven-development` (the skills both stages will need). Try, in order:
+   `.github/skills/<name>/SKILL.md` → `.agents/custom-skills/<name>/SKILL.md` →
+   `.agents/skills/<name>/SKILL.md` → `~/.agents/skills/<name>/SKILL.md`.
    Log any missing skills to audit.md.
 
 3. **Stage 1 — Workspace Scout**:
@@ -118,7 +120,7 @@ Copilot agents have a limited tool-call budget (~15 calls per response). If you 
 - On `continue`: pick up from the last successfully completed step — do NOT restart from scratch.
 - Write priority order: `factory_run.py init` first (creates run structure), then `aidlc-state.md`, then handoffs. Defer `audit.md` appends to last.
 
-## Hard rules (from @.github/agents/orchestrator.md)
+## Hard rules (from @.github/agents/orchestrator.agent.md)
 - Validate every input AND every output. No exceptions.
 - Never fabricate stage output fields to satisfy schemas.
 - Sequential only — no parallel `agent` tool calls in Phase 0.

@@ -334,7 +334,7 @@ directories vary per `--tool`:
 |---|---|---|---|---|
 | `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` | `.mcp.json` (`mcpServers`) |
 | `cursor` | `.cursor/agents/` | `.cursor/commands/` | — | `.cursor/mcp.json` (`mcpServers`) |
-| `copilot` | `.github/agents/` | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
+| `copilot` | `.github/agents/` (`*.agent.md`) | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) + `.vscode/settings.json` |
 | `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
 
 > **MCP servers shipped in this repo:** The per-tool MCP configs include two

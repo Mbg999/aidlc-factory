@@ -1,7 +1,7 @@
 ---
 name: workflow-planner
 description: Produces the AIDLC execution plan with Mermaid visualization and a decomposed task tree with acceptance criteria. Always runs in inception. Uses Opus because plan errors cascade into every downstream stage.
-tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

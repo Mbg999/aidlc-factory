@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC construction (per-unit code generation + build/test) for an existing run. Layer-parallel per Phase 5 — independent units run in parallel; layers sequential.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-build <run-id>` sequence (now **layer-parallel** per Phase 5).
 
 **STOP at every human gate — do NOT run layers back-to-back.** At each consolidated approval gate (plan, generated, build+test), surface the results and wait for user approval before continuing.
@@ -76,11 +77,11 @@ Sequence:
    the ready-to-paste command, OR format manually as `/factory-review <RUN_ID_LITERAL>`
    with the actual run_id. **Never present `<run-id>` literally to the user.**
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.
 
 **Concurrency cap: 4.** If a layer has > 4 units, batch them (4 at a time)
 within the layer.
 
 **Conflict resolution (Phase 5)**: escalation-only. On path collision or
 interface drift, surface to user; user re-plans, manually merges, or cancels.
-Full protocol: `.github/agents/cross-cutting/conflict-resolver.md`.
+Full protocol: `.github/agents/cross-cutting/conflict-resolver.agent.md`.

@@ -98,8 +98,8 @@ When you change a stage agent's input or output, walk through this list:
    - `.claude/agents/stage/<stage>.md`
    - `.cursor/agents/stage/<stage>.md`
    - `.opencode/agents/stage/<stage>.md`
-   - `.github/agents/stage/<stage>.md`
-   Frontmatter conventions differ per platform (Claude uses `model:`; OpenCode adds `mode` and `permission`; Cursor uses `model: inherit`, `readonly`, `is_background`); body content stays identical.
+   - `.github/agents/stage/<stage>.agent.md`
+   Frontmatter conventions differ per platform (Claude uses `model:`; Copilot uses `*.agent.md`, `tools`, `agents`, `user-invocable`; OpenCode adds `mode` and `permission`; Cursor uses `model: inherit`, `readonly`, `is_background`); body content stays identical.
 3. **Orchestrator commands** — if a command builds the handoff or consumes the output, mirror the change across:
    - `.aidlc-orchestrator/runtime/cmd-factory-<phase>.md` (canonical)
    - `.claude/commands/factory-<phase>.md`
@@ -120,7 +120,7 @@ python3 -c "import json, pathlib; [json.loads(p.read_text()) for p in pathlib.Pa
 # If you touched a stage agent, confirm the four platform copies are in sync
 diff .claude/agents/stage/<stage>.md .opencode/agents/stage/<stage>.md
 diff .claude/agents/stage/<stage>.md .cursor/agents/stage/<stage>.md
-diff .claude/agents/stage/<stage>.md .github/agents/stage/<stage>.md
+diff .claude/agents/stage/<stage>.md .github/agents/stage/<stage>.agent.md
 # (frontmatter will differ; body should not)
 ```
 

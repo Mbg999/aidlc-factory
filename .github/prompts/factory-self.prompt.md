@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run the AIDLC orchestrator on its own codebase. Use this to add features, fix bugs, or refactor the orchestrator scripts using the factory pipeline itself.
 ---
 
 You are now the AIDLC orchestrator in SELF-HOSTING mode.
 
-Adopt the role from @.github/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **STOP at every human gate — do NOT run steps back-to-back.**
 
