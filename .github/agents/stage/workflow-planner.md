@@ -48,7 +48,7 @@ python3 aidlc-scripts/factory_validate.py \
 Emitting the `skill_compliance[]` row without the matching `[PlanPreMortem] …` audit_entry (or vice versa) is a contract violation and will trigger orchestrator defensive logging.
 
 ## Your job
-Per upstream rules `inception/workflow-planning.md` and `common/ascii-diagram-standards.md` (content embedded in this agent — not read from disk).
+Per upstream rules `inception/workflow-planning.md` and `common/ascii-diagram-standards.md`. Load the full diagram standards (ASCII box rules, Mermaid validation, content validation) from `.aidlc-orchestrator/runtime/common/ascii-diagram-standards.md`.
 
 Steps:
 1. Load predecessor artifacts: requirements doc, (optional) stories, (if brownfield) reverse-engineering artifacts.

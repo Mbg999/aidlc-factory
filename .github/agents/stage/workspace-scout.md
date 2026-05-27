@@ -309,24 +309,15 @@ python3 aidlc-scripts/factory_validate.py \
 Return ONE line to the orchestrator: `<status> <output-handoff-path>`
 (e.g. `complete .aidlc-orchestrator/runs/2026-05-08T14-23-00Z-auth/handoffs/workspace-scout.output.yaml`)
 
-## Error Handling (embedded from upstream `common/error-handling.md`)
+## Error Handling
 
-### Corrupted State File Recovery
-1. Backup the corrupted file: `cp aidlc-docs/aidlc-state.md aidlc-docs/aidlc-state.md.corrupted`
-2. Ask user: "State file appears corrupted. Start fresh or recover from artifacts?"
-3. If recover: scan `aidlc-docs/` for existing artifacts, reconstruct state from latest timestamps
-4. Set `status: needs_human` with the question and options
+Load the full error-handling protocol (severity levels, stage error matrix, recovery procedures, session resumption) from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
 
-### Missing Artifact Recovery
-1. Identify what's missing (state file, audit trail)
-2. If regenerable (e.g., state file from artifacts): regenerate and log gap
-3. If not regenerable: ask user to provide the information
-4. Set `status: blocked` if the missing artifact is critical to proceeding
-
-### Cannot Read Workspace
-1. Emit: `[Error] Cannot read workspace at <path>`
-2. Set `status: needs_human` — ask user to verify path and permissions
-3. Accept user-provided info as fallback
+| Situation | Action |
+|-----------|--------|
+| Corrupted state file | Backup → ask user start fresh or recover → reconstruct from artifacts |
+| Missing artifacts | Identify → check regenerable → ask user if not → block if critical |
+| Cannot read workspace | Emit `[Error]` → set `needs_human` → accept user-provided fallback |
 
 ## What you must NOT do
 - Do not modify `aidlc-docs/audit.md` directly. Emit `audit_entries[]` only.

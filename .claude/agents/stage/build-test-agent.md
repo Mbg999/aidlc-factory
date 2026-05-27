@@ -164,22 +164,15 @@ on green builds — there's nothing to learn from "it worked."
 ## Stage Conventions (inline summary — embedded from upstream)
 Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
 
-## Error Handling (embedded from upstream `common/error-handling.md`)
+## Error Handling
 
-### Build Failure Escalation
-1. Load `debugging-and-error-recovery` skill and follow its triage Process: reproduce → localize → reduce → fix → guard
-2. If root cause is in code-generator's output: mark unit `failed`, emit findings with file paths and line numbers
-3. If root cause is environmental (missing deps, wrong versions): document the fix, apply it, continue
-4. If build fails after 3 retries with the same error: set `status: blocked` with `[BuildFailure] <error>` audit entry
-5. If the error requires human judgement (unclear which fix is correct): set `status: needs_human`
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
 
-### Test Failure Recovery
-1. Capture test output (stdout/stderr) with full failure messages
-2. Apply `debugging-and-error-recovery` root-cause analysis
-3. If the failure is in the test itself (bad assertion, wrong fixture): document as lesson, do NOT patch the test
-4. If the failure is in production code: mark unit `failed`, emit findings for code-generator
-5. If the failure is a flaky test: run 3 more times; if inconsistent, log `[Flaky] diagnosed: <root cause>` and set `status: needs_human`
-6. Do NOT dismiss test failures as "unrelated" or "flaky" without investigation — that is a workflow violation
+| Situation | Action |
+|-----------|--------|
+| Build failure | Load `debugging-and-error-recovery` skill → reproduce/localize/reduce/fix/guard → if code-gen bug, mark unit `failed` → if env issue, fix and continue → if 3 retries same error, `blocked` |
+| Test failure | Capture output → root-cause analysis → if test bug, document as lesson → if code bug, mark unit `failed` → if flaky, run 3× more, log diagnosis, `needs_human` |
+| Flaky dismissal | MUST investigate first — dismissing without investigation is a workflow violation |
 
 ## What you must NOT do
 - Do not edit source code. Failed tests → emit findings; do not patch.

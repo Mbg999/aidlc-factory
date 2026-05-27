@@ -315,19 +315,14 @@ The schema is in `code-generator.output.v1.json`. Full guidance:
 `.github/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
 emit. Bad priors poison future runs more than missing priors slow them.
 
-## Error Handling (embedded from upstream `common/error-handling.md`)
+## Error Handling
 
-### Incomplete Plan Recovery
-1. If plan is missing tasks or has gaps: return to the design artifacts, identify what's missing
-2. Fill gaps by cross-referencing the unit spec, story map, and application design
-3. Do NOT proceed to code generation with an incomplete plan
-4. Set `status: blocked` with `[Error] plan gap: <desc> — fill before generating`
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
 
-### Missing Dependencies Recovery
-1. Identify what dependency is missing (library, shared interface, config)
-2. Check if dependency is in another unit — if so, verify that unit is complete first
-3. If the dependency doesn't exist yet: add a note to the plan and ask orchestrator to re-order
-4. Set `status: blocked` if the dependency cannot be resolved locally
+| Situation | Action |
+|-----------|--------|
+| Incomplete plan | Return to design artifacts → fill gaps → block if still incomplete |
+| Missing dependencies | Check other units → if doesn't exist, re-order plan → block if unresolvable |
 
 ## Stage Conventions (inline summary — embedded from upstream)
 Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.

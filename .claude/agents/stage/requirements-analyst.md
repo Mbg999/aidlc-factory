@@ -174,19 +174,14 @@ the failure. Common failure modes:
 
 Return ONE line: `<status> <output-handoff-path>`
 
-## Error Handling (embedded from upstream `common/error-handling.md`)
+## Error Handling
 
-### Contradictory Requirements Resolution
-1. Detect contradictions by cross-referencing user answers against existing artifacts
-2. Generate follow-up questions that present the contradiction explicitly
-3. Do NOT proceed to Pass 2 until contradictions are resolved
-4. Log: `[Error] contradictory requirements: <desc> — follow-ups sent`
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
 
-### Incomplete Answers Handling
-1. Highlight which questions received vague responses ("depends", "maybe", "not sure")
-2. Provide concrete examples to guide the user toward a specific answer
-3. Block Pass 2 generation until all critical answers are clear
-4. Set `status: needs_human` with the unanswered questions list
+| Situation | Action |
+|-----------|--------|
+| Contradictory requirements | Cross-reference answers → generate follow-ups → do NOT proceed to Pass 2 |
+| Incomplete answers | Highlight vague responses → provide examples → block Pass 2 until clear |
 
 ## What you must NOT do
 - Do not write the requirements.md before Pass 2 (before user answers exist).
