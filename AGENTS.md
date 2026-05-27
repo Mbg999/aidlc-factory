@@ -24,15 +24,10 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 |------|---------|
 | `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules (read by orchestrator stage agents) |
 | `aidlc-rules/aws-aidlc-rule-details/` | Stage rule details (inception / construction / operations / common / extensions) |
-| `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands, Claude Code) |
+| `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands) |
 | `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
 | `.claude/agents/cross-cutting/` | conflict-resolver, knowledge-agent |
-| `.claude/commands/factory-*.md` | Factory slash command definitions (Claude Code) |
-| `.other/agents/orchestrator.md` | Multi-agent orchestrator (tool-agnostic, for non-Claude tools) |
-| `.other/agents/stage/` | 13 stage subagents (tool-agnostic) |
-| `.other/agents/cross-cutting/` | conflict-resolver, knowledge-agent (tool-agnostic) |
-| `.other/commands/factory-*.md` | Factory command definitions (tool-agnostic) |
-| `.other/mcp.json` | MCP server config for other tools |
+| `.claude/commands/factory-*.md` | Factory slash command definitions |
 | `.aidlc-orchestrator/runtime/` | Runtime architecture docs (index, spawn-loop, fast-path, recovery, …) |
 | `.aidlc-orchestrator/contracts/` | JSON Schema handoff contracts for every stage I/O |
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
@@ -66,34 +61,6 @@ Runtime spec: `.aidlc-orchestrator/runtime/index.md`.
 
 Stage execution modes: **Full spawn** (`Task()` + JSON Schema validation) for build/review;
 **post-execution inline** for all other stages. See `runtime/spawn-loop.md`.
-
-## Multi-agent orchestrator (other tools)
-
-For non-Claude tools (Cline, Continue, Amazon Q, or any AI coding assistant),
-a tool-agnostic edition is available at `.other/agents/orchestrator.md`.
-
-| Command | What it does |
-|---------|-------------|
-| `/factory-spec <feature>` | Workspace scout + requirements analysis (Phase 0) |
-| `/factory-plan <run-id>` | Execution plan + optional unit decomposition (Phase 1) |
-| `/factory-build <run-id>` | Parallel code-gen + build/test with file-glob locks (Phase 5) |
-| `/factory-review <run-id>` | Parallel reviewer pool: code / security / performance / simplifier |
-| `/factory-ship <run-id>` | Release notes, ADRs, CHANGELOG, CI/CD wiring |
-| `/factory-resume <run-id>` | Resume interrupted run from last completed stage |
-| `/factory-replay <run-id> --from <stage>` | Re-run from a specific stage |
-| `/factory-state <run-id>` | Show run status, stage, budget |
-| `/factory-help` | Full command reference |
-| `/factory-code-tour` | Dependency-ordered codebase tour |
-| `/factory-product <feature>` | Product harness (stops before code generation) |
-| `/factory-self <task>` | Self-hosting mode (run orchestrator on its own codebase) |
-| `/factory-onboarding` | Guided tour of the orchestrator system |
-
-**Invocation:** Load the command file from `.other/commands/factory-<name>.md` as
-your prompt. The command instructs you to adopt the AIDLC orchestrator role.
-
-**Subagent delegation:** This edition uses tool-agnostic subagent delegation
-(rather than Claude Code's `Task()`). Check your tool's subagent/parallelism
-support — if unavailable, stages run sequentially.
 
 ---
 
@@ -196,6 +163,6 @@ Extensions layer additional rules on top of the core workflow. Opt-in files live
 Extensions without an opt-in file are always enforced.
 
 
-Keep parity between .opencode/, .cursor/, .github/, .other/ and .claude/ files, everytime you change anything in one, do the same for the other.
+Keep parity between .opencode/, .cursor, .github and .claude/ files, everytime you change anything in one, do the same for the other.
 Skills provide specialized instructions and workflows for specific tasks.
 Use the skill tool to load a skill when a task matches its description.
