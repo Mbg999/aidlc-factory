@@ -70,13 +70,13 @@ skips all stages and goes directly to code-generator:
 
 ```bash
 # Visual timeline of what ran and how long it took
-python3 aidlc-scripts/factory_run.py graph <run-id>
+python aidlc-scripts/factory_run.py graph <run-id>
 
 # Approval gate delays
-python3 aidlc-scripts/factory_run.py status <run-id> --latency
+python aidlc-scripts/factory_run.py status <run-id> --latency
 
 # Live event feed
-python3 aidlc-scripts/factory_run.py tail <run-id> --follow
+python aidlc-scripts/factory_run.py tail <run-id> --follow
 ```
 
 ---
@@ -87,8 +87,8 @@ python3 aidlc-scripts/factory_run.py tail <run-id> --follow
 |-----------|----------|
 | Run crashed or you closed the session | `/factory-resume <run-id>` |
 | A stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| An agent crashed and left stale locks | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Need to know what happened | `python3 aidlc-scripts/factory_run.py timeline <run-id> --follow` |
+| An agent crashed and left stale locks | `python aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Need to know what happened | `python aidlc-scripts/factory_run.py timeline <run-id> --follow` |
 
 ---
 
@@ -98,8 +98,8 @@ Create your own specialized agents in `.github/agents/`:
 
 ```bash
 # Discover available agents
-python3 aidlc-scripts/factory_agent_discover.py list
-python3 aidlc-scripts/factory_agent_discover.py show lint-audit
+python aidlc-scripts/factory_agent_discover.py list
+python aidlc-scripts/factory_agent_discover.py show lint-audit
 ```
 
 Custom agents use generic contracts and default to `sonnet` model.
@@ -111,13 +111,13 @@ See `README.md` for details.
 
 ```bash
 # Score a request without spawning agents
-python3 aidlc-scripts/factory_triage.py "add healthz" --dry-run
+python aidlc-scripts/factory_triage.py "add healthz" --dry-run
 
 # Validate a handoff contract
-python3 aidlc-scripts/factory_validate.py schema.json doc.yaml --strict
+python aidlc-scripts/factory_validate.py schema.json doc.yaml --strict
 
 # Scan for secrets in handoff files
-python3 aidlc-scripts/factory_secretscan.py handoff.yaml
+python aidlc-scripts/factory_secretscan.py handoff.yaml
 ```
 
 ---

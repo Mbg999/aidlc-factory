@@ -1,7 +1,7 @@
-﻿---
+---
 name: reviewer-simplifier
 description: Simplification reviewer. Applies code-simplification skill. Flags premature abstraction, dead code, over-engineering, redundant layers.
-tools: ['search/codebase', 'engram/mem_save', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 

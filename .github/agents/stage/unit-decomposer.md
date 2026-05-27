@@ -1,7 +1,7 @@
-﻿---
+---
 name: unit-decomposer
 description: Decomposes the approved execution plan into per-unit specs. Conditional — runs only when the plan explicitly enumerates ≥2 units OR requirements call out distinct services/components.
-tools: ['search/codebase', 'edit']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

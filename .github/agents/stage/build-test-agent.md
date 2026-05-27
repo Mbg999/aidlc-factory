@@ -1,7 +1,7 @@
-﻿---
+---
 name: build-test-agent
 description: Runs build + tests for one unit (or the whole project after final unit). Produces build-instructions.md and build-and-test-summary.md. Applies debugging-and-error-recovery skill on failures.
-tools: ['search/codebase', 'read/terminalLastCommand', 'engram/mem_save']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 
@@ -139,7 +139,7 @@ Populate `emitted_knowledge[]` when:
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
 
-Full guidance: `.github/agents/knowledge-agent.md`. Don't emit
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
 
 ## What you must NOT do

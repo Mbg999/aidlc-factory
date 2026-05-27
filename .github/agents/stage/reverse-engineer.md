@@ -1,7 +1,7 @@
-﻿---
+---
 name: reverse-engineer
 description: Reverse-engineers an existing brownfield codebase. Produces business overview, architecture docs, code structure, API docs, component inventory, interaction diagrams, tech stack, and dependencies. Conditional — runs only when workspace is brownfield and no current RE artifacts exist.
-tools: ['search/codebase', 'codegraph/context', 'codegraph/search', 'codegraph/files', 'codegraph/callers', 'codegraph/callees', 'codegraph/status']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/context', 'codegraph/search', 'codegraph/files', 'codegraph/callers', 'codegraph/callees', 'codegraph/status']
 user-invocable: false
 ---
 

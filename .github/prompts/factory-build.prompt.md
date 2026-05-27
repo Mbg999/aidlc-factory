@@ -21,7 +21,7 @@ Sequence:
 3. **Pre-Build Step 0 — Skill Sync** (once, before any unit is spawned):
    a. Run sync:
       ```bash
-      python3 aidlc-scripts/factory_skill_sync.py sync
+      python aidlc-scripts/factory_skill_sync.py sync
       ```
       Capture stdout. Each `[Sync]` line is the single source of truth for the
       audit — copy them verbatim into audit.md under `[Skills]` prefix
@@ -29,7 +29,7 @@ Sequence:
       Skill failure never blocks a build (pre-shipped custom-skills still apply).
    b. Run select:
       ```bash
-      python3 aidlc-scripts/factory_skill_sync.py select --output json
+      python aidlc-scripts/factory_skill_sync.py select --output json
       ```
       Parse JSON → store `skill_paths_resolved` list in `manifest.yaml`. Include
       this list in every subsequent stage input handoff YAML for this run.
@@ -45,16 +45,16 @@ Sequence:
       sits above it.
 4. **Topo-sort `manifest.units[]`** by `depends_on` into layers. Layer 0 = no
    deps; Layer N = deps all in layers < N. Monolith → single virtual unit.
-5. **For each layer (sequential)**, run the parallel construction protocol:
+5. **For each layer (sequential)**, run the sequential construction protocol:
    a. **Pre-flight per unit (sequential, cheap)** — budget gate, lock acquire
       (`factory_conflict.py acquire`), AST snapshot (Python only), knowledge
       query, build+validate input handoff.
-   b. **Three sub-stages, parallel per sub_stage** —
-      `plan` → `generated` → `approved`. For each:
-        - Single message with N parallel `Task(subagent_type=code-generator, ...)`
-          calls (N = active set, ≤ 4)
-        - Wait for all
-        - Per-unit post-processing: validate output **with `--strict`**
+   b. **Three sub-stages, sequential per unit** —
+      `plan` → `generated` → `approved`. For each sub-stage:
+        - Invoke each `code-generator` agent via the `agent` tool **one at a time**
+          (N = active set, ≤ 4 per layer; Copilot does not support parallel agent calls —
+          process each unit fully before starting the next)
+        - Per-unit post-processing after each agent returns: validate output **with `--strict`**
           (`factory_validate.py code-generator.output.v1.json <handoff> --strict`
           — enforces plan-artifact existence on disk for non-fast_path runs;
           catches silent skip of construction plan), AST drift check
@@ -62,9 +62,9 @@ Sequence:
           audit append
         - Surface any drift conflicts OR strict-validation failures BEFORE the approval gate
         - Consolidated approval gate (plan + generated only)
-   c. **Build & Test parallel** — single message with N parallel
-      `Task(subagent_type=build-test-agent, ...)` calls; per-unit
-      post-processing; consolidated approval gate.
+   c. **Build & Test sequential** — invoke each `build-test-agent` agent via the
+      `agent` tool **one at a time**; per-unit post-processing after each returns;
+      consolidated approval gate.
    d. **Release locks** — `factory_conflict.py release` per unit. Always
       release, even on failure.
    e. **Per-unit commits** — present the unit diff to the user and wait for
@@ -72,7 +72,7 @@ Sequence:
       and `build(<unit>): complete build and test`. Do NOT auto-commit.
 6. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
 7. **Present + offer next step (substitute `<run-id>` literally):** Run
-   `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+   `python aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
    the ready-to-paste command, OR format manually as `/factory-review <RUN_ID_LITERAL>`
    with the actual run_id. **Never present `<run-id>` literally to the user.**
 

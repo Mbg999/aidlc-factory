@@ -12,8 +12,12 @@ Execute the Phase 0 sequence. **STOP at every human gate — do NOT run steps ba
 
 Steps:
 
-1. **Generate run-id** of the form `YYYY-MM-DDTHH-MM-SSZ-<slug>` and create
-   `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
+1. **Initialize run** — Generate a run-id of the form `YYYY-MM-DDTHH-MM-SSZ-<slug>` then run:
+   ```
+   python aidlc-scripts/factory_run.py init <run-id> --user-request "<user_request_one_line>"
+   ```
+   This creates the run directory, `handoffs/`, and `manifest.yaml` in one command.
+   If `aidlc-docs/audit.md` does not exist, create it with a single header line: `# AIDLC Audit Log`.
 
 2. **Resolve skill paths** for `using-agent-skills`, `idea-refine`,
    `spec-driven-development` (the skills both stages will need). Try
@@ -21,7 +25,20 @@ Steps:
    Log any missing skills to audit.md.
 
 3. **Stage 1 — Workspace Scout**:
-   - Write input handoff → validate via `python3 aidlc-scripts/factory_validate.py`
+   - **Greenfield shortcut**: Before spawning, run this terminal command to scan for non-AIDLC source files at depth ≤ 2:
+     ```bash
+     find . -maxdepth 2 \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.cpp" -o -name "*.cs" -o -name "*.rb" -o -name "package.json" -o -name "pyproject.toml" -o -name "go.mod" -o -name "Cargo.toml" \) \
+         -not -path "*/aidlc-scripts/*" \
+         -not -path "*/.aidlc-orchestrator/*" \
+         -not -path "*/aidlc-docs/*" \
+         -not -path "*/.agents/*" \
+         -not -path "*/.github/*" \
+         -not -path "*/.venv/*" \
+         -not -path "*/node_modules/*" \
+         -not -path "*/.git/*" 2>/dev/null | head -1
+     ```
+     If the command returns **no output** → workspace is clearly greenfield. Build `workspace-scout.output.yaml` inline (set `project_type: greenfield`, `existing_code: false`, `next_phase: requirements-analysis`, `codegraph_state: {indexed: false}`) and log `[Inline] workspace-scout — greenfield, scanned inline`. Skip spawning workspace-scout. This saves 1 agent spawn.
+   - Otherwise → Write input handoff → validate via `python aidlc-scripts/factory_validate.py`
    - Invoke `workspace-scout` as a subagent via the `agent` tool
    - Validate the output handoff
    - Append `audit_entries[]` to `aidlc-docs/audit.md` (per orchestrator.md
@@ -34,6 +51,12 @@ Steps:
    orchestrator.md Step 3.5):
    - Set `project_profile.ui/api/has_legacy` via `factory_run.py set --field` based
      on heuristics from workspace-scout's output + user_request.
+   - **If `ui: true` AND `design-system/` doesn't exist at repo root**:
+     ```bash
+     python aidlc-scripts/factory_ds_bootstrap.py init
+     ```
+     Then set `project_profile.design_system_path = "design-system/"`.
+     Log `[Bootstrap] Created default design system at design-system/`.
    - If workspace-scout flagged `next_phase: reverse-engineering` AND no RE
      artifacts present → surface the approval gate to the user. If yes, spawn
      `reverse-engineer` stage before requirements-analyst. If no, mark
@@ -55,7 +78,7 @@ Steps:
    - Append audit entries → update state file
 
 5.5. **Stage-routing decisions** (post-requirements):
-   - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply` — reads
+   - `python aidlc-scripts/factory_complexity.py <run-id> --apply` — reads
      `request_classification` + `project_profile` and computes the actual
      decisions: `fast_path`, `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
      On failure, default to "run everything" (no skips, all reviewers).
@@ -81,11 +104,19 @@ Steps:
      `docs(workspace-detection): complete workspace detection` and
      `docs(requirements-analysis): complete requirements analysis` (one combined commit).
    - **Next step (substitute `<run-id>` with the actual id):** Run
-     `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+     `python aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
      the ready-to-paste command, OR format manually as
      `/factory-plan <RUN_ID_LITERAL>` with the actual run_id
      (e.g. `2026-05-22T10-00-00Z-jwt-auth`).
      **Never present `<run-id>` literally to the user.**
+
+## Execution limit handling
+
+Copilot agents have a limited tool-call budget (~15 calls per response). If you hit the limit mid-step:
+- Stop immediately and surface what you have so far (run_id, workspace type, routing decisions).
+- Tell the user exactly which step failed and ask them to reply `continue` to resume.
+- On `continue`: pick up from the last successfully completed step — do NOT restart from scratch.
+- Write priority order: `factory_run.py init` first (creates run structure), then `aidlc-state.md`, then handoffs. Defer `audit.md` appends to last.
 
 ## Hard rules (from @.github/agents/orchestrator.md)
 - Validate every input AND every output. No exceptions.

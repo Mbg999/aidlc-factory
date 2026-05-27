@@ -1,7 +1,7 @@
 ﻿---
 name: workspace-scout
 description: Detects greenfield vs brownfield workspace state, identifies tech stack, decides next AIDLC phase. First stage of every AIDLC inception run. Spawned by the orchestrator with a path to its input handoff YAML.
-tools: ['search/codebase', 'codegraph/status']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/status']
 user-invocable: false
 ---
 
@@ -78,8 +78,7 @@ Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 If after excluding these paths no source or manifest files remain → `project_type: greenfield`.
 
-Use `Glob` and `Bash ls/find` for the scan. Stay shallow (depth 2-3) to
-avoid token blow-up.
+Use `read/terminalLastCommand` to run shell commands (`find`, `ls`) for the scan. (`Glob` is Claude Code-specific and not available in Copilot — always use terminal.) Stay shallow (depth 2-3) to avoid token blow-up.
 
 ### Step 2.5 — Workspace Discovery + Best-Effort Tech Stack
 

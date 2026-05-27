@@ -1,7 +1,7 @@
-﻿---
+---
 name: reviewer-security
 description: Security reviewer. Applies security-and-hardening skill. OWASP-aware. Uses Opus because security misses become incidents.
-tools: ['search/codebase', 'engram/mem_save', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 
@@ -118,7 +118,7 @@ cause):
 - Body: describe the **root cause** and the attack vector, NOT the specific
   patch. Future runs need the failure shape, not your fix.
 
-Full guidance: `.github/agents/knowledge-agent.md`. Security
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
 

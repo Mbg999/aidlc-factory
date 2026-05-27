@@ -1,7 +1,7 @@
-﻿---
+---
 name: story-writer
 description: Generates user stories and personas. Conditional — runs only when scope is multi-component and the feature touches user-facing workflows.
-tools: ['search/codebase', 'edit']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

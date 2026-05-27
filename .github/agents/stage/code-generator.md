@@ -1,7 +1,7 @@
-﻿---
+---
 name: code-generator
 description: Per-unit construction agent. Owns the full per-unit loop — Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation. Produces source code + tests + per-unit code-generation plan with [x] checkboxes. Multi-pass with approval gates.
-tools: ['search/codebase', 'edit', 'read/terminalLastCommand', 'engram/mem_save', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search/codebase', 'read/terminalLastCommand', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 
@@ -51,7 +51,10 @@ silent error handling, `# noqa` without justification → `status: needs_human`.
 
 **Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
-`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `api-and-interface-design*`, `secret-knowledge` (* = conditional on profile).
+`validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
+`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
+and `ui-constraint-validator` are present, run them as a pipeline:
+`design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill
@@ -202,7 +205,7 @@ Populate `emitted_knowledge[]` in your output when:
   format.
 
 The schema is in `code-generator.output.v1.json`. Full guidance:
-`.github/agents/knowledge-agent.md`. When in doubt: do NOT
+`.github/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
 emit. Bad priors poison future runs more than missing priors slow them.
 
 ## What you must NOT do

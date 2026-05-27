@@ -14,7 +14,7 @@ malformed, refuse with a usage hint and stop.
 
 1. Roll the manifest back and archive handoffs:
    ```bash
-   python3 aidlc-scripts/factory_run.py replay <run-id> --from <stage>
+   python aidlc-scripts/factory_run.py replay <run-id> --from <stage>
    ```
    This:
    - Truncates `manifest.completed_stages[]` before `<stage>`

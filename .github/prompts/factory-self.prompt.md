@@ -27,7 +27,7 @@ Treat `aidlc-scripts/`, `.github/agents/`, and `tests/` as the workspace being d
 
 3. **Validation** uses existing test suite:
    ```
-   python3 -m pytest tests/ --tb=short
+   python -m pytest tests/ --tb=short
    ```
 
 4. **Review** focuses on test coverage and backward compatibility.
