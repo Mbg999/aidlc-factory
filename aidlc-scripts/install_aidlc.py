@@ -998,6 +998,15 @@ CODEGRAPH_MCP_CONFIG = {
     }
 }
 
+# Map from AIDLC tool names to CodeGraph agent names for --target.
+CODEGRAPH_TOOL_MAP: dict[str, str] = {
+    "claude": "claude",
+    "cursor": "cursor",
+    "opencode": "opencode",
+    "codex": "codex",
+    "copilot": "copilot",
+}
+
 # Allowlist of CodeGraph MCP tools that stage subagents may call.
 # Note: codegraph_context and codegraph_explore are EXCLUDED from the
 # orchestrator's main session — they return large source sections.
@@ -1062,14 +1071,15 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
         _run_codegraph(["codegraph", "status"], target_root)
 
 
-def install_codegraph(target_root: Path, dry_run: bool) -> None:
-    """Install CodeGraph globally via npm and write .mcp.json to target_root.
+def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> None:
+    """Install CodeGraph globally via npm and configure agents with --target.
 
     Steps:
       1. Check Node >= 18.
-      2. npm install -g @colbymchenry/codegraph.
-      3. Write project-local .mcp.json with the codegraph MCP server entry.
-         Merges into existing .mcp.json if present.
+      2. npm install -g @colbymchenry/codegraph (or skip if already installed).
+      3. Run `codegraph install --target=<tool1,tool2> --yes` to configure
+         MCP server + instructions for each selected agent.
+      4. Fall back to manual .mcp.json write if step 3 fails.
 
     Raises RuntimeError if Node < 18 or npm install fails.
     """
@@ -1094,8 +1104,6 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
     else:
         print(f"  Installing {CODEGRAPH_NPM_PACKAGE} globally via npm...")
-        # On Windows npm is a .cmd script (not an .exe), so use cmd.exe /c
-        # to ensure subprocess resolves it via PATHEXT.
         npm_install = ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE]
         npm_cmd = (
             ["cmd", "/c"] + npm_install
@@ -1111,7 +1119,24 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         ok, cg_version = _probe_version(["codegraph", "--version"])
         print(f"  codegraph: {cg_version}" if ok else "  codegraph: unknown")
 
-    # Step 3: Write .mcp.json
+    # Step 3: Run codegraph install --target=<tools> --yes to configure agents
+    cg_targets = [CODEGRAPH_TOOL_MAP[t] for t in tools if t in CODEGRAPH_TOOL_MAP]
+    if cg_targets and ok:
+        target_str = ",".join(cg_targets)
+        if dry_run:
+            print(f"[DRY-RUN] Would run: codegraph install --target={target_str} --yes")
+        else:
+            print(f"  Running: codegraph install --target={target_str} --yes")
+            install_result = _run_codegraph(
+                ["codegraph", "install", f"--target={target_str}", "--yes"],
+                target_root,
+            )
+            if install_result.returncode == 0:
+                print(f"  CodeGraph configured for: {target_str}")
+                return
+            print(f"  codegraph install exited {install_result.returncode} -- falling back to manual .mcp.json")
+
+    # Step 4 (fallback): Write .mcp.json manually
     mcp_path = target_root / ".mcp.json"
     if dry_run:
         print(f"[DRY-RUN] Would write/merge CodeGraph MCP entry into {mcp_path}")
@@ -1744,7 +1769,7 @@ def main() -> int:
     # --- CodeGraph (default: install, opt-out via --no-codegraph) ---
     if args.with_codegraph:
         try:
-            install_codegraph(target_root, args.dry_run)
+            install_codegraph(tools, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing CodeGraph: {e}")
             print("  CodeGraph is optional -- AIDLC will degrade gracefully without it.")
