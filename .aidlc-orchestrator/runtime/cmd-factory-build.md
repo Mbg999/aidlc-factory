@@ -16,11 +16,11 @@ the execution plan is loaded.
 
 Runs ONCE before any unit is spawned.
 
-1. **Sync** — install framework skills via the local autoskills fork:
-   ```bash
-   python3 aidlc-scripts/factory_skill_sync.py sync
-   ```
-   For greenfield projects (no manifest files detected), force technologies:
+1. **Sync** — install framework skills via the local autoskills fork.
+   ALWAYS pass `--tech` from the target project's tech stack (resolved from
+   workspace-scout or requirements). Never rely on autoskills auto-detection —
+   it scans the AIDLC repo (where the script runs) and may detect the wrong
+   stack (e.g. Python for a React project).
    ```bash
    python3 aidlc-scripts/factory_skill_sync.py sync --tech react,nextjs
    ```

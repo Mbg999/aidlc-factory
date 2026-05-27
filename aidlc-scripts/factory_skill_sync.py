@@ -6,7 +6,8 @@ Instead of running `npx autoskills`, this script:
   2. Runs the compiled CLI directly with `node` (no build needed)
 
 The fork already handles monorepo scanning internally, so this script
-no longer performs its own workspace discovery.
+no longer performs its own workspace discovery. Skills live exclusively in
+`.agents/skills/` — no symlinks are created in agent-specific folders.
 
 Three subcommands:
 
@@ -56,13 +57,7 @@ AUTOSKILLS_CACHE_DIR = Path(".autoskills-cache")
 AUTOSKILLS_ENTRY = Path("index.mjs")
 AUTOSKILLS_NODE_MIN = (22, 6, 0)
 
-# Manifest files used to detect whether a project is greenfield.
-_MANIFEST_FILES = frozenset({
-    "package.json", "pyproject.toml", "Cargo.toml", "go.mod",
-    "requirements.txt", "setup.py", "Pipfile", "Gemfile",
-    "composer.json", "build.gradle", "build.gradle.kts", "pom.xml",
-    "deno.json", "deno.jsonc", "bun.lockb", "bun.lock", "bunfig.toml",
-})
+# (manifest files list removed — no longer used for greenfield detection)
 
 
 # ── Node.js resolution (simplified) ───────────────────────────────────────────
@@ -264,131 +259,7 @@ def _run_local_autoskills(
     return installed
 
 
-# ── Greenfield detection ──────────────────────────────────────────────────────
-
-def _is_greenfield(project_dir: Path) -> bool:
-    """True if no recognised manifest files exist in project_dir."""
-    return not any((project_dir / m).exists() for m in _MANIFEST_FILES)
-
-
-def _infer_techs_for_greenfield(project_dir: Path) -> list[str]:
-    """Best-effort tech inference when no manifests are present.
-
-    For AIDLC repos (this codebase), we detect Python via requirements.txt
-    or pyproject.toml — but those would make _is_greenfield return False.
-    When truly greenfield, we return an empty list and let the user pass
-    --tech if they want to force something.
-    """
-    return []
-
-
-# ── consolidation helpers (kept for edge-cases) ─────────────────────────────
-
-def _copy_skill(src: Path, dest: Path) -> None:
-    """Copy all files from src skill dir to dest, preserving sub-structure."""
-    real_src = src.resolve() if src.is_symlink() else src
-    dest.mkdir(parents=True, exist_ok=True)
-    for file in real_src.rglob("*"):
-        if file.is_file():
-            rel = file.relative_to(real_src)
-            dest_file = dest / rel
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(file, dest_file)
-
-
-def _remove(path: Path) -> None:
-    """Remove a path whether it is a directory, a symlink, or a symlink-to-dir."""
-    if path.is_symlink():
-        path.unlink()
-    elif path.is_dir():
-        shutil.rmtree(path, ignore_errors=True)
-
-
-def _skill_is_current(src: Path, dest: Path) -> bool:
-    """True if dest/SKILL.md already has the same SHA-256 as src/SKILL.md."""
-    src_md = src / "SKILL.md"
-    dest_md = dest / "SKILL.md"
-    return (
-        src_md.exists()
-        and dest_md.exists()
-        and sha256_file(src_md) == sha256_file(dest_md)
-    )
-
-
-# ── Agent folders we symlink skills into ────────────────────────────────────────
-# Centralised here (not in the autoskills fork) so all agent folder symlinks
-# are managed in one place.
-
-_AGENT_FOLDERS: list[Path] = [
-    Path(".opencode") / "skills",
-    Path(".cursor") / "skills",
-    Path(".github") / "agents" / "skills",
-    Path(".claude") / "skills",
-    Path(".cline") / "skills",
-    Path(".junie") / "skills",
-    Path(".codebuddy") / "skills",
-    Path(".continue") / "skills",
-    Path(".kiro") / "skills",
-]
-
-
-def _consolidate_skills(repo_root: Path, dry_run: bool = False) -> int:
-    """Ensure every skill in .agents/skills/<name>/ is also reachable from
-    every agent-specific folder (.opencode/skills/, .cursor/skills/, etc.).
-
-    Creates symlinks pointing back to the canonical location in .agents/skills/.
-    If a symlink already exists and points to the same target, it's skipped.
-    If a real directory exists in the agent folder (e.g. from a previous copy),
-    it's left in place — we don't overwrite user-managed files.
-    """
-    skills_dir = repo_root / ".agents" / "skills"
-    if not skills_dir.exists():
-        return 0
-
-    linked = 0
-    skipped = 0
-
-    for skill_dir in skills_dir.iterdir():
-        if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
-            continue
-        skill_name = skill_dir.name
-
-        for rel in _AGENT_FOLDERS:
-            link_target = repo_root / rel / skill_name
-
-            if dry_run:
-                print(f"[DRY-RUN] Would link {rel / skill_name} → .agents/skills/{skill_name}")
-                continue
-
-            link_target.parent.mkdir(parents=True, exist_ok=True)
-
-            # Skip if already a symlink pointing to the right place
-            if link_target.is_symlink():
-                existing = link_target.resolve()
-                if existing == skill_dir.resolve():
-                    skipped += 1
-                    continue
-                link_target.unlink()
-            elif link_target.exists():
-                # Real directory/file that's not a symlink — leave it alone
-                skipped += 1
-                continue
-
-            # Create relative symlink
-            try:
-                rel_from_link = Path(os.path.relpath(
-                    str(skill_dir.resolve()),
-                    str(link_target.parent.resolve()),
-                ))
-                link_target.symlink_to(rel_from_link, target_is_directory=True)
-                linked += 1
-            except (OSError, NotImplementedError, PermissionError) as exc:
-                print(f"  WARNING: failed to link {rel / skill_name}: {exc}", file=sys.stderr)
-
-    if linked:
-        print(f"[Skills] linked {linked} skill(s) into agent folders")
-    return linked
-
+# ── (greenfield detection removed — orchestrator always passes --tech explicitly)
 
 # ── list-tech subcommand ──────────────────────────────────────────────────────
 
@@ -464,22 +335,16 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
 
     # Build not needed — index.mjs handles running main.ts via --experimental-strip-types
 
-    # Determine whether to pass --tech
-    inferred_techs = techs
-    if inferred_techs is None and _is_greenfield(repo_root):
-        inferred_techs = _infer_techs_for_greenfield(repo_root)
-        if inferred_techs:
-            print(f"[Sync] greenfield project — forcing techs: {','.join(inferred_techs)}")
+    # --tech is always passed explicitly by the orchestrator from the target
+    # project's tech stack. No auto-inference here (greenfield detection is
+    # misleading when repo_root defaults to the AIDLC toolchain itself).
 
     installed = _run_local_autoskills(
-        repo_root, autoskills_dir, techs=inferred_techs, dry_run=dry_run
+        repo_root, autoskills_dir, techs=techs, dry_run=dry_run
     )
 
     if not installed and not dry_run:
         print("[Sync] autoskills installed no skills (no matching technologies detected)")
-
-    # Consolidate: ensure skills are reachable from all agent-specific folders
-    _consolidate_skills(repo_root, dry_run=dry_run)
 
     # Clean up autoskills cache — never leave build artifacts behind
     cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
