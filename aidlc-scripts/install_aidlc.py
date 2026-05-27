@@ -540,7 +540,7 @@ CURSOR_MDC_FRONTMATTER = (
 
 def _read_core_workflow(repo_root: Path) -> str | None:
     """Read the full core-workflow.md from the repo, or None if missing."""
-    cwf = repo_root / "aidlc-rules" / "aws-aidlc-rules" / "core-workflow.md"
+    cwf = repo_root / ".aidlc-orchestrator" / "runtime" / "core-workflow.md"
     if cwf.exists():
         return cwf.read_text(encoding="utf-8")
     return None
