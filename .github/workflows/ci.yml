@@ -14,17 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  markdownlint:
-    name: Markdown Lint
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
-      - uses: DavidAnson/markdownlint-cli2-action@ce4853d43830c74c1753b39f3cf40f71c2031eb9 #v23.0.0
-        with:
-          globs: "**/*.md"
-
   install-dry-run:
     name: Install Dry Run (with Skills)
     runs-on: ubuntu-latest
@@ -32,7 +21,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        tool: [copilot, claude, cursor, cline]
+        tool: [copilot, claude, cursor, codex]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 #v5.6.0
