@@ -14,7 +14,7 @@
 
 If your change doesn't seem to apply, please leave them unchecked.
 
-* [ ] I have reviewed the [contributing guidelines](https://github.com/awslabs/aidlc-workflows/blob/main/CONTRIBUTING.md)
+* [ ] I have reviewed the [contributing guidelines](../CONTRIBUTING.md)
 * [ ] I have performed a self-review of this change
 * [ ] Changes have been tested
 * [ ] Changes are documented
@@ -25,4 +25,4 @@ If your change doesn't seem to apply, please leave them unchecked.
 
 ## Acknowledgment
 
-By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of the [project license](https://github.com/awslabs/aidlc-workflows/blob/main/LICENSE).
+By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of the [project license](../LICENSE).
