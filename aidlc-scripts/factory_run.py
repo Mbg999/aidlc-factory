@@ -7,7 +7,11 @@ flows so a crashed orchestration run can be picked up at the last completed
 stage.
 
 Subcommands
------------
+----------
+    generate-run-id [--slug <slug>]
+        Generate a run-id of the form YYYY-MM-DDTHH-MM-SSZ-<slug> using
+        cross-platform Python datetime (not shell date command).
+
     init <run-id> --user-request <text> [--project-slug <slug>] [--force]
         Initialize manifest.yaml and timeline.jsonl for a new run.
 
@@ -376,6 +380,22 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
         print(ts)
     else:
         print(f"{ts} (dedupe skipped -- identical block already present)")
+
+
+def cmd_generate_run_id(args: argparse.Namespace) -> None:
+    """Generate a run-id of the form YYYY-MM-DDTHH-MM-SSZ-<slug>.
+
+    Uses Python datetime (cross-platform) instead of the shell `date` command.
+    Sanitizes the slug: lowercase, spaces→hyphens, strip non-alphanumeric.
+    """
+    slug = args.slug.lower().strip()
+    slug = re.sub(r"\s+", "-", slug)
+    slug = re.sub(r"[^a-z0-9_.-]", "", slug)
+    slug = slug.strip("-.")
+    if not slug:
+        slug = "run"
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    print(f"{ts}-{slug}")
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -906,6 +926,12 @@ def cmd_tail(args: argparse.Namespace) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="AIDLC Orchestrator Run Manager")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_gen = sub.add_parser("generate-run-id",
+        help="Generate a run-id: YYYY-MM-DDTHH-MM-SSZ-<slug> (cross-platform)")
+    p_gen.add_argument("--slug", default="run",
+        help="slug suffix (default: run)")
+    p_gen.set_defaults(func=cmd_generate_run_id)
 
     p_init = sub.add_parser("init")
     p_init.add_argument("run_id")

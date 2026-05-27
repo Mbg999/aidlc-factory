@@ -12,8 +12,11 @@ Execute the Phase 0 sequence. **STOP at every human gate — do NOT run steps ba
 
 Steps:
 
-1. **Generate run-id** of the form `YYYY-MM-DDTHH-MM-SSZ-<slug>` and create
-   `.aidlc-orchestrator/runs/<run-id>/handoffs/`. Initialize `manifest.yaml`.
+1. **Generate run-id** via the cross-platform Python helper (no shell `date` command):
+   ```bash
+   run_id=$(python3 aidlc-scripts/factory_run.py generate-run-id --slug "<slug>")
+   ```
+   Then create `.aidlc-orchestrator/runs/$run_id/handoffs/` and initialize `manifest.yaml`.
 
 2. **Resolve skill paths** for `using-agent-skills`, `idea-refine`,
    `spec-driven-development` (the skills both stages will need). Try

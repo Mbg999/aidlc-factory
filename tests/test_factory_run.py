@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,59 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "aidlc-scripts"
 RUN_PY = SCRIPTS / "factory_run.py"
+
+
+def test_generate_run_id_default_slug():
+    result = subprocess.run(
+        [sys.executable, str(RUN_PY), "generate-run-id"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    rid = result.stdout.strip()
+    assert rid.endswith("-run"), f"expected default slug '-run', got {rid!r}"
+    assert "T" in rid and "Z" in rid, f"expected ISO-like ts, got {rid!r}"
+
+
+def test_generate_run_id_custom_slug():
+    result = subprocess.run(
+        [sys.executable, str(RUN_PY), "generate-run-id", "--slug", "my-feature"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    rid = result.stdout.strip()
+    assert rid.endswith("-my-feature"), f"expected slug '-my-feature', got {rid!r}"
+    # Verify it matches _RUN_ID_RE
+    assert re.match(r"^[a-zA-Z0-9_.-]+$", rid), f"run_id {rid!r} fails validation"
+
+
+def test_generate_run_id_slug_with_spaces():
+    """Spaces in slug should be replaced with hyphens."""
+    result = subprocess.run(
+        [sys.executable, str(RUN_PY), "generate-run-id", "--slug", "my feature"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    rid = result.stdout.strip()
+    assert rid.endswith("-my-feature"), f"expected slug '-my-feature', got {rid!r}"
+
+
+def test_generate_run_id_format():
+    """Verify the timestamp portion matches YYYY-MM-DDTHH-MM-SSZ."""
+    result = subprocess.run(
+        [sys.executable, str(RUN_PY), "generate-run-id", "--slug", "x"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    rid = result.stdout.strip()
+    ts_part = rid.removesuffix("-x")
+    # Basic shape: 4-2-2 T 2-2-2 Z
+    parts = ts_part.split("T")
+    assert len(parts) == 2, f"expected dateTtime, got {ts_part!r}"
+    date_part, time_part = parts
+    assert time_part.endswith("Z"), f"expected Z suffix, got {time_part!r}"
+    time_stripped = time_part[:-1]  # remove Z
+    assert len(time_stripped.split("-")) == 3, f"expected HH-MM-SS, got {time_stripped!r}"
+    assert len(date_part.split("-")) == 3, f"expected YYYY-MM-DD, got {date_part!r}"
 
 
 def test_init_and_status(env_setup, run_id):
