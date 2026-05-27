@@ -283,9 +283,10 @@ class TestRunLocalAutoskills:
                 tmp_path, autoskills_dir, techs=["react", "nextjs"], dry_run=False
             )
             call_args = mock_run.call_args
-            # subprocess.run may receive args as positional or keyword
             args_list = call_args[0][0] if call_args[0] else call_args[1].get("args", [])
             assert str(entry) in args_list
+            assert "--path" in args_list
+            assert str(tmp_path) in args_list
             assert "--tech" in args_list
             assert "react,nextjs" in args_list
 
@@ -378,22 +379,10 @@ class TestCmdSyncGracefulDegradation:
         out = capsys.readouterr().out
         assert "failed to clone" in out.lower() or "warning" in out.lower()
 
-    def test_build_failure_is_graceful(self, tmp_path, capsys):
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills", return_value=tmp_path / "cache"), \
-             patch("factory_skill_sync._build_autoskills",
-                   side_effect=RuntimeError("npm install failed")):
-            result = mod.cmd_sync(tmp_path)
-        assert result == 0
-        out = capsys.readouterr().out
-        assert "build failed" in out.lower() or "warning" in out.lower()
-
     def test_greenfield_with_tech_override(self, tmp_path, capsys):
         with patch("factory_skill_sync._resolve_node",
                    return_value=(["node"], "system node v22.6.0")), \
              patch("factory_skill_sync.clone_autoskills", return_value=tmp_path / "cache"), \
-             patch("factory_skill_sync._build_autoskills"), \
              patch("factory_skill_sync._run_local_autoskills", return_value=[]) as mock_run:
             result = mod.cmd_sync(tmp_path, techs=["python"])
         assert result == 0
@@ -485,7 +474,6 @@ class TestCmdSyncCacheCleanup:
         with patch("factory_skill_sync._resolve_node",
                    return_value=(["node"], "system node v22.6.0")), \
              patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
-             patch("factory_skill_sync._build_autoskills"), \
              patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
              patch("factory_skill_sync._consolidate_skills", return_value=0):
             mod.cmd_sync(tmp_path)
@@ -500,7 +488,6 @@ class TestCmdSyncCacheCleanup:
         with patch("factory_skill_sync._resolve_node",
                    return_value=(["node"], "system node v22.6.0")), \
              patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
-             patch("factory_skill_sync._build_autoskills"), \
              patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
              patch("factory_skill_sync._consolidate_skills", return_value=0):
             mod.cmd_sync(tmp_path, dry_run=True)
@@ -515,7 +502,6 @@ class TestCmdSyncCacheCleanup:
         with patch("factory_skill_sync._resolve_node",
                    return_value=(["node"], "system node v22.6.0")), \
              patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
-             patch("factory_skill_sync._build_autoskills"), \
              patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
              patch("factory_skill_sync._consolidate_skills", return_value=0) as mock_cons:
             mod.cmd_sync(tmp_path)

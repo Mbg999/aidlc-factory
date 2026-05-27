@@ -3,23 +3,26 @@
 
 Instead of running `npx autoskills`, this script:
   1. Shallow-clones the autoskills fork into a local cache
-  2. Builds the TypeScript package (cached when already built)
-  3. Runs the compiled CLI directly with `node`
+  2. Runs the compiled CLI directly with `node` (no build needed)
 
 The fork already handles monorepo scanning internally, so this script
 no longer performs its own workspace discovery.
 
-Two subcommands:
+Three subcommands:
 
-  sync   Run autoskills CLI in the project root. For greenfield projects
-         (no manifest files), pass --tech to force technologies.
+  sync      Run autoskills CLI in the project root. For greenfield projects
+            (no manifest files), pass --tech to force technologies.
 
-  select List all skills currently installed and output their paths for use
-         in stage input handoffs (skill_paths_resolved[]).
+  select    List all skills currently installed and output their paths for use
+            in stage input handoffs (skill_paths_resolved[]).
+
+  list-tech List all supported technology IDs from autoskills (useful for
+            choosing --tech values, especially in greenfield projects).
 
 Usage:
     python3 aidlc-scripts/factory_skill_sync.py sync [--repo-root PATH] [--dry-run] [--tech react,nextjs]
     python3 aidlc-scripts/factory_skill_sync.py select [--repo-root PATH] [--output json|text]
+    python3 aidlc-scripts/factory_skill_sync.py list-tech [--repo-root PATH]
 
 Exit codes:
     0  success (or graceful degradation — Node.js missing, network error)
@@ -50,7 +53,7 @@ from skill_utils import discover_skills, sha256_file
 AUTOSKILLS_REPO = "https://github.com/Mbg999/autoskills-for-aidlc-factory.git"
 AUTOSKILLS_PKG_DIR = Path("packages/autoskills")
 AUTOSKILLS_CACHE_DIR = Path(".autoskills-cache")
-AUTOSKILLS_ENTRY = AUTOSKILLS_PKG_DIR / "dist" / "main.js"
+AUTOSKILLS_ENTRY = Path("index.mjs")
 AUTOSKILLS_NODE_MIN = (22, 6, 0)
 
 # Manifest files used to detect whether a project is greenfield.
@@ -204,7 +207,7 @@ def _run_local_autoskills(
         return []
 
     entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
-    cmd = node_cmd + [str(entry), "-y"]
+    cmd = node_cmd + [str(entry), "-y", "--path", str(project_dir)]
     if dry_run:
         cmd.append("--dry-run")
     if techs:
@@ -379,6 +382,61 @@ def _consolidate_skills(repo_root: Path, dry_run: bool = False) -> int:
     return linked
 
 
+# ── list-tech subcommand ──────────────────────────────────────────────────────
+
+def cmd_list_tech(repo_root: Path, dry_run: bool = False) -> int:
+    """List all supported technology IDs from the autoskills skills registry."""
+    node = _resolve_node()
+    if node is None:
+        print("[list-tech] SKIP (no Node >= 22.6.0 available)")
+        return 0
+    node_cmd, node_label = node
+
+    autoskills_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    try:
+        clone_autoskills(autoskills_dir, dry_run)
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: failed to clone autoskills: {e}")
+        return 0
+
+    if dry_run:
+        print(f"[DRY-RUN] Would run {node_label} --list-tech")
+        return 0
+
+    entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
+    try:
+        if node_cmd[0] == "bash":
+            # nvm-based node_cmd is ["bash", "-lc", "... node"]; append entry + args
+            bash_cmd = node_cmd[2]
+            full_bash = bash_cmd.rstrip() + " " + str(entry) + " --list-tech"
+            result = subprocess.run(
+                ["bash", "-lc", full_bash],
+                capture_output=True, text=True, timeout=180,
+            )
+        else:
+            cmd = node_cmd + [str(entry), "--list-tech"]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=180,
+            )
+
+        if result.returncode == 0:
+            print(result.stdout)
+        else:
+            print(f"[list-tech] autoskills exited {result.returncode}")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines()[:10]:
+                    print(f"  {line}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("[list-tech] TIMEOUT")
+
+    # Clean up cache
+    cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    if cache_dir.exists() and not dry_run:
+        shutil.rmtree(cache_dir, ignore_errors=True)
+
+    return 0
+
+
 # ── sync subcommand ───────────────────────────────────────────────────────────
 
 def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = None) -> int:
@@ -396,11 +454,7 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
         print(f"WARNING: failed to clone autoskills: {e}")
         return 0
 
-    try:
-        _build_autoskills(autoskills_dir, dry_run)
-    except RuntimeError as e:
-        print(f"WARNING: autoskills build failed: {e}")
-        return 0
+    # Build not needed — index.mjs handles running main.ts via --experimental-strip-types
 
     # Determine whether to pass --tech
     inferred_techs = techs
@@ -506,6 +560,10 @@ def main() -> None:
     p_select.add_argument("--output", choices=["json", "text"], default="json",
                           help="Output format (default: json)")
 
+    p_list = sub.add_parser("list-tech", help="List all supported technology IDs from autoskills")
+    p_list.add_argument("--dry-run", action="store_true",
+                        help="Preview without cloning")
+
     args = parser.parse_args()
     repo_root = args.repo_root or REPO_ROOT_DEFAULT
 
@@ -516,6 +574,8 @@ def main() -> None:
         sys.exit(cmd_sync(repo_root, dry_run=getattr(args, "dry_run", False), techs=techs))
     elif args.command == "select":
         sys.exit(cmd_select(repo_root, output_format=getattr(args, "output", "json")))
+    elif args.command == "list-tech":
+        sys.exit(cmd_list_tech(repo_root, dry_run=getattr(args, "dry_run", False)))
     else:
         parser.print_help()
         sys.exit(2)
