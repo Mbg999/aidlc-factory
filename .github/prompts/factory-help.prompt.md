@@ -62,6 +62,7 @@ skips all stages and goes directly to code-generator:
 | `/factory-resume <run-id>` | Run crashed mid-flight | Picks up from the last completed stage |
 | `/factory-replay <run-id> --from <stage>` | Stage produced wrong output | Rolls back and re-runs from that stage |
 | `/factory-self "<task>"` | Improve the orchestrator itself | Runs pipeline against orchestrator's own code |
+| `/factory-code-tour` | Onboard a human to any codebase | Architecture map, key flows, conventions, next steps |
 | `/factory-help [command]` | Remember a command | This page |
 
 ---
@@ -94,7 +95,7 @@ python aidlc-scripts/factory_run.py tail <run-id> --follow
 
 ## Custom subagents
 
-Create your own specialized agents in `.github/agents/`:
+Create your own specialized agents in `.github/agents/custom/`:
 
 ```bash
 # Discover available agents

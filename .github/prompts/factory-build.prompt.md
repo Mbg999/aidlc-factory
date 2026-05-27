@@ -83,4 +83,4 @@ within the layer.
 
 **Conflict resolution (Phase 5)**: escalation-only. On path collision or
 interface drift, surface to user; user re-plans, manually merges, or cancels.
-Full protocol: `.github/agents/conflict-resolver.md`.
+Full protocol: `.github/agents/cross-cutting/conflict-resolver.md`.
