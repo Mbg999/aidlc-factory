@@ -32,8 +32,9 @@ Runs ONCE before any unit is spawned.
    ```bash
    python3 aidlc-scripts/factory_skill_sync.py select --output json
    ```
-Parse JSON → store full skill map in `manifest.yaml` under key
-`skill_paths_resolved` (all discovered skills, unfiltered).
+Parse JSON → store in `manifest.yaml`:
+  `skill_paths_resolved` (all discovered skills, unfiltered)
+  `framework_skill_names` (framework skill names for skills_required[] injection).
 
 When building per-stage handoffs in Step B.1, include ONLY the subset
 of `skill_paths_resolved[]` that corresponds to `skills_required[]` for
@@ -71,13 +72,16 @@ For each layer in order:
 3. Knowledge query: `mem_search` with unit tags; inject top-5 into `context_pointers[]`.
 4. Build input handoff `code-generator.<unit>.input.yaml`:
    - Read `manifest.skill_paths_resolved` (full discovered set).
-   - Apply conditional skill injection from [`project-profile.md`](project-profile.md) §65-78:
-     read `manifest.project_profile`, add matching skills (e.g. `frontend-ui-engineering`
-     when `ui: true`) to `skills_required[]`, resolve paths → merge into
-     `skill_paths_resolved[]`.
-   - **Filter**: include only paths for skills referenced in `skills_required[]` plus
-     context-enrichment skills (`codegraph-aware-exploration`, `context-engineering`).
-     Discard paths for skills irrelevant to this stage.
+    - Apply conditional skill injection from [`project-profile.md`](project-profile.md) §65-78:
+      read `manifest.project_profile`, add matching skills (e.g. `frontend-ui-engineering`
+      when `ui: true`) to `skills_required[]`, resolve paths → merge into
+      `skill_paths_resolved[]`.
+    - **Framework skill injection**: add ALL entries from `manifest.framework_skill_names`
+      to `skills_required[]` so framework skills (e.g. `react-best-practices`,
+      `typescript-advanced-types`) are loaded by the code-generator.
+    - **Filter**: include only paths for skills referenced in `skills_required[]` plus
+      context-enrichment skills (`codegraph-aware-exploration`, `context-engineering`).
+      Discard paths for skills irrelevant to this stage.
    - **Inception plan tracking**: set `inception_plan_path` to
      `aidlc-docs/inception/plans/<run-id>-execution-plan.md` and set
      `inception_task_ids[]` to the list of task IDs from that plan whose `unit`

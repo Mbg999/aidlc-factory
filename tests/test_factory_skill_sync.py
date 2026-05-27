@@ -325,6 +325,8 @@ class TestCmdSelect:
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "skill_paths_resolved" in data
+        assert "framework_skill_names" in data
+        assert isinstance(data["framework_skill_names"], list)
         assert data["skill_count"] >= 2
 
     def test_custom_skills_come_first(self, tmp_path, capsys):
@@ -358,6 +360,7 @@ class TestCmdSelect:
 
         data = json.loads(capsys.readouterr().out)
         assert data["skill_paths_resolved"] == []
+        assert data["framework_skill_names"] == []
         assert data["skill_count"] == 0
 
 

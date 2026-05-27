@@ -315,12 +315,20 @@ def _skill_is_current(src: Path, dest: Path) -> bool:
     )
 
 
-# ── Agent folders we must symlink/copy into (autoskills fork does NOT cover these) ─
+# ── Agent folders we symlink skills into ────────────────────────────────────────
+# Centralised here (not in the autoskills fork) so all agent folder symlinks
+# are managed in one place.
 
 _AGENT_FOLDERS: list[Path] = [
     Path(".opencode") / "skills",
     Path(".cursor") / "skills",
     Path(".github") / "agents" / "skills",
+    Path(".claude") / "skills",
+    Path(".cline") / "skills",
+    Path(".junie") / "skills",
+    Path(".codebuddy") / "skills",
+    Path(".continue") / "skills",
+    Path(".kiro") / "skills",
 ]
 
 
@@ -511,6 +519,15 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
 
     skill_paths_resolved = custom_paths + framework_paths
 
+    # Extract skill names from .agents/skills/ only for skills_required[] injection.
+    # Framework paths from ~/.agents/skills/ (user-global) are excluded — they're
+    # already available via fallback resolution and shouldn't be force-injected.
+    # Path format: .agents/skills/<skill-name>/SKILL.md → parent.name = <skill-name>
+    framework_skill_names = sorted(set(
+        Path(p).parent.name for p in framework_paths
+        if p.startswith(".agents/skills/")
+    ))
+
     warnings: list[str] = []
     node = _resolve_node()
     if node is None:
@@ -524,6 +541,7 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
 
     result = {
         "skill_paths_resolved": skill_paths_resolved,
+        "framework_skill_names": framework_skill_names,
         "skill_count": len(skill_paths_resolved),
         "warnings": warnings,
     }
