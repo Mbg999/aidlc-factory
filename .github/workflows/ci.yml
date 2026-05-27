@@ -101,4 +101,5 @@ jobs:
           python3 aidlc-scripts/factory_secretscan.py /tmp/test-secret.json --json | grep secrets_found
           rm /tmp/test-secret.json
       - name: Smoke test audit writes
-        run: python3 aidlc-scripts/factory_audit_writes.py test-run unit-a --locks src/** --repo-root . --json | grep '"status": "ok"'
+        run: |
+          python3 aidlc-scripts/factory_audit_writes.py test-run unit-a --locks 'src/**' --repo-root . --json | grep '"status": "ok"'
