@@ -3,23 +3,27 @@
 
 Instead of running `npx autoskills`, this script:
   1. Shallow-clones the autoskills fork into a local cache
-  2. Builds the TypeScript package (cached when already built)
-  3. Runs the compiled CLI directly with `node`
+  2. Runs the compiled CLI directly with `node` (no build needed)
 
 The fork already handles monorepo scanning internally, so this script
-no longer performs its own workspace discovery.
+no longer performs its own workspace discovery. Skills live exclusively in
+`.agents/skills/` — no symlinks are created in agent-specific folders.
 
-Two subcommands:
+Three subcommands:
 
-  sync   Run autoskills CLI in the project root. For greenfield projects
-         (no manifest files), pass --tech to force technologies.
+  sync      Run autoskills CLI in the project root. For greenfield projects
+            (no manifest files), pass --tech to force technologies.
 
-  select List all skills currently installed and output their paths for use
-         in stage input handoffs (skill_paths_resolved[]).
+  select    List all skills currently installed and output their paths for use
+            in stage input handoffs (skill_paths_resolved[]).
+
+  list-tech List all supported technology IDs from autoskills (useful for
+            choosing --tech values, especially in greenfield projects).
 
 Usage:
     python3 aidlc-scripts/factory_skill_sync.py sync [--repo-root PATH] [--dry-run] [--tech react,nextjs]
     python3 aidlc-scripts/factory_skill_sync.py select [--repo-root PATH] [--output json|text]
+    python3 aidlc-scripts/factory_skill_sync.py list-tech [--repo-root PATH]
 
 Exit codes:
     0  success (or graceful degradation — Node.js missing, network error)
@@ -50,16 +54,10 @@ from skill_utils import discover_skills, sha256_file
 AUTOSKILLS_REPO = "https://github.com/Mbg999/autoskills-for-aidlc-factory.git"
 AUTOSKILLS_PKG_DIR = Path("packages/autoskills")
 AUTOSKILLS_CACHE_DIR = Path(".autoskills-cache")
-AUTOSKILLS_ENTRY = AUTOSKILLS_PKG_DIR / "dist" / "main.js"
+AUTOSKILLS_ENTRY = Path("index.mjs")
 AUTOSKILLS_NODE_MIN = (22, 6, 0)
 
-# Manifest files used to detect whether a project is greenfield.
-_MANIFEST_FILES = frozenset({
-    "package.json", "pyproject.toml", "Cargo.toml", "go.mod",
-    "requirements.txt", "setup.py", "Pipfile", "Gemfile",
-    "composer.json", "build.gradle", "build.gradle.kts", "pom.xml",
-    "deno.json", "deno.jsonc", "bun.lockb", "bun.lock", "bunfig.toml",
-})
+# (manifest files list removed — no longer used for greenfield detection)
 
 
 # ── Node.js resolution (simplified) ───────────────────────────────────────────
@@ -204,7 +202,7 @@ def _run_local_autoskills(
         return []
 
     entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
-    cmd = node_cmd + [str(entry), "-y"]
+    cmd = node_cmd + [str(entry), "-y", "--path", str(project_dir)]
     if dry_run:
         cmd.append("--dry-run")
     if techs:
@@ -261,55 +259,61 @@ def _run_local_autoskills(
     return installed
 
 
-# ── Greenfield detection ──────────────────────────────────────────────────────
+# ── (greenfield detection removed — orchestrator always passes --tech explicitly)
 
-def _is_greenfield(project_dir: Path) -> bool:
-    """True if no recognised manifest files exist in project_dir."""
-    return not any((project_dir / m).exists() for m in _MANIFEST_FILES)
+# ── list-tech subcommand ──────────────────────────────────────────────────────
 
+def cmd_list_tech(repo_root: Path, dry_run: bool = False) -> int:
+    """List all supported technology IDs from the autoskills skills registry."""
+    node = _resolve_node()
+    if node is None:
+        print("[list-tech] SKIP (no Node >= 22.6.0 available)")
+        return 0
+    node_cmd, node_label = node
 
-def _infer_techs_for_greenfield(project_dir: Path) -> list[str]:
-    """Best-effort tech inference when no manifests are present.
+    autoskills_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    try:
+        clone_autoskills(autoskills_dir, dry_run)
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: failed to clone autoskills: {e}")
+        return 0
 
-    For AIDLC repos (this codebase), we detect Python via requirements.txt
-    or pyproject.toml — but those would make _is_greenfield return False.
-    When truly greenfield, we return an empty list and let the user pass
-    --tech if they want to force something.
-    """
-    return []
+    if dry_run:
+        print(f"[DRY-RUN] Would run {node_label} --list-tech")
+        return 0
 
+    entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
+    try:
+        if node_cmd[0] == "bash":
+            # nvm-based node_cmd is ["bash", "-lc", "... node"]; append entry + args
+            bash_cmd = node_cmd[2]
+            full_bash = bash_cmd.rstrip() + " " + str(entry) + " --list-tech"
+            result = subprocess.run(
+                ["bash", "-lc", full_bash],
+                capture_output=True, text=True, timeout=180,
+            )
+        else:
+            cmd = node_cmd + [str(entry), "--list-tech"]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=180,
+            )
 
-# ── consolidation helpers (kept for edge-cases) ─────────────────────────────
+        if result.returncode == 0:
+            print(result.stdout)
+        else:
+            print(f"[list-tech] autoskills exited {result.returncode}")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines()[:10]:
+                    print(f"  {line}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("[list-tech] TIMEOUT")
 
-def _copy_skill(src: Path, dest: Path) -> None:
-    """Copy all files from src skill dir to dest, preserving sub-structure."""
-    real_src = src.resolve() if src.is_symlink() else src
-    dest.mkdir(parents=True, exist_ok=True)
-    for file in real_src.rglob("*"):
-        if file.is_file():
-            rel = file.relative_to(real_src)
-            dest_file = dest / rel
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(file, dest_file)
+    # Clean up cache
+    cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    if cache_dir.exists() and not dry_run:
+        shutil.rmtree(cache_dir, ignore_errors=True)
 
-
-def _remove(path: Path) -> None:
-    """Remove a path whether it is a directory, a symlink, or a symlink-to-dir."""
-    if path.is_symlink():
-        path.unlink()
-    elif path.is_dir():
-        shutil.rmtree(path, ignore_errors=True)
-
-
-def _skill_is_current(src: Path, dest: Path) -> bool:
-    """True if dest/SKILL.md already has the same SHA-256 as src/SKILL.md."""
-    src_md = src / "SKILL.md"
-    dest_md = dest / "SKILL.md"
-    return (
-        src_md.exists()
-        and dest_md.exists()
-        and sha256_file(src_md) == sha256_file(dest_md)
-    )
+    return 0
 
 
 # ── sync subcommand ───────────────────────────────────────────────────────────
@@ -329,25 +333,24 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
         print(f"WARNING: failed to clone autoskills: {e}")
         return 0
 
-    try:
-        _build_autoskills(autoskills_dir, dry_run)
-    except RuntimeError as e:
-        print(f"WARNING: autoskills build failed: {e}")
-        return 0
+    # Build not needed — index.mjs handles running main.ts via --experimental-strip-types
 
-    # Determine whether to pass --tech
-    inferred_techs = techs
-    if inferred_techs is None and _is_greenfield(repo_root):
-        inferred_techs = _infer_techs_for_greenfield(repo_root)
-        if inferred_techs:
-            print(f"[Sync] greenfield project — forcing techs: {','.join(inferred_techs)}")
+    # --tech is always passed explicitly by the orchestrator from the target
+    # project's tech stack. No auto-inference here (greenfield detection is
+    # misleading when repo_root defaults to the AIDLC toolchain itself).
 
     installed = _run_local_autoskills(
-        repo_root, autoskills_dir, techs=inferred_techs, dry_run=dry_run
+        repo_root, autoskills_dir, techs=techs, dry_run=dry_run
     )
 
     if not installed and not dry_run:
         print("[Sync] autoskills installed no skills (no matching technologies detected)")
+
+    # Clean up autoskills cache — never leave build artifacts behind
+    cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    if cache_dir.exists() and not dry_run:
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        print(f"[Sync] cleaned up {AUTOSKILLS_CACHE_DIR}")
 
     suffix = " (dry-run)" if dry_run else ""
     print(f"[Sync] done{suffix} — {len(installed)} skill(s) in .agents/skills/")
@@ -381,6 +384,15 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
 
     skill_paths_resolved = custom_paths + framework_paths
 
+    # Extract skill names from .agents/skills/ only for skills_required[] injection.
+    # Framework paths from ~/.agents/skills/ (user-global) are excluded — they're
+    # already available via fallback resolution and shouldn't be force-injected.
+    # Path format: .agents/skills/<skill-name>/SKILL.md → parent.name = <skill-name>
+    framework_skill_names = sorted(set(
+        Path(p).parent.name for p in framework_paths
+        if p.startswith(".agents/skills/")
+    ))
+
     warnings: list[str] = []
     node = _resolve_node()
     if node is None:
@@ -394,6 +406,7 @@ def cmd_select(repo_root: Path, output_format: str = "json") -> int:
 
     result = {
         "skill_paths_resolved": skill_paths_resolved,
+        "framework_skill_names": framework_skill_names,
         "skill_count": len(skill_paths_resolved),
         "warnings": warnings,
     }
@@ -430,6 +443,10 @@ def main() -> None:
     p_select.add_argument("--output", choices=["json", "text"], default="json",
                           help="Output format (default: json)")
 
+    p_list = sub.add_parser("list-tech", help="List all supported technology IDs from autoskills")
+    p_list.add_argument("--dry-run", action="store_true",
+                        help="Preview without cloning")
+
     args = parser.parse_args()
     repo_root = args.repo_root or REPO_ROOT_DEFAULT
 
@@ -440,6 +457,8 @@ def main() -> None:
         sys.exit(cmd_sync(repo_root, dry_run=getattr(args, "dry_run", False), techs=techs))
     elif args.command == "select":
         sys.exit(cmd_select(repo_root, output_format=getattr(args, "output", "json")))
+    elif args.command == "list-tech":
+        sys.exit(cmd_list_tech(repo_root, dry_run=getattr(args, "dry_run", False)))
     else:
         parser.print_help()
         sys.exit(2)

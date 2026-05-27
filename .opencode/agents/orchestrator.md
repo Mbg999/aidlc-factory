@@ -86,8 +86,27 @@ If `.codegraph/codegraph.db` does NOT exist on a brownfield workspace:
 - Workspace-scout surfaces a one-line suggestion to run `codegraph init -i`.
 - The user opts in. The orchestrator MUST NOT auto-init without explicit consent.
 
+## Depth Levels (embedded from upstream `common/depth-levels.md`)
+
+Set `depth_mode` in input handoffs: `minimal` | `standard` | `comprehensive`. Agents must respect silent/spoken protocol: workspace scan, skill loading, checkbox updates produce NO chat output. Design decisions, questions, completion messages are spoken.
+
+## Mid-Workflow Changes (embedded from upstream `common/workflow-changes.md`)
+
+Handle these user requests during a run:
+
+| User says | Action |
+|---|---|
+| "add stage X" | Mark X as EXECUTE in phase checklist. If X has predecessor artifacts needed: spawn predecessor first. |
+| "skip stage Y" | Log `[WorkflowChange] SKIPPED: Y` with user's reason. Mark Y as SKIP. Check that skippable Y has no downstream dependency failures. |
+| "restart from Z" | Archive current state. Reset `aidlc-state.md` Current Stage to Z. Re-spawn from Z. |
+| "change depth to minimal/comprehensive" | Update `depth_mode` in the active input handoff. If the current stage already passed its depth gate, cascade to next stage. |
+| "pause" | Set `status: paused` in manifest. Preserve all handoffs and artifacts. Wait for resume signal. |
+| "change architecture" | Log ADR. Archive current design artifacts. Restart from Application Design stage. |
+
+**State archival**: Before any restart, run `cp -r .aidlc-orchestrator/runs/<run-id> .aidlc-orchestrator/runs/<run-id>.archive-<timestamp>`.
+
 ## Reference
 - Plan: [`ORCHESTRATOR-PLAN.md`](ORCHESTRATOR-PLAN.md).
 - Stage agents: `.opencode/agents/stage/<name>.md`.
 - Runtime: `.aidlc-orchestrator/runtime/`.
-- Core workflow: `aidlc-rules/aws-aidlc-rules/core-workflow.md`.
+- Core workflow: `.aidlc-orchestrator/runtime/index.md`.

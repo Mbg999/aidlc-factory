@@ -299,9 +299,6 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_design_system_learn.py",   # learn from approved/rejected UI output
     # Google Stitch integration (AI design tool input snapping, MCP registry)
     "factory_stitch_snap.py",   # snap Stitch HTML/CSS/DESIGN.md output to canonical design tokens
-    "factory_stitch_mcp.py",    # Stitch MCP registry, health check, config fragment
-    # Figma MCP integration (official Figma Remote MCP + community fallback)
-    "factory_figma_mcp.py",     # Figma MCP registry, health check, config fragment
     # Skill sync layer — monorepo-aware autoskills bridge
     "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
     "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
@@ -528,101 +525,114 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
     print(f"  appended {len(lines_to_write)} pattern(s) to {gi_path.relative_to(target_root)}")
 
 
-def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False) -> None:
-    """Append or update the orchestrator pointer block in the workflow doc.
+CURSOR_MDC_FRONTMATTER = (
+    "---\n"
+    "description: AIDLC Core Workflow — constitution and orchestrator pointer for the AI-Driven Development Life Cycle. "
+    "Priority OVERRIDES other built-in workflows.\n"
+    "globs: null\n"
+    "---\n"
+)
+
+# NOTE: aidlc-rules/aws-aidlc-rule-details/ is DEV-ONLY — orchestrator subagents
+# embed their own logic. It is NOT distributed to installed projects. Only
+# core-workflow.md (the AIDLC constitution + orchestrator pointer) is shipped.
+# The detailed rule files exist solely for reference when developing subagents.
+
+def _read_core_workflow(repo_root: Path) -> str | None:
+    """Read the full core-workflow.md from the repo, or None if missing."""
+    cwf = repo_root / ".aidlc-orchestrator" / "runtime" / "core-workflow.md"
+    if cwf.exists():
+        return cwf.read_text(encoding="utf-8")
+    return None
+
+
+def _tool_core_workflow_content(repo_root: Path, tool: str) -> str | None:
+    """Return the full core-workflow.md content adapted for `tool`, or None
+    if core-workflow.md doesn't exist (fall back to legacy pointer block).
+
+    For Cursor: prepend .mdc frontmatter and replace .claude/ → .cursor/.
+    For other tools: replace .claude/ with tool-specific prefix.
+    """
+    content = _read_core_workflow(repo_root)
+    if content is None:
+        return None
+
+    if tool == "cursor":
+        return CURSOR_MDC_FRONTMATTER + content.replace(
+            ".claude/agents/", ".cursor/agents/"
+        ).replace(
+            ".claude/commands/", ".cursor/commands/"
+        )
+
+    if tool == "opencode":
+        return content.replace(
+            ".claude/agents/", ".opencode/agents/"
+        ).replace(
+            ".claude/commands/", ".opencode/commands/"
+        )
+
+    if tool == "copilot":
+        return content.replace(
+            ".claude/agents/", ".github/agents/"
+        ).replace(
+            ".claude/commands/", ".github/commands/"
+        )
+
+    if tool == "codex":
+        return content.replace(
+            ".claude/agents/", ".codex/agents/"
+        ).replace(
+            ".claude/commands/", ".codex/commands/"
+        )
+
+    return content  # claude — no replacements needed
+
+
+def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False, core_workflow_content: str | None = None) -> None:
+    """Append or update the AIDLC workflow content in the workflow doc.
+
+    When `core_workflow_content` is provided, writes the FULL core-workflow.md
+    (which includes the constitution + orchestrator pointer) instead of the
+    legacy pointer block. Falls back to `block` when content is None.
 
     Idempotent: skips if marker already present and force=False.
-    With force=True: replaces the existing block between markers.
+    With force=True: replaces the existing content between markers.
     Creates the file if missing.
     """
+    content_to_write = core_workflow_content if core_workflow_content is not None else block
+
     if dry_run:
         action = "replace" if force else "append"
-        print(f"[DRY-RUN] Would {action} orchestrator pointer in {claude_md_path}")
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"[DRY-RUN] Would {action} {source} in {claude_md_path}")
         return
 
     if claude_md_path.exists():
         existing = claude_md_path.read_text(encoding="utf-8")
         if marker in existing:
             if not force:
-                print(f"  workflow doc already contains orchestrator pointer -- no changes")
+                print(f"  workflow doc already contains AIDLC workflow -- no changes")
                 return
             # Replace content between markers (inclusive)
             start = existing.index(marker)
             end = existing.index("\n## ", start + len(marker)) if "\n## " in existing[start:] else len(existing)
             # Keep everything before the marker, append new block
-            updated = existing[:start] + block.lstrip()
+            updated = existing[:start] + content_to_write.lstrip()
             claude_md_path.write_text(updated, encoding="utf-8")
-            print(f"  replaced orchestrator pointer in {claude_md_path.relative_to(claude_md_path.parent)}")
+            source = "full core-workflow.md" if core_workflow_content else "pointer block"
+            print(f"  replaced {source} in {claude_md_path.relative_to(claude_md_path.parent)}")
             return
         with claude_md_path.open("a", encoding="utf-8") as f:
             if not existing.endswith("\n"):
                 f.write("\n")
-            f.write(block)
-        print(f"  appended orchestrator pointer to {claude_md_path.relative_to(claude_md_path.parent)}")
+            f.write(content_to_write)
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"  appended {source} to {claude_md_path.relative_to(claude_md_path.parent)}")
     else:
         claude_md_path.parent.mkdir(parents=True, exist_ok=True)
-        claude_md_path.write_text(block.lstrip(), encoding="utf-8")
-        print(f"  created {claude_md_path.name} with orchestrator pointer")
-
-
-# Stitch MCP entries — format varies per tool config format.
-STITCH_MCP_ENTRIES = {
-    "claude":   {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"], "env": {}}},
-    "cursor":   {"stitch": {"command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
-    "copilot":  {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
-    "opencode": {"stitch": {"type": "local", "command": ["npx", "-y", "@_davideast/stitch-mcp", "proxy"], "enabled": True}},
-}
-
-# Figma MCP entries — format varies per tool config format.
-FIGMA_MCP_ENTRIES = {
-    "claude":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
-    "cursor":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
-    "copilot":  {"figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma-mcp"]}},
-    "opencode": {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp", "enabled": True}},
-}
-
-
-def _apply_mcp_config(config_path: Path, tool: str, with_stitch: bool, with_figma: bool, dry_run: bool) -> None:
-    """Add Stitch/Figma MCP server entries to config only when user opted in.
-
-    Handles all config formats:
-      - .mcp.json / .cursor/mcp.json: { "mcpServers": { ... } }
-      - .vscode/mcp.json:              { "servers": { ... } }
-      - opencode.json:                 { "mcp": { ... } }
-    """
-    if not config_path.exists():
-        return
-    if dry_run:
-        if with_stitch:
-            print(f"  [DRY-RUN] Would add stitch MCP entry to {config_path.name}")
-        if with_figma:
-            print(f"  [DRY-RUN] Would add figma MCP entry to {config_path.name}")
-        return
-    import json
-    try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
-
-    servers: dict | None = None
-    servers_key: str | None = None
-    for key in ("mcpServers", "servers", "mcp"):
-        if key in data and isinstance(data[key], dict):
-            servers = data[key]
-            servers_key = key
-            break
-    if servers is None or servers_key is None:
-        return
-
-    if with_stitch and "stitch" not in servers:
-        stitch_data = STITCH_MCP_ENTRIES.get(tool, STITCH_MCP_ENTRIES["claude"])
-        servers["stitch"] = stitch_data["stitch"]
-
-    if with_figma and "figma" not in servers:
-        figma_data = FIGMA_MCP_ENTRIES.get(tool, FIGMA_MCP_ENTRIES["claude"])
-        servers["figma"] = figma_data["figma"]
-
-    config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        claude_md_path.write_text(content_to_write.lstrip(), encoding="utf-8")
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"  created {claude_md_path.name} with {source}")
 
 
 def _tool_agent_dir(tool: str) -> str | None:
@@ -830,43 +840,37 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                 else:
                     print(f"  mcp config -> {mcp_rel}")
                     copy_file(src_mcp, dst_mcp, dry_run)
-                    # Add Stitch/Figma MCP servers only when user opted in
-                    _apply_mcp_config(
-                        dst_mcp,
-                        tool=tool,
-                        with_stitch=bool(args and args.with_stitch_mcp),
-                        with_figma=bool(args and args.with_figma_mcp),
-                        dry_run=dry_run,
-                    )
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
-            print(f"  workflow pointer -> {wf_doc.name}")
-            if tool == "opencode":
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                    ".claude/agents/", ".opencode/agents/"
-                ).replace(
-                    ".claude/commands/", ".opencode/commands/"
+            print(f"  workflow content -> {wf_doc.name}")
+            core_content = _tool_core_workflow_content(repo_root, tool)
+            if core_content is None:
+                # Fallback: legacy pointer block (core-workflow.md not bundled)
+                fallback_blocks = {
+                    "opencode": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                        ".claude/agents/", ".opencode/agents/"
+                    ).replace(
+                        ".claude/commands/", ".opencode/commands/"
+                    ),
+                    "copilot": ORCHESTRATOR_COPILOT_POINTER_BLOCK,
+                    "cursor": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                        ".claude/agents/", ".cursor/agents/"
+                    ).replace(
+                        "/factory-", " /orchestrator factory-"
+                    ),
+                    "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
+                }
+                pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
+                update_workflow_doc_pointer(
+                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, pointer_block,
+                    dry_run, force=force, core_workflow_content=None,
                 )
-            elif tool == "copilot":
-                pointer_block = ORCHESTRATOR_COPILOT_POINTER_BLOCK
-            elif tool == "cursor":
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                    ".claude/agents/", ".cursor/agents/"
-                ).replace(
-                    "/factory-", " /orchestrator factory-"
-                )
-            elif tool == "codex":
-                pointer_block = ORCHESTRATOR_CODEX_POINTER_BLOCK
             else:
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
-            update_workflow_doc_pointer(
-                wf_doc,
-                ORCHESTRATOR_CLAUDE_POINTER_MARKER,
-                pointer_block,
-                dry_run,
-                force=force,
-            )
+                update_workflow_doc_pointer(
+                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, "",
+                    dry_run, force=force, core_workflow_content=core_content,
+                )
 
     # Shared Layer 3: Python deps
     print(f"\n  Python deps -> requirements.txt")
@@ -1319,12 +1323,6 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
-    p.add_argument("--with-stitch-mcp", action="store_true", default=False,
-                   help="Install Google Stitch MCP server config (@_davideast/stitch-mcp). "
-                        "Default: skip (opt-in — requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
-    p.add_argument("--with-figma-mcp", action="store_true", default=False,
-                   help="Install Figma MCP server config (official Figma Remote MCP + community fallback). "
-                        "Default: skip (opt-in — requires Figma account, OAuth or FIGMA_API_KEY).")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
                         "Use only if you know what you're doing — missing prereqs will "
@@ -1654,22 +1652,6 @@ def main() -> int:
         rc = preflight_check(args, tools=tools, label="tool-specific")
         if rc != 0:
             return rc
-
-    # --- Stitch MCP (opt-in, interactive when no CLI flag set) ---
-    if not args.with_stitch_mcp and not args.tool:
-        print()
-        resp = input("Install Google Stitch MCP server? (y/N): ").strip().lower()
-        args.with_stitch_mcp = resp in ("y", "yes", "sí", "dale")
-        if args.with_stitch_mcp:
-            print("  Stitch MCP will be installed (requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
-
-    # --- Figma MCP (opt-in, interactive when no CLI flag set) ---
-    if not args.with_figma_mcp and not args.tool:
-        print()
-        resp = input("Install Figma MCP server? (y/N): ").strip().lower()
-        args.with_figma_mcp = resp in ("y", "yes", "sí", "dale")
-        if args.with_figma_mcp:
-            print("  Figma MCP will be installed (requires Figma account, OAuth or FIGMA_API_KEY).")
 
     # Agent skills will be installed by default (no interactive prompt)
 

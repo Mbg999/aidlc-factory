@@ -52,15 +52,52 @@ is observation, not specification). Your `skill_compliance[]` will have entries
 for `using-agent-skills` and `codegraph-aware-exploration`.
 
 ## Your job
-Follow the rule file:
-**`aidlc-rules/aws-aidlc-rule-details/inception/workspace-detection.md`**
+Per upstream rule `inception/workspace-detection.md` (content embedded in this agent — not read from disk).
 
 Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 ### Step 1 — Check for existing AIDLC project
-- Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
-- If present: classify the branch (A/B/C per the rule file) based on the manifest.
-- If not present: this is a fresh assessment — proceed to Step 2.
+
+Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
+
+**If NOT present:** this is a fresh assessment — proceed to Step 2.
+
+**If present:** apply the Session Continuity Protocol (embedded from upstream `common/session-continuity.md`):
+
+#### Welcome Back Template
+When the user returns to an existing project, present:
+- Project name, current phase, current stage, last completed step, next step
+- Options: A) Continue where left off, B) Review a previous stage
+
+#### Resumption Mode Detection
+
+Read `aidlc-docs/aidlc-state.md` and classify the user's message:
+
+| State file says | User message contains | Mode |
+|---|---|---|
+| Stages in progress (not all `[x]`) | Any message | **In-Progress Resume** → standard resume below |
+| All stages `[x]` (complete) | "feature", "bug", "fix", "refactor", "add", "change", "new" | **New Iteration** → do NOT resume. Set `next_phase: requirements-analysis`, `project_type: brownfield`. Full workflow again. |
+| All stages `[x]` (complete) | "review", "question", "show", "what", "how", "list" | **Review Mode** → present summary, offer options |
+
+**CRITICAL**: A completed project receiving a new development request MUST go through the full workflow again. Silently skipping stages for a new request is a workflow violation.
+
+#### Artifact Loading Sequence (In-Progress Resume only)
+
+| Current Stage in state file | Load these artifacts |
+|---|---|
+| Reverse Engineering | Workspace analysis |
+| Requirements/Stories | RE artifacts + requirements |
+| Design stages | Requirements + stories + architecture + design |
+| Code stages | ALL artifacts + existing code |
+
+Read `aidlc-docs/audit.md` for full timeline context.
+
+#### State Validation Checklist
+1. Confirm `aidlc-state.md` `Current Stage` matches the actual latest artifact
+2. If mismatch: ask user "Stage says X but artifacts show Y — which is correct?"
+3. Confirm no duplicate "current" stages exist
+4. If multiple stages claim to be current: ask user to pick one, then fix the state file
+5. Log continuity assessment in `audit_entries[]` with prefix `[SessionContinuity]`
 
 ### Step 2 — Scan workspace for existing code
 - Look for source files: `*.py *.js *.ts *.go *.rs *.java *.cpp *.cs *.php *.rb`
@@ -270,6 +307,16 @@ python3 aidlc-scripts/factory_validate.py \
 
 Return ONE line to the orchestrator: `<status> <output-handoff-path>`
 (e.g. `complete .aidlc-orchestrator/runs/2026-05-08T14-23-00Z-auth/handoffs/workspace-scout.output.yaml`)
+
+## Error Handling
+
+Load the full error-handling protocol (severity levels, stage error matrix, recovery procedures, session resumption) from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
+
+| Situation | Action |
+|-----------|--------|
+| Corrupted state file | Backup → ask user start fresh or recover → reconstruct from artifacts |
+| Missing artifacts | Identify → check regenerable → ask user if not → block if critical |
+| Cannot read workspace | Emit `[Error]` → set `needs_human` → accept user-provided fallback |
 
 ## What you must NOT do
 - Do not modify `aidlc-docs/audit.md` directly. Emit `audit_entries[]` only.

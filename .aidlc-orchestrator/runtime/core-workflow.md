@@ -5,31 +5,6 @@
 **The workflow adapts to the work, not the other way around.**
 Assesses: user intent, codebase state, complexity, risk.
 
-## MANDATORY: Rule Details Loading
-Load rule details from the first existing path:
-- `.aidlc/aidlc-rules/aws-aidlc-rule-details/` (canonical)
-- `.aidlc-rule-details/` (flat layout)
-- `aidlc-rules/aws-aidlc-rule-details/` (monorepo)
-
-Always load common rules at start: `common/process-overview.md`, `common/stage-conventions.md`, `common/session-continuity.md`, `common/ascii-diagram-standards.md`, `common/question-format-guide.md`.
-
-## Extensions
-Scan `extensions/` for opt-in files at workflow start. Deferred loading per
-[`runtime/extension-loading.md`](.aidlc-orchestrator/runtime/extension-loading.md).
-
-## Skills
-Skills enforce quality. Each stage requires specific skills (LOAD/FOLLOW/CHECK/
-VERIFY/LOG/BLOCK). Full protocol: [`runtime/skill-protocol.md`](.aidlc-orchestrator/runtime/skill-protocol.md).
-
-## MANDATORY: Content Validation
-Before creating files: validate Mermaid syntax, escape special chars, provide text alternatives.
-
-## MANDATORY: Question File Format
-Follow `common/question-format-guide.md` (MCQ, `[Answer]:` tags).
-
-## MANDATORY: Welcome Message
-Show once at start from `common/process-overview.md`.
-
 ## MANDATORY: Auto-Commit on Approval ONLY
 **CRITICAL**: Commits fire ONLY after an EXPLICIT user approval signal — never on stage completion alone, never on `status: complete` from an agent.
 
@@ -52,16 +27,16 @@ Scope: command/stage in kebab-case (e.g. `requirements-analysis`, `workflow-plan
 Purpose: WHAT to build. Stages: Workspace Detection, Reverse Engineering (cond), Requirements Analysis, User Stories (cond), Workflow Planning, Application Design (cond), Units Generation (cond).
 
 ## Workspace Detection (ALWAYS)
-Log request → load `inception/workspace-detection.md` → scan code → decide brownfield/greenfield → log → proceed.
+Classify workspace → detect greenfield/brownfield → scan tech stack → determine next phase.
 
 ## Reverse Engineering (CONDITIONAL — brownfield, no prior artifacts)
-Load `inception/reverse-engineering.md` → produce docs → wait for approval.
+Produce architecture docs, component inventory, API docs, tech stack from existing codebase.
 
 ## Requirements Analysis (ALWAYS — adaptive depth)
-Load `inception/requirements-analysis.md` → analyze → ask questions → produce requirements doc → wait for approval.
+Analyze → ask questions → produce requirements doc → wait for approval.
 
 ## Workflow Planning (ALWAYS)
-Load `inception/workflow-planning.md` → plan phases → Mermaid diagram → decompose tasks → present plan → wait for approval.
+Plan phases → decompose tasks → produce execution plan → wait for approval.
 
 ---
 
@@ -69,12 +44,12 @@ Load `inception/workflow-planning.md` → plan phases → Mermaid diagram → de
 Purpose: HOW to build.
 
 ## Entry Checkpoint
-Before first Construction stage: verify audit.md has all Inception entries, state file is correct, `aidlc-docs/construction/plans/` exists.
+Before first Construction stage: verify audit.md has all Inception entries, state file is correct.
 
 ## Per-unit loop
 Functional Design → NFR Requirements → NFR Design → Infrastructure Design → Code Generation.
 Code Gen: plan → implement (TDD thin slices) → self-review → wait for approval.
-Build & Test: Red-Green-Refactor → debug if failures → produce instructions → wait for approval.
+Build & Test: run build → run tests → debug if failures → produce instructions → wait for approval.
 
 ---
 
@@ -92,14 +67,21 @@ Directory: `aidlc-docs/{inception,construction,operations}/`. App code stays in 
 <!-- AIDLC-ORCHESTRATOR-POINTER -->
 ## AIDLC Orchestrator (multi-agent factory mode)
 
-This project ships with the AIDLC orchestrator:
-- `/factory-onboarding`, `/factory-help`, `/factory-state`
+This project ships with the AIDLC orchestrator. To run the multi-agent factory, use the `/factory-*` slash commands:
+
+- `/factory-onboarding` — guided tour of the orchestrator system
+- `/factory-code-tour` — guided human tour of any codebase: architecture, key flows, conventions
+- `/factory-help [command]` — quick command reference
+- `/factory-state <run-id>` — current stage, next step, budget, timeline
+- `/factory-self <task>` — run the orchestrator on its own codebase
 - `/factory-spec <feature>` — workspace scout + requirements + plan
 - `/factory-plan <run-id>` — decompose plan into per-unit specs
 - `/factory-build <run-id>` — layer-parallel code generation with locks + AST checks
-- `/factory-review <run-id>` — parallel reviewer pool
-- `/factory-ship <run-id>` — release notes, ADRs, CI/CD, CHANGELOG
+- `/factory-review <run-id>` — parallel reviewer pool (code, security, performance, simplifier)
+- `/factory-ship <run-id>` — release notes, ADRs, CI/CD wiring, CHANGELOG, migration plan
 - `/factory-resume <run-id>` — resume interrupted run (or adopt legacy `aidlc-docs/`)
 - `/factory-replay <run-id> --from <stage>` — re-run from a specific stage
 
-See `.claude/agents/orchestrator.md`, `.aidlc-orchestrator/runtime/index.md`, `.aidlc-orchestrator/contracts/`.
+Roles, contracts, budgets, and parallelism rules: see `.claude/agents/orchestrator.md`,
+`.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.
+Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.

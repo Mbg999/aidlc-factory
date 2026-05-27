@@ -140,6 +140,24 @@ When building input handoffs for `code-generator`, `build-test-agent`, and `ship
 
 Resolve the matching `SKILL.md` path and add to `skill_paths_resolved[]`. If the skill file isn't found, log `[Skill] MISSING: <name> (conditional)` and continue — the stage's rule file has an inline fallback.
 
+## Framework-skill injection (downstream consumer)
+
+After the conditional-skill injection above, inject ALL framework skills from
+autoskills so stage agents load tech-stack-specific guidance (e.g.
+`react-best-practices`, `typescript-advanced-types`) alongside process skills.
+
+| Source | Stage(s) | How |
+|---|---|---|
+| `manifest.framework_skill_names[]` | `code-generator`, `reviewer-code`, `reviewer-security` | Add EVERY entry to `skills_required[]`. Paths resolved automatically from `manifest.skill_paths_resolved[]`. |
+
+Framework skills are installed by `factory_skill_sync.py sync` in Pre-Build Step 0.
+`factory_skill_sync.py select` emits `framework_skill_names[]` (deduplicated skill
+names from `.agents/skills/`). The orchestrator stores this in `manifest.yaml`
+alongside `skill_paths_resolved[]`.
+
+- `reviewer-security` only injects skills with `security`, `auth`, or `hardening` in the name.
+- All other stages get the full list.
+
 ## B. Reverse-engineer routing (Bug #9 fix)
 
 **If** `workspace_state.next_phase == "reverse-engineering"` **AND** `workspace_state.reverse_engineering_artifacts_present == false` **→** surface the approval gate (do NOT silently skip):

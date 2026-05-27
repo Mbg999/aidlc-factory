@@ -43,70 +43,7 @@ def _make_skill_dir(base: Path, name: str, content: str = "") -> Path:
     return d
 
 
-# ── _remove ───────────────────────────────────────────────────────────────────
-
-class TestRemove:
-    def test_removes_real_directory(self, tmp_path):
-        d = tmp_path / "skill"
-        d.mkdir()
-        (d / "SKILL.md").write_text("content")
-        mod._remove(d)
-        assert not d.exists()
-
-    def test_removes_symlink_to_directory(self, tmp_path):
-        real = tmp_path / "real-skill"
-        real.mkdir()
-        (real / "SKILL.md").write_text("content")
-        link = tmp_path / "link-skill"
-        _symlink_or_copy(link, real)
-        mod._remove(link)
-        assert not link.exists()
-        assert real.exists()  # target untouched
-
-    def test_removes_symlink_does_not_touch_target(self, tmp_path):
-        real = tmp_path / "shared"
-        real.mkdir()
-        (real / "SKILL.md").write_text("shared content")
-        link = tmp_path / "alias"
-        _symlink_or_copy(link, real)
-        mod._remove(link)
-        assert (real / "SKILL.md").read_text() == "shared content"
-
-    def test_noop_on_nonexistent(self, tmp_path):
-        mod._remove(tmp_path / "does-not-exist")  # must not raise
-
-
-# ── _copy_skill ────────────────────────────────────────────────────────────────
-
-class TestCopySkill:
-    def test_copies_real_directory(self, tmp_path):
-        src = tmp_path / "src" / "react"
-        src.mkdir(parents=True)
-        (src / "SKILL.md").write_text("react content")
-        dest = tmp_path / "dest" / "react"
-        mod._copy_skill(src, dest)
-        assert (dest / "SKILL.md").read_text() == "react content"
-
-    def test_copies_through_symlink(self, tmp_path):
-        real = tmp_path / "real" / "angular"
-        real.mkdir(parents=True)
-        (real / "SKILL.md").write_text("angular content")
-        link = tmp_path / "link" / "angular"
-        link.parent.mkdir()
-        _symlink_or_copy(link, real)
-        dest = tmp_path / "dest" / "angular"
-        mod._copy_skill(link, dest)
-        assert (dest / "SKILL.md").read_text() == "angular content"
-
-    def test_copy_preserves_subdirs(self, tmp_path):
-        src = tmp_path / "src" / "vue"
-        (src / "sub").mkdir(parents=True)
-        (src / "SKILL.md").write_text("main")
-        (src / "sub" / "extra.md").write_text("extra")
-        dest = tmp_path / "dest" / "vue"
-        mod._copy_skill(src, dest)
-        assert (dest / "sub" / "extra.md").read_text() == "extra"
-
+# ── (consolidation helpers removed — no symlinks created) ─────────
 
 # ── _resolve_node ─────────────────────────────────────────────────────────────
 
@@ -143,30 +80,6 @@ class TestResolveNode:
         result.stdout = "v18.17.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
             assert mod._resolve_node() is None
-
-
-# ── _skill_is_current ─────────────────────────────────────────────────────────
-
-class TestSkillIsCurrent:
-    def test_matching_sha_returns_true(self, tmp_path):
-        src = _make_skill_dir(tmp_path / "src", "my-skill", "content-abc")
-        dest = _make_skill_dir(tmp_path / "dest", "my-skill", "content-abc")
-        assert mod._skill_is_current(src, dest) is True
-
-    def test_different_sha_returns_false(self, tmp_path):
-        src = _make_skill_dir(tmp_path / "src", "my-skill", "content-abc")
-        dest = _make_skill_dir(tmp_path / "dest", "my-skill", "content-xyz")
-        assert mod._skill_is_current(src, dest) is False
-
-    def test_dest_missing_returns_false(self, tmp_path):
-        src = _make_skill_dir(tmp_path / "src", "my-skill")
-        dest = tmp_path / "dest" / "my-skill"
-        assert mod._skill_is_current(src, dest) is False
-
-    def test_src_missing_returns_false(self, tmp_path):
-        src = tmp_path / "src" / "my-skill"
-        dest = _make_skill_dir(tmp_path / "dest", "my-skill")
-        assert mod._skill_is_current(src, dest) is False
 
 
 # ── clone_autoskills ────────────────────────────────────────────────────────────
@@ -283,26 +196,12 @@ class TestRunLocalAutoskills:
                 tmp_path, autoskills_dir, techs=["react", "nextjs"], dry_run=False
             )
             call_args = mock_run.call_args
-            # subprocess.run may receive args as positional or keyword
             args_list = call_args[0][0] if call_args[0] else call_args[1].get("args", [])
             assert str(entry) in args_list
+            assert "--path" in args_list
+            assert str(tmp_path) in args_list
             assert "--tech" in args_list
             assert "react,nextjs" in args_list
-
-
-# ── _is_greenfield ────────────────────────────────────────────────────────────
-
-class TestGreenfieldDetection:
-    def test_no_manifests_is_greenfield(self, tmp_path):
-        assert mod._is_greenfield(tmp_path) is True
-
-    def test_package_json_not_greenfield(self, tmp_path):
-        (tmp_path / "package.json").write_text("{}")
-        assert mod._is_greenfield(tmp_path) is False
-
-    def test_pyproject_toml_not_greenfield(self, tmp_path):
-        (tmp_path / "pyproject.toml").write_text("[project]")
-        assert mod._is_greenfield(tmp_path) is False
 
 
 # ── cmd_select ────────────────────────────────────────────────────────────────
@@ -324,6 +223,8 @@ class TestCmdSelect:
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "skill_paths_resolved" in data
+        assert "framework_skill_names" in data
+        assert isinstance(data["framework_skill_names"], list)
         assert data["skill_count"] >= 2
 
     def test_custom_skills_come_first(self, tmp_path, capsys):
@@ -357,6 +258,7 @@ class TestCmdSelect:
 
         data = json.loads(capsys.readouterr().out)
         assert data["skill_paths_resolved"] == []
+        assert data["framework_skill_names"] == []
         assert data["skill_count"] == 0
 
 
@@ -378,28 +280,47 @@ class TestCmdSyncGracefulDegradation:
         out = capsys.readouterr().out
         assert "failed to clone" in out.lower() or "warning" in out.lower()
 
-    def test_build_failure_is_graceful(self, tmp_path, capsys):
+    def test_techs_passed_to_runner(self, tmp_path, capsys):
         with patch("factory_skill_sync._resolve_node",
                    return_value=(["node"], "system node v22.6.0")), \
              patch("factory_skill_sync.clone_autoskills", return_value=tmp_path / "cache"), \
-             patch("factory_skill_sync._build_autoskills",
-                   side_effect=RuntimeError("npm install failed")):
-            result = mod.cmd_sync(tmp_path)
-        assert result == 0
-        out = capsys.readouterr().out
-        assert "build failed" in out.lower() or "warning" in out.lower()
-
-    def test_greenfield_with_tech_override(self, tmp_path, capsys):
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills", return_value=tmp_path / "cache"), \
-             patch("factory_skill_sync._build_autoskills"), \
              patch("factory_skill_sync._run_local_autoskills", return_value=[]) as mock_run:
             result = mod.cmd_sync(tmp_path, techs=["python"])
         assert result == 0
         mock_run.assert_called_once()
         _, kwargs = mock_run.call_args
         assert kwargs.get("techs") == ["python"]
+
+
+# ── cmd_sync cache cleanup ────────────────────────────────────
+
+class TestCmdSyncCacheCleanup:
+    def test_cleans_up_autoskills_cache_after_success(self, tmp_path):
+        """cmd_sync should remove .autoskills-cache after successful run."""
+        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "dummy").write_text("cache artifact")
+
+        with patch("factory_skill_sync._resolve_node",
+                   return_value=(["node"], "system node v22.6.0")), \
+             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
+             patch("factory_skill_sync._run_local_autoskills", return_value=[]):
+            mod.cmd_sync(tmp_path)
+
+        assert not cache_dir.exists(), "cache dir was not cleaned up"
+
+    def test_does_not_clean_in_dry_run(self, tmp_path):
+        """cmd_sync should NOT remove .autoskills-cache in dry-run mode."""
+        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
+        cache_dir.mkdir(parents=True)
+
+        with patch("factory_skill_sync._resolve_node",
+                   return_value=(["node"], "system node v22.6.0")), \
+             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
+             patch("factory_skill_sync._run_local_autoskills", return_value=[]):
+            mod.cmd_sync(tmp_path, dry_run=True)
+
+        assert cache_dir.exists(), "cache dir was removed in dry-run"
 
 
 # ── CLI argument parsing ──────────────────────────────────────────────────────
