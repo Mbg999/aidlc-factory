@@ -232,7 +232,7 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 VALID_TOOLS = (
     "cursor", "claude",
-    "copilot", "opencode", "codex", "other",
+    "copilot", "opencode", "codex", "frida", "other",
 )
 
 
@@ -321,6 +321,7 @@ ORCHESTRATOR_TOOL_MCP_CONFIGS = {
     "cursor":   Path(".cursor/mcp.json"),
     "copilot":  Path(".vscode/mcp.json"),
     "opencode": Path("opencode.json"),
+    "frida":    Path(".mcp.json"),  # Frida uses .mcp.json for tool MCP config
 }
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
@@ -423,6 +424,36 @@ ORCHESTRATOR_CODEX_POINTER_BLOCK = (
     "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
     "- `.agents/skills/` — framework + process skills (loaded by skill protocol)\n"
     "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
+ORCHESTRATOR_FRIDA_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. It is a multi-agent software-factory pipeline\n"
+    "that guides AI coding agents through Inception → Construction → Operations.\n\n"
+    "Factory command skills are loaded from `.agents/skills/<command>/SKILL.md`:\n\n"
+    "- `factory-spec` — workspace scout + requirements analysis\n"
+    "- `factory-plan` — execution plan + unit decomposition\n"
+    "- `factory-build` — parallel code generation + build/test\n"
+    "- `factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `factory-resume` — resume an interrupted run\n"
+    "- `factory-replay` — re-run from a specific stage\n"
+    "- `factory-state` — show run status, stage, budget\n"
+    "- `factory-help` — full command reference\n"
+    "- `factory-onboarding` — guided tour of the orchestrator system\n"
+    "- `factory-code-tour` — guided human tour of any codebase\n"
+    "- `factory-self` — run the orchestrator on its own codebase\n"
+    "- `factory-product` — product harness (requirements + personas + stories + plan)\n\n"
+    "Key directories:\n"
+    "- `.aidlc-orchestrator/contracts/` — JSON Schema handoff contracts for every stage I/O\n"
+    "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
+    "- `.agents/skills/` — framework + process skills + factory command skills\n"
+    "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
+    "Usage: When the user asks to build a feature, fix a bug, or refactor code, "
+    "load the `.agents/skills/<command>/SKILL.md` skill for the relevant factory command "
+    "and execute the sequence described within.\n\n"
     "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
 )
 
@@ -585,6 +616,13 @@ def _tool_core_workflow_content(repo_root: Path, tool: str) -> str | None:
             ".claude/commands/", ".codex/commands/"
         )
 
+    if tool == "frida":
+        return content.replace(
+            ".claude/agents/", ".aidlc-orchestrator/agents/"
+        ).replace(
+            ".claude/commands/", ".aidlc-orchestrator/commands/"
+        )
+
     return content  # claude — no replacements needed
 
 
@@ -644,6 +682,7 @@ def _tool_agent_dir(tool: str) -> str | None:
         "cursor": ".cursor/agents",
         "copilot": ".github/agents",
         "codex": ".codex/agents",  # Codex custom agents are TOML files
+        "frida": ".aidlc-orchestrator/agents",  # no native subagent spawning
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
@@ -654,6 +693,7 @@ def _tool_commands_dir(tool: str) -> str | None:
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
         "codex": None,  # Codex built-in slash commands only; no custom commands dir
+        "frida": None,  # no native slash commands — uses .agents/skills/<command>/SKILL.md instead
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -664,6 +704,7 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "opencode": target_root / "AGENTS.md",
         "copilot": target_root / ".github" / "copilot-instructions.md",
         "codex": target_root / "AGENTS.md",  # Codex reads AGENTS.md per OpenAI spec
+        "frida": target_root / "FRIDA.md",  # Frida reads FRIDA.md for orchestrator pointer
     }
     return mapping.get(tool)
 
@@ -828,6 +869,20 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     print(f"  codex config -> .codex/config.toml")
                     copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
+        # Frida: copy factory-command skills to .agents/skills/<command>/SKILL.md
+        if tool == "frida":
+            src_frida_skills = repo_root / ".agents" / "skills"
+            dst_frida_skills = target_root / ".agents" / "skills"
+            if src_frida_skills.exists():
+                print(f"  factory-command skills -> .agents/skills/")
+                copy_tree(src_frida_skills, dst_frida_skills, dry_run)
+            # Also copy custom-skills as fallback process definitions
+            src_frida_custom = repo_root / ".agents" / "custom-skills"
+            dst_frida_custom = target_root / ".agents" / "skills"
+            if src_frida_custom.exists():
+                print(f"  custom skills -> .agents/skills/")
+                copy_tree(src_frida_custom, dst_frida_custom, dry_run)
+
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
         # skip if destination already exists unless --force.
         mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
@@ -860,6 +915,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                         "/factory-", " /orchestrator factory-"
                     ),
                     "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
+                    "frida": ORCHESTRATOR_FRIDA_POINTER_BLOCK,
                 }
                 pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
                 update_workflow_doc_pointer(
@@ -1009,6 +1065,7 @@ CODEGRAPH_TOOL_MAP: dict[str, str] = {
     "opencode": "opencode",
     "codex": "codex",
     "copilot": "copilot",
+    "frida": "frida",
 }
 
 # Allowlist of CodeGraph MCP tools that stage subagents may call.
@@ -1178,7 +1235,7 @@ ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
 
 # MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
 ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
-    {"cursor", "copilot", "other"}
+    {"cursor", "copilot", "frida", "other"}
 )
 
 ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
@@ -1336,6 +1393,7 @@ TOOL_DESCRIPTIONS = {
     "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
     "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
     "codex":    "OpenAI Codex CLI / IDE agent — writes .codex/agents/ (TOML custom agents) + AGENTS.md pointer",
+    "frida":    "Frida AI agent — writes to .aidlc-orchestrator/agents/ + .agents/skills/<command>/SKILL.md factory command skills (no native subagent spawning)",
     "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
 }
 
