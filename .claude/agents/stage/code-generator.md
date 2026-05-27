@@ -174,12 +174,14 @@ When CodeGraph is absent: skip pre-flight, proceed directly to Red step.
 
 If `input.design_system_path` is set:
 1. Extract needed component types from `input.ui_intent[]` (or infer from the task)
-2. Run:
-   ```bash
-   python3 aidlc-scripts/factory_design_system_resolve.py resolve <types>
-   ```
-3. Load returned files into context — design.md, anatomy.md, do-dont.md, tokens/*.md
-4. Load `design-system-composer/SKILL.md` and `ui-constraint-validator/SKILL.md`
+2. **Load Token Bridge artifacts** from `input.token_bridge_artifacts[]`:
+   - Find the artifact with `type: "css"` → load `tokens.css` (contains all CSS Custom Properties)
+   - Find the artifact with `type: "prompt"` → load `token-prompt.md` (guidelines for token usage)
+   - Find the artifact with `type: "tailwind"` (if present) → load `tailwind.config.js`
+   - If `token_bridge_artifacts` is empty, fall back to loading `design-system/tokens/*.md` directly
+3. Load `design-system-composer/SKILL.md` and `ui-constraint-validator/SKILL.md`
+4. The `design-system-composer` skill tells you how to compose from primitives using tokens.
+   The `ui-constraint-validator` skill validates output against the CSS vars from tokens.css.
 
 #### Pre-Figma: Snap Figma data (when available)
 
@@ -191,19 +193,21 @@ If `input.has_figma_data` is set AND `input.figma_snapped_path` exists:
 
 #### Design System Token Catalog (inline fallback)
 
-Use this token table when `ui-constraint-validator` skill is absent (embedded from upstream `code-generation.md` Critical Rules):
+Load `tokens.css` from `token_bridge_artifacts[]` (if present) and read the actual
+CSS Custom Properties. The canonical var names are:
 
-| Category | Tokens | Forbidden |
-|----------|--------|-----------|
-| Spacing | `spacing.*` — 4/8/12/16/24/32 | Any other value |
-| Border Radius | `radius.*` — 0/3/6/12/9999 | Arbitrary `rounded-[*]` |
-| Font Size | `font-size.*` — 12/14/16/20/24/32/40 | Any other value |
-| Color | `color.*` semantic tokens | Raw hex (`#...`) |
-| Elevation | `elevation.*` tokens | Hardcoded shadows |
+| Category | CSS var prefix | Forbidden |
+|----------|---------------|-----------|
+| Spacing | `--spacing-*` (4/8/12/16/24/32px) | Any other value |
+| Border Radius | `--radius-*` (0/3/6/12/9999px) | Arbitrary `rounded-[*]` |
+| Font Size | `--typography-*` (12/14/16/20/24/32/40px) | Any other value |
+| Color | `--color-*` semantic tokens | Raw hex (`#...`) |
+| Elevation | `--elevation-*` tokens | Hardcoded shadows |
 | Tailwind | Must use token classes | `px-[*]`, `rounded-[*]`, `gap-[*]`, `text-[*]` |
 | Inline styles | Must use token classes | `style={{padding:...}}`, `style={{margin:...}}` |
 
-If `ui-constraint-validator` IS present, run it as the enforcement layer. This table is the fallback.
+Use `var(--*)` references in all generated code. If `ui-constraint-validator` IS present,
+run it as the enforcement layer. This table is the fallback when `tokens.css` is absent.
 
 #### TDD loop
 

@@ -1,6 +1,6 @@
 ---
 name: design-system-composer
-description: Design-system-driven UI composition. Never invents primitives — selects from INDEX.md. Composes from Stack, Inline, Box, Button, Input, Text, Surface, Icon. Enforces spacing/radius/typography tokens. Companion to frontend-ui-engineering (generic frontend patterns).
+description: Design-system-driven UI composition (V2). Never invents primitives — selects from INDEX.md. Composes from Stack, Inline, Box, Button, Input, Text, Surface, Icon. Enforces CSS Custom Properties from tokens.css. Companion to frontend-ui-engineering (generic frontend patterns).
 ---
 
 # Design System Composer
@@ -17,8 +17,10 @@ provides design-system-specific composition: primitive selection, token enforcem
 and Figma resilience.
 
 **Lazy loading**: You only load design system files for the components you need.
-Call `factory_design_system_resolve.py resolve <components>` to get exactly the
-relevant files — never the full index.
+Use `input.token_bridge_artifacts[]` to get the `tokens.css` (CSS Custom Properties)
+and `token-prompt.md` (usage guidelines). For primitive-specific files (design.md,
+anatomy.md, do-dont.md), load them directly from `design-system/primitives/<name>/`
+or call `factory_design_system_resolve.py resolve <components>` as fallback.
 
 ---
 
@@ -34,21 +36,25 @@ Collect unique component types (e.g. `Button`, `Input`, `Stack`).
 
 ## Step 2: Load design system files (lazy)
 
-Call the resolve tool:
-```bash
-python3 aidlc-scripts/factory_design_system_resolve.py resolve Button Input Stack
-```
+Load the Token Bridge artifacts first:
 
-This returns ONLY:
-- Global token files (`tokens/spacing.md`, `tokens/radius.md`, etc.)
-- `design.md` for each requested component
-- `anatomy.md` for each requested component
-- `do-dont.md` for each requested component (if exists)
-- Reference implementation `.tsx` (if exists)
-- Capped examples (max 3 per component)
+1. **Read `input.token_bridge_artifacts[]`** — find the artifact with `type: "css"`
+   and load the `tokens.css` file. This gives you the canonical CSS Custom Properties:
+   `--spacing-*`, `--radius-*`, `--typography-*`, `--color-*`, `--elevation-*`.
 
-Do NOT load primitives you don't need. Do NOT bulk-load patterns/
-unless you hit a composition gap.
+2. **Load `token-prompt.md`** — from the artifact with `type: "prompt"`. This tells you
+   how to use the tokens in code (e.g., `var(--spacing-md)` instead of `padding: 12px`).
+
+3. **Load primitive specs** — for each component type needed, load files directly:
+   ```
+   design-system/primitives/<name>/design.md
+   design-system/primitives/<name>/anatomy.md
+   design-system/primitives/<name>/do-dont.md
+   ```
+   (Fallback: `python3 aidlc-scripts/factory_design_system_resolve.py resolve <types>`)
+
+Do NOT load primitives you don't need. Do NOT bulk-load.
+Do NOT load `.tsx` reference implementations — the LLM generates framework-specific code.
 
 ---
 
@@ -70,12 +76,12 @@ For each UI element needed:
    - Any text → `Text` (never raw `<p>`, `<span>`, `<h1>` directly)
    - Any themed container → `Surface`
 
-3. **Resolve all visual properties through tokens**:
-   - `padding`, `margin`, `gap` → `spacing.*` token
-   - `border-radius` → `radius.*` token
-   - `font-size`, `font-weight` → `font-size.*`, `font-weight.*` tokens
-   - `color`, `background-color` → `color.*` token
-   - `box-shadow` → `elevation.*` token
+3. **Resolve all visual properties through CSS Custom Properties**:
+   - `padding`, `margin`, `gap` → `var(--spacing-*)` token
+   - `border-radius` → `var(--radius-*)` token
+   - `font-size` → `var(--typography-*)` token
+   - `color`, `background-color` → `var(--color-*)` token
+   - `box-shadow` → `var(--elevation-*)` token (where applicable)
 
 4. **Never hardcode raw values**. Never use Tailwind arbitrary values
    (`px-[13px]`, `rounded-[5px]`, `gap-[7px]`).
@@ -200,8 +206,10 @@ STITCH RULES:
    rebuild with local primitives.
 
 2. Value snapping: Stitch may generate raw styles (padding: 13px,
-   border-radius: 5px). Run factory_stitch_snap.py snap-file to
-   correct them to tokens.
+   border-radius: 5px). Run the StitchAdapter V2 to correct them:
+   ```bash
+   python3 aidlc-scripts/harness_adapters/source/stitch.py --input stitch/export.html --output stitch/snapped.json
+   ```
 
 3. DESIGN.md: If Stitch exported a DESIGN.md, load the imported tokens
    from design-system/tokens/stitch-*.md as additional valid tokens.
@@ -263,12 +271,11 @@ After code generation for each slice:
    `data-testid`. If missing → flag.
 
 4. **Autocorrect**: Run `ui-constraint-validator` skill on all generated UI files.
-   **Precondition:** `tokens/color.md` (and the rest of `tokens/*.md`) must be
-   present and non-empty. If missing, the validator emits `status: blocked` —
-   do NOT proceed with codegen until tokens are resolved. See
-   `ui-constraint-validator/SKILL.md` § 2d for the hard-fail rule and the
-   project-specific snap-table requirement (the hex values in that skill are
-   illustrative, not defaults).
+   **Precondition:** `tokens.css` (from `token_bridge_artifacts`) must be present
+   and non-empty. If missing, fall back to `design-system/tokens/tokens.css`.
+   If still missing, the validator emits `status: blocked` — do NOT proceed
+   with codegen until tokens are resolved. See
+   `ui-constraint-validator/SKILL.md` § 2d for the hard-fail rule.
 
 5. **Log deviations**: Add to output `ui_compliance[]`:
    ```json

@@ -297,6 +297,20 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_design_system_snap.py",    # snap raw Figma values to canonical design tokens
     "factory_design_system_resolve.py", # lazy-load design system files for matching components
     "factory_design_system_learn.py",   # learn from approved/rejected UI output
+    "factory_design_system_harness.py", # core engine: load, validate, compose, drift
+    "factory_design_system_extract_brownfield.py",  # extract tokens from existing code
+    "factory_token_to_css.py",          # generate CSS Custom Properties from tokens
+    "factory_token_to_tailwind.py",     # generate Tailwind config from tokens
+    "factory_token_bridge.py",          # orchestrate Token Bridge pipeline
+    # DS V2: Source Adapters (unified Figma/Stitch/RawJson)
+    "harness_adapters/__init__.py",
+    "harness_adapters/source/__init__.py",
+    "harness_adapters/source/base.py",
+    "harness_adapters/source/figma.py",
+    "harness_adapters/source/stitch.py",
+    "harness_adapters/source/raw_json.py",
+    # DS V2: Prompts
+    "prompts/tech-stack/tokens.md",
     # Google Stitch integration (AI design tool input snapping, MCP registry)
     "factory_stitch_snap.py",   # snap Stitch HTML/CSS/DESIGN.md output to canonical design tokens
     # Skill sync layer — monorepo-aware autoskills bridge

@@ -45,8 +45,46 @@ agent's token load proportional to its actual skill needs.
 3. **Log** to audit.md:
    ```
    [Skills] resolved <N> skills: <name-list>
-   [Skills] warnings: <list or "none">
+    [Skills] warnings: <list or "none">
+    ```
+
+## Pre-Build Step 0.5 — Prepare Token Bridge
+
+Runs ONCE before any unit is spawned, when `manifest.project_profile.ui == true`.
+
+1. **Resolve output directory** — use the per-run tokens directory:
+   ```bash
+   TOKENS_DIR=".aidlc-orchestrator/runs/<run-id>/tokens"
    ```
+
+2. **Run Token Bridge prepare** — generates `tokens.css`, auto-detects Tailwind,
+   copies `token-prompt.md`, and detects brownfield sources:
+   ```bash
+   python3 aidlc-scripts/factory_token_bridge.py prepare \
+       --repo-root . \
+       --output-dir "$TOKENS_DIR"
+   ```
+   The bridge handles these cases silently:
+   - No `design-system/` exists → skip with warning (no tokens, no CSS)
+   - Tailwind detected → also generates `tailwind.config.js`
+   - Brownfield sources found → logs `design_system_source` in result JSON
+
+3. **Store artifacts in manifest** — parse the JSON result and persist:
+   ```bash
+   python3 aidlc-scripts/factory_run.py set <run-id> \
+       --field token_bridge_result=<result-json>
+   ```
+
+4. **Log to audit.md:**
+   ```
+   [TokenBridge] Prepared <N> artifact(s): <type-list>
+   [TokenBridge] Tailwind: <detected|not-detected>
+   [TokenBridge] Design source: <brownfield|greenfield|figma|stitch|none>
+   ```
+
+5. **Fallback**: if `prepare` returns empty artifacts (no tokens dir), log a
+   warning and continue — the build proceeds without token enforcement.
+   Token Bridge failure never blocks a build.
 
 ---
 
@@ -82,13 +120,17 @@ For each layer in order:
     - **Filter**: include only paths for skills referenced in `skills_required[]` plus
       context-enrichment skills (`codegraph-aware-exploration`, `context-engineering`).
       Discard paths for skills irrelevant to this stage.
-   - **Inception plan tracking**: set `inception_plan_path` to
-     `aidlc-docs/inception/plans/<run-id>-execution-plan.md` and set
-     `inception_task_ids[]` to the list of task IDs from that plan whose `unit`
-     field matches this unit (e.g. `["ING-T4", "ING-T5"]`). Parse the markdown
-     task list — each task line has the form `- [ ] **<ID>** — <title>` with the
-     unit either in a section header above it or inline as `(unit: <name>)`.
-   - Validate against JSON Schema contract (`code-generator.input.v1.json`).
+    - **Inception plan tracking**: set `inception_plan_path` to
+      `aidlc-docs/inception/plans/<run-id>-execution-plan.md` and set
+      `inception_task_ids[]` to the list of task IDs from that plan whose `unit`
+      field matches this unit (e.g. `["ING-T4", "ING-T5"]`). Parse the markdown
+      task list — each task line has the form `- [ ] **<ID>** — <title>` with the
+      unit either in a section header above it or inline as `(unit: <name>)`.
+    - **Token Bridge artifacts**: when `manifest.project_profile.ui == true`, read
+      `manifest.token_bridge_result.artifacts` and inject as `token_bridge_artifacts[]`
+      in the handoff. This gives the code-generator direct paths to `tokens.css`,
+      `tailwind.config.js` (if applicable), and `token-prompt.md`.
+    - Validate against JSON Schema contract (`code-generator.input.v1.json`).
 
 Active set = units that passed all gates.
 

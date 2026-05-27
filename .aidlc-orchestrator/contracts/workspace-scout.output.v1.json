@@ -126,6 +126,15 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
+        },
+        "design_system_source": {
+          "type": "string",
+          "enum": ["brownfield", "greenfield", "figma", "stitch"],
+          "description": "How the design system was sourced. Set by project-profile classification. Absent when ui=false."
+        },
+        "design_system_path": {
+          "type": "string",
+          "description": "Path to design-system/ root. Set by project-profile when ui=true."
         }
       },
       "additionalProperties": false
