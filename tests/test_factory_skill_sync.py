@@ -402,6 +402,127 @@ class TestCmdSyncGracefulDegradation:
         assert kwargs.get("techs") == ["python"]
 
 
+# ── _consolidate_skills ───────────────────────────────────────────
+
+class TestConsolidateSkills:
+    def _setup_agents_skills(self, tmp_path) -> Path:
+        """Create .agents/skills/<name>/ with a couple of skills."""
+        skills_dir = tmp_path / ".agents" / "skills"
+        _make_skill_dir(skills_dir, "react", "react skill content")
+        _make_skill_dir(skills_dir, "nextjs", "nextjs skill content")
+        return skills_dir
+
+    def test_creates_symlinks_in_all_agent_folders(self, tmp_path):
+        self._setup_agents_skills(tmp_path)
+        result = mod._consolidate_skills(tmp_path)
+        assert result > 0
+
+        for rel in mod._AGENT_FOLDERS:
+            for name in ("react", "nextjs"):
+                link = tmp_path / rel / name
+                assert link.is_symlink(), f"missing symlink: {rel / name}"
+                assert link.resolve() == (tmp_path / ".agents" / "skills" / name).resolve()
+
+    def test_no_skills_dir_does_nothing(self, tmp_path):
+        result = mod._consolidate_skills(tmp_path)
+        assert result == 0
+
+    def test_existing_correct_symlink_is_skipped(self, tmp_path):
+        self._setup_agents_skills(tmp_path)
+        mod._consolidate_skills(tmp_path)  # first call creates symlinks
+
+        skills_dir = tmp_path / ".agents" / "skills"
+        # Remove source to detect if symlink was re-created (it shouldn't be)
+        shutil.rmtree(skills_dir)
+
+        for rel in mod._AGENT_FOLDERS:
+            for name in ("react", "nextjs"):
+                link = tmp_path / rel / name
+                # Symlink should still exist even after source is gone
+                # because we skipped it (it pointed to the right place)
+                assert link.is_symlink(), f"symlink missing: {rel / name}"
+
+    def test_real_directory_is_left_alone(self, tmp_path):
+        self._setup_agents_skills(tmp_path)
+        skills_dir = tmp_path / ".agents" / "skills"
+
+        # Create a real directory in an agent folder (not a symlink)
+        real_dir = tmp_path / ".opencode" / "skills" / "react"
+        real_dir.mkdir(parents=True)
+        (real_dir / "SKILL.md").write_text("custom content")
+
+        mod._consolidate_skills(tmp_path)
+
+        # Real dir should be untouched
+        assert real_dir.is_dir()
+        assert not real_dir.is_symlink()
+        assert (real_dir / "SKILL.md").read_text() == "custom content"
+
+    def test_dry_run_does_not_create_symlinks(self, tmp_path):
+        self._setup_agents_skills(tmp_path)
+        mod._consolidate_skills(tmp_path, dry_run=True)
+
+        for rel in mod._AGENT_FOLDERS:
+            for name in ("react", "nextjs"):
+                link = tmp_path / rel / name
+                assert not link.exists(), f"symlink created in dry-run: {rel / name}"
+
+    def test_no_skills_inside_agents_skips(self, tmp_path):
+        (tmp_path / ".agents" / "skills").mkdir(parents=True)
+        result = mod._consolidate_skills(tmp_path)
+        assert result == 0
+
+
+# ── cmd_sync cache cleanup ────────────────────────────────────
+
+class TestCmdSyncCacheCleanup:
+    def test_cleans_up_autoskills_cache_after_success(self, tmp_path):
+        """cmd_sync should remove .autoskills-cache after successful run."""
+        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "dummy").write_text("cache artifact")
+
+        with patch("factory_skill_sync._resolve_node",
+                   return_value=(["node"], "system node v22.6.0")), \
+             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
+             patch("factory_skill_sync._build_autoskills"), \
+             patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
+             patch("factory_skill_sync._consolidate_skills", return_value=0):
+            mod.cmd_sync(tmp_path)
+
+        assert not cache_dir.exists(), "cache dir was not cleaned up"
+
+    def test_does_not_clean_in_dry_run(self, tmp_path):
+        """cmd_sync should NOT remove .autoskills-cache in dry-run mode."""
+        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
+        cache_dir.mkdir(parents=True)
+
+        with patch("factory_skill_sync._resolve_node",
+                   return_value=(["node"], "system node v22.6.0")), \
+             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
+             patch("factory_skill_sync._build_autoskills"), \
+             patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
+             patch("factory_skill_sync._consolidate_skills", return_value=0):
+            mod.cmd_sync(tmp_path, dry_run=True)
+
+        assert cache_dir.exists(), "cache dir was removed in dry-run"
+
+    def test_consolidate_is_called_by_cmd_sync(self, tmp_path):
+        """cmd_sync must call _consolidate_skills."""
+        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
+        cache_dir.mkdir(parents=True)
+
+        with patch("factory_skill_sync._resolve_node",
+                   return_value=(["node"], "system node v22.6.0")), \
+             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
+             patch("factory_skill_sync._build_autoskills"), \
+             patch("factory_skill_sync._run_local_autoskills", return_value=[]), \
+             patch("factory_skill_sync._consolidate_skills", return_value=0) as mock_cons:
+            mod.cmd_sync(tmp_path)
+
+        mock_cons.assert_called_once()
+
+
 # ── CLI argument parsing ──────────────────────────────────────────────────────
 
 class TestCliParsing:

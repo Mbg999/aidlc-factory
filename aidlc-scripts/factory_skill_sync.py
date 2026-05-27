@@ -312,6 +312,73 @@ def _skill_is_current(src: Path, dest: Path) -> bool:
     )
 
 
+# ── Agent folders we must symlink/copy into (autoskills fork does NOT cover these) ─
+
+_AGENT_FOLDERS: list[Path] = [
+    Path(".opencode") / "skills",
+    Path(".cursor") / "skills",
+    Path(".github") / "agents" / "skills",
+]
+
+
+def _consolidate_skills(repo_root: Path, dry_run: bool = False) -> int:
+    """Ensure every skill in .agents/skills/<name>/ is also reachable from
+    every agent-specific folder (.opencode/skills/, .cursor/skills/, etc.).
+
+    Creates symlinks pointing back to the canonical location in .agents/skills/.
+    If a symlink already exists and points to the same target, it's skipped.
+    If a real directory exists in the agent folder (e.g. from a previous copy),
+    it's left in place — we don't overwrite user-managed files.
+    """
+    skills_dir = repo_root / ".agents" / "skills"
+    if not skills_dir.exists():
+        return 0
+
+    linked = 0
+    skipped = 0
+
+    for skill_dir in skills_dir.iterdir():
+        if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
+            continue
+        skill_name = skill_dir.name
+
+        for rel in _AGENT_FOLDERS:
+            link_target = repo_root / rel / skill_name
+
+            if dry_run:
+                print(f"[DRY-RUN] Would link {rel / skill_name} → .agents/skills/{skill_name}")
+                continue
+
+            link_target.parent.mkdir(parents=True, exist_ok=True)
+
+            # Skip if already a symlink pointing to the right place
+            if link_target.is_symlink():
+                existing = link_target.resolve()
+                if existing == skill_dir.resolve():
+                    skipped += 1
+                    continue
+                link_target.unlink()
+            elif link_target.exists():
+                # Real directory/file that's not a symlink — leave it alone
+                skipped += 1
+                continue
+
+            # Create relative symlink
+            try:
+                rel_from_link = Path(os.path.relpath(
+                    str(skill_dir.resolve()),
+                    str(link_target.parent.resolve()),
+                ))
+                link_target.symlink_to(rel_from_link, target_is_directory=True)
+                linked += 1
+            except (OSError, NotImplementedError, PermissionError) as exc:
+                print(f"  WARNING: failed to link {rel / skill_name}: {exc}", file=sys.stderr)
+
+    if linked:
+        print(f"[Skills] linked {linked} skill(s) into agent folders")
+    return linked
+
+
 # ── sync subcommand ───────────────────────────────────────────────────────────
 
 def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = None) -> int:
@@ -348,6 +415,15 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
 
     if not installed and not dry_run:
         print("[Sync] autoskills installed no skills (no matching technologies detected)")
+
+    # Consolidate: ensure skills are reachable from all agent-specific folders
+    _consolidate_skills(repo_root, dry_run=dry_run)
+
+    # Clean up autoskills cache — never leave build artifacts behind
+    cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
+    if cache_dir.exists() and not dry_run:
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        print(f"[Sync] cleaned up {AUTOSKILLS_CACHE_DIR}")
 
     suffix = " (dry-run)" if dry_run else ""
     print(f"[Sync] done{suffix} — {len(installed)} skill(s) in .agents/skills/")

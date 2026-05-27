@@ -17,28 +17,37 @@ Sequence:
    audit.md has Inception entries; aidlc-state.md Current Stage correct;
     `aidlc-docs/construction/plans/` exists; `<run-id>-execution-plan.md` loaded.
 3. **Pre-Build Step 0 — Skill Sync** (once, before any unit is spawned):
-   a. Run sync:
+   a. Determine tech stack: read `manifest.yaml` → `tech_stack[]` (from workspace-scout)
+      and `project_type` (greenfield/brownfield). Also check `aidlc-docs/requirements/requirements.md`
+      for explicitly named technologies. Greenfield has no auto-detectable stack — you MUST
+      pass the technologies the user specified during requirements analysis.
+   b. Build `--tech` argument: if `tech_stack[]` has entries, map their `package` names to
+      autoskills technology IDs (e.g. `express` → `express`, `next` → `nextjs`,
+      `react` → `react`, `python` → `python`, etc.). Join with commas.
+      If greenfield and no tech_stack, leave `--tech` out entirely.
+   c. Run sync:
       ```bash
-      python3 aidlc-scripts/factory_skill_sync.py sync
+      python3 aidlc-scripts/factory_skill_sync.py sync${TECH_FLAGS:+ --tech "$TECH_FLAGS"}
       ```
-      Capture stdout. Each `[Sync]` line is the single source of truth for the
-      audit — copy them verbatim into audit.md under `[Skills]` prefix
-      (e.g. `[Sync] SKIPPED — Node.js v18 ...` becomes `[Skills] SKIPPED — Node.js v18 ...`).
-      On non-zero exit or Node.js missing: skill_sync.py prints a structured
-      `[Sync] SKIPPED + WARN:` block — surface those lines as-is. Skill failure
-      never blocks a build (pre-shipped custom-skills still apply).
-   b. Run select:
+       Capture stdout. Each `[Sync]` line is the single source of truth for the
+       audit — copy them verbatim into audit.md under `[Skills]` prefix
+       (e.g. `[Sync] SKIPPED — Node.js v18 ...` becomes `[Skills] SKIPPED — Node.js v18 ...`).
+       On non-zero exit or Node.js missing: skill_sync.py prints a structured
+       `[Sync] SKIPPED + WARN:` block — surface those lines as-is. Skill failure
+       never blocks a build (pre-shipped custom-skills still apply).
+       If you passed `--tech`, the audit should note: `[Skills] forced techs: <list>`.
+    d. Run select:
       ```bash
       python3 aidlc-scripts/factory_skill_sync.py select --output json
       ```
       Parse JSON → store `skill_paths_resolved` list in `manifest.yaml`. Include
       this list in every subsequent stage input handoff YAML for this run.
-   c. Log to audit.md — use the actual data from select's JSON output:
-      ```
-      [Skills] resolved <N> skills: <name-list>
-      [Skills] warnings: <each entry from result.warnings[] on its own line, or "none">
-      ```
-      **Honesty rule:** if `[Sync] SKIPPED` appeared in step (a) but select's
+    e. Log to audit.md — use the actual data from select's JSON output:
+       ```
+       [Skills] resolved <N> skills: <name-list>
+       [Skills] warnings: <each entry from result.warnings[] on its own line, or "none">
+       ```
+      **Honesty rule:** if `[Sync] SKIPPED` appeared in step (c) but select's
       `warnings[]` does not mention it, append a defensive
       `[Skills] WARN: sync was skipped — see [Sync] block above` line.
       Never emit `[Skills] warnings: none` while a `[Sync] SKIPPED` bullet
