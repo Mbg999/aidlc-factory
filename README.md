@@ -1,13 +1,15 @@
 <p align="center">
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
   <img src="assets/images/logo.png" alt="AIDLC-Factory logo" width="260" />
 </p>
 
 <h1 align="center">AIDLC-Factory</h1>
 
 <p align="center"><em>AI-Driven Development Life Cycle — the multi-agent factory.</em></p>
+
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 A multi-agent software-development workflow that takes a feature request from
 specification → plan → code → review → ship, with human approval gates between
