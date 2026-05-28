@@ -40,6 +40,16 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "ccarluq0911",
+      "name": "Carlos Carrasquer",
+      "avatar_url": "https://avatars.githubusercontent.com/u/146945639?v=4",
+      "profile": "https://github.com/ccarluq0911",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
