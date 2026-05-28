@@ -71,7 +71,7 @@ unit, version-bump without rationale, missing migration plan when
       ```
    d. Enforce memory cap:
       ```bash
-      python3 aidlc-scripts/factory_design_system_resolve.py trim
+      python3 aidlc-scripts/factory_design_system_learn.py trim
       ```
    e. Log each saved example in `audit_entries[]`
 

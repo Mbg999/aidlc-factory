@@ -1,0 +1,57 @@
+{
+  "projectName": "aidlc-factory",
+  "projectOwner": "Mbg999",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": true,
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "Mbg999",
+      "name": "Miguel Belmonte Granados",
+      "avatar_url": "https://avatars.githubusercontent.com/u/39400417?v=4",
+      "profile": "https://github.com/Mbg999",
+      "contributions": [
+        "code",
+        "doc",
+        "design"
+      ]
+    },
+    {
+      "login": "sftpruebas12",
+      "name": "sftpruebas12",
+      "avatar_url": "https://avatars.githubusercontent.com/u/265008319?v=4",
+      "profile": "https://github.com/sftpruebas12",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    },
+    {
+      "login": "softtek030226-dev",
+      "name": "softtek030226-dev",
+      "avatar_url": "https://avatars.githubusercontent.com/u/260662046?v=4",
+      "profile": "https://github.com/softtek030226-dev",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    },
+    {
+      "login": "ccarluq0911",
+      "name": "Carlos Carrasquer",
+      "avatar_url": "https://avatars.githubusercontent.com/u/146945639?v=4",
+      "profile": "https://github.com/ccarluq0911",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "linkToUsage": true
+}

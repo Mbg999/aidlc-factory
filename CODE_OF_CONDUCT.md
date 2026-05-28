@@ -8,7 +8,7 @@ in every project space and public channel.
 
 To report a Code of Conduct violation, please open an issue in this repository:
 
-- [Open a new issue](https://github.com/Mbg999/custom-aws-aidlc/issues/new)
+- [Open a new issue](https://github.com/Mbg999/aidlc-factory/issues/new)
 
 If the report contains sensitive information you would prefer not to disclose publicly, mark the issue title
 with `[CONFIDENTIAL]` and provide only the minimum context needed for maintainers to follow up privately.

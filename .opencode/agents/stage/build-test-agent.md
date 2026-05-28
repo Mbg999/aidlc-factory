@@ -53,7 +53,17 @@ with `[Skills]` prefix in `audit_entries[]`.
 **`environment-detection` runs FIRST** — before any `npm install` / `pip install` / `brew install` / equivalent. The skill enforces detect-before-install: check `command -v <tool>` and `<tool> --version` for every required runtime, USE the existing installation when version is compatible, prefer fast version managers (nvm / asdf / mise / pyenv) when not, and treat brew as a last resort. Source-built brew installs are the single largest avoidable cost in this stage and have caused 180s timeouts on `brew install node@20` when node was already on `$PATH` via nvm. Log every detection result to `audit_entries[]` with `[Env]` prefix. Verification: first `[Env]` entry MUST precede any install command.
 
 ## Your job
-Follow `aidlc-rules/aws-aidlc-rule-details/construction/build-and-test.md`.
+Per upstream rule `construction/build-and-test.md` (content embedded in this agent — not read from disk):
+
+### Pre-flight check (BLOCKING)
+
+Before proceeding to Step 1, verify:
+1. **Code gen plans exist**: `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` for each unit, with all checkboxes `[x]`
+2. **Audit completeness**: `aidlc-docs/audit.md` has entries for every completed Code Generation unit (plan approval + completion + skill compliance)
+3. **Execution plan updated**: `aidlc-docs/inception/plans/` execution plan has `[x]` on all code-gen tasks
+4. **State file current**: `aidlc-state.md` `Current Stage` reflects the last completed Code Generation unit
+
+If ANY verification fails, set `status: blocked` with `[BuildPreFlight]` audit entry describing precisely which check failed. Do NOT proceed without complete tracking.
 
 For the unit specified in input:
 1. Detect or read build commands (from build files: package.json scripts, pyproject.toml, Makefile, etc.).
@@ -77,6 +87,13 @@ For the unit specified in input:
    - Never fail the build because `codegraph affected` is unavailable.
 
 4. Run tests → capture pass/fail counts, coverage if measured.
+
+4.2. **PBT verification** (when PBT tests exist):
+   - Verify PBT tests ran and passed (scan output for property test indicators)
+   - Verify shrinking output is logged for reproducibility
+   - If PBT tests found counterexamples: emit `[PBT] N properties tested, M counterexamples found — shrinking seed: <seed>`
+   - If all properties passed: emit `[PBT] N properties, all passed`
+   - If no PBT tests were generated: skip this step silently
 
 4.5. **Drift detection hook** (when `project_profile.ui == true`):
    - Check if the unit generated UI artifacts (HTML, TSX components).
@@ -113,7 +130,7 @@ For the unit specified in input:
    - If Playwright is not available: log `[Drift] Playwright not available — structural snapshot taken, visual diff skipped` and continue.
    - Thresholds are configurable via env var `AIDLC_DRIFT_THRESHOLD=<warning>,<blocking>` (default: 5,15).
 
-5. On failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
+5. On test failure: load `debugging-and-error-recovery` skill, follow its triage Process. If root-cause is in code-generator's output, mark unit `failed` and emit findings; if root cause is environmental (missing deps, config), document and continue.
 6. Produce:
    - `aidlc-docs/construction/build-and-test/<run-id>-build-instructions.md` — reproducible command sequence
    - `aidlc-docs/construction/build-and-test/<run-id>-build-and-test-summary.md` — results + coverage + failures + remediation
@@ -143,9 +160,25 @@ Populate `emitted_knowledge[]` when:
   caught it but didn't.
 - A flaky test diagnosed (root cause found, not just dismissed) →
   `kind: lesson`, with `confidence: 0.7`.
+- Drift detected and human-approved → `kind: drift_baseline_updated`,
+  with `confidence: 0.8`. Include the diff percentage and components affected.
+  This reinforces that the new output is the canonical reference.
 
 Full guidance: `.opencode/agents/cross-cutting/knowledge-agent.md`. Don't emit
 on green builds — there's nothing to learn from "it worked."
+
+## Stage Conventions (inline summary — embedded from upstream)
+Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
+
+## Error Handling
+
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
+
+| Situation | Action |
+|-----------|--------|
+| Build failure | Load `debugging-and-error-recovery` skill → reproduce/localize/reduce/fix/guard → if code-gen bug, mark unit `failed` → if env issue, fix and continue → if 3 retries same error, `blocked` |
+| Test failure | Capture output → root-cause analysis → if test bug, document as lesson → if code bug, mark unit `failed` → if flaky, run 3× more, log diagnosis, `needs_human` |
+| Flaky dismissal | MUST investigate first — dismissing without investigation is a workflow violation |
 
 ## What you must NOT do
 - Do not edit source code. Failed tests → emit findings; do not patch.

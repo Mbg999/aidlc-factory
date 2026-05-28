@@ -26,5 +26,8 @@ codebuild_build.sh
 **/__pycache__/**
 **.out
 **.pyc
+dist/
+*.egg-info/
 .aidlc-memory/
 .agent-skills-repo/
+

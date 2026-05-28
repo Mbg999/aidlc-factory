@@ -263,7 +263,7 @@ def capture_screenshot(html_path: str | Path, output_path: str | Path) -> dict:
         return {
             "path": str(output_path),
             "success": False,
-            "error": "Playwright not installed. Install: pip install playwright && playwright install chromium",
+            "error": "Playwright not installed. Install: sys.executable -m pip install playwright && playwright install chromium",
         }
     try:
         from playwright.sync_api import sync_playwright

@@ -25,11 +25,12 @@ python3 aidlc-scripts/factory_validate.py \
 > is conceptual analysis only.
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, `library-docs-with-context7`, and `code-review-and-quality`. It may also include
-   framework skills propagated from the build phase (e.g., `angular-developer`,
-   `typescript-advanced-types`). Load every skill file present — they sharpen your review
-   for the specific frameworks and idioms in the generated code.
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
+   `codegraph-aware-exploration`, `library-docs-with-context7`, `code-review-and-quality`)
+   PLUS framework skills propagated from the build phase (e.g. `react-best-practices`,
+   `typescript-advanced-types`). **Load EVERY skill file present — no exceptions.**
+   Framework skills sharpen your review for the specific frameworks and idioms in the
+   generated code — do not skip them.
 2. **FOLLOW** — Five-axis review process (Step 5 of the skill only — skip automated gates).
    Apply framework-skill guidance when reviewing framework-specific constructs (lifecycle hooks,
    subscription patterns, type narrowing, etc.).
@@ -102,6 +103,11 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+## What you must NOT do
+- Do not fix code. Findings only.
+- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
 ---
 
 ## Design System Review (when design_system_path is set)
@@ -143,8 +149,3 @@ Findings format (standard):
   message: "Raw <button> used instead of Button primitive — design system drift"
   recommendation: "Replace with <Button variant='...' size='...' label='...' />"
 ```
-
-## What you must NOT do
-- Do not fix code. Findings only.
-- Do not duplicate findings other reviewers will produce (security/performance/simplification belong to other reviewers).
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

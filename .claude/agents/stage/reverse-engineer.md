@@ -38,7 +38,7 @@ If exit ≠ 0: STOP. Return `failed <input-path>`.
 Run codegraph-aware-exploration Step 1 (detect) before any file scan.
 
 ## Your job
-Follow `aidlc-rules/aws-aidlc-rule-details/inception/reverse-engineering.md`.
+Per upstream rule `inception/reverse-engineering.md` (content embedded in this agent — not read from disk).
 
 Produce these artifacts under `aidlc-docs/inception/reverse-engineering/`:
 - `business-overview.md` — domain, capabilities, user types, business goals

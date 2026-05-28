@@ -1,160 +1,88 @@
 ---
 name: ui-constraint-validator
-description: Design token constraint enforcer. Scans generated UI code for hardcoded values and snaps them to the nearest canonical token. Spacing, radius, typography, color, elevation validators with autocorrect.
+description: Design token constraint enforcer V2. Validates generated UI against CSS Custom Properties. No hardcoded values — every visual property references a var() from tokens.css.
 ---
 
-# UI Constraint Validator
+# UI Constraint Validator V2
 
 ## Overview
 
-Post-generation validation that scans generated UI code and corrects any
-deviation from the design system token set. Operates as a sub-skill of
-`design-system-composer`, invoked per-slice after each Green step.
+Post-generation validation that scans generated UI code and ensures every
+visual property references a CSS Custom Property from the token set.
+Unlike V1, this version:
+
+- Validates against the actual `design-system/tokens/tokens.css` file (not hardcoded values)
+- Works for any framework (the LLM generates framework-specific syntax)
+- Snaps unknown values to the nearest CSS var automatically
 
 ---
 
-## Step 1: Load token values
+## Step 1: Load the token set
 
-Call the resolve tool to get the full token set:
+Read the generated `tokens.css` file. Extract all CSS Custom Property names:
 ```bash
-python3 aidlc-scripts/factory_design_system_resolve.py resolve __tokens__
+python3 aidlc-scripts/factory_token_to_css.py inspect
 ```
 
-This returns `tokens/spacing.md`, `tokens/radius.md`, `tokens/typography.md`,
-`tokens/color.md`, `tokens/elevation.md`.
-
-Extract the canonical value set:
-- Spacing: `{4, 8, 12, 16, 24, 32}`
-- Radius: `{0, 3, 6, 12, 9999}`
-- Font sizes: `{12, 14, 16, 20, 24, 32, 40}`
+The canonical CSS var prefixes are:
+```
+--spacing-*     → padding, margin, gap
+--radius-*      → border-radius
+--typography-*  → font-size
+--color-*       → color, background, border-color
+```
 
 ---
 
 ## Step 2: Scan generated files
 
-For each generated UI file (`.tsx`, `.jsx`, `.html`, `.css`):
+For each generated UI file (`.tsx`, `.jsx`, `.html`, `.css`, `.dart`):
 
 ### 2a. Spacing validator
 
 Search for:
-- `padding: <value>`, `padding-*: <value>`
-- `margin: <value>`, `margin-*: <value>`
-- `gap: <value>`
-- Tailwind: `p-[<value>]`, `px-[<value>]`, `py-[<value>]`, `m-[<value>]`, `gap-[<value>]`
-- Inline: `style={{ padding: <value> }}`, etc.
+- Inline `padding: <value>` with raw px values
+- `margin: <value>`, `gap: <value>` with raw px
+- Tailwind arbitrary values: `p-[<num>]`, `gap-[<num>]`
+- Flutter `EdgeInsets.all(<num>)` where `<num>` doesn't match a token
 
-For each value found:
-1. Parse the numeric value (strip `px`)
-2. If value NOT in `{4, 8, 12, 16, 24, 32}`:
-   - Find nearest canonical value
-   - Replace with canonical value
-   - Log deviation
+❌ BAD: `padding: 13px` → ✅ GOOD: `padding: var(--spacing-md)`
 
 ### 2b. Radius validator
 
-Search for:
-- `border-radius: <value>`
-- `rounded-[<value>]`, `rounded-<sm|md|lg>`
-- `style={{ borderRadius: <value> }}`
+Search for `border-radius` with raw px values.
 
-Snap rules:
+Snap rules (from tokens.css):
+
 | Found | Snap to |
 |-------|---------|
-| 0-1px | 0 (`radius.none`) |
-| 2-4px | 3px (`radius.sm`) |
-| 5-9px | 6px (`radius.md`) |
-| 10-16px | 12px (`radius.lg`) |
-| 17+px | 9999px (`radius.full`) |
+| 0-1px | `var(--radius-none)` |
+| 2-4px | `var(--radius-sm)` |
+| 5-9px | `var(--radius-md)` |
+| 10-16px | `var(--radius-lg)` |
+| 17+px | `var(--radius-full)` |
 
-### 2c. Typography validator
+### 2c. Color validator
 
-Search for:
-- `font-size: <value>`
-- `text-[<value>]`
-- `style={{ fontSize: <value> }}`
+Search for raw hex values (`#2563EB`, `#F9FAFB`, etc.).
 
-Snap rules:
-| Found | Snap to |
-|-------|---------|
-| 11-13px | 12px (`font-size.caption`) |
-| 13-15px | 14px (`font-size.body`) |
-| 15-18px | 16px (`font-size.body-large`) |
-| 19-22px | 20px (`font-size.h4`) |
-| 23-28px | 24px (`font-size.h3`) |
-| 29-36px | 32px (`font-size.h2`) |
-| 37+px | 40px (`font-size.h1`) |
+Build the snap table from the project's `design-system/tokens/color.md`.
+Every raw hex should be replaced with `var(--color-*)`.
 
-### 2d. Color validator
+❌ BAD: `color: #2563EB` → ✅ GOOD: `color: var(--color-brand-primary)`
 
-**MANDATORY precondition.** Step 1 of this skill MUST have loaded
-`tokens/color.md` via `factory_design_system_resolve.py resolve __tokens__`.
-If `tokens/color.md` is missing or empty, the validator MUST emit
-`status: blocked` with `[UIConstraint] no design tokens — cannot validate`
-in `audit_entries[]` and STOP. Do NOT fall back to the example mapping below.
+### 2d. Elevation validator
 
-Search for raw hex values in `color`, `background`, `background-color`, `border-color`.
-
-**Build the snap table from the project's `tokens/color.md` for every run.**
-The mapping below is an **ILLUSTRATIVE EXAMPLE** of the table's shape — these
-specific hex values apply ONLY to projects that use the default Tailwind
-palette. For any other project (custom brand colors, Material, Radix, etc.),
-derive a fresh table from `tokens/color.md` and use THOSE values. Do NOT use
-the values below as defaults.
-
-Example shape (illustrative — re-derive per project):
-| Raw hex (project-specific) | Replace with |
-|----------------------------|--------------|
-| `<project_primary_700_to_900>`         | `color.brand.primary` |
-| `<project_danger_500_to_700>`          | `color.semantic.danger` |
-| `<project_success_500_to_700>`         | `color.semantic.success` |
-| `<project_warning_500_to_600>`         | `color.semantic.warning` |
-| `<project_text_dark>`                  | `color.neutral.text-primary` |
-| `<project_text_muted>`                 | `color.neutral.text-secondary` |
-| `<project_surface>`                    | `color.neutral.surface` |
-| `<project_border>`                     | `color.neutral.border` |
-| `<project_bg>`                         | `color.neutral.bg` |
-
-Worked example (default Tailwind palette ONLY — do not copy):
-| Raw hex | Replace with |
-|---------|--------------|
-| `#2563EB`, `#1D4ED8`, `#1E40AF` (blue-600..800) | `color.brand.primary` |
-| `#EF4444`, `#DC2626`, `#B91C1C` (red-500..700) | `color.semantic.danger` |
-| `#10B981`, `#059669`, `#047857` (emerald-500..700) | `color.semantic.success` |
-| `#F59E0B`, `#D97706` (amber-500..600) | `color.semantic.warning` |
-| `#111827`, `#1F2937`, `#374151` (gray-900..700) | `color.neutral.text-primary` |
-| `#6B7280`, `#9CA3AF` (gray-500..400) | `color.neutral.text-secondary` |
-| `#F9FAFB` (gray-50) | `color.neutral.surface` |
-| `#E5E7EB` (gray-200) | `color.neutral.border` |
-| `#FFFFFF` (white) | `color.neutral.bg` |
-
-### 2e. Elevation validator
-
-Search for `box-shadow` values.
-
-Snap rules:
-| Shadow blur | Snap to |
-|-------------|---------|
-| 0-2px | `elevation.sm` |
-| 3-6px | `elevation.md` |
-| 7-15px | `elevation.lg` |
-| 16+px | `elevation.xl` |
+Search for `box-shadow` with raw values. Replace with elevation tokens
+where applicable.
 
 ---
 
 ## Step 3: Apply corrections
 
 For each deviation found:
-1. Apply the correction (replace value in file)
-2. Log to `ui_compliance[].deviations_corrected[]`:
-   ```json
-   {
-     "property": "border-radius",
-     "element": ".btn-primary",
-     "found": "4px",
-     "corrected_to": "radius.sm (3px)",
-     "file": "src/components/Button.tsx"
-   }
-   ```
+1. Replace the raw value with the nearest `var(--*)` reference
+2. Log to `ui_compliance[].deviations_corrected[]`
 
 ---
 
@@ -162,18 +90,16 @@ For each deviation found:
 
 | Condition | Action |
 |-----------|--------|
-| 0 deviations | ✅ PASS — clean slice |
-| 1-3 deviations | ✅ PASS — autocorrected, logged |
-| >3 deviations per slice | 🛑 BLOCK — `status: needs_human`. Too many corrections suggests the model didn't follow the design system |
+| 0 deviations | ✅ PASS |
+| 1-3 deviations | ✅ PASS — autocorrected |
+| >3 deviations per slice | 🛑 BLOCK — `status: needs_human` |
 
 ---
 
-## Verification
+## Verification checklist
 
-Before declaring PASS, confirm:
-- [ ] All spacing values are in `{4, 8, 12, 16, 24, 32}`
-- [ ] All radius values are in `{0, 3, 6, 12, 9999}`
-- [ ] All font sizes are in `{12, 14, 16, 20, 24, 32, 40}`
-- [ ] No raw hex colors (all replaced with `color.*` tokens)
-- [ ] No arbitrary Tailwind values (`p-[...]`, `px-[...]`, etc.)
+- [ ] No raw `padding: <N>px` — all use `var(--spacing-*)`
+- [ ] No raw `border-radius: <N>px` — all use `var(--radius-*)`
+- [ ] No raw hex colors — all use `var(--color-*)`
+- [ ] No arbitrary Tailwind values (`p-[...]`)
 - [ ] All corrections logged to `ui_compliance[]`

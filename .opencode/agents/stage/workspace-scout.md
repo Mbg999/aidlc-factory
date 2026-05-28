@@ -59,15 +59,52 @@ is observation, not specification). Your `skill_compliance[]` will have entries
 for `using-agent-skills` and `codegraph-aware-exploration`.
 
 ## Your job
-Follow the rule file:
-**`aidlc-rules/aws-aidlc-rule-details/inception/workspace-detection.md`**
+Per upstream rule `inception/workspace-detection.md` (content embedded in this agent — not read from disk):
 
 Execute its Steps 1–5 (Step 6 — auto-proceed — is the orchestrator's job):
 
 ### Step 1 — Check for existing AIDLC project
-- Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
-- If present: classify the branch (A/B/C per the rule file) based on the manifest.
-- If not present: this is a fresh assessment — proceed to Step 2.
+
+Check for `.aidlc-orchestrator/runs/` to detect an existing orchestrator run.
+
+**If NOT present:** this is a fresh assessment — proceed to Step 2.
+
+**If present:** apply the Session Continuity Protocol (embedded from upstream `common/session-continuity.md`):
+
+#### Welcome Back Template
+When the user returns to an existing project, present:
+- Project name, current phase, current stage, last completed step, next step
+- Options: A) Continue where left off, B) Review a previous stage
+
+#### Resumption Mode Detection
+
+Read `aidlc-docs/aidlc-state.md` and classify the user's message:
+
+| State file says | User message contains | Mode |
+|---|---|---|
+| Stages in progress (not all `[x]`) | Any message | **In-Progress Resume** → standard resume below |
+| All stages `[x]` (complete) | "feature", "bug", "fix", "refactor", "add", "change", "new" | **New Iteration** → do NOT resume. Set `next_phase: requirements-analysis`, `project_type: brownfield`. Full workflow again. |
+| All stages `[x]` (complete) | "review", "question", "show", "what", "how", "list" | **Review Mode** → present summary, offer options |
+
+**CRITICAL**: A completed project receiving a new development request MUST go through the full workflow again. Silently skipping stages for a new request is a workflow violation.
+
+#### Artifact Loading Sequence (In-Progress Resume only)
+
+| Current Stage in state file | Load these artifacts |
+|---|---|
+| Reverse Engineering | Workspace analysis |
+| Requirements/Stories | RE artifacts + requirements |
+| Design stages | Requirements + stories + architecture + design |
+| Code stages | ALL artifacts + existing code |
+
+Read `aidlc-docs/audit.md` for full timeline context.
+
+#### State Validation Checklist
+1. Confirm `aidlc-state.md` `Current Stage` matches the actual latest artifact
+2. If mismatch: ask user "Stage says X but artifacts show Y — which is correct?"
+3. Confirm no duplicate "current" stages exist
+4. If multiple stages claim to be current: ask user to pick one, then fix the state file
+5. Log continuity assessment in `audit_entries[]` with prefix `[SessionContinuity]`
 
 ### Step 2 — Scan workspace for existing code
 - Look for source files: `*.py *.js *.ts *.go *.rs *.java *.cpp *.cs *.php *.rb`
@@ -170,7 +207,10 @@ Parse the JSON output and populate `workspace_state.codegraph_state`:
 - `files: <file_count from status>`
 - `backend: "native" | "wasm"` (from status; default `"native"` if absent)
 
-Emit: `[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm`
+Emit:
+```
+[CodeGraph] active — nodes: <N>, files: <N>, backend: native|wasm
+```
 If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native install recommended`.
 
 **If NOT indexed AND `project_type == brownfield`:**
@@ -179,7 +219,35 @@ If `backend == wasm`: also emit `[CodeGraph] backend: wasm — 5x slower; native
 - Set `codegraph_state: { indexed: false }` in `workspace_state`.
 
 **If NOT indexed AND `project_type == greenfield`:**
-Set `codegraph_state: { indexed: false }` in `workspace_state`.
+- Set `codegraph_state: { indexed: false }` in `workspace_state`. No suggestion needed.
+
+### Step 2.7 — Design System Source Detection
+
+Scan for external design system inputs that should be snapped and imported.
+
+**Figma data:**
+```bash
+test -d figma && echo "figma-dir-found"
+find . -maxdepth 3 -name "*.figma.json" -not -path "*/node_modules/*" | head -5
+```
+If `figma/` directory exists OR any `*.figma.json` files are found:
+- Set `workspace_state.has_figma_data: true`
+- Record path(s) in `workspace_state.figma_paths[]`
+- Emit: `[DesignSystem] Figma data detected — N file(s) / figma/ dir`
+
+If nothing found: `workspace_state.has_figma_data: false`
+
+**Stitch data:**
+```bash
+test -d stitch && echo "stitch-dir-found"
+find . -maxdepth 3 \( -name "*.stitch.json" -o -name ".stitch-project.json" \) -not -path "*/node_modules/*" | head -5
+```
+If `stitch/` directory exists OR any `*.stitch.json` / `.stitch-project.json` files are found:
+- Set `workspace_state.has_stitch_data: true`
+- Record path(s) in `workspace_state.stitch_paths[]`
+- Emit: `[DesignSystem] Stitch data detected — N file(s) / stitch/ dir`
+
+If nothing found: `workspace_state.has_stitch_data: false`
 
 ### Step 3 — Determine next phase
 - Empty workspace → `project_type: greenfield`, `next_phase: requirements-analysis`
@@ -246,6 +314,16 @@ python3 aidlc-scripts/factory_validate.py \
 
 Return ONE line to the orchestrator: `<status> <output-handoff-path>`
 (e.g. `complete .aidlc-orchestrator/runs/2026-05-08T14-23-00Z-auth/handoffs/workspace-scout.output.yaml`)
+
+## Error Handling
+
+Load the full error-handling protocol (severity levels, stage error matrix, recovery procedures, session resumption) from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
+
+| Situation | Action |
+|-----------|--------|
+| Corrupted state file | Backup → ask user start fresh or recover → reconstruct from artifacts |
+| Missing artifacts | Identify → check regenerable → ask user if not → block if critical |
+| Cannot read workspace | Emit `[Error]` → set `needs_human` → accept user-provided fallback |
 
 ## What you must NOT do
 - Do not modify `aidlc-docs/audit.md` directly. Emit `audit_entries[]` only.

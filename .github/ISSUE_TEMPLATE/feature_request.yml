@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Suggest an enhancement or improvement. For larger, design-level proposals, please use the [RFC template](https://github.com/awslabs/aidlc-workflows/issues/new?template=rfc.yml) instead.
+        Suggest an enhancement or improvement. For larger, design-level proposals, please use the [RFC template](../.github/ISSUE_TEMPLATE/rfc.yml) instead.
 
   - type: textarea
     id: description

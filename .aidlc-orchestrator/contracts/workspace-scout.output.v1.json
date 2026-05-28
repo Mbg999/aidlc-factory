@@ -90,7 +90,8 @@
               "version": { "type": "string" },
               "ecosystem": {
                 "type": "string",
-                "description": "Best-effort ecosystem identifier (e.g. npm, pip, maven, gradle, yarn, pnpm, composer)"
+                "enum": ["npm", "pip", "cargo", "go", "gem", "nuget", "maven", "gradle", "yarn", "pnpm", "composer"],
+                "description": "Best-effort ecosystem identifier (e.g. npm, pip, cargo, go, gem, nuget)"
               }
             },
             "additionalProperties": false
@@ -113,6 +114,27 @@
             "backend": { "type": "string", "enum": ["native", "wasm"] }
           },
           "additionalProperties": false
+        },
+        "has_figma_data": { "type": "boolean", "default": false },
+        "figma_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "has_stitch_data": { "type": "boolean", "default": false },
+        "stitch_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "design_system_source": {
+          "type": "string",
+          "enum": ["brownfield", "greenfield", "figma", "stitch"],
+          "description": "How the design system was sourced. Set by project-profile classification. Absent when ui=false."
+        },
+        "design_system_path": {
+          "type": "string",
+          "description": "Path to design-system/ root. Set by project-profile when ui=true."
         }
       },
       "additionalProperties": false
@@ -123,7 +145,7 @@
         "type": "object",
         "required": ["kind", "title", "body"],
         "properties": {
-          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson"] },
+          "kind": { "type": "string", "enum": ["pattern", "adr", "antipattern", "lesson", "drift_baseline_updated"] },
           "title": { "type": "string", "minLength": 1 },
           "body": { "type": "string", "minLength": 1 },
           "tags": { "type": "array", "items": { "type": "string" }, "default": [] },

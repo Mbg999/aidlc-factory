@@ -232,7 +232,7 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 VALID_TOOLS = (
     "cursor", "claude",
-    "copilot", "opencode", "other",
+    "copilot", "opencode", "codex", "frida", "other",
 )
 
 
@@ -297,11 +297,22 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "factory_design_system_snap.py",    # snap raw Figma values to canonical design tokens
     "factory_design_system_resolve.py", # lazy-load design system files for matching components
     "factory_design_system_learn.py",   # learn from approved/rejected UI output
+    "factory_design_system_harness.py", # core engine: load, validate, compose, drift
+    "factory_design_system_extract_brownfield.py",  # extract tokens from existing code
+    "factory_token_to_css.py",          # generate CSS Custom Properties from tokens
+    "factory_token_to_tailwind.py",     # generate Tailwind config from tokens
+    "factory_token_bridge.py",          # orchestrate Token Bridge pipeline
+    # DS V2: Source Adapters (unified Figma/Stitch/RawJson)
+    "harness_adapters/__init__.py",
+    "harness_adapters/source/__init__.py",
+    "harness_adapters/source/base.py",
+    "harness_adapters/source/figma.py",
+    "harness_adapters/source/stitch.py",
+    "harness_adapters/source/raw_json.py",
+    # DS V2: Prompts
+    "prompts/tech-stack/tokens.md",
     # Google Stitch integration (AI design tool input snapping, MCP registry)
     "factory_stitch_snap.py",   # snap Stitch HTML/CSS/DESIGN.md output to canonical design tokens
-    "factory_stitch_mcp.py",    # Stitch MCP registry, health check, config fragment
-    # Figma MCP integration (official Figma Remote MCP + community fallback)
-    "factory_figma_mcp.py",     # Figma MCP registry, health check, config fragment
     # Skill sync layer — monorepo-aware autoskills bridge
     "factory_skill_sync.py",      # run autoskills per-workspace, consolidate to .agents/skills/
     "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
@@ -324,6 +335,7 @@ ORCHESTRATOR_TOOL_MCP_CONFIGS = {
     "cursor":   Path(".cursor/mcp.json"),
     "copilot":  Path(".vscode/mcp.json"),
     "opencode": Path("opencode.json"),
+    "frida":    Path(".mcp.json"),  # Frida uses .mcp.json for tool MCP config
 }
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
@@ -420,6 +432,162 @@ ORCHESTRATOR_CLAUDE_POINTER_BLOCK = (
     "`.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.\n"
     "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
 )
+
+ORCHESTRATOR_CODEX_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. It is a multi-agent software-factory pipeline\n"
+    "that guides AI coding agents through Inception → Construction → Operations.\n\n"
+    "When the user asks to build a feature, fix a bug, or refactor code, use the orchestrator scripts:\n\n"
+    "- `python3 aidlc-scripts/factory_run.py <run-id>` — start or resume a full AIDLC run\n"
+    "- `python3 aidlc-scripts/factory_skill_sync.py sync` — install framework-specific skills\n"
+    "- `python3 aidlc-scripts/factory_skill_sync.py select --output json` — list available skills\n"
+    "- `python3 aidlc-scripts/factory_validate.py` — validate handoff contracts\n\n"
+    "Key directories:\n"
+    "- `.aidlc-orchestrator/contracts/` — JSON Schema handoff contracts for every stage I/O\n"
+    "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
+    "- `.agents/skills/` — framework + process skills (loaded by skill protocol)\n"
+    "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
+ORCHESTRATOR_FRIDA_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. It is a multi-agent software-factory pipeline\n"
+    "that guides AI coding agents through Inception → Construction → Operations.\n\n"
+    "Factory command skills are loaded from `.agents/skills/<command>/SKILL.md`:\n\n"
+    "- `factory-spec` — workspace scout + requirements analysis\n"
+    "- `factory-plan` — execution plan + unit decomposition\n"
+    "- `factory-build` — parallel code generation + build/test\n"
+    "- `factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `factory-resume` — resume an interrupted run\n"
+    "- `factory-replay` — re-run from a specific stage\n"
+    "- `factory-state` — show run status, stage, budget\n"
+    "- `factory-help` — full command reference\n"
+    "- `factory-onboarding` — guided tour of the orchestrator system\n"
+    "- `factory-code-tour` — guided human tour of any codebase\n"
+    "- `factory-self` — run the orchestrator on its own codebase\n"
+    "- `factory-product` — product harness (requirements + personas + stories + plan)\n\n"
+    "Key directories:\n"
+    "- `.aidlc-orchestrator/contracts/` — JSON Schema handoff contracts for every stage I/O\n"
+    "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
+    "- `.agents/skills/` — framework + process skills + factory command skills\n"
+    "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
+    "Usage: When the user asks to build a feature, fix a bug, or refactor code, "
+    "load the `.agents/skills/<command>/SKILL.md` skill for the relevant factory command "
+    "and execute the sequence described within.\n\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
+
+# ── Frida MCP configuration ───────────────────────────────────────────────────
+# Frida uses a global VS Code extension storage path for MCP settings,
+# not a project-local .mcp.json. The format also differs (type: stdio).
+
+
+def _frida_mcp_global_path() -> Path:
+    """Return the full path to Frida's global MCP settings file.
+
+    Typically: %APPDATA%/Code/User/globalStorage/fridaplatform.fridagpt/
+               frida_code_copilot_mcp_settings.json
+    """
+    if _is_windows():
+        appdata = os.environ.get("APPDATA", "")
+        return (
+            Path(appdata)
+            / "Code" / "User" / "globalStorage"
+            / "fridaplatform.fridagpt"
+            / "frida_code_copilot_mcp_settings.json"
+        )
+    # macOS / Linux fallback
+    return Path.home() / ".config" / "frida" / "mcp_settings.json"
+
+
+FRIDA_MCP_FALLBACK_CONTEXT7 = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CHROME = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "chrome-devtools-mcp@latest"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CODEGRAPH = {
+    "type": "stdio",
+    "command": "codegraph",
+    "args": ["serve", "--mcp", "--path", "<PROJECT_PATH>"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_ENGRAM = {
+    "type": "stdio",
+    "command": "engram",
+    "args": ["mcp", "--tools=agent"],
+}
+
+
+def _build_frida_mcp_config(project_path: str) -> dict:
+    """Build the full Frida MCP config dict with <PROJECT_PATH> substituted."""
+    import copy
+    cg_entry = copy.deepcopy(FRIDA_MCP_FALLBACK_CODEGRAPH)
+    cg_entry["args"] = ["serve", "--mcp", "--path", project_path]
+    return {
+        "mcpServers": {
+            "context7": dict(FRIDA_MCP_FALLBACK_CONTEXT7),
+            "chrome-devtools": dict(FRIDA_MCP_FALLBACK_CHROME),
+            "codegraph": cg_entry,
+            "engram": dict(FRIDA_MCP_FALLBACK_ENGRAM),
+        }
+    }
+
+
+def _ensure_frida_mcp_config(project_path_str: str, dry_run: bool) -> None:
+    """Merge our MCP server entries into Frida's global settings file.
+
+    Reads existing config if present, merges entries, never overwrites
+    servers the user may have added themselves.
+    The `project_path_str` is substituted into the codegraph --path argument.
+    """
+    import json
+    dst = _frida_mcp_global_path()
+    if dry_run:
+        print(f"[DRY-RUN] Would merge Frida MCP entries into {dst}")
+        return
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if dst.exists():
+        try:
+            existing = json.loads(dst.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
+    existing.setdefault("mcpServers", {})
+    our_config = _build_frida_mcp_config(project_path_str)
+    merged = 0
+    skipped = 0
+    for name, entry in our_config["mcpServers"].items():
+        if name in existing["mcpServers"]:
+            skipped += 1
+        else:
+            existing["mcpServers"][name] = entry
+            merged += 1
+
+    dst.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    parts = []
+    if merged:
+        parts.append(f"added {merged} MCP server(s)")
+    if skipped:
+        parts.append(f"{skipped} already present — skipped")
+    summary = "; ".join(parts) if parts else "no changes"
+    print(f"  frida MCP config -> {dst} ({summary})")
 
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
 # These are MANDATORY for full workflow enforcement — without them,
@@ -520,119 +688,144 @@ def update_gitignore(target_root: Path, entries: list[str], header: str, dry_run
     print(f"  appended {len(lines_to_write)} pattern(s) to {gi_path.relative_to(target_root)}")
 
 
-def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False) -> None:
-    """Append or update the orchestrator pointer block in the workflow doc.
+CURSOR_MDC_FRONTMATTER = (
+    "---\n"
+    "description: AIDLC Core Workflow — constitution and orchestrator pointer for the AI-Driven Development Life Cycle. "
+    "Priority OVERRIDES other built-in workflows.\n"
+    "globs: null\n"
+    "---\n"
+)
+
+# NOTE: aidlc-rules/aws-aidlc-rule-details/ is DEV-ONLY — orchestrator subagents
+# embed their own logic. It is NOT distributed to installed projects. Only
+# core-workflow.md (the AIDLC constitution + orchestrator pointer) is shipped.
+# The detailed rule files exist solely for reference when developing subagents.
+
+def _read_core_workflow(repo_root: Path) -> str | None:
+    """Read the full core-workflow.md from the repo, or None if missing."""
+    cwf = repo_root / ".aidlc-orchestrator" / "runtime" / "core-workflow.md"
+    if cwf.exists():
+        return cwf.read_text(encoding="utf-8")
+    return None
+
+
+def _tool_core_workflow_content(repo_root: Path, tool: str) -> str | None:
+    """Return the full core-workflow.md content adapted for `tool`, or None
+    if core-workflow.md doesn't exist (fall back to legacy pointer block).
+
+    For Cursor: prepend .mdc frontmatter and replace .claude/ → .cursor/.
+    For other tools: replace .claude/ with tool-specific prefix.
+    """
+    content = _read_core_workflow(repo_root)
+    if content is None:
+        return None
+
+    if tool == "cursor":
+        return CURSOR_MDC_FRONTMATTER + content.replace(
+            ".claude/agents/", ".cursor/agents/"
+        ).replace(
+            ".claude/commands/", ".cursor/commands/"
+        )
+
+    if tool == "opencode":
+        return content.replace(
+            ".claude/agents/", ".opencode/agents/"
+        ).replace(
+            ".claude/commands/", ".opencode/commands/"
+        )
+
+    if tool == "copilot":
+        return content.replace(
+            ".claude/agents/", ".github/agents/"
+        ).replace(
+            ".claude/commands/", ".github/commands/"
+        )
+
+    if tool == "codex":
+        return content.replace(
+            ".claude/agents/", ".codex/agents/"
+        ).replace(
+            ".claude/commands/", ".codex/commands/"
+        )
+
+    if tool == "frida":
+        return content.replace(
+            ".claude/agents/", ".aidlc-orchestrator/agents/"
+        ).replace(
+            ".claude/commands/", ".aidlc-orchestrator/commands/"
+        )
+
+    return content  # claude — no replacements needed
+
+
+def update_workflow_doc_pointer(claude_md_path: Path, marker: str, block: str, dry_run: bool, force: bool = False, core_workflow_content: str | None = None) -> None:
+    """Append or update the AIDLC workflow content in the workflow doc.
+
+    When `core_workflow_content` is provided, writes the FULL core-workflow.md
+    (which includes the constitution + orchestrator pointer) instead of the
+    legacy pointer block. Falls back to `block` when content is None.
 
     Idempotent: skips if marker already present and force=False.
-    With force=True: replaces the existing block between markers.
+    With force=True: replaces the existing content between markers.
     Creates the file if missing.
     """
+    content_to_write = core_workflow_content if core_workflow_content is not None else block
+
     if dry_run:
         action = "replace" if force else "append"
-        print(f"[DRY-RUN] Would {action} orchestrator pointer in {claude_md_path}")
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"[DRY-RUN] Would {action} {source} in {claude_md_path}")
         return
 
     if claude_md_path.exists():
         existing = claude_md_path.read_text(encoding="utf-8")
         if marker in existing:
             if not force:
-                print(f"  workflow doc already contains orchestrator pointer -- no changes")
+                print(f"  workflow doc already contains AIDLC workflow -- no changes")
                 return
             # Replace content between markers (inclusive)
             start = existing.index(marker)
             end = existing.index("\n## ", start + len(marker)) if "\n## " in existing[start:] else len(existing)
             # Keep everything before the marker, append new block
-            updated = existing[:start] + block.lstrip()
+            updated = existing[:start] + content_to_write.lstrip()
             claude_md_path.write_text(updated, encoding="utf-8")
-            print(f"  replaced orchestrator pointer in {claude_md_path.relative_to(claude_md_path.parent)}")
+            source = "full core-workflow.md" if core_workflow_content else "pointer block"
+            print(f"  replaced {source} in {claude_md_path.relative_to(claude_md_path.parent)}")
             return
         with claude_md_path.open("a", encoding="utf-8") as f:
             if not existing.endswith("\n"):
                 f.write("\n")
-            f.write(block)
-        print(f"  appended orchestrator pointer to {claude_md_path.relative_to(claude_md_path.parent)}")
+            f.write(content_to_write)
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"  appended {source} to {claude_md_path.relative_to(claude_md_path.parent)}")
     else:
         claude_md_path.parent.mkdir(parents=True, exist_ok=True)
-        claude_md_path.write_text(block.lstrip(), encoding="utf-8")
-        print(f"  created {claude_md_path.name} with orchestrator pointer")
+        claude_md_path.write_text(content_to_write.lstrip(), encoding="utf-8")
+        source = "full core-workflow.md" if core_workflow_content else "pointer block"
+        print(f"  created {claude_md_path.name} with {source}")
 
 
-# Stitch MCP entries — format varies per tool config format.
-STITCH_MCP_ENTRIES = {
-    "claude":   {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"], "env": {}}},
-    "cursor":   {"stitch": {"command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
-    "copilot":  {"stitch": {"type": "stdio", "command": "npx", "args": ["-y", "@_davideast/stitch-mcp", "proxy"]}},
-    "opencode": {"stitch": {"type": "local", "command": ["npx", "-y", "@_davideast/stitch-mcp", "proxy"], "enabled": True}},
-}
-
-# Figma MCP entries — format varies per tool config format.
-FIGMA_MCP_ENTRIES = {
-    "claude":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
-    "cursor":   {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp"}},
-    "copilot":  {"figma": {"type": "stdio", "command": "npx", "args": ["-y", "figma-mcp"]}},
-    "opencode": {"figma": {"type": "http", "url": "https://mcp.figma.com/mcp", "enabled": True}},
-}
-
-
-def _apply_mcp_config(config_path: Path, tool: str, with_stitch: bool, with_figma: bool, dry_run: bool) -> None:
-    """Add Stitch/Figma MCP server entries to config only when user opted in.
-
-    Handles all config formats:
-      - .mcp.json / .cursor/mcp.json: { "mcpServers": { ... } }
-      - .vscode/mcp.json:              { "servers": { ... } }
-      - opencode.json:                 { "mcp": { ... } }
-    """
-    if not config_path.exists():
-        return
-    if dry_run:
-        if with_stitch:
-            print(f"  [DRY-RUN] Would add stitch MCP entry to {config_path.name}")
-        if with_figma:
-            print(f"  [DRY-RUN] Would add figma MCP entry to {config_path.name}")
-        return
-    import json
-    try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
-
-    servers: dict | None = None
-    servers_key: str | None = None
-    for key in ("mcpServers", "servers", "mcp"):
-        if key in data and isinstance(data[key], dict):
-            servers = data[key]
-            servers_key = key
-            break
-    if servers is None or servers_key is None:
-        return
-
-    if with_stitch and "stitch" not in servers:
-        stitch_data = STITCH_MCP_ENTRIES.get(tool, STITCH_MCP_ENTRIES["claude"])
-        servers["stitch"] = stitch_data["stitch"]
-
-    if with_figma and "figma" not in servers:
-        figma_data = FIGMA_MCP_ENTRIES.get(tool, FIGMA_MCP_ENTRIES["claude"])
-        servers["figma"] = figma_data["figma"]
-
-    config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def _tool_agent_dir(tool: str) -> str:
-    """Return the agent directory for the given tool."""
+def _tool_agent_dir(tool: str) -> str | None:
+    """Return the agent directory for the given tool, or None if the tool
+    does not use a local agent tree."""
     return {
         "claude": ".claude/agents",
         "opencode": ".opencode/agents",
         "cursor": ".cursor/agents",
         "copilot": ".github/agents",
+        "codex": ".codex/agents",  # Codex custom agents are TOML files
+        "frida": ".aidlc-orchestrator/agents",  # no native subagent spawning
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
-def _tool_commands_dir(tool: str) -> str:
-    """Return the commands directory for the given tool."""
+def _tool_commands_dir(tool: str) -> str | None:
+    """Return the commands directory for the given tool, or None."""
     return {
         "claude": ".claude/commands",
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
+        "codex": None,  # Codex built-in slash commands only; no custom commands dir
+        "frida": None,  # no native slash commands — uses .agents/skills/<command>/SKILL.md instead
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -642,6 +835,8 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "claude": target_root / "CLAUDE.md",
         "opencode": target_root / "AGENTS.md",
         "copilot": target_root / ".github" / "copilot-instructions.md",
+        "codex": target_root / "AGENTS.md",  # Codex reads AGENTS.md per OpenAI spec
+        "frida": target_root / "FRIDA.md",  # Frida reads FRIDA.md for orchestrator pointer
     }
     return mapping.get(tool)
 
@@ -787,16 +982,19 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         elif tool == "cursor":
             src_agents = repo_root / ".cursor" / "agents"
             src_cmds = repo_root / ".cursor" / "commands"
+        elif tool == "codex":
+            src_agents = repo_root / ".codex" / "agents"
+            src_cmds = None    # Codex built-in slash commands only
         else:
             src_agents = repo_root / ".claude" / "agents"
             src_cmds = repo_root / ".claude" / "commands"
 
-        dst_agents = target_root / agent_dir
-        if src_agents is not None and src_agents.exists():
+        if agent_dir is not None and src_agents is not None and src_agents.exists():
+            dst_agents = target_root / agent_dir
             print(f"  agents -> {agent_dir}/")
             copy_tree(src_agents, dst_agents, dry_run)
 
-        if src_cmds is not None:
+        if cmd_dir is not None and src_cmds is not None:
             dst_cmds = target_root / cmd_dir
             if src_cmds.exists():
                 print(f"  slash commands -> {cmd_dir}/factory-*.md")
@@ -825,53 +1023,81 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             _install_copilot_instruction_files(repo_root, target_root, dry_run, force)
             _install_vscode_copilot_settings(target_root, dry_run)
 
+        # Codex: copy project-level config.toml snippet
+        if tool == "codex":
+            src_codex_cfg = repo_root / ".codex" / "config.toml"
+            dst_codex_cfg = target_root / ".codex" / "config.toml"
+            if src_codex_cfg.exists():
+                if dst_codex_cfg.exists() and not force:
+                    print(f"  .codex/config.toml already exists -- skipping (use --force to overwrite)")
+                else:
+                    print(f"  codex config -> .codex/config.toml")
+                    copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
+
+        # Frida: copy factory-command skills from .frida/skills/ + write MCP config globally
+        if tool == "frida":
+            src_frida_skills = repo_root / ".frida" / "skills"
+            dst_frida_skills = target_root / ".agents" / "skills"
+            if src_frida_skills.exists():
+                print(f"  factory-command skills -> .agents/skills/")
+                copy_tree(src_frida_skills, dst_frida_skills, dry_run)
+            # Also copy custom-skills as fallback process definitions
+            src_frida_custom = repo_root / ".agents" / "custom-skills"
+            dst_frida_custom = target_root / ".agents" / "skills"
+            if src_frida_custom.exists():
+                print(f"  custom skills -> .agents/skills/")
+                copy_tree(src_frida_custom, dst_frida_custom, dry_run)
+            # Frida-specific global MCP config (context7, chrome-devtools, codegraph, engram)
+            _ensure_frida_mcp_config(str(target_root), dry_run)
+
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
         # skip if destination already exists unless --force.
-        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
-        if mcp_rel is not None:
-            src_mcp = repo_root / mcp_rel
-            dst_mcp = target_root / mcp_rel
-            if src_mcp.exists():
-                if dst_mcp.exists() and not force:
-                    print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
-                else:
-                    print(f"  mcp config -> {mcp_rel}")
-                    copy_file(src_mcp, dst_mcp, dry_run)
-                    # Add Stitch/Figma MCP servers only when user opted in
-                    _apply_mcp_config(
-                        dst_mcp,
-                        tool=tool,
-                        with_stitch=bool(args and args.with_stitch_mcp),
-                        with_figma=bool(args and args.with_figma_mcp),
-                        dry_run=dry_run,
-                    )
+        # Frida uses its own global MCP path handled in the Frida section below.
+        if tool == "frida":
+            pass
+        else:
+            mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+            if mcp_rel is not None:
+                src_mcp = repo_root / mcp_rel
+                dst_mcp = target_root / mcp_rel
+                if src_mcp.exists():
+                    if dst_mcp.exists() and not force:
+                        print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
+                    else:
+                        print(f"  mcp config -> {mcp_rel}")
+                        copy_file(src_mcp, dst_mcp, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
-            print(f"  workflow pointer -> {wf_doc.name}")
-            if tool == "opencode":
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                    ".claude/agents/", ".opencode/agents/"
-                ).replace(
-                    ".claude/commands/", ".opencode/commands/"
-                )
-            elif tool == "copilot":
-                pointer_block = ORCHESTRATOR_COPILOT_POINTER_BLOCK
-            elif tool == "cursor":
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                    ".claude/agents/", ".cursor/agents/"
-                ).replace(
-                    "/factory-", " /orchestrator factory-"
+            print(f"  workflow content -> {wf_doc.name}")
+            core_content = _tool_core_workflow_content(repo_root, tool)
+            if core_content is None:
+                # Fallback: legacy pointer block (core-workflow.md not bundled)
+                fallback_blocks = {
+                    "opencode": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                        ".claude/agents/", ".opencode/agents/"
+                    ).replace(
+                        ".claude/commands/", ".opencode/commands/"
+                    ),
+                    "copilot": ORCHESTRATOR_COPILOT_POINTER_BLOCK,
+                    "cursor": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                        ".claude/agents/", ".cursor/agents/"
+                    ).replace(
+                        "/factory-", " /orchestrator factory-"
+                    ),
+                    "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
+                    "frida": ORCHESTRATOR_FRIDA_POINTER_BLOCK,
+                }
+                pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
+                update_workflow_doc_pointer(
+                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, pointer_block,
+                    dry_run, force=force, core_workflow_content=None,
                 )
             else:
-                pointer_block = ORCHESTRATOR_CLAUDE_POINTER_BLOCK
-            update_workflow_doc_pointer(
-                wf_doc,
-                ORCHESTRATOR_CLAUDE_POINTER_MARKER,
-                pointer_block,
-                dry_run,
-                force=force,
-            )
+                update_workflow_doc_pointer(
+                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, "",
+                    dry_run, force=force, core_workflow_content=core_content,
+                )
 
     # Shared Layer 3: Python deps
     print(f"\n  Python deps -> requirements.txt")
@@ -909,8 +1135,9 @@ def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"Cloning agent-skills from {AGENT_SKILLS_REPO}...")
+    # Minimal shallow clone: only latest commit of default branch, no tags
     subprocess.run(
-        ["git", "clone", "--depth", "1", AGENT_SKILLS_REPO, str(dest)],
+        ["git", "clone", "--depth", "1", "--single-branch", "--no-tags", AGENT_SKILLS_REPO, str(dest)],
         check=True,
     )
     return dest
@@ -1002,6 +1229,18 @@ CODEGRAPH_MCP_CONFIG = {
     }
 }
 
+# Map from AIDLC tool names to CodeGraph agent names for --target.
+CODEGRAPH_TOOL_MAP: dict[str, str] = {
+    "claude": "claude",
+    "cursor": "cursor",
+    "opencode": "opencode",
+    "codex": "codex",
+    "copilot": "copilot",
+    # NOTE: frida intentionally omitted — codegraph install does not
+    # recognize it as a --target. MCP config for frida is handled via
+    # ORCHESTRATOR_TOOL_MCP_CONFIGS in install_orchestrator().
+}
+
 # Allowlist of CodeGraph MCP tools that stage subagents may call.
 # Note: codegraph_context and codegraph_explore are EXCLUDED from the
 # orchestrator's main session — they return large source sections.
@@ -1066,14 +1305,15 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
         _run_codegraph(["codegraph", "status"], target_root)
 
 
-def install_codegraph(target_root: Path, dry_run: bool) -> None:
-    """Install CodeGraph globally via npm and write .mcp.json to target_root.
+def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> None:
+    """Install CodeGraph globally via npm and configure agents with --target.
 
     Steps:
       1. Check Node >= 18.
-      2. npm install -g @colbymchenry/codegraph.
-      3. Write project-local .mcp.json with the codegraph MCP server entry.
-         Merges into existing .mcp.json if present.
+      2. npm install -g @colbymchenry/codegraph (or skip if already installed).
+      3. Run `codegraph install --target=<tool1,tool2> --yes` to configure
+         MCP server + instructions for each selected agent.
+      4. Fall back to manual .mcp.json write if step 3 fails.
 
     Raises RuntimeError if Node < 18 or npm install fails.
     """
@@ -1098,8 +1338,6 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         print(f"[DRY-RUN] Would run: npm install -g {CODEGRAPH_NPM_PACKAGE}")
     else:
         print(f"  Installing {CODEGRAPH_NPM_PACKAGE} globally via npm...")
-        # On Windows npm is a .cmd script (not an .exe), so use cmd.exe /c
-        # to ensure subprocess resolves it via PATHEXT.
         npm_install = ["npm", "install", "-g", CODEGRAPH_NPM_PACKAGE]
         npm_cmd = (
             ["cmd", "/c"] + npm_install
@@ -1115,7 +1353,32 @@ def install_codegraph(target_root: Path, dry_run: bool) -> None:
         ok, cg_version = _probe_version(["codegraph", "--version"])
         print(f"  codegraph: {cg_version}" if ok else "  codegraph: unknown")
 
-    # Step 3: Write .mcp.json
+    # Step 3: Run codegraph install --target=<tools> --yes to configure agents
+    cg_targets = [CODEGRAPH_TOOL_MAP[t] for t in tools if t in CODEGRAPH_TOOL_MAP]
+    if cg_targets and ok:
+        target_str = ",".join(cg_targets)
+        if dry_run:
+            print(f"[DRY-RUN] Would run: codegraph install --target={target_str} --yes")
+        else:
+            print(f"  Running: codegraph install --target={target_str} --yes")
+            install_result = _run_codegraph(
+                ["codegraph", "install", f"--target={target_str}", "--yes"],
+                target_root,
+            )
+            if install_result.returncode == 0:
+                print(f"  CodeGraph configured for: {target_str}")
+                return
+            print(f"  codegraph install exited {install_result.returncode} -- falling back to manual .mcp.json")
+
+    # Step 4 (fallback): Write .mcp.json manually
+    # Skip for Frida-only installs — Frida uses its own global MCP config file
+    # written by _ensure_frida_mcp_config() in the orchestrator install step.
+    non_frida = [t for t in tools if t != "frida"]
+    if not non_frida:
+        if dry_run:
+            print(f"[DRY-RUN] Skip .mcp.json write (Frida-only install — uses global config)")
+        return
+
     mcp_path = target_root / ".mcp.json"
     if dry_run:
         print(f"[DRY-RUN] Would write/merge CodeGraph MCP entry into {mcp_path}")
@@ -1153,7 +1416,7 @@ ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
 
 # MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
 ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
-    {"cursor", "copilot", "other"}
+    {"cursor", "copilot", "frida", "other"}
 )
 
 ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
@@ -1195,6 +1458,12 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
                         print(f"  WARNING: command timed out -- run manually: {cmd_str}")
                         ok = False
         elif tool in ENGRAM_MCP_TOOLS:
+            if tool == "frida":
+                if dry_run:
+                    print(f"[DRY-RUN] Engram entry already in Frida global MCP config ({tool})")
+                else:
+                    print(f"  engram already in Frida global MCP config ({tool})")
+                continue
             mcp_path = target_root / ".mcp.json"
             if dry_run:
                 print(f"[DRY-RUN] Would merge engram into {mcp_path.name} ({tool})")
@@ -1263,13 +1532,22 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Install AI-DLC rules into a project for one or more agent tools")
+    p = argparse.ArgumentParser(
+        description="Install AI-DLC rules into a project for one or more agent tools",
+        epilog="Examples:\n"
+               "  pipx run aidlc-factory-installer --tool claude --dest ./my-project\n"
+               "  uvx aidlc-factory-installer --tool claude --dest ./my-project\n"
+               "  python aidlc-scripts/install_aidlc.py --tool claude",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--tool", required=False,
                    help="Target agent/tool(s) to install rules for. Comma-separated for multiple "
                         "(e.g., --tool claude,opencode). Valid: " + ", ".join(VALID_TOOLS))
     p.add_argument("--yes", action="store_true", help="Assume yes for confirmations")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
-    p.add_argument("--source", type=str, default=None, help="Optional source path for aidlc rules (defaults to packaged rules)")
+    p.add_argument("--source", type=str, default=None,
+                   help="Source path for AIDLC files (defaults to the repo clone containing this script; "
+                        "used by pipx/uvx bootstrap to point at the downloaded repo)")
     p.add_argument("--dest", type=str, default=None, help="Destination path to install rules into (defaults to current directory)")
     p.add_argument("--with-agent-skills", action="store_true", default=True,
                    help="Always install engineering process skills from github.com/addyosmani/agent-skills (default: install)")
@@ -1298,12 +1576,6 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
-    p.add_argument("--with-stitch-mcp", action="store_true", default=False,
-                   help="Install Google Stitch MCP server config (@_davideast/stitch-mcp). "
-                        "Default: skip (opt-in — requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
-    p.add_argument("--with-figma-mcp", action="store_true", default=False,
-                   help="Install Figma MCP server config (official Figma Remote MCP + community fallback). "
-                        "Default: skip (opt-in — requires Figma account, OAuth or FIGMA_API_KEY).")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
                         "Use only if you know what you're doing — missing prereqs will "
@@ -1316,6 +1588,8 @@ TOOL_DESCRIPTIONS = {
     "claude":   "Claude Code CLI — writes to .claude/agents/ and .claude/commands/",
     "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
     "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
+    "codex":    "OpenAI Codex CLI / IDE agent — writes .codex/agents/ (TOML custom agents) + AGENTS.md pointer",
+    "frida":    "Frida AI agent — writes to .aidlc-orchestrator/agents/ + .agents/skills/<command>/SKILL.md factory command skills (no native subagent spawning)",
     "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
 }
 
@@ -1614,7 +1888,15 @@ def main() -> int:
         target_root = Path(args.dest).expanduser().resolve()
     else:
         target_root = _prompt_destination()
-    repo_root = Path(__file__).resolve().parent.parent
+
+    if args.source:
+        src = Path(args.source).expanduser().resolve()
+        if not src.exists():
+            print(f"ERROR: --source path does not exist: {src}")
+            return 3
+        repo_root = src
+    else:
+        repo_root = Path(__file__).resolve().parent.parent
 
     if args.tool:
         try:
@@ -1632,22 +1914,6 @@ def main() -> int:
         rc = preflight_check(args, tools=tools, label="tool-specific")
         if rc != 0:
             return rc
-
-    # --- Stitch MCP (opt-in, interactive when no CLI flag set) ---
-    if not args.with_stitch_mcp and not args.tool:
-        print()
-        resp = input("Install Google Stitch MCP server? (y/N): ").strip().lower()
-        args.with_stitch_mcp = resp in ("y", "yes", "sí", "dale")
-        if args.with_stitch_mcp:
-            print("  Stitch MCP will be installed (requires Node 18+, GOOGLE_CLOUD_PROJECT, gcloud auth).")
-
-    # --- Figma MCP (opt-in, interactive when no CLI flag set) ---
-    if not args.with_figma_mcp and not args.tool:
-        print()
-        resp = input("Install Figma MCP server? (y/N): ").strip().lower()
-        args.with_figma_mcp = resp in ("y", "yes", "sí", "dale")
-        if args.with_figma_mcp:
-            print("  Figma MCP will be installed (requires Figma account, OAuth or FIGMA_API_KEY).")
 
     # Agent skills will be installed by default (no interactive prompt)
 
@@ -1747,7 +2013,7 @@ def main() -> int:
     # --- CodeGraph (default: install, opt-out via --no-codegraph) ---
     if args.with_codegraph:
         try:
-            install_codegraph(target_root, args.dry_run)
+            install_codegraph(tools, target_root, args.dry_run)
         except Exception as e:
             print(f"ERROR installing CodeGraph: {e}")
             print("  CodeGraph is optional -- AIDLC will degrade gracefully without it.")

@@ -109,6 +109,11 @@ skill_compliance:
 
 Return: `<status> <output-path>`.
 
+## What you must NOT do
+- Do not refactor. Findings only.
+- Do not flag necessary abstractions just because they're abstractions.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
 ---
 
 ## Design System Review (when design_system_path is set)
@@ -144,8 +149,3 @@ Findings format (standard):
   message: "Inline padding value 13px does not match any spacing token — nearest is spacing.md (12px)"
   recommendation: "Use Box padding='md' or <Box padding='md'> instead of inline style"
 ```
-
-## What you must NOT do
-- Do not refactor. Findings only.
-- Do not flag necessary abstractions just because they're abstractions.
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

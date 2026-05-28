@@ -24,11 +24,12 @@ python3 aidlc-scripts/factory_validate.py \
 > is conceptual analysis only.
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, `library-docs-with-context7`, and `code-review-and-quality`. It may also include
-   framework skills propagated from the build phase (e.g., `angular-developer`,
-   `typescript-advanced-types`). Load every skill file present — they sharpen your review
-   for the specific frameworks and idioms in the generated code.
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
+   `codegraph-aware-exploration`, `library-docs-with-context7`, `code-review-and-quality`)
+   PLUS framework skills propagated from the build phase (e.g. `react-best-practices`,
+   `typescript-advanced-types`). **Load EVERY skill file present — no exceptions.**
+   Framework skills sharpen your review for the specific frameworks and idioms in the
+   generated code — do not skip them.
 2. **FOLLOW** — Five-axis review process (Step 5 of the skill only — skip automated gates).
    Apply framework-skill guidance when reviewing framework-specific constructs (lifecycle hooks,
    subscription patterns, type narrowing, etc.).
@@ -112,26 +113,28 @@ Return: `<status> <output-path>`.
 
 If `design_system_path` is set in your input handoff:
 
-1. **Load design system index** — resolve to check primitives:
-   ```bash
-   python3 aidlc-scripts/factory_design_system_resolve.py resolve __index__
-   ```
-   Read the INDEX.md to know which primitives exist.
+1. **Load Token Bridge artifacts** — read `input.token_bridge_artifacts[]`:
+   - Find artifact with `type: "css"` → load `tokens.css` (all CSS Custom Properties)
+   - Find artifact with `type: "prompt"` → load `token-prompt.md` (token usage guidelines)
+   - If `token_bridge_artifacts` is empty, load `design-system/tokens/tokens.css` directly
+   - Extract the list of CSS Custom Properties (`--spacing-*`, `--color-*`, etc.)
 
-2. **Primitive compliance** — scan generated UI files for:
-   - Raw `<button>` where `Button` primitive exists → P2 finding
+2. **Token compliance** — scan generated UI files for:
+   - Inline `padding`, `margin`, `gap` with raw px values not matching `--spacing-*` tokens → P2 finding
+   - Inline `border-radius` with raw px values not matching `--radius-*` tokens → P2 finding
+   - Raw hex colors where `--color-*` tokens exist → P2 finding
+   - Inline `font-size` with raw px values where `--typography-*` tokens exist → P2 finding
+   - Arbitrary Tailwind values `px-[*]`, `rounded-[*]`, `gap-[*]`, `text-[*]` → P2 finding
+
+3. **Primitive compliance** — scan generated UI files for:
+   - Raw `<button>` where `Button` primitive exists (check `design-system/primitives/`) → P2 finding
    - Raw `<div>` with padding where `Box` or `Stack` exists → P2 finding
    - Raw `<p>`, `<span>` with font styling where `Text` exists → P2 finding
    - Raw `<input>` without `Input` wrapper → P2 finding
 
-3. **data-testid audit** — scan ALL interactive elements:
+4. **data-testid audit** — scan ALL interactive elements:
    - Missing `data-testid` on any button, link, input, select → P1 finding
    - Naming should follow `{component}-{element-role}` pattern → P3 if inconsistent
-
-4. **Token compliance** — scan for hardcoded values:
-   - Inline `padding`, `margin`, `gap` not matching `spacing.*` tokens → P2 finding
-   - Inline `border-radius` not matching `radius.*` tokens → P2 finding
-   - Raw hex colors where `color.*` tokens exist → P2 finding
 
 Severity guide:
 - P1: missing `data-testid` on any interactive element (blocks E2E testing)

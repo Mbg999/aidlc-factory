@@ -276,6 +276,9 @@ def main() -> int:
     reject_parser.add_argument("--run-id", type=str, required=True,
                                help="AIDLC run identifier")
 
+    # trim
+    subparsers.add_parser("trim", help="Enforce memory cap across all primitives")
+
     # update-index
     subparsers.add_parser("update-index", help="Rebuild INDEX.md usage counts")
 
@@ -299,6 +302,20 @@ def main() -> int:
         else:
             for line in result["logs"]:
                 print(line)
+
+    elif args.command == "trim":
+        primitives = _primitives_dir(repo_root)
+        logs: list[str] = []
+        for p_dir in sorted(primitives.iterdir()):
+            if not p_dir.is_dir():
+                continue
+            examples_dir = p_dir / "examples"
+            if examples_dir.exists():
+                logs += _trim_primitive_examples(examples_dir)
+        if not logs:
+            logs.append("All primitives within cap — nothing to trim")
+        for line in logs:
+            print(line)
 
     elif args.command == "update-index":
         logs = update_index(repo_root)

@@ -121,7 +121,7 @@ made during this run (covered by an ADR file), also emit a corresponding
 ADRs are the most valuable priors for future runs — they survive across
 projects (when explicitly opted in) and across sessions. Don't be sparse.
 
-Full guidance: `.github/agents/cross-cutting/knowledge-agent.agent.md`.
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`.
 
 ## What you must NOT do
 - Do not push tags or remote branches. Local commits only; user pushes.

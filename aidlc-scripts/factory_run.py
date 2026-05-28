@@ -7,7 +7,11 @@ flows so a crashed orchestration run can be picked up at the last completed
 stage.
 
 Subcommands
------------
+----------
+    generate-run-id [--slug <slug>]
+        Generate a run-id of the form YYYY-MM-DDTHH-MM-SSZ-<slug> using
+        cross-platform Python datetime (not shell date command).
+
     init <run-id> --user-request <text> [--project-slug <slug>] [--force]
         Initialize manifest.yaml and timeline.jsonl for a new run.
 
@@ -378,6 +382,35 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
         print(f"{ts} (dedupe skipped -- identical block already present)")
 
 
+def cmd_list(args: argparse.Namespace) -> None:
+    """List all runs sorted by modification time (newest first)."""
+    if not RUNS_ROOT.exists():
+        return
+    entries = sorted(
+        (e for e in RUNS_ROOT.iterdir() if e.is_dir() and (e / "manifest.yaml").exists()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for e in entries:
+        print(e.name)
+
+
+def cmd_generate_run_id(args: argparse.Namespace) -> None:
+    """Generate a run-id of the form YYYY-MM-DDTHH-MM-SSZ-<slug>.
+
+    Uses Python datetime (cross-platform) instead of the shell `date` command.
+    Sanitizes the slug: lowercase, spaces→hyphens, strip non-alphanumeric.
+    """
+    slug = args.slug.lower().strip()
+    slug = re.sub(r"\s+", "-", slug)
+    slug = re.sub(r"[^a-z0-9_.-]", "", slug)
+    slug = slug.strip("-.")
+    if not slug:
+        slug = "run"
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    print(f"{ts}-{slug}")
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     rd = run_dir(args.run_id, must_exist=False)
     rd.mkdir(parents=True, exist_ok=True)
@@ -399,7 +432,15 @@ def cmd_init(args: argparse.Namespace) -> None:
         "skipped_stages": [],
         "failed_stages": [],
         "orchestrator_version": orch_version,
-        "project_profile": {"ui": False, "api": False, "has_legacy": False},
+        "project_profile": {
+            "ui": False,
+            "api": False,
+            "has_legacy": False,
+            "framework": "none",
+            "design_system_path": "",
+            "has_figma_data": False,
+            "has_stitch_data": False,
+        },
         "units": [],
         "skill_paths": {},
     }
@@ -898,6 +939,16 @@ def cmd_tail(args: argparse.Namespace) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="AIDLC Orchestrator Run Manager")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_list = sub.add_parser("list",
+        help="List all runs (directories with manifest.yaml)")
+    p_list.set_defaults(func=cmd_list)
+
+    p_gen = sub.add_parser("generate-run-id",
+        help="Generate a run-id: YYYY-MM-DDTHH-MM-SSZ-<slug> (cross-platform)")
+    p_gen.add_argument("--slug", default="run",
+        help="slug suffix (default: run)")
+    p_gen.set_defaults(func=cmd_generate_run_id)
 
     p_init = sub.add_parser("init")
     p_init.add_argument("run_id")

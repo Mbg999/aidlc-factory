@@ -1,0 +1,14 @@
+# AIDLC Orchestrator — Codex subagent configuration
+# 
+# This file configures Codex subagent settings for the AIDLC factory.
+# Place in project root as .codex/config.toml (or merge into ~/.codex/config.toml).
+#
+# Docs: https://developers.openai.com/codex/subagents
+
+[agents]
+max_threads = 6
+max_depth = 1
+job_max_runtime_seconds = 1800
+
+# Skills referenced by agent files live under .agents/skills/
+# Codex reads AGENTS.md recursively for persistent instructions.

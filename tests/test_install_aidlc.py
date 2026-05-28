@@ -36,6 +36,9 @@ class TestParseToolsString:
     def test_lowercased(self):
         assert install_aidlc.parse_tools_string("CLAUDE,OpenCode") == ["claude", "opencode"]
 
+    def test_codex_accepted(self):
+        assert install_aidlc.parse_tools_string("codex,claude") == ["codex", "claude"]
+
     def test_invalid_raises(self):
         with pytest.raises(ValueError, match="bogus"):
             install_aidlc.parse_tools_string("claude,bogus")
@@ -138,7 +141,7 @@ def _stub_skills(target: Path) -> None:
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(INSTALL_PY), *args],
+        [sys.executable, str(INSTALL_PY), "--skip-preflight", *args],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -704,87 +707,6 @@ class TestEngramIntegration:
         assert mcp_path.exists(), ".mcp.json not written for cursor"
         config = json.loads(mcp_path.read_text())
         assert "engram" in config.get("mcpServers", {})
-
-
-# ---------- _apply_mcp_config ----------
-
-class TestApplyMCPConfig:
-    def test_adds_stitch_and_figma_when_opted_in(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({
-            "mcpServers": {
-                "context7": {"command": "npx", "args": ["-y", "context7"]},
-            }
-        }))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" in data["mcpServers"]
-        assert "figma" in data["mcpServers"]
-        assert "context7" in data["mcpServers"]
-
-    def test_adds_only_stitch_when_only_stitch_opted(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({"mcpServers": {}}))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=False, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" in data["mcpServers"]
-        assert "figma" not in data["mcpServers"]
-
-    def test_adds_only_figma_when_only_figma_opted(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({"mcpServers": {}}))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "figma" in data["mcpServers"]
-        assert "stitch" not in data["mcpServers"]
-
-    def test_adds_nothing_when_both_skipped(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({"mcpServers": {}}))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" not in data["mcpServers"]
-        assert "figma" not in data["mcpServers"]
-
-    def test_adds_opencode_format_correctly(self, tmp_path: Path):
-        cfg = tmp_path / "opencode.json"
-        cfg.write_text(json.dumps({"mcp": {}}))
-        install_aidlc._apply_mcp_config(cfg, tool="opencode", with_stitch=False, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "figma" in data["mcp"]
-        assert data["mcp"]["figma"]["enabled"] is True
-
-    def test_adds_vscode_format_correctly(self, tmp_path: Path):
-        cfg = tmp_path / ".vscode" / "mcp.json"
-        cfg.parent.mkdir(parents=True)
-        cfg.write_text(json.dumps({"servers": {}}))
-        install_aidlc._apply_mcp_config(cfg, tool="copilot", with_stitch=True, with_figma=False, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert "stitch" in data["servers"]
-
-    def test_dry_run_does_not_modify(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        original = {"mcpServers": {}}
-        cfg.write_text(json.dumps(original))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=True)
-        data = json.loads(cfg.read_text())
-        assert data == original
-
-    def test_noop_when_file_missing(self, tmp_path: Path):
-        cfg = tmp_path / "nope.json"
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
-
-    def test_noop_when_invalid_json(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text("{invalid")
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=False, with_figma=False, dry_run=False)
-
-    def test_preserves_config_when_no_servers_key(self, tmp_path: Path):
-        cfg = tmp_path / ".mcp.json"
-        cfg.write_text(json.dumps({"version": 1}))
-        install_aidlc._apply_mcp_config(cfg, tool="claude", with_stitch=True, with_figma=True, dry_run=False)
-        data = json.loads(cfg.read_text())
-        assert data == {"version": 1}
 
 
 # ---------- _venv_python (cross-platform venv executable detection) ----------

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """factory_stitch_snap.py — Snap Google Stitch HTML/CSS output to design tokens.
 
+⚠️ DEPRECATED — Use `StitchAdapter` from `harness_adapters/source/stitch.py` instead.
+   Example:
+     python3 aidlc-scripts/harness_adapters/source/stitch.py --input <file> --output <file>
+   This script is kept for backwards compatibility and will be removed in v0.4.0.
+
+
 Pre-processing layer that snaps raw style values from Stitch-generated
 HTML/CSS to canonical design tokens BEFORE the LLM uses them for code
 generation. Stitch proposes intent; this script enforces the local design

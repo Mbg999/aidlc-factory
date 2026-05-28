@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aidlc-factory-installer"
+version = "0.2.2"
+description = "AIDLC Factory — multi-agent software development orchestrator (installer bootstrap)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Mbg999"},
+]
+license = {text = "Apache-2.0"}
+homepage = "https://github.com/Mbg999/aidlc-factory"
+keywords = ["aidlc", "ai-dlc", "orchestrator", "multi-agent", "software-factory"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.urls]
+Homepage = "https://github.com/Mbg999/aidlc-factory"
+Source = "https://github.com/Mbg999/aidlc-factory"
+Tracker = "https://github.com/Mbg999/aidlc-factory/issues"
+
+[project.scripts]
+aidlc-factory-installer = "aidlc_installer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aidlc_installer"]

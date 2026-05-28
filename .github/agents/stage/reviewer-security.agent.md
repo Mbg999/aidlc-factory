@@ -22,9 +22,11 @@ python3 aidlc-scripts/factory_validate.py \
 ## Skill Execution Protocol
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
-   `codegraph-aware-exploration`, `security-and-hardening`, and
-   `secret-knowledge` (Section A: Security Toolkit + Section D: Web Security). Load every skill file present.
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
+   `codegraph-aware-exploration`, `security-and-hardening`, `secret-knowledge`)
+   PLUS any security-related framework skills injected from the build phase (name
+   contains `security`, `auth`, or `hardening`). **Load EVERY skill file present —
+   no exceptions.** Framework skills sharpen your security review for specific tech stacks.
 2. **FOLLOW** — Threat-model + code-scan + dependency-scan steps.
 3. **CHECK** — Rationalizations: reject "internal only", "low likelihood",
    "performance impact" — every dismissal needs threat-model evidence.
@@ -118,9 +120,44 @@ cause):
 - Body: describe the **root cause** and the attack vector, NOT the specific
   patch. Future runs need the failure shape, not your fix.
 
-Full guidance: `.github/agents/cross-cutting/knowledge-agent.agent.md`. Security
+Full guidance: `.github/agents/cross-cutting/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
+
+## What you must NOT do
+- Do not patch vulnerabilities. Findings only.
+- Do not soft-pedal P0s. If exploitable, mark P0.
+- Do not skip dependency review.
+- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.
+
+---
+
+## Security Baseline Compliance Check (embedded from upstream `extensions/security/baseline/security-baseline.md`)
+
+Before completing review, run the 15-rule baseline compliance check. Map each SECURITY-NN to a concrete verification:
+
+| Rule | Check | Evidence |
+|------|-------|----------|
+| **SECURITY-01** Encryption at rest/transit | Verify all data stores have encryption config (TLS 1.2+, storage encryption) | PASS / FAIL / N/A |
+| **SECURITY-02** Access logging on network intermediaries | Verify LBs, API gateways, CDNs have access logging enabled | PASS / FAIL / N/A |
+| **SECURITY-03** Application-level logging | Verify structured logging configured at every entry point; no secrets in logs | PASS / FAIL / N/A |
+| **SECURITY-04** HTTP security headers (web apps) | Verify CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy set | PASS / FAIL / N/A |
+| **SECURITY-05** Input validation | Verify all API entry points validate inputs (type, length, format, injection prevention) | PASS / FAIL / N/A |
+| **SECURITY-06** Least-privilege access | Verify IAM policies use specific resources/actions; no wildcards without exception | PASS / FAIL / N/A |
+| **SECURITY-07** Restrictive network config | Verify deny-by-default; no `0.0.0.0/0` inbound except LB ports; private subnets | PASS / FAIL / N/A |
+| **SECURITY-08** Application-level access control | Verify deny-by-default auth, object-level authz, CORS restricted, server-side token validation | PASS / FAIL / N/A |
+| **SECURITY-09** Security hardening | Verify no default creds, no stack traces in prod, directory listing disabled | PASS / FAIL / N/A |
+| **SECURITY-10** Software supply chain | Verify lock files committed, no `latest` tags, unused deps removed | PASS / FAIL / N/A |
+| **SECURITY-11** Secure design principles | Verify security-critical logic separated, rate limiting configured, abuse cases considered | PASS / FAIL / N/A |
+| **SECURITY-12** Auth & credential management | Verify adaptive hashing, secure cookies, brute-force protection, no hardcoded creds, MFA for admin | PASS / FAIL / N/A |
+| **SECURITY-13** Software & data integrity | Verify safe deserialization, SRI on CDN resources, CI/CD access-controlled | PASS / FAIL / N/A |
+| **SECURITY-14** Alerting & monitoring | Verify auth failure alerts, append-only log storage, min 90-day retention | PASS / FAIL / N/A |
+| **SECURITY-15** Exception handling & fail-safe | Verify all external calls have error handling, fail closed, global error handler | PASS / FAIL / N/A |
+
+**Non-compliance behavior**: Any FAIL → set `status: blocked` with `[SecurityBaseline] SECURITY-NN: <finding>`. Do NOT present completion with FAIL rows. N/A rules (e.g., SECURITY-01 when no data stores) are not blocking.
+
+Include the compliance table in `audit_entries[]` as a summary:
+`[SecurityBaseline] 01: PASS | 02: N/A | 03: FAIL — missing structured logging in auth handler`
 
 ---
 
@@ -156,9 +193,3 @@ Findings format (standard):
   message: "Icon-only button missing aria-label — screen reader users cannot identify the action"
   recommendation: "Add aria-label='Open menu' to the icon button"
 ```
-
-## What you must NOT do
-- Do not patch vulnerabilities. Findings only.
-- Do not soft-pedal P0s. If exploitable, mark P0.
-- Do not skip dependency review.
-- Do not modify `aidlc-docs/audit.md` or `aidlc-docs/aidlc-state.md` directly. Emit `audit_entries[]` only — the orchestrator owns those files.

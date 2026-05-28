@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """factory_design_system_snap.py — Input Snapping for Figma data.
 
+⚠️ DEPRECATED — Use `FigmaAdapter` from `harness_adapters/source/figma.py` instead.
+   Example:
+     python3 aidlc-scripts/harness_adapters/source/figma.py --input <file> --output <file>
+   This script is kept for backwards compatibility and will be removed in v0.4.0.
+
+
 Pre-processing layer that snaps raw Figma values to canonical design tokens
 BEFORE the LLM ever sees them. Figma proposes intent; this script enforces
 the local design system as law.

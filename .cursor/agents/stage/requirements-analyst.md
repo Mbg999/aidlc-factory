@@ -62,18 +62,41 @@ This stage runs in two passes because of the clarifying-questions gate:
 Triggered when your input has NO `context_pointers[]` referencing answered
 questions, or `predecessor_artifacts` does not contain a `*answered*` file.
 
-Execute Steps 1–6 of the rule file
-**`aidlc-rules/aws-aidlc-rule-details/inception/requirements-analysis.md`**:
+Execute Steps 1–6 of the upstream rule file `inception/requirements-analysis.md` (content embedded in this agent — not read from disk):
 
 1. **Step 1** — Load Reverse Engineering context if `workspace_state.project_type == brownfield` AND `workspace_state.reverse_engineering_artifacts_present == true`. Read from `aidlc-docs/inception/reverse-engineering/`.
 2. **Step 2** — Classify request: clarity (Clear/Vague/Incomplete), type (New Feature/Bug Fix/Refactoring/Upgrade/Migration/Enhancement/New Project), scope (Single File/Single Component/Multiple Components/System-wide/Cross-system), complexity (Trivial/Simple/Moderate/Complex). Populate `request_classification` in your output.
-3. **Step 3** — Determine depth: `minimal | standard | comprehensive` per `aidlc-rules/aws-aidlc-rule-details/common/depth-levels.md`. Populate `depth` in your output.
+3. **Step 3** — Determine depth per Depth Levels protocol (embedded below). Populate `depth` in your output.
    - **If input contains `depth_override`**: use that value instead of your own
      classification result.
 4. **Step 4** — Assess current requirements: search workspace for existing requirement docs, intent statements, etc. Convert non-markdown to markdown.
 5. **Step 5** — Completeness analysis across functional / non-functional / user scenarios / business / technical / quality attributes.
-   - **5.1** — Extension opt-in prompts: scan `aidlc-rules/aws-aidlc-rules/extensions/**/*.opt-in.md`, append each `## Opt-In Prompt` question to your questions file.
-6. **Step 6** — Generate `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` per the format in `common/question-format-guide.md`. Use `[Answer]:` tag format. MCQ where appropriate, with `X) Other` always present.
+   - **5.1** — Extension opt-in prompts: scan `.aidlc-orchestrator/prompts/extensions/*.opt-in.md`, append each `## Opt-In Prompt` question to your questions file.
+6. **Step 6** — Generate `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` per the Question Format Guide (embedded below). Use `[Answer]:` tag format. MCQ where appropriate, with `X) Other` always present.
+
+#### Depth Levels Protocol (embedded from upstream `common/depth-levels.md`)
+
+Determine depth based on request clarity, complexity, and risk:
+- **minimal**: Clear request + Trivial/Simple complexity + Single File scope → fewer tasks, fewer artifacts, compact output.
+- **standard**: Needs some clarification + Moderate complexity + Single/Multiple Component scope → standard artifact set, moderate detail.
+- **comprehensive**: Vague/Incomplete request + Complex scope + High risk → all artifacts, full detail, extensive questions.
+
+**Silent/spoken protocol**: Workspace scan, skill loading, checkbox updates produce NO chat output (silent). Design decisions, questions, and completion messages are spoken. Respect the `depth_mode` from input handoff.
+
+#### Question Format Guide (embedded from upstream `common/question-format-guide.md`)
+
+Every question file MUST follow this format:
+- **Axis tags**: Each `## Question` preceded by `<!-- axis: <Name> -->`. Allowed: `Purpose`, `Needs`, `Limits`, `Expectations`, `Context`, `Risks`, `Acceptance`, `Unknowns`. Multi-axis: comma-separated.
+- **MCQ format**: Minimum 2 meaningful options + `X) Other`. NEVER ask questions in chat — always use dedicated question files.
+- **`[Answer]:` tag**: Every question ends with an empty `[Answer]: ` line. Users fill in the letter choice.
+- **Contradiction/ambiguity detection**: After reading answers, cross-reference for logical inconsistencies. Create a clarification file with targeted MCQs if found.
+- **Clarification workflow**: Do NOT proceed with unresolved contradictions. Generate `{phase}-clarification-questions.md` and wait for answers.
+
+#### Stage Conventions Protocol (embedded from upstream `common/stage-conventions.md`)
+
+- **Completion messages**: Use emoji prefix + status (`# 💡 Requirements Analysis Complete`). Include bullet-point summary and artifact paths.
+- **Approval protocol**: Wait for explicit user approval (`approve`, `continue`, `lgtm`). If changes requested → update artifacts, repeat. Log approval with timestamp in `audit_entries[]`.
+- **Audit entries**: ISO 8601 timestamps, strictly chronological. No `##` headers — those are added by the orchestrator.
 
 **Output for Pass 1:**
 - `status: needs_human`
@@ -152,6 +175,15 @@ the failure. Common failure modes:
 - Pass 2 requirements.md suspiciously short (likely empty spec).
 
 Return ONE line: `<status> <output-handoff-path>`
+
+## Error Handling
+
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
+
+| Situation | Action |
+|-----------|--------|
+| Contradictory requirements | Cross-reference answers → generate follow-ups → do NOT proceed to Pass 2 |
+| Incomplete answers | Highlight vague responses → provide examples → block Pass 2 until clear |
 
 ## What you must NOT do
 - Do not write the requirements.md before Pass 2 (before user answers exist).

@@ -22,12 +22,14 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 
 | Path | Purpose |
 |------|---------|
-| `aidlc-rules/aws-aidlc-rules/core-workflow.md` | Stage workflow rules (read by orchestrator stage agents) |
-| `aidlc-rules/aws-aidlc-rule-details/` | Stage rule details (inception / construction / operations / common / extensions) |
+| `.aidlc-orchestrator/runtime/core-workflow.md` | AIDLC constitution — distributed to installed projects via installer |
+| `.aidlc-orchestrator/runtime/common/` | Lazy-loaded protocol files (ascii-diagram-standards, error-handling) |
+| `.aidlc-orchestrator/prompts/extensions/*.opt-in.md` | Extension opt-in prompts (loaded by requirements-analyst) |
 | `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands) |
 | `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
 | `.claude/agents/cross-cutting/` | conflict-resolver, knowledge-agent |
 | `.claude/commands/factory-*.md` | Factory slash command definitions |
+| `.codex/` | OpenAI Codex CLI/IDE support — `.codex/agents/*.toml` custom subagents, `.codex/config.toml` subagent settings, AGENTS.md pointer |
 | `.aidlc-orchestrator/runtime/` | Runtime architecture docs (index, spawn-loop, fast-path, recovery, …) |
 | `.aidlc-orchestrator/contracts/` | JSON Schema handoff contracts for every stage I/O |
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
@@ -163,6 +165,6 @@ Extensions layer additional rules on top of the core workflow. Opt-in files live
 Extensions without an opt-in file are always enforced.
 
 
-Keep parity between .opencode/, .cursor, .github and .claude/ files, everytime you change anything in one, do the same for the other.
+Keep parity between .opencode/, .cursor, .github, .codex/ and .claude/ files, everytime you change anything in one, do the same for the other.
 Skills provide specialized instructions and workflows for specific tasks.
 Use the skill tool to load a skill when a task matches its description.

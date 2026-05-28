@@ -37,9 +37,26 @@ Stage-specific knobs:
 - **approval gate**: none — auto-proceeds on `status: complete`
 - **state on success**: `Current Stage: INCEPTION - Workspace Detection (complete)`; manifest `current_stage: requirements-analyst`
 
-## Step 3.5 — Classify `project_profile` + reverse-engineer routing
+## Step 3.5 — Classify `project_profile` + design-system bootstrap + reverse-engineer routing
 
-After workspace-scout completes, classify `project_profile` (ui / api / has_legacy) and decide whether to run `reverse-engineer`. Full spec — classification heuristics, persistence command, audit-bullet format, conditional-skill injection table, RE approval-gate prompt text — lives in [`project-profile.md`](project-profile.md).
+After workspace-scout completes, run the project-profile pipeline:
+
+```bash
+python3 aidlc-scripts/factory_project_profile.py run <run-id> \
+    --workspace-output .aidlc-orchestrator/runs/<run-id>/handoffs/workspace-scout.output.yaml \
+    --repo-root .
+```
+
+This script:
+1. Classifies `project_profile` (ui / api / has_legacy / framework / design_system_path) per [`project-profile.md`](project-profile.md) §A.
+2. Bootstraps `design-system/` if `ui: true` and it does not exist.
+3. Snaps and imports Figma data if `has_figma_data == true`.
+4. Snaps and imports Stitch data if `has_stitch_data == true`.
+5. Reverse-engineers tokens from existing CSS/SCSS/styled-components if brownfield + UI + no Figma/Stitch.
+6. Persists all fields to the manifest via `factory_run.py set`.
+
+**Reverse-engineer routing** (same as before — decision lives in `project-profile.md` §B):
+After the profile pipeline completes, decide whether to run `reverse-engineer` based on brownfield state and artifact presence.
 
 Then proceed to Step 4.
 

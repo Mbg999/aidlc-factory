@@ -27,21 +27,27 @@ is a minimal inline JSON with just `user_request`, `fast_path: true`, `tier: TIN
 ## Skill Execution Protocol
 
 1. **LOAD** — ALL skills listed in your input handoff's `skills_required[]` and
-   `skill_paths_resolved[]`. This always includes `using-agent-skills`,
+   `skill_paths_resolved[]`. This ALWAYS includes the base set (`using-agent-skills`,
    `codegraph-aware-exploration`, `environment-detection`, `incremental-implementation`,
-   `test-driven-development`, `source-driven-development`, `validator-retry`, and
-   `secret-knowledge`. It may also include framework skills propagated from the build
-   phase (e.g., `vue`, `react-best-practices`, `typescript-advanced-types`) and
-   conditional skills from project profile (`frontend-ui-engineering`,
-   `design-system-composer`, `ui-constraint-validator`, `api-and-interface-design`).
-   Load every skill file present.
-2. **FOLLOW** — Each skill's *Process* in order. TDD = Red→Green→Refactor.
-   Incremental = thin vertical slices, each green before next.
+   `test-driven-development`, `source-driven-development`, `validator-retry`,
+   `secret-knowledge`) PLUS conditional skills from project profile
+   (`frontend-ui-engineering`, `design-system-composer`, `ui-constraint-validator`,
+   `api-and-interface-design`) PLUS framework skills propagated from the build
+   phase (e.g. `react-best-practices`, `typescript-advanced-types`, `vite`, etc.).
+   **Load EVERY skill file present in `skill_paths_resolved[]` — no exceptions.**
+2. **FOLLOW** — Each skill's *Process* in order. For framework skills, apply their
+   tech-specific guidance (e.g. React patterns, TypeScript conventions, Vite config)
+   during code generation. Do not skip or "bundle" them — each must be executed.
 3. **CHECK** — Common Rationalizations. Reject "I'll add tests later",
-   "this is too small to test", "the type system is enough".
+   "this is too small to test", "the type system is enough", and **"framework
+   skills are bundled/inline"** — they are NOT. Each is a separate skill to execute.
 4. **VERIFY** — Concrete: commit hashes per slice, test counts (added vs total),
    each slice's tests green, plan checkboxes ticked.
-5. **LOG** — `skill_compliance[]` row per skill with concrete evidence.
+5. **LOG** — **Every single skill in `skills_required[]` MUST have a row in
+   `skill_compliance[]` with status PASS/FAIL/N/A and concrete evidence.**
+   "Bundled" or "inline" is NOT an acceptable status — if you loaded and applied
+   a framework skill, report it as PASS with evidence of what guidance you followed.
+   If you skipped it, report it as SKIPPED with a justification.
 6. **BLOCK** — Verification fail → `status: blocked`.
 
 **Anti-bypass:** "obvious", "trivial", "later" are rationalizations. Produce evidence.
@@ -71,12 +77,12 @@ Skills with no `applies_to` are universal — always load them. Log each decisio
 **`environment-detection` runs FIRST** — before any code that requires a runtime, package manager, or build tool. Check `command -v <tool>` for every dependency named in the unit spec; USE the existing installation when compatible. Avoid `brew install` unless no version manager is present (it compiles from source by default and is the largest avoidable cost). Log `[Env]` entries to `audit_entries[]` before any install command runs.
 
 ## Your job
-Follow these rule files in order:
-1. `aidlc-rules/aws-aidlc-rule-details/construction/functional-design.md`
-2. `aidlc-rules/aws-aidlc-rule-details/construction/nfr-requirements.md`
-3. `aidlc-rules/aws-aidlc-rule-details/construction/nfr-design.md`
-4. `aidlc-rules/aws-aidlc-rule-details/construction/infrastructure-design.md`
-5. `aidlc-rules/aws-aidlc-rule-details/construction/code-generation.md`
+Follow these upstream rule files (content embedded in this agent — not read from disk):
+1. `construction/functional-design.md`
+2. `construction/nfr-requirements.md`
+3. `construction/nfr-design.md`
+4. `construction/infrastructure-design.md`
+5. `construction/code-generation.md`
 
 ### Sub-stage 1: Plan
 
@@ -109,7 +115,40 @@ before the first task. Emit `status: needs_human` with `sub_stage: generated`
 (not `plan`) when all tasks are done — the plan and code are presented
 together for a single approval gate.
 
-### Sub-stage 2: Generate (re-spawned with approved plan, OR merged path inline)
+### Sub-stage 2: Construction Design (embedded from upstream `construction/functional-design.md`, `construction/nfr-requirements.md`, `construction/nfr-design.md`, `construction/infrastructure-design.md`)
+
+After plan approval (or merged path inline), run four design sub-stages in order:
+
+1. **Functional Design** — Produce:
+   - `aidlc-docs/construction/design/<run-id>-business-logic-model.md`
+   - `aidlc-docs/construction/design/<run-id>-domain-entities.md`
+   - `aidlc-docs/construction/design/<run-id>-frontend-components.md` (UI units only)
+   - Questions: domain model boundaries, entity relationships, component decomposition, data flow
+   - **Property Detection** (embedded from upstream `extensions/testing/property-based/property-based-testing.md`):
+     Scan the domain model for properties: round-trip (serializable entities), invariant (sorted lists, validated state), idempotency (retry-safe operations), oracle (deterministic functions), and stateful (state machines). Document detected properties in the functional design.
+   - Gate: `status: needs_human` with `sub_stage: design/func` (unless merged_plan_generate, which merges this gate)
+
+2. **NFR Requirements** — Produce:
+   - `aidlc-docs/construction/design/<run-id>-nfr-requirements.md`
+   - Questions: performance targets, security requirements, scalability needs, observability
+   - Gate: `status: needs_human` with `sub_stage: design/nfr-req` (merged if small tier)
+
+3. **NFR Design** — Produce:
+   - `aidlc-docs/construction/design/<run-id>-nfr-design-patterns.md`
+   - Artifacts: resilience patterns, caching strategy, scaling approach
+   - Gate: `status: needs_human` with `sub_stage: design/nfr-design` (merged if small tier)
+
+4. **Infrastructure Design** — Produce:
+   - `aidlc-docs/construction/design/<run-id>-infrastructure-design.md`
+   - `aidlc-docs/construction/design/<run-id>-deployment-architecture.md`
+   - Questions: deployment model, infrastructure services, CI/CD needs
+   - Gate: `status: needs_human` with `sub_stage: design/infra` (merged if small tier)
+
+**Merged gate for SMALL tier**: When `merged_plan_generate: true`, all four design gates are merged into a single approval at the end of the TDD loop. Design artifacts are still produced — only the per-stage halts are removed. If any design artifact is missing at generation time, the agent blocks.
+
+**Blocking rule**: Before proceeding to code generation (Sub-stage 3), verify that all applicable design artifacts exist. If any is missing, set `status: blocked` with `[DesignGap]` audit entry.
+
+### Sub-stage 3: Generate (re-spawned with approved plan + design, OR merged path inline)
 
 #### Pre-flight (CodeGraph — when `.codegraph/codegraph.db` exists)
 
@@ -138,7 +177,7 @@ If `input.design_system_path` is set:
 1. Extract needed component types from `input.ui_intent[]` (or infer from the task)
 2. Run:
    ```bash
-   python aidlc-scripts/factory_design_system_resolve.py resolve <types>
+   python3 aidlc-scripts/factory_design_system_resolve.py resolve <types>
    ```
 3. Load returned files into context — design.md, anatomy.md, do-dont.md, tokens/*.md
 4. Load `design-system-composer/SKILL.md` and `ui-constraint-validator/SKILL.md`
@@ -151,21 +190,54 @@ If `input.has_figma_data` is set AND `input.figma_snapped_path` exists:
 3. Otherwise: treat snapped JSON as the UI intent plan — components to build, layout to follow
 4. Log snap correction count in `audit_entries[]`
 
+#### Design System Token Catalog (inline fallback)
+
+Use this token table when `ui-constraint-validator` skill is absent (embedded from upstream `code-generation.md` Critical Rules):
+
+| Category | Tokens | Forbidden |
+|----------|--------|-----------|
+| Spacing | `spacing.*` — 4/8/12/16/24/32 | Any other value |
+| Border Radius | `radius.*` — 0/3/6/12/9999 | Arbitrary `rounded-[*]` |
+| Font Size | `font-size.*` — 12/14/16/20/24/32/40 | Any other value |
+| Color | `color.*` semantic tokens | Raw hex (`#...`) |
+| Elevation | `elevation.*` tokens | Hardcoded shadows |
+| Tailwind | Must use token classes | `px-[*]`, `rounded-[*]`, `gap-[*]`, `text-[*]` |
+| Inline styles | Must use token classes | `style={{padding:...}}`, `style={{margin:...}}` |
+
+If `ui-constraint-validator` IS present, run it as the enforcement layer. This table is the fallback.
+
 #### TDD loop
 
 For each plan task (top to bottom):
 1. **Red** — write a failing test
+1.5. **PBT if applicable** (embedded from upstream `extensions/testing/property-based/property-based-testing.md`):
+   - If the Functional Design detected properties for this task's domain model (round-trip, invariant, idempotency, oracle, stateful): write PBT tests alongside the example-based test
+   - Use appropriate framework (fast-check for JS/TS, Hypothesis for Python, proptest for Rust)
+   - Verify shrinking works and seeds are logged for reproducibility
+   - If no properties detected, skip this step
 2. **Green** — minimum code to pass. If UI task: compose from primitives per `design-system-composer`.
 3. **UI Compile** (UI tasks only) — run the UI compiler pass:
    - Scan generated TSX/HTML for raw style values
-   - Snap to canonical tokens per `ui-compiler.md` §2
+   - Snap to canonical tokens per the Token Catalog above
    - Rewrite to token references
 4. **UI Validate** (UI tasks only) — run `ui-constraint-validator`:
    - Check spacing, radius, typography, color, elevation
    - Autocorrect deviations (max 3 per slice)
    - Log corrections to `ui_compliance[]`
    - If >3 deviations: set `status: needs_human`, HALT
+4.5. **data-testid Audit** (UI tasks only) — per upstream `code-generation.md` (content embedded):
+   - Verify ALL interactive elements (buttons, links, inputs, selects, form controls) have `data-testid`
+   - Naming MUST follow `{component}-{element-role}` (e.g., `pagination-prev-button`, `login-form-submit-button`)
+   - Stable IDs across renders; only change when element purpose changes
+   - If missing or wrong naming: autocorrect immediately
+   - Log corrections to `ui_compliance[]`
+   - `data-testid` is MANDATORY — omitting it is a generation defect
 5. **Refactor** — clean up, keep green
+5.5. **Checkbox Discipline** (per upstream `code-generation.md` Critical Rules — content embedded):
+   - Mark `[x]` in the plan file for this task in the SAME interaction that completes the step
+   - Emit: `[Checkbox] task-N marked [x]`
+   - Do NOT move to the next task with unchecked `[ ]` behind you
+   - If you realize checkboxes were not updated, stop and update them before continuing
 6. **Validate** — follow `validator-retry` skill Process:
    - Run detected static validators (tsc, pyright, cargo check, go vet, eslint)
    - On errors: feed `errors_text` back as context, retry up to 3 times
@@ -184,10 +256,18 @@ Apply `code-review-and-quality` skill **on yourself** (five-axis self-review)
 when the unit's last task is done. Note the self-review summary in
 `audit_entries[]`.
 
+#### End-of-Unit Audit (per upstream `code-generation.md` Critical Rules — content embedded)
+
+Before presenting completion:
+1. **Checkbox scan** — scan the plan file for any remaining `[ ]` items. Mark them `[x]` or document why they were skipped. A completion message MUST NOT be presented with open `[ ]` items.
+2. **data-testid verification** (UI units only) — grep generated files for interactive elements (buttons, links, inputs, selects) and confirm each has a `data-testid` matching `{component}-{element-role}`.
+3. **Token compliance** (UI units only) — verify no raw hex colors, arbitrary Tailwind values (`px-[*]`, `rounded-[*]`), or inline style values for spacing/radius/font-size.
+4. Emit: `[Audit] all plan checkboxes [x] | data-testid: PASS | tokens: PASS`
+
 After all tasks done, emit `status: needs_human` again so orchestrator can
 get approval before moving to the next unit. **HALT.**
 
-### Sub-stage 3: Approval acknowledged
+### Sub-stage 4: Approval acknowledged
 When re-spawned with approval context, set `status: complete` and return.
 No further work; just emit the final output handoff.
 
@@ -238,8 +318,20 @@ Populate `emitted_knowledge[]` in your output when:
   format.
 
 The schema is in `code-generator.output.v1.json`. Full guidance:
-`.github/agents/cross-cutting/knowledge-agent.agent.md`. When in doubt: do NOT
+`.github/agents/cross-cutting/knowledge-agent.md`. When in doubt: do NOT
 emit. Bad priors poison future runs more than missing priors slow them.
+
+## Error Handling
+
+Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/error-handling.md`. Key stage-specific actions:
+
+| Situation | Action |
+|-----------|--------|
+| Incomplete plan | Return to design artifacts → fill gaps → block if still incomplete |
+| Missing dependencies | Check other units → if doesn't exist, re-order plan → block if unresolvable |
+
+## Stage Conventions (inline summary — embedded from upstream)
+Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.
 
 ## What you must NOT do
 - Do not skip the plan sub-stage unless `merged_plan_generate: true` or `fast_path: true` is set in input. When merged, the plan is still written to disk — it is the gate that is removed, not the plan. When fast_path, both plan and gate are skipped.

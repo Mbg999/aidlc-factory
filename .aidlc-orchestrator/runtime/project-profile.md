@@ -38,13 +38,26 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 1. Check if `design-system/` exists at repo root
 2. If yes: set `design_system_path = "design-system/"`
 3. If no:
-   a. Run bootstrap to create a default DS:
+   a. If brownfield (`workspace_state.project_type == brownfield`), first try
+      to extract existing tokens:
       ```bash
-      python3 aidlc-scripts/factory_ds_bootstrap.py init
+      python3 aidlc-scripts/factory_design_system_extract_brownfield.py \
+          --repo-root . extract --source auto
       ```
-   b. Set `design_system_path = "design-system/"`
-   c. Log: `[Bootstrap] Created default design system at design-system/`
-   d. After bootstrap, the system has full token enforcement, snap, and drift detection
+      If extraction created `design-system/tokens/`, skip bootstrap.
+   b. If no tokens exist yet, bootstrap a default DS:
+      ```bash
+      python3 aidlc-scripts/factory_token_bridge.py bootstrap
+      ```
+   c. Set `design_system_path = "design-system/"`
+   d. Log: `[Bootstrap] Created default design system at design-system/`
+   e. Run Token Bridge prepare to generate tokens.css:
+      ```bash
+      python3 aidlc-scripts/factory_token_bridge.py prepare \
+          --output-dir design-system/tokens/
+      ```
+   f. Log: `[TokenBridge] Prepared tokens at design-system/tokens/tokens.css`
+   g. After bootstrap, the system has full token enforcement, snap, and drift detection
 
 **`has_figma_data`** — when `ui: true`:
 1. Check if `figma/` directory exists OR any `*.figma.json` files exist in the workspace
@@ -53,21 +66,21 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 4. If no: set `has_figma_data = false`
 
 **Figma input snap** — when `has_figma_data == true`:
-1. Run snap to clean raw Figma values:
+1. Run snap using V2 FigmaAdapter (replaces deprecated `factory_design_system_snap.py`):
    ```bash
-   python3 aidlc-scripts/factory_design_system_snap.py snap-file \
+   python3 aidlc-scripts/harness_adapters/source/figma.py \
        --input figma/raw-data.json \
        --output figma/snapped.json
    ```
-2. If no `design-system/` existed before (just bootstrapped), optionally
-   import Figma's detected values to refine the DS:
+   The adapter handles Auto Layout detection, nearest-neighbor snapping,
+   and archaeologist mode automatically.
+2. Run Token Bridge prepare to regenerate tokens.css with brownfield data:
    ```bash
-   python3 aidlc-scripts/factory_ds_bootstrap.py import \
-       --source figma/snapped.json \
-       --format json --force
+   python3 aidlc-scripts/factory_token_bridge.py prepare \
+       --output-dir .aidlc-orchestrator/runs/<run-id>/tokens
    ```
 3. Set `figma_snapped_path = "figma/snapped.json"` in the code-generator input
-3. The snap script reports correction count. If >10 corrections, set flag
+4. The snap script reports `correction_count`. If >10 corrections, set flag
    `figma_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
    `design-system-composer` skill §7.
 
@@ -83,20 +96,21 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
    ```bash
    python3 aidlc-scripts/factory_stitch_mcp.py doctor
    ```
-2. If healthy, optionally fetch Stitch designs for pre-processing:
+2. If healthy, optionally fetch Stitch designs for pre-processing using V2
+   StitchAdapter (replaces deprecated `factory_stitch_snap.py`):
    ```bash
-   python3 aidlc-scripts/factory_stitch_snap.py snap-file \
+   python3 aidlc-scripts/harness_adapters/source/stitch.py \
        --input stitch/export.html \
        --output stitch/snapped.json
    ```
-3. Set `stitch_snapped_path = "stitch/snapped.json"` in the code-generator input
-4. If Stitch DESIGN.md is present:
+   The adapter handles HTML, CSS, and DESIGN.md files automatically.
+3. Run Token Bridge prepare to regenerate tokens.css with stitch data:
    ```bash
-   python3 aidlc-scripts/factory_stitch_snap.py snap-design \
-       --input stitch/DESIGN.md \
-       --repo-root <repo-root>
+   python3 aidlc-scripts/factory_token_bridge.py prepare \
+       --output-dir .aidlc-orchestrator/runs/<run-id>/tokens
    ```
-5. The snap script reports correction count. If >10 corrections, set flag
+4. Set `stitch_snapped_path = "stitch/snapped.json"` in the code-generator input
+5. The snap script reports `correction_count`. If >10 corrections, set flag
    `stitch_archaeologist_mode: true` — triggers "Arqueólogo" fallback in
    `design-system-composer` skill §7 (same fallback as Figma).
 
@@ -104,6 +118,10 @@ Read `workspace-scout.output.yaml.workspace_state` and the original `user_reques
 When building input handoffs for code-generator, reviewers, build-test-agent, and ship-agent, add:
 - `framework` from the resolved value (when `ui: true`)
 - `design_system_path` from the resolved value
+- `token_bridge_artifacts[]` — array of token bridge outputs, each with `{type, path}`:
+  - `{type: "css", path: "<output-dir>/tokens.css"}`
+  - `{type: "tailwind", path: "<output-dir>/tailwind.config.js"}` (if Tailwind detected)
+  - `{type: "prompt", path: "<output-dir>/token-prompt.md"}`
 - `has_figma_data` from the resolved value
 - `figma_snapped_path` when figma snapping ran
 - `figma_archaeologist_mode` when >10 corrections
@@ -119,11 +137,12 @@ python3 aidlc-scripts/factory_run.py set <run-id> \
     --field project_profile.api=<true|false> \
     --field project_profile.has_legacy=<true|false> \
     --field project_profile.framework=<detected|none> \
-    --field project_profile.design_system_path=<design-system/ when ui:true else empty>
+    --field project_profile.design_system_path=<design-system/ when ui:true else empty> \
+    --field project_profile.token_bridge_artifacts=<json-array when ui:true else empty>
 ```
 
 **Audit**: append a single bullet to the NEXT stage's audit block (NOT a standalone header):
-`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>, framework=<detected>, design_system_path=<path>`
+`[Orchestrator] Classified project_profile: ui=<bool>, api=<bool>, has_legacy=<bool>, framework=<detected>, design_system_path=<path>, token_bridge_artifacts=<N>`
 
 ## Conditional-skill injection (downstream consumer)
 
@@ -139,6 +158,24 @@ When building input handoffs for `code-generator`, `build-test-agent`, and `ship
 | `has_legacy: true` | `ship-agent` | `deprecation-and-migration` |
 
 Resolve the matching `SKILL.md` path and add to `skill_paths_resolved[]`. If the skill file isn't found, log `[Skill] MISSING: <name> (conditional)` and continue — the stage's rule file has an inline fallback.
+
+## Framework-skill injection (downstream consumer)
+
+After the conditional-skill injection above, inject ALL framework skills from
+autoskills so stage agents load tech-stack-specific guidance (e.g.
+`react-best-practices`, `typescript-advanced-types`) alongside process skills.
+
+| Source | Stage(s) | How |
+|---|---|---|
+| `manifest.framework_skill_names[]` | `code-generator`, `reviewer-code`, `reviewer-security` | Add EVERY entry to `skills_required[]`. Paths resolved automatically from `manifest.skill_paths_resolved[]`. |
+
+Framework skills are installed by `factory_skill_sync.py sync` in Pre-Build Step 0.
+`factory_skill_sync.py select` emits `framework_skill_names[]` (deduplicated skill
+names from `.agents/skills/`). The orchestrator stores this in `manifest.yaml`
+alongside `skill_paths_resolved[]`.
+
+- `reviewer-security` only injects skills with `security`, `auth`, or `hardening` in the name.
+- All other stages get the full list.
 
 ## B. Reverse-engineer routing (Bug #9 fix)
 
