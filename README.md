@@ -833,22 +833,7 @@ Full third-party attribution and modification notes are in [`NOTICES.md`](NOTICE
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ccarluq0911"><img src="https://avatars.githubusercontent.com/u/146945639?v=4?s=100" width="100px;" alt="Carlos Carrasquer"/><br /><sub><b>Carlos Carrasquer</b></sub></a><br /><a href="https://github.com/Mbg999/aidlc-factory/commits?author=ccarluq0911" title="Code">💻</a> <a href="https://github.com/Mbg999/aidlc-factory/commits?author=ccarluq0911" title="Documentation">📖</a></td>
     </tr>
   </tbody>
-  <tfoot>
-    <tr>
-      <td align="center" size="13px" colspan="7">
-        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
-          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
-        </img>
-      </td>
-    </tr>
-  </tfoot>
 </table>
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-  <img src="https://contrib.rocks/image?repo=Mbg999/aidlc-factory" />
-</a>
-
-Made with [contrib.rocks](https://contrib.rocks).
