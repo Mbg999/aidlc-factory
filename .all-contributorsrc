@@ -30,6 +30,16 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "softtek030226-dev",
+      "name": "softtek030226-dev",
+      "avatar_url": "https://avatars.githubusercontent.com/u/260662046?v=4",
+      "profile": "https://github.com/softtek030226-dev",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
