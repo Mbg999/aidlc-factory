@@ -1034,6 +1034,14 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     print(f"  codex config -> .codex/config.toml")
                     copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
+        # Custom skills: copy for Claude, OpenCode, Cursor, Codex (Copilot and Frida handled below)
+        if tool in ("claude", "opencode", "cursor", "codex"):
+            src_custom_skills = repo_root / ".agents" / "custom-skills"
+            dst_custom_skills = target_root / ".agents" / "custom-skills"
+            if src_custom_skills.exists():
+                print(f"  custom skills -> .agents/custom-skills/")
+                copy_tree(src_custom_skills, dst_custom_skills, dry_run)
+
         # Frida: copy factory-command skills from .frida/skills/ + write MCP config globally
         if tool == "frida":
             src_frida_skills = repo_root / ".frida" / "skills"

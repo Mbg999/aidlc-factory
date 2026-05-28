@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "application-designer.output.v1",
+  "title": "Application Designer — Output Contract (v1)",
+  "type": "object",
+  "required": ["status", "run_id", "stage_id", "artifacts", "audit_entries"],
+  "properties": {
+    "status": { "type": "string", "enum": ["complete", "needs_human", "failed", "blocked"] },
+    "run_id": { "type": "string" },
+    "stage_id": { "const": "application-designer" },
+    "artifacts": {
+      "type": "object",
+      "required": ["component_inventory", "interface_design", "service_orchestration"],
+      "properties": {
+        "component_inventory": { "type": "string", "description": "Path to component-inventory.md" },
+        "interface_design": { "type": "string", "description": "Path to interface-design.md" },
+        "service_orchestration": { "type": "string", "description": "Path to service-orchestration.md" },
+        "dependency_graph": { "type": "string", "description": "Path to dependency-graph.md" }
+      }
+    },
+    "audit_entries": { "type": "array", "items": { "type": "string" } },
+    "emitted_knowledge": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "needs_user_input": { "type": "boolean", "default": false },
+    "questions_artifact_path": { "type": "string" }
+  },
+  "additionalProperties": false
+}

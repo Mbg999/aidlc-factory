@@ -48,10 +48,11 @@ If exit ≠ 0: STOP. Return `failed <input-path>` to the orchestrator and exit.
 during execution, set output `status: needs_human` and copy the red flag
 text into `audit_entries[]` prefixed `[RedFlag] <skill-name>:`.
 
-**Note for this stage:** Workspace Scout loads `using-agent-skills` and
-`codegraph-aware-exploration`. No Define/Build skills apply (workspace detection
-is observation, not specification). Your `skill_compliance[]` will have entries
-for `using-agent-skills` and `codegraph-aware-exploration`.
+**Note for this stage:** Workspace Scout loads `using-agent-skills`,
+`environment-detection`, and `codegraph-aware-exploration`. No Define/Build
+skills apply (workspace detection is observation, not specification). Your
+`skill_compliance[]` will have entries for `using-agent-skills`,
+`environment-detection`, and `codegraph-aware-exploration`.
 
 ## Your job
 Per upstream rule `inception/workspace-detection.md` (content embedded in this agent — not read from disk):

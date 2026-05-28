@@ -113,3 +113,51 @@ jobs:
           echo "::error::bandit found security issues"
           exit "$SCANNER_EXIT"
 
+  checkov:
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run checkov
+        id: checkov
+        continue-on-error: true
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: github_actions,dockerfile
+          skip_check: CKV_GHA_7
+          output_format: cli
+      - name: Check checkov exit
+        if: steps.checkov.outputs.exit_code != '0'
+        run: |
+          echo "::warning::checkov found IaC misconfigurations"
+          exit "${{ steps.checkov.outputs.exit_code }}"
+
+  clamav:
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install clamav
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clamav clamav-freshclam
+          sudo freshclam || true  # may fail if already up-to-date
+      - name: Scan repository
+        id: clamav
+        continue-on-error: true
+        run: |
+          clamscan --version
+          clamscan --recursive --infected \
+            --exclude-dir='^/proc' \
+            --exclude-dir='^/sys' \
+            --exclude-dir='.git' \
+            --exclude-dir='node_modules' \
+            --exclude='*.json' \
+            --exclude='*.md' \
+            . || echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+

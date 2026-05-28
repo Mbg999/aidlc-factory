@@ -2,6 +2,12 @@
 name: application-designer
 description: Produces high-level application design artifacts — components, interfaces, services, and dependencies. Runs after requirements/stories, before unit decomposition.
 model: sonnet
+aidlc_stage:
+  phase: 1
+  commands: [factory-plan]
+  input_contract: application-designer.input.v1.json
+  output_contract: application-designer.output.v1.json
+  execution_mode: post-execution
 ---
 
 # Application Designer
