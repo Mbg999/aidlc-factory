@@ -457,6 +457,114 @@ ORCHESTRATOR_FRIDA_POINTER_BLOCK = (
     "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
 )
 
+
+# ── Frida MCP configuration ───────────────────────────────────────────────────
+# Frida uses a global VS Code extension storage path for MCP settings,
+# not a project-local .mcp.json. The format also differs (type: stdio).
+
+
+def _frida_mcp_global_path() -> Path:
+    """Return the full path to Frida's global MCP settings file.
+
+    Typically: %APPDATA%/Code/User/globalStorage/fridaplatform.fridagpt/
+               frida_code_copilot_mcp_settings.json
+    """
+    if _is_windows():
+        appdata = os.environ.get("APPDATA", "")
+        return (
+            Path(appdata)
+            / "Code" / "User" / "globalStorage"
+            / "fridaplatform.fridagpt"
+            / "frida_code_copilot_mcp_settings.json"
+        )
+    # macOS / Linux fallback
+    return Path.home() / ".config" / "frida" / "mcp_settings.json"
+
+
+FRIDA_MCP_FALLBACK_CONTEXT7 = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CHROME = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "chrome-devtools-mcp@latest"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CODEGRAPH = {
+    "type": "stdio",
+    "command": "codegraph",
+    "args": ["serve", "--mcp", "--path", "<PROJECT_PATH>"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_ENGRAM = {
+    "type": "stdio",
+    "command": "engram",
+    "args": ["mcp", "--tools=agent"],
+}
+
+
+def _build_frida_mcp_config(project_path: str) -> dict:
+    """Build the full Frida MCP config dict with <PROJECT_PATH> substituted."""
+    import copy
+    cg_entry = copy.deepcopy(FRIDA_MCP_FALLBACK_CODEGRAPH)
+    cg_entry["args"] = ["serve", "--mcp", "--path", project_path]
+    return {
+        "mcpServers": {
+            "context7": dict(FRIDA_MCP_FALLBACK_CONTEXT7),
+            "chrome-devtools": dict(FRIDA_MCP_FALLBACK_CHROME),
+            "codegraph": cg_entry,
+            "engram": dict(FRIDA_MCP_FALLBACK_ENGRAM),
+        }
+    }
+
+
+def _ensure_frida_mcp_config(project_path_str: str, dry_run: bool) -> None:
+    """Merge our MCP server entries into Frida's global settings file.
+
+    Reads existing config if present, merges entries, never overwrites
+    servers the user may have added themselves.
+    The `project_path_str` is substituted into the codegraph --path argument.
+    """
+    import json
+    dst = _frida_mcp_global_path()
+    if dry_run:
+        print(f"[DRY-RUN] Would merge Frida MCP entries into {dst}")
+        return
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if dst.exists():
+        try:
+            existing = json.loads(dst.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
+    existing.setdefault("mcpServers", {})
+    our_config = _build_frida_mcp_config(project_path_str)
+    merged = 0
+    skipped = 0
+    for name, entry in our_config["mcpServers"].items():
+        if name in existing["mcpServers"]:
+            skipped += 1
+        else:
+            existing["mcpServers"][name] = entry
+            merged += 1
+
+    dst.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    parts = []
+    if merged:
+        parts.append(f"added {merged} MCP server(s)")
+    if skipped:
+        parts.append(f"{skipped} already present — skipped")
+    summary = "; ".join(parts) if parts else "no changes"
+    print(f"  frida MCP config -> {dst} ({summary})")
+
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
 # These are MANDATORY for full workflow enforcement — without them,
 # the workflow uses inline fallback processes.
@@ -869,7 +977,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     print(f"  codex config -> .codex/config.toml")
                     copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
-        # Frida: copy factory-command skills to .agents/skills/<command>/SKILL.md
+        # Frida: copy factory-command skills + write MCP config globally
         if tool == "frida":
             src_frida_skills = repo_root / ".agents" / "skills"
             dst_frida_skills = target_root / ".agents" / "skills"
@@ -882,19 +990,25 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             if src_frida_custom.exists():
                 print(f"  custom skills -> .agents/skills/")
                 copy_tree(src_frida_custom, dst_frida_custom, dry_run)
+            # Frida-specific global MCP config (context7, chrome-devtools, codegraph, engram)
+            _ensure_frida_mcp_config(str(target_root), dry_run)
 
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
         # skip if destination already exists unless --force.
-        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
-        if mcp_rel is not None:
-            src_mcp = repo_root / mcp_rel
-            dst_mcp = target_root / mcp_rel
-            if src_mcp.exists():
-                if dst_mcp.exists() and not force:
-                    print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
-                else:
-                    print(f"  mcp config -> {mcp_rel}")
-                    copy_file(src_mcp, dst_mcp, dry_run)
+        # Frida uses its own global MCP path handled in the Frida section below.
+        if tool == "frida":
+            pass
+        else:
+            mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+            if mcp_rel is not None:
+                src_mcp = repo_root / mcp_rel
+                dst_mcp = target_root / mcp_rel
+                if src_mcp.exists():
+                    if dst_mcp.exists() and not force:
+                        print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
+                    else:
+                        print(f"  mcp config -> {mcp_rel}")
+                        copy_file(src_mcp, dst_mcp, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
@@ -1065,7 +1179,9 @@ CODEGRAPH_TOOL_MAP: dict[str, str] = {
     "opencode": "opencode",
     "codex": "codex",
     "copilot": "copilot",
-    "frida": "frida",
+    # NOTE: frida intentionally omitted — codegraph install does not
+    # recognize it as a --target. MCP config for frida is handled via
+    # ORCHESTRATOR_TOOL_MCP_CONFIGS in install_orchestrator().
 }
 
 # Allowlist of CodeGraph MCP tools that stage subagents may call.
@@ -1198,6 +1314,14 @@ def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> Non
             print(f"  codegraph install exited {install_result.returncode} -- falling back to manual .mcp.json")
 
     # Step 4 (fallback): Write .mcp.json manually
+    # Skip for Frida-only installs — Frida uses its own global MCP config file
+    # written by _ensure_frida_mcp_config() in the orchestrator install step.
+    non_frida = [t for t in tools if t != "frida"]
+    if not non_frida:
+        if dry_run:
+            print(f"[DRY-RUN] Skip .mcp.json write (Frida-only install — uses global config)")
+        return
+
     mcp_path = target_root / ".mcp.json"
     if dry_run:
         print(f"[DRY-RUN] Would write/merge CodeGraph MCP entry into {mcp_path}")
@@ -1277,6 +1401,12 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
                         print(f"  WARNING: command timed out -- run manually: {cmd_str}")
                         ok = False
         elif tool in ENGRAM_MCP_TOOLS:
+            if tool == "frida":
+                if dry_run:
+                    print(f"[DRY-RUN] Engram entry already in Frida global MCP config ({tool})")
+                else:
+                    print(f"  engram already in Frida global MCP config ({tool})")
+                continue
             mcp_path = target_root / ".mcp.json"
             if dry_run:
                 print(f"[DRY-RUN] Would merge engram into {mcp_path.name} ({tool})")
