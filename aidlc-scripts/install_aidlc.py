@@ -991,9 +991,9 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     print(f"  codex config -> .codex/config.toml")
                     copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
-        # Frida: copy factory-command skills + write MCP config globally
+        # Frida: copy factory-command skills from .frida/skills/ + write MCP config globally
         if tool == "frida":
-            src_frida_skills = repo_root / ".agents" / "skills"
+            src_frida_skills = repo_root / ".frida" / "skills"
             dst_frida_skills = target_root / ".agents" / "skills"
             if src_frida_skills.exists():
                 print(f"  factory-command skills -> .agents/skills/")
