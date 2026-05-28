@@ -812,3 +812,13 @@ and the supported agentic coding tools — Claude Code, Cursor, GitHub Copilot,
 OpenCode, Codex) are governed by their respective upstream licenses.
 
 Full third-party attribution and modification notes are in [`NOTICES.md`](NOTICES.md).
+
+---
+
+## Contributors
+
+<a href="https://github.com/Mbg999/aidlc-factory/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Mbg999/aidlc-factory" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
