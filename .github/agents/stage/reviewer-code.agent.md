@@ -1,7 +1,7 @@
-﻿---
+---
 name: reviewer-code
 description: Code review reviewer. Five-axis self-review per code-review-and-quality skill. Emits findings with severity, location, recommendation.
-tools: ['search/codebase', 'engram/mem_save', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 

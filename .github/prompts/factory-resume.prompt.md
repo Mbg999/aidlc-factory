@@ -1,26 +1,27 @@
 ---
 agent: orchestrator
+mode: agent
 description: Resume an interrupted AIDLC orchestrator run from its last checkpoint.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **Argument:** _(run-id from the user's message)_
 
 If no run-id was provided: tell the user a run-id is required and show available
-runs with `python3 aidlc-scripts/factory_run.py list`.
+runs with `python aidlc-scripts/factory_run.py list`.
 
 If a run-id was provided: this is a **resume** request.
 
 1. Read run state:
    ```bash
-   python3 aidlc-scripts/factory_run.py status <run-id>
+   python aidlc-scripts/factory_run.py status <run-id>
    ```
 2. Compute the next stage to spawn:
    ```bash
-   python3 aidlc-scripts/factory_run.py resume <run-id>
+   python aidlc-scripts/factory_run.py resume <run-id>
    ```
    The output JSON includes `next_stage_suggestion` (the manifest's
    `current_stage` if not already in `completed_stages[]`, or the next
@@ -39,4 +40,4 @@ If a run-id was provided: this is a **resume** request.
    invoke `/factory-spec` continuation in this same session, or you can
    spawn the agent directly per the orchestrator protocol).
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

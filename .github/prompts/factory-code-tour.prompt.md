@@ -1,5 +1,6 @@
 ---
 agent: orchestrator
+mode: agent
 description: Dependency-ordered codebase tour — foundations → entry points. Equivalent to Understand-Anything's tour-builder. Works in any AIDLC-installed project.
 ---
 

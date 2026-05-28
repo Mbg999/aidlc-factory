@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-05-28
+
+### Features
+
+- github copilot improvements
+
 ## [0.2.2] - 2026-05-28
 
 ### Features

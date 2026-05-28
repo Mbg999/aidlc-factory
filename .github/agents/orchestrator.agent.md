@@ -1,7 +1,8 @@
 ---
 name: orchestrator
-description: AIDLC factory orchestrator. Routes user development requests through stage subagents with stage-scoped handoff contracts and validation boundaries. Owns audit.md and the run manifest. Invoked by /factory-* slash commands.
-tools: ['agent', 'search/codebase', 'read/terminalLastCommand', 'engram/mem_save', 'engram/mem_search', 'engram/mem_context', 'engram/mem_judge', 'codegraph/search', 'codegraph/node', 'codegraph/files', 'codegraph/status']
+description: AIDLC factory orchestrator. Routes user development requests through stage subagents with stage-scoped handoff contracts and validation boundaries. Owns audit.md and the run manifest. Invoked by /factory-* prompt commands.
+tools: ['agent', 'edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/search', 'codegraph/node', 'codegraph/files', 'codegraph/status']
+agents: ['workspace-scout', 'requirements-analyst', 'reverse-engineer', 'story-writer', 'workflow-planner', 'unit-decomposer', 'code-generator', 'build-test-agent', 'reviewer-code', 'reviewer-security', 'reviewer-performance', 'reviewer-simplifier', 'ship-agent', 'conflict-resolver', 'knowledge-agent', 'lint-audit']
 user-invocable: true
 ---
 
@@ -87,11 +88,22 @@ The runtime docs in `.aidlc-orchestrator/runtime/` were written for Claude Code.
 
 | Runtime doc says | Copilot equivalent |
 |---|---|
-| `.claude/agents/stage/<name>.md` | `.github/agents/stage/<name>.md` |
-| `.claude/agents/cross-cutting/<name>.md` | `.github/agents/cross-cutting/<name>.md` |
-| `.claude/agents/custom/<name>.md` | `.github/agents/custom/<name>.md` |
-| `.claude/agents/orchestrator.md` | `.github/agents/orchestrator.md` |
+| `.claude/agents/stage/<name>.md` | `.github/agents/stage/<name>.agent.md` |
+| `.claude/agents/cross-cutting/<name>.md` | `.github/agents/cross-cutting/<name>.agent.md` |
+| `.claude/agents/custom/<name>.md` | `.github/agents/custom/<name>.agent.md` |
+| `.claude/agents/orchestrator.md` | `.github/agents/orchestrator.agent.md` |
 | `Task(subagent_type=<name>, ...)` | invoke `<name>` via `agent` tool |
+
+## Execution constraints (Copilot)
+
+- **Sequential only**: All `agent` tool calls are sequential. Do NOT invoke multiple agents in one response — Copilot processes one agent at a time.
+- **No `Task()` syntax**: `Task(subagent_type=...)` is Claude Code-specific and will fail in Copilot. Always use the `agent` tool.
+- **Spawn budget ≤ 8 per command**: Count every `agent` tool call. When a command would exceed 8 spawns, prefer inline execution for lightweight stages (workspace-scout on greenfield, story-writer unless explicitly requested).
+- **Inline workspace-scout option**: For clearly greenfield projects (empty workspace), the orchestrator MAY perform Steps 2–3 of workspace-detection.md inline and skip spawning workspace-scout. Log `[Inline] workspace-scout — greenfield, scanned inline`.
+- **Skip story-writer by default**: Unless the user explicitly asks for persona/story artifacts, skip story-writer and log `[Skipped] story-writer — not requested`. This saves 1 spawn.
+- **Reviewer pool cap**: Run only the reviewers in `manifest.reviewer_pool[]`. If the manifest has no pool, default to `[reviewer-code]` only — do NOT default to all 4 reviewers.
+- **code-generator spawn count**: Each unit requires up to 3 sequential spawns (plan → generate → approve). With `merged_plan_generate: true` it is 2. Cap `factory-build` at 4 units maximum per invocation to stay within the spawn budget.
+- **Engram unavailable**: `engram/*` MCP tools are NOT available in Copilot. Skip ALL `engram/mem_save`, `engram/mem_search`, `engram/mem_context`, `engram/mem_judge` calls silently. Log `[Knowledge] DEGRADED: engram unavailable, skipped` once per run at most. Do NOT surface this as a blocker or user-facing message — continue normally without persistent memory.
 
 ## Subagent invocation (Copilot)
 

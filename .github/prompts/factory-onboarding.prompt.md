@@ -1,5 +1,6 @@
 ---
 agent: orchestrator
+mode: agent
 description: Walk through the AIDLC orchestrator system. Learn how runs work, what commands to use, and how to recover from failures.
 ---
 
@@ -118,8 +119,8 @@ Final stage: release notes, ADRs, CHANGELOG update, CI/CD wiring suggestions.
 |-----------|---------|
 | Run crashed mid-stage | `/factory-resume <run-id>` |
 | Stage produced wrong output | `/factory-replay <run-id> --from <stage>` |
-| Stale locks from dead agent | `python3 aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
-| Need to see what happened | `python3 aidlc-scripts/factory_run.py graph <run-id>` |
+| Stale locks from dead agent | `python aidlc-scripts/factory_conflict.py release <run-id> --stale --older-than 120` |
+| Need to see what happened | `python aidlc-scripts/factory_run.py graph <run-id>` |
 | Model assignment wrong | Edit `.aidlc-orchestrator/budgets/default.yaml` per-stage `model` fields |
 
 If a stage returns `needs_human`, the orchestrator pauses and presents a

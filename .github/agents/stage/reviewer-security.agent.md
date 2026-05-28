@@ -1,7 +1,7 @@
-﻿---
+---
 name: reviewer-security
 description: Security reviewer. Applies security-and-hardening skill. OWASP-aware. Uses Opus because security misses become incidents.
-tools: ['search/codebase', 'engram/mem_save', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/callers', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 

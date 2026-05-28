@@ -1,7 +1,7 @@
-﻿---
+---
 name: reviewer-performance
 description: Performance reviewer. Applies performance-optimization skill. Hot-path analysis, complexity review, allocation hot spots.
-tools: ['search/codebase', 'engram/mem_save', 'codegraph/callers', 'codegraph/callees', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/callers', 'codegraph/callees', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 

@@ -1,7 +1,7 @@
-﻿---
+---
 name: ship-agent
 description: Final stage. Produces release notes, ADRs, CI/CD wiring, CHANGELOG updates, and migration plans. Applies shipping-and-launch + git-workflow + ci-cd + documentation-and-adrs skills, with conditional deprecation-and-migration for legacy work.
-tools: ['search/codebase', 'edit', 'engram/mem_save']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 

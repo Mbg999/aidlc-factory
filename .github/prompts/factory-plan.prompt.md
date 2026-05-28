@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Run AIDLC workflow planning (optional stories + execution plan + optional unit decomposition) for an existing run. Phase 1 of the orchestrator.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md and execute the
+Adopt the role from @.github/agents/orchestrator.agent.md and execute the
 `/factory-plan <run-id>` sequence (see "Phase 1 sequences" in the orchestrator
 spec).
 
@@ -16,10 +17,11 @@ spec).
 Sequence:
 1. Read `manifest.yaml` for the run. Refuse if missing or if the run is not
    past `requirements-analyst`.
-2. **Conditional Story Writer** — fire only if scope is multi-component
-   AND the feature is user-facing (per requirements-analyst output's
-   `request_classification`). Otherwise log `[Skipped] story-writer ...` to
-   audit and continue. Two-pass with question gate when used.
+2. **Conditional Story Writer** — **default: skip** (saves 1 agent spawn for Copilot). Fire only if:
+   - scope is multi-component AND the feature is user-facing AND
+   - the user explicitly requested user stories or personas in their request.
+   Otherwise log `[Skipped] story-writer — not requested or single-component` to audit and continue.
+   Two-pass with question gate when used.
 3. **Workflow Planner** (always, `model: opus`):
    - Validate input → spawn → validate output
    - Output's `status: needs_human` is expected — surface `<run-id>-execution-plan.md`
@@ -49,8 +51,8 @@ Sequence:
      to the user in the completion message. Never omit this line. The user must see it.
 
 6. **Offer next step (substitute `<run-id>` literally):** Run
-   `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
+   `python aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
    the ready-to-paste command, OR format manually as `/factory-build <RUN_ID_LITERAL>`
    with the actual run_id. **Never present `<run-id>` literally to the user.**
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

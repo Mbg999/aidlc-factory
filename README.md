@@ -8,7 +8,7 @@
 <p align="center"><em>AI-Driven Development Life Cycle — the multi-agent factory.</em></p>
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 A multi-agent software-development workflow that takes a feature request from
@@ -364,7 +364,7 @@ directories vary per `--tool`:
 |---|---|---|---|---|
 | `claude` | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` | `.mcp.json` (`mcpServers`) |
 | `cursor` | `.cursor/agents/` | `.cursor/commands/` | — | `.cursor/mcp.json` (`mcpServers`) |
-| `copilot` | `.github/agents/` | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) |
+| `copilot` | `.github/agents/` (`*.agent.md`) | `.github/prompts/` | `.github/copilot-instructions.md` | `.vscode/mcp.json` (`servers`) + `.vscode/settings.json` |
 | `opencode` | `.opencode/agents/` | `.opencode/commands/` | `AGENTS.md` | `opencode.json` (`mcp` / `type: local`) |
 | `codex` | `.codex/agents/` | `.codex/config.toml` | `AGENTS.md` | `codex.json` (`mcp` / `type: local`) |
 

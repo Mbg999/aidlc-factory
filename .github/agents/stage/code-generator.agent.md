@@ -1,7 +1,7 @@
-﻿---
+---
 name: code-generator
 description: Per-unit construction agent. Owns the full per-unit loop — Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation. Produces source code + tests + per-unit code-generation plan with [x] checkboxes. Multi-pass with approval gates.
-tools: ['search/codebase', 'edit', 'read/terminalLastCommand', 'engram/mem_save', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand', 'codegraph/search', 'codegraph/impact', 'codegraph/node']
 user-invocable: false
 ---
 

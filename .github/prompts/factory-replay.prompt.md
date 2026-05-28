@@ -1,11 +1,12 @@
 ---
 agent: orchestrator
+mode: agent
 description: Re-run an AIDLC orchestrator run from a specific stage. Rolls the manifest back, archives output handoffs, and routes to the chosen stage.
 ---
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.md.
+Adopt the role from @.github/agents/orchestrator.agent.md.
 
 **Arguments:** _(run-id and --from stage from the user's message)_
 
@@ -14,7 +15,7 @@ malformed, refuse with a usage hint and stop.
 
 1. Roll the manifest back and archive handoffs:
    ```bash
-   python3 aidlc-scripts/factory_run.py replay <run-id> --from <stage>
+   python aidlc-scripts/factory_run.py replay <run-id> --from <stage>
    ```
    This:
    - Truncates `manifest.completed_stages[]` before `<stage>`
@@ -40,4 +41,4 @@ malformed, refuse with a usage hint and stop.
 **Replay is destructive to the manifest's progress record but non-destructive
 to artifacts.** Old outputs are archived, never deleted.
 
-Hard rules from @.github/agents/orchestrator.md apply.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

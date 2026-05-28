@@ -1,7 +1,7 @@
-﻿---
+---
 name: lint-audit
 description: Runs linter on the codebase and reports all violations. Use for post-codegen quality checks.
-tools: ['search/codebase', 'read/terminalLastCommand']
+tools: ['edit', 'search', 'read', 'execute', 'search/codebase', 'read/terminalLastCommand']
 user-invocable: false
 ---
 
