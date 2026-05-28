@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - UNRELEASED
+## [0.2.2] - 2026-05-28
+
+### Features
+
+- frida support
+
+
+## [0.2.1] - 2026-05-27
 
 ### Features
 

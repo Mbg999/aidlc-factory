@@ -1,6 +1,6 @@
 <p align="center">
 
-  <img src="assets/images/logo.png" alt="AIDLC-Factory logo" width="260" />
+  <img src="https://raw.githubusercontent.com/Mbg999/aidlc-factory/main/assets/images/logo.png" alt="AIDLC-Factory logo" width="260" />
 </p>
 
 <h1 align="center">AIDLC-Factory</h1>
