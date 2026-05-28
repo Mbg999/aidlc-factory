@@ -20,6 +20,16 @@
         "doc",
         "design"
       ]
+    },
+    {
+      "login": "sftpruebas12",
+      "name": "sftpruebas12",
+      "avatar_url": "https://avatars.githubusercontent.com/u/265008319?v=4",
+      "profile": "https://github.com/sftpruebas12",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
