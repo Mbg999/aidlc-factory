@@ -232,7 +232,7 @@ AGENT_SKILLS_DIRS = ["skills", "references"]
 
 VALID_TOOLS = (
     "cursor", "claude",
-    "copilot", "opencode", "codex", "other",
+    "copilot", "opencode", "codex", "frida", "other",
 )
 
 
@@ -335,6 +335,7 @@ ORCHESTRATOR_TOOL_MCP_CONFIGS = {
     "cursor":   Path(".cursor/mcp.json"),
     "copilot":  Path(".vscode/mcp.json"),
     "opencode": Path("opencode.json"),
+    "frida":    Path(".mcp.json"),  # Frida uses .mcp.json for tool MCP config
 }
 
 # Phase 5 — executor adapter package (tool-agnostic spawn layer).
@@ -439,6 +440,144 @@ ORCHESTRATOR_CODEX_POINTER_BLOCK = (
     "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
     "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
 )
+
+ORCHESTRATOR_FRIDA_POINTER_BLOCK = (
+    f"\n{ORCHESTRATOR_CLAUDE_POINTER_MARKER}\n"
+    "## AIDLC Orchestrator (multi-agent factory mode)\n\n"
+    "This project ships with the AIDLC orchestrator. It is a multi-agent software-factory pipeline\n"
+    "that guides AI coding agents through Inception → Construction → Operations.\n\n"
+    "Factory command skills are loaded from `.agents/skills/<command>/SKILL.md`:\n\n"
+    "- `factory-spec` — workspace scout + requirements analysis\n"
+    "- `factory-plan` — execution plan + unit decomposition\n"
+    "- `factory-build` — parallel code generation + build/test\n"
+    "- `factory-review` — parallel reviewer pool (code, security, performance, simplifier)\n"
+    "- `factory-ship` — release notes, ADRs, CI/CD wiring, CHANGELOG\n"
+    "- `factory-resume` — resume an interrupted run\n"
+    "- `factory-replay` — re-run from a specific stage\n"
+    "- `factory-state` — show run status, stage, budget\n"
+    "- `factory-help` — full command reference\n"
+    "- `factory-onboarding` — guided tour of the orchestrator system\n"
+    "- `factory-code-tour` — guided human tour of any codebase\n"
+    "- `factory-self` — run the orchestrator on its own codebase\n"
+    "- `factory-product` — product harness (requirements + personas + stories + plan)\n\n"
+    "Key directories:\n"
+    "- `.aidlc-orchestrator/contracts/` — JSON Schema handoff contracts for every stage I/O\n"
+    "- `.aidlc-orchestrator/budgets/default.yaml` — per-stage model assignments\n"
+    "- `.agents/skills/` — framework + process skills + factory command skills\n"
+    "- `.agents/custom-skills/` — custom skills shipped with this fork\n\n"
+    "Usage: When the user asks to build a feature, fix a bug, or refactor code, "
+    "load the `.agents/skills/<command>/SKILL.md` skill for the relevant factory command "
+    "and execute the sequence described within.\n\n"
+    "Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.\n"
+)
+
+
+# ── Frida MCP configuration ───────────────────────────────────────────────────
+# Frida uses a global VS Code extension storage path for MCP settings,
+# not a project-local .mcp.json. The format also differs (type: stdio).
+
+
+def _frida_mcp_global_path() -> Path:
+    """Return the full path to Frida's global MCP settings file.
+
+    Typically: %APPDATA%/Code/User/globalStorage/fridaplatform.fridagpt/
+               frida_code_copilot_mcp_settings.json
+    """
+    if _is_windows():
+        appdata = os.environ.get("APPDATA", "")
+        return (
+            Path(appdata)
+            / "Code" / "User" / "globalStorage"
+            / "fridaplatform.fridagpt"
+            / "frida_code_copilot_mcp_settings.json"
+        )
+    # macOS / Linux fallback
+    return Path.home() / ".config" / "frida" / "mcp_settings.json"
+
+
+FRIDA_MCP_FALLBACK_CONTEXT7 = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CHROME = {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "chrome-devtools-mcp@latest"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_CODEGRAPH = {
+    "type": "stdio",
+    "command": "codegraph",
+    "args": ["serve", "--mcp", "--path", "<PROJECT_PATH>"],
+    "env": {},
+}
+
+FRIDA_MCP_FALLBACK_ENGRAM = {
+    "type": "stdio",
+    "command": "engram",
+    "args": ["mcp", "--tools=agent"],
+}
+
+
+def _build_frida_mcp_config(project_path: str) -> dict:
+    """Build the full Frida MCP config dict with <PROJECT_PATH> substituted."""
+    import copy
+    cg_entry = copy.deepcopy(FRIDA_MCP_FALLBACK_CODEGRAPH)
+    cg_entry["args"] = ["serve", "--mcp", "--path", project_path]
+    return {
+        "mcpServers": {
+            "context7": dict(FRIDA_MCP_FALLBACK_CONTEXT7),
+            "chrome-devtools": dict(FRIDA_MCP_FALLBACK_CHROME),
+            "codegraph": cg_entry,
+            "engram": dict(FRIDA_MCP_FALLBACK_ENGRAM),
+        }
+    }
+
+
+def _ensure_frida_mcp_config(project_path_str: str, dry_run: bool) -> None:
+    """Merge our MCP server entries into Frida's global settings file.
+
+    Reads existing config if present, merges entries, never overwrites
+    servers the user may have added themselves.
+    The `project_path_str` is substituted into the codegraph --path argument.
+    """
+    import json
+    dst = _frida_mcp_global_path()
+    if dry_run:
+        print(f"[DRY-RUN] Would merge Frida MCP entries into {dst}")
+        return
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if dst.exists():
+        try:
+            existing = json.loads(dst.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
+    existing.setdefault("mcpServers", {})
+    our_config = _build_frida_mcp_config(project_path_str)
+    merged = 0
+    skipped = 0
+    for name, entry in our_config["mcpServers"].items():
+        if name in existing["mcpServers"]:
+            skipped += 1
+        else:
+            existing["mcpServers"][name] = entry
+            merged += 1
+
+    dst.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    parts = []
+    if merged:
+        parts.append(f"added {merged} MCP server(s)")
+    if skipped:
+        parts.append(f"{skipped} already present — skipped")
+    summary = "; ".join(parts) if parts else "no changes"
+    print(f"  frida MCP config -> {dst} ({summary})")
 
 # Skills explicitly referenced in workflow rule files (SKILL.md paths).
 # These are MANDATORY for full workflow enforcement — without them,
@@ -599,6 +738,13 @@ def _tool_core_workflow_content(repo_root: Path, tool: str) -> str | None:
             ".claude/commands/", ".codex/commands/"
         )
 
+    if tool == "frida":
+        return content.replace(
+            ".claude/agents/", ".aidlc-orchestrator/agents/"
+        ).replace(
+            ".claude/commands/", ".aidlc-orchestrator/commands/"
+        )
+
     return content  # claude — no replacements needed
 
 
@@ -658,6 +804,7 @@ def _tool_agent_dir(tool: str) -> str | None:
         "cursor": ".cursor/agents",
         "copilot": ".github/agents",
         "codex": ".codex/agents",  # Codex custom agents are TOML files
+        "frida": ".aidlc-orchestrator/agents",  # no native subagent spawning
     }.get(tool, ".aidlc-orchestrator/agents")
 
 
@@ -668,6 +815,7 @@ def _tool_commands_dir(tool: str) -> str | None:
         "opencode": ".opencode/commands",
         "cursor": ".cursor/commands",
         "codex": None,  # Codex built-in slash commands only; no custom commands dir
+        "frida": None,  # no native slash commands — uses .agents/skills/<command>/SKILL.md instead
     }.get(tool, ".aidlc-orchestrator/commands")
 
 
@@ -678,6 +826,7 @@ def _tool_workflow_doc(tool: str, target_root: Path) -> Path | None:
         "opencode": target_root / "AGENTS.md",
         "copilot": target_root / ".github" / "copilot-instructions.md",
         "codex": target_root / "AGENTS.md",  # Codex reads AGENTS.md per OpenAI spec
+        "frida": target_root / "FRIDA.md",  # Frida reads FRIDA.md for orchestrator pointer
     }
     return mapping.get(tool)
 
@@ -842,18 +991,38 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                     print(f"  codex config -> .codex/config.toml")
                     copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
+        # Frida: copy factory-command skills + write MCP config globally
+        if tool == "frida":
+            src_frida_skills = repo_root / ".agents" / "skills"
+            dst_frida_skills = target_root / ".agents" / "skills"
+            if src_frida_skills.exists():
+                print(f"  factory-command skills -> .agents/skills/")
+                copy_tree(src_frida_skills, dst_frida_skills, dry_run)
+            # Also copy custom-skills as fallback process definitions
+            src_frida_custom = repo_root / ".agents" / "custom-skills"
+            dst_frida_custom = target_root / ".agents" / "skills"
+            if src_frida_custom.exists():
+                print(f"  custom skills -> .agents/skills/")
+                copy_tree(src_frida_custom, dst_frida_custom, dry_run)
+            # Frida-specific global MCP config (context7, chrome-devtools, codegraph, engram)
+            _ensure_frida_mcp_config(str(target_root), dry_run)
+
         # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
         # skip if destination already exists unless --force.
-        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
-        if mcp_rel is not None:
-            src_mcp = repo_root / mcp_rel
-            dst_mcp = target_root / mcp_rel
-            if src_mcp.exists():
-                if dst_mcp.exists() and not force:
-                    print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
-                else:
-                    print(f"  mcp config -> {mcp_rel}")
-                    copy_file(src_mcp, dst_mcp, dry_run)
+        # Frida uses its own global MCP path handled in the Frida section below.
+        if tool == "frida":
+            pass
+        else:
+            mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+            if mcp_rel is not None:
+                src_mcp = repo_root / mcp_rel
+                dst_mcp = target_root / mcp_rel
+                if src_mcp.exists():
+                    if dst_mcp.exists() and not force:
+                        print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
+                    else:
+                        print(f"  mcp config -> {mcp_rel}")
+                        copy_file(src_mcp, dst_mcp, dry_run)
 
         wf_doc = _tool_workflow_doc(tool, target_root)
         if wf_doc:
@@ -874,6 +1043,7 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
                         "/factory-", " /orchestrator factory-"
                     ),
                     "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
+                    "frida": ORCHESTRATOR_FRIDA_POINTER_BLOCK,
                 }
                 pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
                 update_workflow_doc_pointer(
@@ -1023,6 +1193,9 @@ CODEGRAPH_TOOL_MAP: dict[str, str] = {
     "opencode": "opencode",
     "codex": "codex",
     "copilot": "copilot",
+    # NOTE: frida intentionally omitted — codegraph install does not
+    # recognize it as a --target. MCP config for frida is handled via
+    # ORCHESTRATOR_TOOL_MCP_CONFIGS in install_orchestrator().
 }
 
 # Allowlist of CodeGraph MCP tools that stage subagents may call.
@@ -1155,6 +1328,14 @@ def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> Non
             print(f"  codegraph install exited {install_result.returncode} -- falling back to manual .mcp.json")
 
     # Step 4 (fallback): Write .mcp.json manually
+    # Skip for Frida-only installs — Frida uses its own global MCP config file
+    # written by _ensure_frida_mcp_config() in the orchestrator install step.
+    non_frida = [t for t in tools if t != "frida"]
+    if not non_frida:
+        if dry_run:
+            print(f"[DRY-RUN] Skip .mcp.json write (Frida-only install — uses global config)")
+        return
+
     mcp_path = target_root / ".mcp.json"
     if dry_run:
         print(f"[DRY-RUN] Would write/merge CodeGraph MCP entry into {mcp_path}")
@@ -1192,7 +1373,7 @@ ENGRAM_CLI_SETUP: dict[str, list[list[str]]] = {
 
 # MCP-based tools receive an .mcp.json entry instead of a CLI setup command.
 ENGRAM_MCP_TOOLS: frozenset[str] = frozenset(
-    {"cursor", "copilot", "other"}
+    {"cursor", "copilot", "frida", "other"}
 )
 
 ENGRAM_MCP_ENTRY: dict = {"command": "engram", "args": ["mcp"]}
@@ -1234,6 +1415,12 @@ def install_engram(tools: list[str], target_root: Path, dry_run: bool) -> None:
                         print(f"  WARNING: command timed out -- run manually: {cmd_str}")
                         ok = False
         elif tool in ENGRAM_MCP_TOOLS:
+            if tool == "frida":
+                if dry_run:
+                    print(f"[DRY-RUN] Engram entry already in Frida global MCP config ({tool})")
+                else:
+                    print(f"  engram already in Frida global MCP config ({tool})")
+                continue
             mcp_path = target_root / ".mcp.json"
             if dry_run:
                 print(f"[DRY-RUN] Would merge engram into {mcp_path.name} ({tool})")
@@ -1359,6 +1546,7 @@ TOOL_DESCRIPTIONS = {
     "copilot":  "GitHub Copilot in VS Code — writes to .github/agents/, .github/prompts/, .github/skills/",
     "opencode": "OpenCode TUI — writes to .opencode/agents/ and .opencode/commands/",
     "codex":    "OpenAI Codex CLI / IDE agent — writes .codex/agents/ (TOML custom agents) + AGENTS.md pointer",
+    "frida":    "Frida AI agent — writes to .aidlc-orchestrator/agents/ + .agents/skills/<command>/SKILL.md factory command skills (no native subagent spawning)",
     "other":    "Generic install — writes to .aidlc-orchestrator/agents/ (no native subagent spawning)",
 }
 
