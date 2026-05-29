@@ -27,7 +27,15 @@ Sequence:
    python3 aidlc-scripts/factory_merge_reviews.py <run-id>
    ```
    Produces `aidlc-docs/operations/<run-id>-review-report.md`.
-7. Surface report to user. Approval gate:
+7. Surface report to user. On user decision, log to audit:
+   ```bash
+   python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+       --evt user_decision --stage review --phase CONSTRUCTION \
+       --label "User Decision (review)" \
+       --field decision=<approve|request_fixes> --field rejected_units="<csv>" \
+       --bullet "[User] <summary>"
+   ```
+   Approval gate:
    - **Fixes requested** -> route back through `/factory-build <run-id>`
    - **Approved** -> update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress,
      auto-commit `docs(review): complete review report`,

@@ -14,13 +14,27 @@ Sequence:
 1. Read `manifest.yaml` for the run. Refuse if missing or if the run is not
    past `requirements-analyst`.
 2. **Conditional Story Writer** — fire only if scope is multi-component
-   AND the feature is user-facing. Otherwise log `[Skipped] story-writer ...`
-   to audit and continue. Two-pass with question gate when used.
+    AND the feature is user-facing. Otherwise log skip to audit via:
+    ```bash
+    python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+        --evt stage_skipped --stage story-writer --phase INCEPTION \
+        --label "Story Writer SKIPPED (not user-facing or single-component)" \
+        --field reason="Scope is single-component or non-user-facing" \
+        --bullet "[Orchestrator] Proceeding to workflow-planner"
+    ```
+    Two-pass with question gate when used.
 3. **Workflow Planner** (always, `model: opus`):
    - Validate input -> spawn -> validate output
-   - Output's `status: needs_human` is expected — surface the execution plan
-     to user, wait for approval, log answer to audit, re-spawn or proceed
-     based on user feedback
+    - Output's `status: needs_human` is expected — surface the execution plan
+      to user, wait for approval, log answer to audit via:
+      ```bash
+      python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+          --evt user_decision --stage workflow-planner --phase INCEPTION \
+          --label "User Decision (workflow-planner)" \
+          --field decision=<approve|reject|amend> \
+          --bullet "[User] <decision summary>"
+      ```
+      then re-spawn or proceed based on user feedback
 3.5. **Pre-mortem visibility check (defensive guard).** Before proceeding,
    inspect `workflow-planner.output.yaml`:
    - Locate the `skill_compliance[]` row for `requirements-intelligence`.
@@ -36,8 +50,16 @@ Sequence:
 4. **Conditional Unit Decomposer** — fire if `units.length >= 2` from the
    approved planner output OR if requirements call out distinct components.
 5. Append all `audit_entries[]`, update state file. Present the final plan +
-   decomposition output to the user and wait for explicit approval before committing.
-   On approval, commit `docs(workflow-planning): complete workflow planning`.
+    decomposition output to the user and wait for explicit approval before committing.
+    On user decision, log to audit:
+    ```bash
+    python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+        --evt user_decision --stage workflow-planner --phase INCEPTION \
+        --label "User Decision (planning-complete)" \
+        --field decision=<approve|reject> \
+        --bullet "[User] <summary>"
+    ```
+    On approval, commit `docs(workflow-planning): complete workflow planning`.
 
    **User-facing summary MUST include a `Pre-mortem:` line populated from
    `workflow-planner.output.skill_compliance[].requirements-intelligence`:**

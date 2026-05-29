@@ -57,10 +57,27 @@ Sequence:
         AST drift check (`factory_conflict.py check-symbols`), budget deduct,
         knowledge save, **audit append**
       - Surface any drift conflicts OR strict-validation failures BEFORE the approval gate
+      - On user decision, log to audit:
+        ```bash
+        python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+            --evt user_decision --stage code-generator --phase CONSTRUCTION \
+            --label "User Decision (code-generator <sub_stage>)" \
+            --field decision=<approve|reject|cancel> --field sub_stage=<plan|generated> \
+            --field rejected_units="<csv>" \
+            --bullet "[User] <summary per unit>"
+        ```
       - Consolidated approval gate (plan + generated only)
    c. **Build & Test parallel** — single message with N parallel
       `Task(subagent_type=build-test-agent, ...)` calls; per-unit
       post-processing with audit append; consolidated approval gate.
+      On user decision, log to audit:
+      ```bash
+      python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+          --evt user_decision --stage build-test-agent --phase CONSTRUCTION \
+          --label "User Decision (layer <n> build/test)" \
+          --field decision=<approve|reject|amend> --field layer=<n> \
+          --bullet "[User] <summary>"
+      ```
    d. **Release locks** — `factory_conflict.py release` per unit. Always
       release, even on failure.
    e. **Per-unit commits** — only after the consolidated approval gate clears.
@@ -68,7 +85,14 @@ Sequence:
    - Update `aidlc-docs/aidlc-state.md`:
      - Set `Current Stage: CONSTRUCTION — Complete`
      - Mark all construction stages as completed in Stage Progress
-   - Append audit block for construction completion
+   - Log construction completion to audit:
+     ```bash
+     python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+         --evt orchestrator_note --phase CONSTRUCTION \
+         --label "Construction Complete" \
+         --field summary="All layers completed: <N> units generated, built, and tested" \
+         --bullet "[Construction] <summary>"
+     ```
 7. **Offer next step:** Run `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd`
    to get the ready-to-paste command, OR format manually as
    `/factory-review <RUN_ID_LITERAL>` with the actual run_id.

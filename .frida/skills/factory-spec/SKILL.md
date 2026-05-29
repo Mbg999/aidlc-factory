@@ -43,7 +43,15 @@ Execute the Phase 0 sequence end-to-end:
    - Write input handoff with `predecessor_artifacts` pointing at workspace-scout output
    - Validate input -> spawn -> validate output
    - Surface the `requirement-verification-questions.md` file to the user and wait for answers
-   - When user answers, append them to audit.md AND fill them into the questions file in the `[Answer]:` slots
+    - When user answers, fill them into the questions file in the `[Answer]:` slots
+      then run:
+      ```bash
+      python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+          --evt user_answers_received --stage requirements-analyst --phase INCEPTION \
+          --label "User Answers Received" \
+          --bullet "[User] <Q1 answer>" \
+          --bullet "[User] <Q2 answer>"
+      ```
 
 5. **Stage 2 — Requirements Analyst (Pass 2: requirements doc)**:
    - Write a fresh input with `context_pointers[]` referencing the answered questions file
@@ -56,16 +64,33 @@ Execute the Phase 0 sequence end-to-end:
      On failure, default to "run everything" (no skips, all reviewers).
    - If `fast_path == true`: route to `runtime/fast-path.md`. Run terminates.
    - `factory_run.py set <run-id>` to persist routing fields into manifest.
-   - `emit_audit_block` with skip list + reviewer pool + rationale.
+    - Log routing to audit:
+      ```bash
+      python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+          --evt orchestrator_note --phase INCEPTION \
+          --label "Stage Routing Decision" \
+          --field summary="fast_path=<bool> · skip=<stages> · reviewers=<pool> · merge_codegen=<bool>" \
+          --bullet "[Router] Skip stages: <list or none>" \
+          --bullet "[Router] Reviewer pool: <list>" \
+          --bullet "[Router] Merge plan+codegen: <bool>"
+      ```
    - For each entry in `skip_stages`, append to `manifest.skipped_stages[]`.
      Do NOT spawn skipped stages.
    - When `merge_codegen_gate=true`, set `merged_plan_generate: true` for
      downstream code-generator input handoff.
 
 6. **Present completion** — surface run_id, workspace_state summary, requirements.md path,
-   routing decisions (`🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>`),
-   skill compliance summary. Wait for explicit user approval before committing.
-   On approval, commit combined workspace detection + requirements analysis.
+    routing decisions (`🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>`),
+    skill compliance summary. Wait for explicit user approval before committing.
+    On user decision, log to audit:
+    ```bash
+    python3 aidlc-scripts/factory_run.py emit_audit_block <run-id> \
+        --evt user_decision --stage requirements-analyst --phase INCEPTION \
+        --label "User Decision (inception-complete)" \
+        --field decision=<approve|reject> \
+        --bullet "[User] <summary>"
+    ```
+    On approval, commit combined workspace detection + requirements analysis.
 
    **Next step:** Run `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd`
    to get the ready-to-paste command, OR format manually as
