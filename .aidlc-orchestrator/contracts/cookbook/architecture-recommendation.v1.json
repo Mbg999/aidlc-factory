@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aidlc-factory/contracts/cookbook/architecture-recommendation.v1.json",
+  "title": "Architecture Recommendation",
+  "description": "Output of the Cookbook recommend_pattern MCP tool. Validated structurally before stage agents consume it.",
+  "type": "object",
+  "required": ["recommendations"],
+  "properties": {
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "pattern", "pattern_name", "confidence", "matched_node", "rationale"],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Standard domain identifier (e.g. 'authentication', 'api-design')"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Pattern ID matched by the decision tree"
+          },
+          "pattern_name": {
+            "type": "string",
+            "description": "Human-readable pattern name"
+          },
+          "confidence": {
+            "type": "string",
+            "description": "Confidence level from decision_metadata"
+          },
+          "matched_node": {
+            "type": "string",
+            "description": "Decision tree node ID that matched, or 'fallback'"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Explanation of why this pattern was recommended"
+          },
+          "one_line_rationale": {
+            "type": "string",
+            "description": "Condensed one-line explanation"
+          },
+          "tradeoffs": {
+            "type": "object",
+            "properties": {
+              "pros": { "type": "array", "items": { "type": "string" } },
+              "cons": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "mvp": {
+            "type": "string",
+            "enum": ["MVP", "defer", "unknown"],
+            "description": "Whether this pattern is recommended for MVP"
+          },
+          "implementation_guidelines": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "checklist_summary": {
+            "type": "object",
+            "required": ["critical", "high", "total"],
+            "properties": {
+              "critical": { "type": "integer", "minimum": 0 },
+              "high": { "type": "integer", "minimum": 0 },
+              "total": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "unmatched_domains": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Domains requested but not found"
+    },
+    "fallbacks_used": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Domains that used fallback pattern"
+    },
+    "decision_traces": {
+      "type": "object",
+      "description": "Optional decision tree trace details (present when include_trace is true)",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "matched_node": { "type": "string" },
+          "node": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "priority": { "type": "integer" },
+              "if": { "type": "array", "items": { "type": "string" } },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "pattern": { "type": "string" },
+                  "standards": { "type": "array", "items": { "type": "string" } },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tool_invocation_snippet": {
+      "type": "object",
+      "description": "Tool invocation snippet for reuse"
+    }
+  }
+}

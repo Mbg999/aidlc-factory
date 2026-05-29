@@ -1539,6 +1539,295 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
     print("  Design system installed.")
 
 
+# ── AI Architecture Cookbook (optional, --with-architecture-cookbook) ─────────
+
+COOKBOOK_REPO_URL = "https://github.com/Mbg999/AI-Architecture-Cookbook.git"
+COOKBOOK_TARGET_DIR = ".ai-architecture-cookbook"
+COOKBOOK_MCP_RELPATH = "mcp-server"
+COOKBOOK_SERVER_RELPATH = "mcp-server/dist/server.js"
+COOKBOOK_SKILL_NAME = "ai-architecture-cookbook"
+COOKBOOK_SKILL_DIR = ".agents/custom-skills/ai-architecture-cookbook"
+COOKBOOK_SKILL_RELPATH = ".agents/custom-skills/ai-architecture-cookbook/SKILL.md"
+
+COOKBOOK_MCP_SERVER_ENTRY = {
+    "command": "node",
+    "args": [f"./{COOKBOOK_TARGET_DIR}/{COOKBOOK_SERVER_RELPATH}"],
+}
+
+COOKBOOK_MCP_SERVER_ENTRY_OPENCODE = {
+    "type": "local",
+    "command": ["node", f"./{COOKBOOK_TARGET_DIR}/{COOKBOOK_SERVER_RELPATH}"],
+    "enabled": True,
+}
+
+# MCP config files and their key names (varies per tool)
+COOKBOOK_MCP_TARGET_FILES = [
+    (".mcp.json",      "mcpServers"),       # Standard MCP (Claude, Cursor, etc.)
+    (".cursor/mcp.json", "mcpServers"),      # Cursor
+    ("opencode.json",    "mcp"),             # OpenCode
+    ("codex.json",       "mcpServers"),      # Codex
+    (".vscode/mcp.json", "servers"),         # VS Code / GitHub Copilot
+]
+
+
+# Cookbook skill content is read at install-time from:
+#   .agents/custom-skills/ai-architecture-cookbook/SKILL.md
+# See _read_cookbook_skill_content() and _write_cookbook_skill().
+
+
+def _check_node_for_cookbook(min_major: int = 18) -> tuple[bool, str]:
+    """Check Node.js availability and version for Cookbook MCP build.
+    Return (ok, version_string)."""
+    return _check_node_version(min_major)
+
+
+def _find_cookbook_source(repo_root: Path, cookbook_source: str | None) -> Path | None:
+    """Resolve the Cookbook source directory. Returns None if not found.
+
+    Resolution order:
+      1. --cookbook-source flag (if provided)
+      2. Sibling directory: <repo_root>/../AI-Architecture-Cookbook/
+    """
+    if cookbook_source:
+        src = Path(cookbook_source).expanduser().resolve()
+        if src.exists():
+            return src
+        return None
+
+    sibling = repo_root.parent / "AI-Architecture-Cookbook"
+    if sibling.exists():
+        return sibling
+    return None
+
+
+def _clone_cookbook_from_github(target_root: Path, dry_run: bool) -> bool:
+    """Clone Cookbook from GitHub into target. Returns True on success."""
+    dest = target_root / COOKBOOK_TARGET_DIR
+    if dest.exists():
+        print(f"  Cookbook already exists at {dest.relative_to(target_root)} -- skipping clone.")
+        return True
+    if dry_run:
+        print(f"[DRY-RUN] Would clone {COOKBOOK_REPO_URL} into {dest.relative_to(target_root)}")
+        return True
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        print(f"  Cloning Cookbook from {COOKBOOK_REPO_URL}...")
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--single-branch", "--no-tags",
+             COOKBOOK_REPO_URL, str(dest)],
+            check=True, capture_output=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  WARNING: Failed to clone Cookbook: {e}")
+        return False
+
+
+def _copy_cookbook_from_source(source: Path, target_root: Path, dry_run: bool) -> bool:
+    """Copy Cookbook from local source directory into target."""
+    dest = target_root / COOKBOOK_TARGET_DIR
+    if dest.exists():
+        print(f"  Cookbook already exists at {dest.relative_to(target_root)} -- skipping copy.")
+        return True
+    if dry_run:
+        print(f"[DRY-RUN] Would copy {source} -> {dest.relative_to(target_root)}")
+        return True
+    print(f"  Copying Cookbook from {source}...")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    copy_tree(source, dest, dry_run=False)
+    return True
+
+
+def _build_cookbook_mcp(target_root: Path, dry_run: bool) -> bool:
+    """Run npm install && npm run build inside Cookbook MCP server.
+    Returns True on success, False on failure (graceful degradation)."""
+    mcp_dir = target_root / COOKBOOK_TARGET_DIR / COOKBOOK_MCP_RELPATH
+    if not mcp_dir.exists():
+        print("  WARNING: Cookbook MCP server directory not found -- skipping build.")
+        return False
+    if dry_run:
+        print(f"[DRY-RUN] Would run 'npm install && npm run build' in {mcp_dir.relative_to(target_root)}")
+        return True
+    try:
+        print(f"  Building Cookbook MCP server (npm install)...")
+        result = subprocess.run(
+            ["npm", "install"], cwd=str(mcp_dir),
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: npm install failed (exit {result.returncode}) -- Cookbook MCP unavailable.")
+            if result.stderr:
+                print(f"    {result.stderr.strip().splitlines()[-1]}")
+            return False
+        print(f"  Building Cookbook MCP server (npm run build)...")
+        result = subprocess.run(
+            ["npm", "run", "build"], cwd=str(mcp_dir),
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: npm run build failed (exit {result.returncode}) -- Cookbook MCP unavailable.")
+            if result.stderr:
+                print(f"    {result.stderr.strip().splitlines()[-1]}")
+            return False
+        print(f"  Cookbook MCP server built successfully.")
+        return True
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"  WARNING: Cookbook MCP build failed: {e}")
+        return False
+
+
+def _write_cookbook_mcp_config(target_root: Path, dry_run: bool) -> int:
+    """Write Cookbook MCP server entry to all 5 MCP config files.
+    Merges with existing entries — never overwrites user-defined servers.
+    Returns count of files written/merged."""
+    import json
+    written = 0
+
+    for relpath, servers_key in COOKBOOK_MCP_TARGET_FILES:
+        mcp_path = target_root / relpath
+        if dry_run:
+            print(f"[DRY-RUN] Would merge Cookbook MCP entry into {relpath}")
+            written += 1
+            continue
+
+        existing: dict = {}
+        if mcp_path.exists():
+            try:
+                existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+
+        if relpath == "opencode.json":
+            existing.setdefault(servers_key, {})
+            if COOKBOOK_SKILL_NAME in existing[servers_key]:
+                print(f"  {relpath} already has '{COOKBOOK_SKILL_NAME}' -- skipping")
+                continue
+            existing[servers_key][COOKBOOK_SKILL_NAME] = COOKBOOK_MCP_SERVER_ENTRY_OPENCODE
+        else:
+            existing.setdefault(servers_key, {})
+            if COOKBOOK_SKILL_NAME in existing[servers_key]:
+                print(f"  {relpath} already has '{COOKBOOK_SKILL_NAME}' -- skipping")
+                continue
+            existing[servers_key][COOKBOOK_SKILL_NAME] = dict(COOKBOOK_MCP_SERVER_ENTRY)
+
+        mcp_path.parent.mkdir(parents=True, exist_ok=True)
+        mcp_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        print(f"  Cookbook MCP -> {relpath}")
+        written += 1
+
+    return written
+
+
+def _read_cookbook_skill_content(repo_root: Path) -> str | None:
+    """Read the Cookbook SKILL.md content from the source repo.
+    Returns None if not found (gracefully skip skill registration)."""
+    skill_src = repo_root / COOKBOOK_SKILL_RELPATH
+    if skill_src.exists():
+        return skill_src.read_text(encoding="utf-8")
+    return None
+
+
+def _write_cookbook_skill(repo_root: Path, target_root: Path, dry_run: bool) -> bool:
+    """Write the Cookbook SKILL.md file."""
+    skill_dir = target_root / COOKBOOK_SKILL_DIR
+    skill_path = skill_dir / "SKILL.md"
+    if dry_run:
+        print(f"[DRY-RUN] Would write Cookbook skill to {skill_path.relative_to(target_root)}")
+        return True
+    content = _read_cookbook_skill_content(repo_root)
+    if content is None:
+        print(f"  WARNING: Cookbook skill source not found at {repo_root / COOKBOOK_SKILL_RELPATH} -- skipping skill registration.")
+        return False
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_path.write_text(content, encoding="utf-8")
+    print(f"  Cookbook skill -> {COOKBOOK_SKILL_DIR}/SKILL.md")
+    return True
+
+
+def _set_cookbook_budget_flag(target_root: Path, dry_run: bool) -> bool:
+    """Enable the architecture_cookbook_enabled feature flag in the target budget."""
+    budget_path = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+    if dry_run:
+        print(f"[DRY-RUN] Would set architecture_cookbook_enabled: true in {budget_path.relative_to(target_root)}")
+        return True
+    if not budget_path.exists():
+        print(f"  WARNING: budget file not found at {budget_path.relative_to(target_root)} -- skipping flag.")
+        return False
+    content = budget_path.read_text(encoding="utf-8")
+    if "architecture_cookbook_enabled: true" in content:
+        print(f"  Budget flag already set -- skipping.")
+        return True
+    updated = content.replace(
+        "architecture_cookbook_enabled: false",
+        "architecture_cookbook_enabled: true"
+    )
+    budget_path.write_text(updated, encoding="utf-8")
+    print(f"  Budget flag: architecture_cookbook_enabled: true")
+    return True
+
+
+def _install_cookbook(repo_root: Path, target_root: Path, dry_run: bool,
+                      cookbook_source: str | None = None) -> None:
+    """Install the AI Architecture Cookbook with MCP server and skill.
+
+    Steps:
+      1. Detect Node.js >= 18
+      2. Resolve / clone / copy Cookbook source
+      3. Build MCP server (npm install && npm run build)
+      4. Write MCP config to 5 files
+      5. Write SKILL.md
+    """
+    print("\n--- Installing AI Architecture Cookbook ---")
+
+    # Step 1: Node.js detection
+    ok, version_str = _check_node_for_cookbook(18)
+    if not ok:
+        print(f"  WARNING: Node.js >= 18 required for Cookbook MCP server (detected: {version_str}).")
+        print(f"  Cookbook YAML standards can still be read directly, but the MCP server will not run.")
+        print(f"  Install Node.js 18+ and re-run the installer to enable MCP.")
+        # Continue with skill registration only — no MCP config
+    else:
+        print(f"  Node.js: {version_str} -- OK")
+        node_ok = True
+
+    # Step 2: Resolve / clone / copy Cookbook source
+    cookbook_dir = target_root / COOKBOOK_TARGET_DIR
+    if cookbook_dir.exists():
+        print(f"  Cookbook already installed at {COOKBOOK_TARGET_DIR}/ -- skipping copy.")
+    else:
+        source = _find_cookbook_source(repo_root, cookbook_source)
+        if source:
+            if not _copy_cookbook_from_source(source, target_root, dry_run):
+                print("  WARNING: Failed to copy Cookbook from local source.")
+        else:
+            if not _clone_cookbook_from_github(target_root, dry_run):
+                print("  WARNING: Failed to clone Cookbook from GitHub -- skill + MCP config skipped.")
+                return
+
+    # Step 3: Build MCP server
+    mcp_built = _build_cookbook_mcp(target_root, dry_run) if node_ok else False
+
+    # Step 4: Write MCP config to 5 files (only if MCP built)
+    if mcp_built:
+        written = _write_cookbook_mcp_config(target_root, dry_run)
+        if not dry_run:
+            print(f"  MCP config written to {written} files.")
+    elif not node_ok:
+        if not dry_run:
+            print("  MCP config skipped (Node.js not available).")
+    else:
+        if not dry_run:
+            print("  MCP config skipped (build failed).")
+
+    # Step 5: Write SKILL.md
+    _write_cookbook_skill(repo_root, target_root, dry_run)
+
+    # Step 6: Set architecture_cookbook_enabled flag in budget
+    _set_cookbook_budget_flag(target_root, dry_run)
+
+    print("  Cookbook installation complete.")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Install AI-DLC rules into a project for one or more agent tools",
@@ -1584,6 +1873,15 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
+    p.add_argument("--with-architecture-cookbook", action="store_true", default=False,
+                   help="Install the AI Architecture Cookbook (43 standards + MCP server). "
+                        "Requires Node.js >= 18 for MCP server setup. "
+                        "Writes MCP config to .mcp.json, .cursor/mcp.json, opencode.json, "
+                        "codex.json, and .vscode/mcp.json.")
+    p.add_argument("--cookbook-source", type=str, default=None,
+                   help="Path or URL to the AI-Architecture-Cookbook repo. "
+                        "Defaults to a sibling directory of the installer source, or clones "
+                        "from GitHub if not found locally.")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
                         "Use only if you know what you're doing — missing prereqs will "
@@ -2037,6 +2335,15 @@ def main() -> int:
         except Exception as e:
             print(f"ERROR installing design system: {e}")
             print("  Design system is optional -- AIDLC will degrade gracefully without it.")
+
+    # --- AI Architecture Cookbook (optional, --with-architecture-cookbook) ---
+    if args.with_architecture_cookbook:
+        try:
+            _install_cookbook(repo_root, target_root, args.dry_run,
+                              cookbook_source=args.cookbook_source)
+        except Exception as e:
+            print(f"ERROR installing Cookbook: {e}")
+            print("  Cookbook is optional -- AIDLC will degrade gracefully without it.")
 
     # --- Python venv + dependencies ---
     if args.no_venv:

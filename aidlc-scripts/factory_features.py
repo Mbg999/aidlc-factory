@@ -36,6 +36,7 @@ KNOWN_FLAGS: set[str] = {
     "slo_blocking",
     "knowledge_promotion",
     "shared_corpus_injection",
+    "architecture_cookbook_enabled",
 }
 
 TRUTHY = {"1", "true", "yes", "on", "y", "t"}

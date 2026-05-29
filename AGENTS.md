@@ -35,7 +35,7 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 | `.aidlc-orchestrator/budgets/default.yaml` | Per-stage model assignments |
 | `aidlc-scripts/factory_*.py` | Runtime Python scripts (run manager, conflict, merge-reviews, validate, telemetry, incl. stitch_snap, stitch_mcp, …) |
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
-| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, …) |
+| `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, ai-architecture-cookbook, …) |
 | `aidlc-docs/` | Generated artifacts from any AIDLC run executed in this repo |
 | `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
@@ -115,6 +115,7 @@ Bundled custom skills in this fork:
 - `codegraph-aware-exploration` — routes exploration to CodeGraph MCP tools
 - `design-system-composer` — composes UI from approved primitives, enforces tokens (Figma + Stitch)
 - `ui-constraint-validator` — validates hardcoded spacing/radius/typography/color against tokens
+- `ai-architecture-cookbook` — 43 architecture standards via MCP tools or inline YAML fallback
 
 ---
 
@@ -125,7 +126,7 @@ Bundled custom skills in this fork:
 - **Rule files are the source of truth**: stage agents read `aidlc-rules/aws-aidlc-rule-details/`. No duplicate logic between rule files and agent prompts.
 - **Installer is distribution**: new orchestrator files must be wired into
   `aidlc-scripts/install_aidlc.py` under the correct flag (`--with-orchestrator`,
-  `--with-codegraph`, etc.).
+  `--with-codegraph`, `--with-architecture-cookbook`, etc.).
 - **Runtime state is gitignored**: `.aidlc-orchestrator/runs/`, `.aidlc-orchestrator/knowledge/`,
   `.codegraph/` — never commit these.
 - **Auto-commit fires on explicit approval only** — approval signals: `approve`, `go ahead`,
