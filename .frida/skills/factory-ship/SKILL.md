@@ -18,7 +18,8 @@ Sequence:
 3. Validate output. Expected fields include `version_proposal` and `adr_count`.
 4. If `status: needs_human` (version bump or release plan needs user OK):
    surface, wait, log answer.
-5. Append audit entries, update state file to `Current Stage: OPERATIONS`.
+5. Append audit entries, update state file to `Current Stage: OPERATIONS`
+   (or `CONSTRUCTION - Complete` if user opts not to deploy).
 6. Auto-commit `docs(ship): release prep complete`.
 7. Present final summary:
    - All stages with skill-compliance recap

@@ -26,7 +26,7 @@ Execute the Phase 0 sequence end-to-end:
    - Write input handoff -> validate via `python3 aidlc-scripts/factory_validate.py`
    - Spawn workspace-scout subagent with the input path as the prompt
    - Validate the output handoff
-   - Append `audit_entries[]` to `aidlc-docs/audit.md`
+   - Append `audit_entries[]` to `aidlc-docs/audit.md` (header-wrapped via timeline timestamps, dedupe-guarded)
    - Update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress
    - If status != `complete`, halt and surface
 
@@ -36,13 +36,14 @@ Execute the Phase 0 sequence end-to-end:
      ```bash
      python3 aidlc-scripts/factory_ds_bootstrap.py init
      ```
+   - If `ui: true` AND `design-system/` doesn't exist at repo root, log `[Bootstrap] Created default design system at design-system/`.
    - If workspace-scout flagged `next_phase: reverse-engineering` -> surface approval gate
 
 4. **Stage 2 — Requirements Analyst (Pass 1: questions)**:
    - Write input handoff with `predecessor_artifacts` pointing at workspace-scout output
    - Validate input -> spawn -> validate output
    - Surface the `requirement-verification-questions.md` file to the user and wait for answers
-   - When user answers, append them to audit.md
+   - When user answers, append them to audit.md AND fill them into the questions file in the `[Answer]:` slots
 
 5. **Stage 2 — Requirements Analyst (Pass 2: requirements doc)**:
    - Write a fresh input with `context_pointers[]` referencing the answered questions file
@@ -50,15 +51,26 @@ Execute the Phase 0 sequence end-to-end:
    - Append audit entries -> update state file
 
 5.5. **Stage-routing decisions** (post-requirements):
-   - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply`
-   - If `fast_path == true`: route to `runtime/fast-path.md`
-   - Persist routing decisions in manifest
+   - `python3 aidlc-scripts/factory_complexity.py <run-id> --apply` — computes
+     `fast_path`, `skip_stages[]`, `reviewer_pool[]`, `merge_codegen_gate`.
+     On failure, default to "run everything" (no skips, all reviewers).
+   - If `fast_path == true`: route to `runtime/fast-path.md`. Run terminates.
+   - `factory_run.py set <run-id>` to persist routing fields into manifest.
+   - `emit_audit_block` with skip list + reviewer pool + rationale.
+   - For each entry in `skip_stages`, append to `manifest.skipped_stages[]`.
+     Do NOT spawn skipped stages.
+   - When `merge_codegen_gate=true`, set `merged_plan_generate: true` for
+     downstream code-generator input handoff.
 
 6. **Present completion** — surface run_id, workspace_state summary, requirements.md path,
-   routing decisions, skill compliance summary. Wait for explicit user approval before
-   committing. On approval, commit combined workspace detection + requirements analysis.
+   routing decisions (`🎚 Routing: skip [<stage list>] · reviewers [<pool>] · merge plan+codegen: <bool>`),
+   skill compliance summary. Wait for explicit user approval before committing.
+   On approval, commit combined workspace detection + requirements analysis.
 
-   **Next step:** `/factory-plan <RUN_ID_LITERAL>`
+   **Next step:** Run `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd`
+   to get the ready-to-paste command, OR format manually as
+   `/factory-plan <RUN_ID_LITERAL>` with the actual run_id.
+   **Never present `<run-id>` literally to the user.**
 
 ## Hard rules
 - Validate every input AND every output. No exceptions.

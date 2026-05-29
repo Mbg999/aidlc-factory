@@ -29,7 +29,10 @@ Sequence:
    Produces `aidlc-docs/operations/<run-id>-review-report.md`.
 7. Surface report to user. Approval gate:
    - **Fixes requested** -> route back through `/factory-build <run-id>`
-   - **Approved** -> auto-commit, offer `/factory-ship <RUN_ID_LITERAL>`
+   - **Approved** -> update `aidlc-docs/aidlc-state.md` Current Stage and Stage Progress,
+     auto-commit `docs(review): complete review report`,
+     then run `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd`
+     to get the ready-to-paste command, or format as `/factory-ship <RUN_ID_LITERAL>`
 
 **Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`.
 
