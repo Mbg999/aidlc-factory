@@ -48,9 +48,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        """Fallback _log if skill_utils is not available."""
+        stream = sys.stderr if level.upper() in ("ERROR", "WARNING", "CRITICAL") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
+try:
     import yaml
 except ImportError:
-    print(f"missing dependency: {sys.executable} -m pip install pyyaml", file=sys.stderr)
+    _log("ERROR", f"missing dependency: {sys.executable} -m pip install pyyaml")
     sys.exit(2)
 
 
@@ -337,7 +345,7 @@ def cmd_hot_path(args: argparse.Namespace) -> None:
     if not md_path.is_absolute():
         md_path = (DEFAULT_REPO_ROOT / md_path).resolve()
     if not md_path.exists():
-        print(f"file not found: {md_path}", file=sys.stderr)
+        _log("ERROR", f"file not found: {md_path}")
         sys.exit(2)
     report = hot_path_report(md_path)
     print(_format_hot_path(report))
@@ -360,7 +368,7 @@ _RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 def _validate_run_id(run_id: str) -> None:
     if not _RUN_ID_RE.match(run_id):
-        print(f"invalid run_id: {run_id!r}", file=sys.stderr)
+        _log("ERROR", f"invalid run_id: {run_id!r}")
         sys.exit(2)
 
 
@@ -438,7 +446,7 @@ def count_tokens_rows(repo_root: Path, run_id: str) -> list[dict]:
     _validate_run_id(run_id)
     run_path = runs_root(repo_root) / run_id
     if not run_path.exists():
-        print(f"run not found: {run_path}", file=sys.stderr)
+        _log("ERROR", f"run not found: {run_path}")
         sys.exit(2)
     kernel_bytes = orchestrator_md(repo_root).stat().st_size if orchestrator_md(repo_root).exists() else 0
     events = _read_timeline(run_path / "timeline.jsonl")
@@ -692,7 +700,7 @@ def _collect_runs_explicit(args: argparse.Namespace) -> list[dict]:
         path = Path(p).expanduser().resolve()
         mp = path / "manifest.yaml"
         if not mp.exists():
-            print(f"skipping: no manifest.yaml at {path}", file=sys.stderr)
+            _log("WARNING", f"skipping: no manifest.yaml at {path}")
             continue
         try:
             manifest = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
@@ -743,7 +751,7 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
     elif args.run:
         records = _collect_runs_explicit(args)
     else:
-        print("either --auto-discover or --run is required", file=sys.stderr)
+        _log("ERROR", "either --auto-discover or --run is required")
         sys.exit(2)
 
     agg = aggregate_runs(records)
@@ -907,7 +915,7 @@ def cmd_report(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo_root).expanduser().resolve() if args.repo_root else DEFAULT_REPO_ROOT
     md_path = orchestrator_md(repo_root)
     if not md_path.exists():
-        print(f"no orchestrator.md at {md_path}", file=sys.stderr)
+        _log("ERROR", f"no orchestrator.md at {md_path}")
         sys.exit(2)
     hp = hot_path_report(md_path)
 

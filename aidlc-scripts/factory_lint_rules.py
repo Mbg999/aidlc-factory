@@ -298,14 +298,14 @@ def main() -> None:
     errors, warnings = lint(repo_root)
 
     if warnings:
-        print("Warnings:", file=sys.stderr)
+        _log("WARNING", "Lint warnings:")
         for w in warnings:
-            print(f"  [WARN]  {w}", file=sys.stderr)
+            _log("WARNING", f"  {w}")
 
     if errors:
-        print(f"\n{len(errors)} drift error(s) detected:", file=sys.stderr)
+        _log("ERROR", f"{len(errors)} drift error(s) detected:")
         for e in errors:
-            print(f"  [FAIL] {e}", file=sys.stderr)
+            _log("ERROR", f"  {e}")
         sys.exit(1)
 
     if not args.quiet:

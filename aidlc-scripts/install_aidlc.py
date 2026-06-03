@@ -92,13 +92,6 @@ def _rmtree_force(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=False)
 
 
-def write_file(path: Path, content: str, dry_run: bool) -> None:
-    if dry_run:
-        print(f"[DRY-RUN] Would write file {path}")
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
 
 def _retry_op(func, path: Path, max_retries: int = 3) -> None:
     """Retry a file operation with backoff, handling Windows lock races."""

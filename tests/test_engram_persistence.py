@@ -59,24 +59,24 @@ class TestEngramCrossSessionPersistence:
             "spawn-loop.md must inject context_pointers from engram"
 
     def test_knowledge_agent_documents_two_namespaces(self):
-        text = KNOWLEDGE_AGENT_MD.read_text()
+        text = KNOWLEDGE_AGENT_MD.read_text(encoding="utf-8")
         assert "project" in text.lower() and "shared" in text.lower(), \
             "knowledge-agent.md must document project and shared namespaces"
 
     def test_knowledge_agent_documents_promotion_lifecycle(self):
-        text = KNOWLEDGE_AGENT_MD.read_text()
+        text = KNOWLEDGE_AGENT_MD.read_text(encoding="utf-8")
         assert "promot" in text.lower(), \
             "knowledge-agent.md must document promotion lifecycle"
 
     def test_orchestrator_references_engram(self):
-        text = (ORCHESTRATOR_MD.read_text() + SPAWN_LOOP_MD.read_text()
-                + CROSS_CUTTING_KNOWLEDGE.read_text())
+        text = (ORCHESTRATOR_MD.read_text(encoding="utf-8") + SPAWN_LOOP_MD.read_text(encoding="utf-8")
+                + CROSS_CUTTING_KNOWLEDGE.read_text(encoding="utf-8"))
         assert "engram" in text.lower() or "mem_search" in text, \
             "orchestrator or spawn-loop must reference engram/MCP tools"
 
     def test_settings_local_allows_engram(self):
         assert SETTINGS_LOCAL.exists(), "settings.local.json must exist"
-        settings = json.loads(SETTINGS_LOCAL.read_text())
+        settings = json.loads(SETTINGS_LOCAL.read_text(encoding="utf-8"))
         allowed = settings.get("permissions", {}).get("allow", [])
         engram_entries = [a for a in allowed if "engram" in a.lower()]
         assert len(engram_entries) >= 1, \
@@ -105,7 +105,7 @@ class TestEngramConflictResolution:
             "cross-cutting/knowledge-agent.md must document judgment relations"
 
     def test_settings_local_allows_mem_judge(self):
-        settings = json.loads(SETTINGS_LOCAL.read_text())
+        settings = json.loads(SETTINGS_LOCAL.read_text(encoding="utf-8"))
         allowed = settings.get("permissions", {}).get("allow", [])
         has_judge = any("mem_judge" in a for a in allowed)
         assert has_judge, "settings.local.json must allow mem_judge"
