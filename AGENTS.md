@@ -24,9 +24,9 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 |------|---------|
 | `.aidlc-orchestrator/runtime/core-workflow.md` | AIDLC constitution — distributed to installed projects via installer |
 | `.aidlc-orchestrator/runtime/common/` | Lazy-loaded protocol files (ascii-diagram-standards, error-handling) |
-| `.aidlc-orchestrator/prompts/extensions/*.opt-in.md` | Extension opt-in prompts (loaded by requirements-analyst) |
+| `.aidlc-orchestrator/prompts/extensions/` | Extension opt-in prompts (planned — loaded by requirements-analyst if present) |
 | `.claude/agents/orchestrator.md` | Multi-agent orchestrator (entry point for /factory-* commands) |
-| `.claude/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
+| `.claude/agents/stage/` | 14 stage subagents (workspace-scout, requirements-analyst, code-generator, …) |
 | `.claude/agents/cross-cutting/` | conflict-resolver, knowledge-agent |
 | `.claude/commands/factory-*.md` | Factory slash command definitions |
 | `.codex/` | OpenAI Codex CLI/IDE support — `.codex/agents/*.toml` custom subagents, `.codex/config.toml` subagent settings, AGENTS.md pointer |
@@ -37,7 +37,6 @@ works in Cursor, Cline, GitHub Copilot, Amazon Q, and Claude Code.
 | `aidlc-scripts/install_aidlc.py` | Installer — copies rules + agents into target projects |
 | `.agents/custom-skills/` | Custom skills shipped with this fork (code-review-and-quality, validator-retry, secret-knowledge, ai-architecture-cookbook, …) |
 | `aidlc-docs/` | Generated artifacts from any AIDLC run executed in this repo |
-| `src/` | Source library (memory store, adapters) |
 | `tests/` | Test suite |
 | `docs/` | Supporting documentation (WORKING-WITH-AIDLC, TROUBLESHOOTING, …) |
 
@@ -123,7 +122,7 @@ Bundled custom skills in this fork:
 
 - **Contracts are the interface**: stage I/O is defined by JSON Schema in
   `.aidlc-orchestrator/contracts/`. Agent output changes must be reflected in contracts.
-- **Rule files are the source of truth**: stage agents read `aidlc-rules/aws-aidlc-rule-details/`. No duplicate logic between rule files and agent prompts.
+- **Rule files are the source of truth**: stage agents embed rule logic in their CLI instructions. Runtime documentation is at `.aidlc-orchestrator/runtime/`. No duplicate logic between rule files and agent prompts.
 - **Installer is distribution**: new orchestrator files must be wired into
   `aidlc-scripts/install_aidlc.py` under the correct flag (`--with-orchestrator`,
   `--with-codegraph`, `--with-architecture-cookbook`, etc.).
@@ -161,7 +160,7 @@ Key env vars:
 ## Extensions
 
 Extensions layer additional rules on top of the core workflow. Opt-in files live in
-`aidlc-rules/aws-aidlc-rule-details/extensions/`. Each extension has a `*.opt-in.md`
+`.aidlc-orchestrator/prompts/extensions/*.opt-in.md`. Each extension has a `*.opt-in.md`
 (presented during Requirements Analysis) and a rules file (loaded when user opts in).
 Extensions without an opt-in file are always enforced.
 
