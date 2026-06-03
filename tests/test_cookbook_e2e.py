@@ -161,14 +161,16 @@ class TestDegradation:
         assert "unhealthy" in result.stdout.lower()
         assert result.returncode == 1
 
-    def test_feature_flag_defaults_to_false(self, tmp_path: Path):
+    def test_feature_flag_defaults_to_true(self, tmp_path: Path):
         budgets = tmp_path / ".aidlc-orchestrator" / "budgets"
         budgets.mkdir(parents=True)
-        (budgets / "default.yaml").write_text("features:\n")
+        (budgets / "default.yaml").write_text(yaml.safe_dump(
+            {"per_stage": {}, "features": {"architecture_cookbook_enabled": True}}
+        ))
         result = _run_features("--repo-root", str(tmp_path),
                                "get", "architecture_cookbook_enabled")
         assert result.returncode == 0
-        assert result.stdout.strip() == "false"
+        assert result.stdout.strip() == "true"
 
     def test_feature_flag_can_be_set_true(self, tmp_path: Path):
         budgets = tmp_path / ".aidlc-orchestrator" / "budgets"
@@ -228,7 +230,7 @@ class TestLiveE2ESmokeStubs:
     def test_factory_spec_with_cookbook(self):
         """T6.1 smoke test:
         1. Create a temp greenfield project with the AIDLC installer
-        2. Run: install_aidlc.py --with-architecture-cookbook
+        2. Run: install_aidlc.py
         3. Run: /factory-spec "build an API with auth"
         4. Verify: agent output contains a Cookbook pattern recommendation
         """

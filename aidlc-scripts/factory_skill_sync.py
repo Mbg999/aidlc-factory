@@ -273,47 +273,54 @@ def cmd_list_tech(repo_root: Path, dry_run: bool = False) -> int:
 
     autoskills_dir = repo_root / AUTOSKILLS_CACHE_DIR
     try:
-        clone_autoskills(autoskills_dir, dry_run)
-    except subprocess.CalledProcessError as e:
-        print(f"WARNING: failed to clone autoskills: {e}")
-        return 0
+        try:
+            clone_autoskills(autoskills_dir, dry_run)
+        except subprocess.CalledProcessError as e:
+            print(f"WARNING: failed to clone autoskills: {e}")
+            return 0
 
+        if dry_run:
+            print(f"[DRY-RUN] Would run {node_label} --list-tech")
+            return 0
+
+        entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
+        try:
+            if node_cmd[0] == "bash":
+                # nvm-based node_cmd is ["bash", "-lc", "... node"]; append entry + args
+                bash_cmd = node_cmd[2]
+                full_bash = bash_cmd.rstrip() + " " + str(entry) + " --list-tech"
+                result = subprocess.run(
+                    ["bash", "-lc", full_bash],
+                    capture_output=True, text=True, timeout=180,
+                )
+            else:
+                cmd = node_cmd + [str(entry), "--list-tech"]
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=180,
+                )
+
+            if result.returncode == 0:
+                print(result.stdout)
+            else:
+                print(f"[list-tech] autoskills exited {result.returncode}")
+                if result.stderr:
+                    for line in result.stderr.strip().splitlines()[:10]:
+                        print(f"  {line}", file=sys.stderr)
+        except subprocess.TimeoutExpired:
+            print("[list-tech] TIMEOUT")
+
+        return 0
+    finally:
+        _cleanup_cache(repo_root, dry_run)
+
+
+def _cleanup_cache(repo_root: Path, dry_run: bool) -> None:
+    """Remove the autoskills cache directory if it exists."""
     if dry_run:
-        print(f"[DRY-RUN] Would run {node_label} --list-tech")
-        return 0
-
-    entry = autoskills_dir / AUTOSKILLS_PKG_DIR / AUTOSKILLS_ENTRY
-    try:
-        if node_cmd[0] == "bash":
-            # nvm-based node_cmd is ["bash", "-lc", "... node"]; append entry + args
-            bash_cmd = node_cmd[2]
-            full_bash = bash_cmd.rstrip() + " " + str(entry) + " --list-tech"
-            result = subprocess.run(
-                ["bash", "-lc", full_bash],
-                capture_output=True, text=True, timeout=180,
-            )
-        else:
-            cmd = node_cmd + [str(entry), "--list-tech"]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=180,
-            )
-
-        if result.returncode == 0:
-            print(result.stdout)
-        else:
-            print(f"[list-tech] autoskills exited {result.returncode}")
-            if result.stderr:
-                for line in result.stderr.strip().splitlines()[:10]:
-                    print(f"  {line}", file=sys.stderr)
-    except subprocess.TimeoutExpired:
-        print("[list-tech] TIMEOUT")
-
-    # Clean up cache
+        return
     cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
-    if cache_dir.exists() and not dry_run:
+    if cache_dir.exists():
         shutil.rmtree(cache_dir, ignore_errors=True)
-
-    return 0
 
 
 # ── sync subcommand ───────────────────────────────────────────────────────────
@@ -328,33 +335,32 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
 
     autoskills_dir = repo_root / AUTOSKILLS_CACHE_DIR
     try:
-        clone_autoskills(autoskills_dir, dry_run)
-    except subprocess.CalledProcessError as e:
-        print(f"WARNING: failed to clone autoskills: {e}")
+        try:
+            clone_autoskills(autoskills_dir, dry_run)
+        except subprocess.CalledProcessError as e:
+            print(f"WARNING: failed to clone autoskills: {e}")
+            return 0
+
+        # Build not needed — index.mjs handles running main.ts via --experimental-strip-types
+
+        # --tech is always passed explicitly by the orchestrator from the target
+        # project's tech stack. No auto-inference here (greenfield detection is
+        # misleading when repo_root defaults to the AIDLC toolchain itself).
+
+        installed = _run_local_autoskills(
+            repo_root, autoskills_dir, techs=techs, dry_run=dry_run
+        )
+
+        if not installed and not dry_run:
+            print("[Sync] autoskills installed no skills (no matching technologies detected)")
+
+        suffix = " (dry-run)" if dry_run else ""
+        print(f"[Sync] done{suffix} — {len(installed)} skill(s) in .agents/skills/")
         return 0
-
-    # Build not needed — index.mjs handles running main.ts via --experimental-strip-types
-
-    # --tech is always passed explicitly by the orchestrator from the target
-    # project's tech stack. No auto-inference here (greenfield detection is
-    # misleading when repo_root defaults to the AIDLC toolchain itself).
-
-    installed = _run_local_autoskills(
-        repo_root, autoskills_dir, techs=techs, dry_run=dry_run
-    )
-
-    if not installed and not dry_run:
-        print("[Sync] autoskills installed no skills (no matching technologies detected)")
-
-    # Clean up autoskills cache — never leave build artifacts behind
-    cache_dir = repo_root / AUTOSKILLS_CACHE_DIR
-    if cache_dir.exists() and not dry_run:
-        shutil.rmtree(cache_dir, ignore_errors=True)
-        print(f"[Sync] cleaned up {AUTOSKILLS_CACHE_DIR}")
-
-    suffix = " (dry-run)" if dry_run else ""
-    print(f"[Sync] done{suffix} — {len(installed)} skill(s) in .agents/skills/")
-    return 0
+    finally:
+        _cleanup_cache(repo_root, dry_run)
+        if not dry_run:
+            print(f"[Sync] cleaned up {AUTOSKILLS_CACHE_DIR}")
 
 
 # ── select subcommand ─────────────────────────────────────────────────────────

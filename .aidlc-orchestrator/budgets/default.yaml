@@ -50,8 +50,8 @@ features:
   # project-scoped priors before each stage spawn.
   shared_corpus_injection: true
 
-  # AI Architecture Cookbook integration. When true, stage agents may call
-  # the Cookbook MCP server for pattern recommendation, checklist verification,
-  # and decision tree evaluation. Set by the installer when --with-architecture-cookbook
-  # is used. Disable via AIDLC_FEATURE_ARCHITECTURE_COOKBOOK_ENABLED=false if needed.
-  architecture_cookbook_enabled: false
+  # AI Architecture Cookbook integration. Stage agents call the Cookbook MCP
+  # server for pattern recommendation, checklist verification, and decision tree
+  # evaluation. Set by the installer when --with-architecture-cookbook is used.
+  # Disable via AIDLC_FEATURE_ARCHITECTURE_COOKBOOK_ENABLED=false if needed.
+  architecture_cookbook_enabled: true

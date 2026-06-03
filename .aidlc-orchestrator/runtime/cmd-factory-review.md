@@ -128,7 +128,16 @@ tree must still compile before quality review begins.
      do NOT spawn reviewers.
    - `Proceed with review anyway` — log `[Build Validation] BYPASSED` to audit.
 
-4. **On success** (exit = 0): log `[Build Validation] OK — <tool> <command>` to audit.
+4. **On success** (exit = 0):
+   a. Log `[Build Validation] OK — <tool> <command>` to audit.
+   b. **Run tests** — detect the test runner from the build system and execute:
+      - `npm test` (Node.js), `pytest` (Python), `cargo test` (Rust), `go test ./...` (Go)
+      - Cap execution at 120 seconds.
+      - Capture pass/fail counts.
+   c. **On test failure**: log `[Build Validation] Tests FAILED — <N> passing, <N> failing` to audit.
+      Append full test output. Surface same approval gate as build failure:
+      `Abort review, return to /factory-build` or `Proceed with review anyway`.
+   d. **On test success**: log `[Build Validation] Tests OK — <N> passing, 0 failing` to audit.
 
 5. **Store result** in orchestrator working state as `build_validation:
    {status: "ok"|"failed"|"skipped", tool: "<name>", output: "<first-200-chars>"}`.
@@ -153,7 +162,12 @@ tree must still compile before quality review begins.
          `skills_required[]` and merge their paths into `skill_paths_resolved[]`.
        - `reviewer-security` **only**: append security-relevant framework skills (name contains
          `security`, `auth`, or `hardening`) from `framework_skill_paths`.
-       - Other reviewers: base + conditional only (no framework skills).
+               - Other reviewers: base + conditional only (no framework skills).
+
+     c1. **Cookbook integration**: when `architecture_cookbook_enabled` is not explicitly
+        `false`, add `ai-architecture-cookbook` to `skills_required[]` for `reviewer-code`,
+        `reviewer-security`, and `reviewer-performance`, and merge its resolved path
+        into `skill_paths_resolved[]`.
 
     d. **Filter**: include ONLY paths for skills present in `skills_required[]`. Discard
        paths for irrelevant skills. Deduplicate if conditional + framework paths overlap.
@@ -171,8 +185,20 @@ tree must still compile before quality review begins.
    - `reviewer-simplifier` → `simplifier`
    Example: `factory_merge_reviews.py <run-id> --reviewers code-quality security`
 6. **Approval gate**: surface report. On user response:
-   - Fixes requested → route units back through `/factory-build`. If `manifest.project_profile.ui == true`
-     AND `design_system_path` is set, capture the rejection feedback as a design system antipattern:
+   - **Fixes requested** → route units back through `/factory-build`. After the re-build
+     completes successfully (build + tests pass per B.3), the system MUST automatically
+     **re-run `/factory-review`** on the fixed units to verify all findings are resolved:
+     1. Run `/factory-build <run-id>` for affected units (code generation + build-test-agent
+        with review findings as context in `context_pointers[]`).
+     2. **Wait for build + tests to pass** — if build or tests fail, surface the failure
+        to the user with the failed output. Do NOT proceed to re-review without green build.
+     3. Once build + tests are green, **auto-trigger `/factory-review <run-id>`** with the
+        same reviewer pool as the original review.
+     4. Present the re-review result. If all P0/P1 findings resolved, surface approval gate.
+        If new findings remain, loop back to step 1 (max 3 iterations, then escalate to user).
+     5. Log each loop iteration in audit.md: `[Review-Fix] iteration <N>: <build-status> | <review-findings-count>`.
+     If `manifest.project_profile.ui == true` AND `design_system_path` is set, capture the
+     rejection feedback as a design system antipattern before the fix loop:
      ```bash
      python3 aidlc-scripts/factory_design_system_learn.py reject \
          --component <inferred-primitive> \
@@ -180,4 +206,4 @@ tree must still compile before quality review begins.
          --source <primary-ui-file> \
          --run-id <run-id>
      ```
-   - Approved → auto-commit `docs(review): complete review report`, update state, offer `/factory-ship`.
+   - **Approved** → auto-commit `docs(review): complete review report`, update state, offer `/factory-ship`.

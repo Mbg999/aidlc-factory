@@ -34,7 +34,9 @@ If exit ≠ 0: STOP. Return `failed <input-path>`.
 
 **Anti-bypass:** "the code is the design" is rejected. Produce written artifacts.
 
-**Skills:** `using-agent-skills`, `api-and-interface-design`, `context-engineering`.
+**Skills:** `using-agent-skills`, `api-and-interface-design`, `context-engineering`, `ai-architecture-cookbook`.
+
+**Cookbook integration:** During component design and service layer design, call `recommend_pattern` from the cookbook to validate architectural patterns. Use `get_decision_tree` to resolve pattern choices (e.g. orchestration vs choreography, state management approach). Call `get_checklist(severity: high)` to self-verify the design artifacts before completion. Include cookbook standard ID citations in the design documents. Budget: ≤ 4 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
 
 ## Your job
 Per upstream rule `inception/application-design.md` (content embedded in this agent — not read from disk):

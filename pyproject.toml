@@ -31,8 +31,4 @@ Homepage = "https://github.com/Mbg999/aidlc-factory"
 Source = "https://github.com/Mbg999/aidlc-factory"
 Tracker = "https://github.com/Mbg999/aidlc-factory/issues"
 
-[project.scripts]
-aidlc-factory-installer = "aidlc_installer.cli:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["aidlc_installer"]
+# Installer entry: python aidlc-scripts/install_aidlc.py

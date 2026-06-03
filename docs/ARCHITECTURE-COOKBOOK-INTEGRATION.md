@@ -1,6 +1,6 @@
 # AI Architecture Cookbook Integration
 
-The AIDLC Factory integrates the [AI Architecture Cookbook](https://github.com/Mbg999/AI-Architecture-Cookbook) — 43 machine-readable YAML standards covering authentication, API design, infrastructure, security, and more — as an opt-in, additive capability.
+The AIDLC Factory integrates the [AI Architecture Cookbook](https://github.com/Mbg999/AI-Architecture-Cookbook) — 43 machine-readable YAML standards covering authentication, API design, infrastructure, security, and more — as a bundled, always-installed capability.
 
 ## What it does
 
@@ -10,11 +10,13 @@ The Cookbook provides architectural pattern recommendations, decision trees, ver
 
 ```bash
 # From an AIDLC project root:
-python aidlc-scripts/install_aidlc.py --tool opencode --with-architecture-cookbook
+python aidlc-scripts/install_aidlc.py --tool opencode
 
 # Or with pipx:
-pipx run aidlc-factory-installer --tool claude --with-architecture-cookbook --dest ./my-project
+pipx run aidlc-factory-installer --tool claude --dest ./my-project
 ```
+
+The Cookbook is installed automatically. To skip it: `--no-cookbook`.
 
 The installer:
 1. Copies the Cookbook repo to `./.ai-architecture-cookbook/`
@@ -77,10 +79,10 @@ export AIDLC_FEATURE_ARCHITECTURE_COOKBOOK_ENABLED=false
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "MCP unreachable" in agent output | MCP server not built or not running | Re-run installer with `--with-architecture-cookbook` |
+| "MCP unreachable" in agent output | MCP server not built or not running | Re-run installer (or install Node.js 18+) |
 | Empty recommendations | No relevant context inputs | Provide more context in the request |
 | Skill not found | Installer didn't complete | Check `.agents/custom-skills/ai-architecture-cookbook/SKILL.md` exists |
-| Budget flag not set | Budget file wasn't updated | Set `architecture_cookbook_enabled: true` manually |
+| Budget flag not set | Budget file wasn't updated | Set `architecture_cookbook_enabled: true` manually (defaults to true) |
 
 ## Verification
 
