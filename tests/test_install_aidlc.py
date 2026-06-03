@@ -497,8 +497,8 @@ class TestAutoInitCodeGraph:
             install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
 
         captured = capsys.readouterr()
-        assert "WARNING" in captured.out
-        assert "exited with an error" in captured.out
+        assert "WARNING" in captured.out or "WARNING" in captured.err
+        assert "exited with an error" in captured.out or "exited with an error" in captured.err
         assert "Run manually" in captured.out
 
     def test_skip_when_subprocess_times_out(self, tmp_path: Path, monkeypatch):
@@ -1110,3 +1110,37 @@ class TestCheckNodeVersion:
         ok, ver = install_aidlc._check_node_version(18)
         assert not ok
         assert ver == "not found"
+
+
+# ── _run_codegraph (Bug B2 regression) ────────────────────────────────────
+
+
+class TestRunCodegraph:
+    """Regression tests for _run_codegraph Windows wrapper (Bug B2)."""
+
+    def test_windows_adds_cmd_prefix(self):
+        """On Windows, _run_codegraph should prefix with ['cmd', '/c']."""
+        with patch("install_aidlc._is_windows", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "init"])
+                args, kwargs = mock_run.call_args
+                assert args[0] == ["cmd", "/c", "codegraph", "init"]
+
+    def test_non_windows_passes_through(self):
+        """On non-Windows, _run_codegraph should pass the command as-is."""
+        with patch("install_aidlc._is_windows", return_value=False):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "init"])
+                args, kwargs = mock_run.call_args
+                assert args[0] == ["codegraph", "init"]
+
+    def test_windows_passes_target_root(self, tmp_path):
+        """On Windows, _run_codegraph should forward cwd to subprocess.run."""
+        with patch("install_aidlc._is_windows", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "status"], target_root=tmp_path)
+                args, kwargs = mock_run.call_args
+                assert kwargs["cwd"] == str(tmp_path)

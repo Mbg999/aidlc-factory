@@ -1,0 +1,20 @@
+﻿{
+  "install_aidlc.py": {
+    "functions": 50,
+    "total_cc": 418,
+    "avg_cc": 8.36,
+    "max_cc": 53
+  },
+  "factory_run.py": {
+    "functions": 36,
+    "total_cc": 204,
+    "avg_cc": 5.67,
+    "max_cc": 29
+  },
+  "factory_telemetry.py": {
+    "functions": 35,
+    "total_cc": 229,
+    "avg_cc": 6.54,
+    "max_cc": 28
+  }
+}

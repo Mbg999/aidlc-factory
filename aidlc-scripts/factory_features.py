@@ -28,6 +28,13 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 ORCHESTRATOR_VERSION = "0.2.0"
 
 # Bake in the canonical set of known flags so typos are caught.
@@ -44,7 +51,7 @@ FALSY = {"0", "false", "no", "off", "n", "f", ""}
 
 
 def _die(msg: str, code: int = 2) -> None:
-    print(f"factory_features: error: {msg}", file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
@@ -59,8 +66,7 @@ def _coerce_bool(v) -> bool:
     if s in FALSY:
         return False
     # Unknown — treat as false but warn
-    print(f"factory_features: warning: unrecognized truth value {v!r} -- coerced to False",
-          file=sys.stderr)
+    _log("WARNING", f"unrecognized truth value {v!r} -- coerced to False")
     return False
 
 

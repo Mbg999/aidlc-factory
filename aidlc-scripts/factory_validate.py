@@ -20,13 +20,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        """Fallback _log if skill_utils is not available."""
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _AIDLC_ROOT = Path(os.environ["AIDLC_ROOT"]) if "AIDLC_ROOT" in os.environ else _REPO_ROOT
 
 
 def _die(msg: str, code: int = 2) -> None:
-    print(msg, file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
@@ -212,10 +220,10 @@ def main() -> None:
         if status == "healthy":
             sys.exit(0)
         elif status == "degraded":
-            print("\nCookbook is DEGRADED — inline YAML fallback mode.", file=sys.stderr)
+            _log("WARNING", "Cookbook is DEGRADED — inline YAML fallback mode.")
             sys.exit(0)  # Degraded is non-blocking
         else:
-            print("\nCookbook is UNHEALTHY — re-run installer.", file=sys.stderr)
+            _log("ERROR", "Cookbook is UNHEALTHY — re-run installer.")
             sys.exit(1)
 
     if not args.schema or not args.document:
@@ -252,28 +260,24 @@ def main() -> None:
     schema_id = schema.get("$id", "")
     schema_ver = schema.get("schema_version")
     if schema_ver is not None and schema_ver != EXPECTED_SCHEMA_VERSION:
-        print(
-            f"VERSION MISMATCH schema_version={schema_ver}, expected {EXPECTED_SCHEMA_VERSION} "
-            f"(orchestrator v{ORCHESTRATOR_VERSION})",
-            file=sys.stderr,
-        )
+        _log("WARNING", f"VERSION MISMATCH schema_version={schema_ver}, expected {EXPECTED_SCHEMA_VERSION} (orchestrator v{ORCHESTRATOR_VERSION})")
 
     validator = Draft7Validator(schema)
     errors = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
 
     if errors:
-        print(f"INVALID {doc_path} ({len(errors)} schema error(s)):", file=sys.stderr)
+        _log("ERROR", f"INVALID {doc_path} ({len(errors)} schema error(s)):")
         for err in errors:
             loc = ".".join(str(p) for p in err.absolute_path) or "<root>"
-            print(f"  - {loc}: {err.message}", file=sys.stderr)
+            _log("ERROR", f"  - {loc}: {err.message}")
         sys.exit(1)
 
     if args.strict:
         strict_issues = _strict_check(doc, doc_path, schema_id=schema_id)
         if strict_issues:
-            print(f"STRICT FAIL {doc_path} ({len(strict_issues)} content issue(s)):", file=sys.stderr)
+            _log("ERROR", f"STRICT FAIL {doc_path} ({len(strict_issues)} content issue(s)):")
             for issue in strict_issues:
-                print(f"  - {issue}", file=sys.stderr)
+                _log("ERROR", f"  - {issue}")
             sys.exit(1)
 
     print(f"OK {doc_path} matches {schema_path.name}")

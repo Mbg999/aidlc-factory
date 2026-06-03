@@ -71,6 +71,15 @@ except ImportError:
     print(f"missing dependency: {sys.executable} -m pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        """Fallback _log if skill_utils is not available."""
+        import sys as _sys
+        stream = _sys.stderr if level in ("ERROR", "WARNING") else _sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 
 REPO_ROOT = Path(os.environ.get("AIDLC_ROOT", Path(__file__).resolve().parents[1]))
 RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
@@ -107,7 +116,7 @@ def now_iso() -> str:
 
 
 def _die(msg: str, code: int = 2) -> None:
-    print(msg, file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
@@ -316,33 +325,29 @@ def _append_audit_block(ts: str, phase: str, label: str, bullets: list[str]) -> 
     return True
 
 
-def cmd_emit_audit_block(args: argparse.Namespace) -> None:
-    # Aggregate all validation errors so callers see the full requirement set
-    # in a single failure instead of fixing one missing arg at a time.
+def _validate_emit_audit_args(args: argparse.Namespace) -> tuple[dict, list[str]]:
+    """Validate emit_audit_block arguments and return (rules, errors).
+
+    Aggregates all validation errors so callers see the full requirement set
+    in a single failure instead of fixing one missing arg at a time.
+    Fails fast on unknown evt since downstream rules are meaningless.
+    """
     errors: list[str] = []
 
-    # evt is the dispatch key — if it's unknown, downstream rules are meaningless,
-    # so fail fast on that single error.
     if args.evt not in AUDIT_BLOCK_EVT_VOCABULARY:
         valid = ", ".join(sorted(AUDIT_BLOCK_EVT_VOCABULARY))
         _die(f"unknown evt: {args.evt!r}. Valid evt vocabulary: {valid}")
     rules = AUDIT_BLOCK_EVT_VOCABULARY[args.evt]
 
     if not args.phase:
-        errors.append(
-            f"--phase is required (one of: {', '.join(VALID_PHASES)})"
-        )
+        errors.append(f"--phase is required (one of: {', '.join(VALID_PHASES)})")
     elif args.phase not in VALID_PHASES:
-        errors.append(
-            f"invalid phase: {args.phase!r}. Valid phases: {', '.join(VALID_PHASES)}"
-        )
+        errors.append(f"invalid phase: {args.phase!r}. Valid phases: {', '.join(VALID_PHASES)}")
 
     if not args.label:
         errors.append("--label is required")
-
     if rules["required_stage"] and not args.stage:
         errors.append(f"evt {args.evt!r} requires --stage")
-
     if not args.bullet:
         errors.append("at least one --bullet is required")
 
@@ -354,6 +359,12 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
         if required not in fields:
             errors.append(f"evt {args.evt!r} requires --field {required}=<value>")
 
+    return rules, errors, fields
+
+
+def cmd_emit_audit_block(args: argparse.Namespace) -> None:
+    rules, errors, fields = _validate_emit_audit_args(args)
+
     if errors:
         joined = "\n  - ".join(errors)
         _die(
@@ -362,12 +373,11 @@ def cmd_emit_audit_block(args: argparse.Namespace) -> None:
 
     # Validate run exists (unless --ts is provided — retry semantics).
     if not args.ts:
-        run_dir(args.run_id, must_exist=True)  # _die's if not found
+        run_dir(args.run_id, must_exist=True)
 
     # Determine ts: either explicit (retry) or fresh emit.
     if args.ts:
         ts = args.ts
-        # Don't emit a duplicate timeline event on retry; just attempt audit append.
     else:
         ts = now_iso()
         event = {"ts": ts, "evt": args.evt, "run_id": args.run_id, **fields}
@@ -558,17 +568,32 @@ def cmd_emit(args: argparse.Namespace) -> None:
     print(json.dumps(event))
 
 
+def _stage_timing(events: list[dict]) -> dict[str, dict]:
+    """Build per-stage timing events from timeline data."""
+    stage_events: dict[str, dict] = {}
+    for e in events:
+        stage = e.get("stage")
+        if not stage:
+            continue
+        if stage not in stage_events:
+            stage_events[stage] = {}
+        if e["evt"] in ("spawn_start", "stage_start"):
+            stage_events[stage]["start"] = e["ts"]
+        elif e["evt"] in ("spawn_end", "stage_complete"):
+            stage_events[stage]["end"] = e["ts"]
+        elif e["evt"] in ("needs_human",):
+            stage_events[stage]["needs_human"] = e["ts"]
+        elif e["evt"] in ("user_decision",):
+            stage_events[stage]["decision"] = e["ts"]
+    return stage_events
+
+
 def _print_latency(run_id: str, manifest: dict) -> None:
     timeline_p = timeline_path(run_id)
     if not timeline_p.exists():
         print("no timeline available")
         return
-    events: list[dict] = []
-    for line in timeline_p.read_text(encoding="utf-8").splitlines():
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+    events = _parse_timeline_events(timeline_p)
 
     ne, sp, sd = None, None, None
     for e in events:
@@ -597,23 +622,7 @@ def _print_latency(run_id: str, manifest: dict) -> None:
         except (ValueError, TypeError):
             lines.append("  spawn_end -> user_decision:    parse error")
 
-    # Per-stage latency from timeline
-    stage_events: dict[str, dict] = {}
-    for e in events:
-        stage = e.get("stage")
-        if not stage:
-            continue
-        if stage not in stage_events:
-            stage_events[stage] = {}
-        if e["evt"] in ("spawn_start", "stage_start"):
-            stage_events[stage]["start"] = e["ts"]
-        elif e["evt"] in ("spawn_end", "stage_complete"):
-            stage_events[stage]["end"] = e["ts"]
-        elif e["evt"] in ("needs_human",):
-            stage_events[stage]["needs_human"] = e["ts"]
-        elif e["evt"] in ("user_decision",):
-            stage_events[stage]["decision"] = e["ts"]
-
+    stage_events = _stage_timing(events)
     for stage, ts in sorted(stage_events.items()):
         if ts.get("start") and ts.get("end"):
             try:
@@ -813,22 +822,21 @@ def _print_event(line: str, as_json: bool) -> None:
         print(f"!malformed: {line}")
 
 
-def cmd_graph(args: argparse.Namespace) -> None:
-    """Print a visual timeline bar chart of a completed run."""
-    manifest = load_manifest(args.run_id)
-    timeline_p = timeline_path(args.run_id)
-    if not timeline_p.exists():
-        _die(f"no timeline at {timeline_p}")
-
-    # Parse events
+def _parse_timeline_events(timeline_p: Path) -> list[dict]:
+    """Parse timeline.jsonl into a list of event dicts, skipping malformed lines."""
     events: list[dict] = []
+    if not timeline_p.exists():
+        return events
     for line in timeline_p.read_text(encoding="utf-8").splitlines():
         try:
             events.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    return events
 
-    # Build per-stage stats
+
+def _build_stage_stats(events: list[dict]) -> tuple[dict[str, dict], list[str]]:
+    """Build per-stage stats dict and ordered stage list from timeline events."""
     stage_stats: dict[str, dict] = {}
     stage_order: list[str] = []
     for evt in events:
@@ -845,16 +853,19 @@ def cmd_graph(args: argparse.Namespace) -> None:
             stage_stats[stage]["status"] = "failed"
         elif evt["evt"] == "cost_govern_skip":
             stage_stats[stage]["status"] = "skipped"
+    return stage_stats, stage_order
 
-    completed = set(manifest.get("completed_stages", []))
-    skipped = set(manifest.get("skipped_stages", []))
-    failed = set(s.get("stage") for s in manifest.get("failed_stages", []))
 
-    budget_p = RUNS_ROOT / args.run_id / "budget.yaml"
+def _load_budget(run_dir_path: Path) -> tuple[int, float, int, float]:
+    """Load token/wall-clock budget and usage from budget.yaml.
+
+    Returns (token_max, wall_max, token_used, wall_used) with sensible defaults.
+    """
     token_max = 5_000_000
-    wall_max = 240
+    wall_max = 240.0
     token_used = 0
     wall_used = 0.0
+    budget_p = run_dir_path / "budget.yaml"
     if budget_p and budget_p.exists():
         try:
             budget_data = yaml.safe_load(budget_p.read_text(encoding="utf-8")) or {}
@@ -864,14 +875,36 @@ def cmd_graph(args: argparse.Namespace) -> None:
             wall_max = float(budget_data.get("budget", {}).get("wall_clock_max_min", wall_max))
         except (ValueError, TypeError):
             pass
+    return token_max, wall_max, token_used, wall_used
 
-    # Only show PHASE_ORDER stages
+
+def _stage_bar(dur_minutes: float, bar_width: int = 12) -> str:
+    """Render a duration bar (filled # + remaining .) for the timeline graph."""
+    fill = min(int(dur_minutes / 5), bar_width)
+    return "#" * fill + "." * (bar_width - fill)
+
+
+def cmd_graph(args: argparse.Namespace) -> None:
+    """Print a visual timeline bar chart of a completed run."""
+    manifest = load_manifest(args.run_id)
+    timeline_p = timeline_path(args.run_id)
+    if not timeline_p.exists():
+        _die(f"no timeline at {timeline_p}")
+
+    events = _parse_timeline_events(timeline_p)
+    stage_stats, stage_order = _build_stage_stats(events)
+
+    completed = set(manifest.get("completed_stages", []))
+    skipped = set(manifest.get("skipped_stages", []))
+    failed = set(s.get("stage") for s in manifest.get("failed_stages", []))
+
+    token_max, wall_max, token_used, wall_used = _load_budget(RUNS_ROOT / args.run_id)
+
     bar_width = 12
     lines = [f"", f"Timeline: {manifest.get('run_id', args.run_id)}", "-" * 60]
     for stage in PHASE_ORDER:
         stats = stage_stats.get(stage, {})
         status = "  "
-        prefix = "  "
         if stage in completed:
             status = "[OK]"
         elif stage in failed:
@@ -889,8 +922,7 @@ def cmd_graph(args: argparse.Namespace) -> None:
                 e = dt.fromisoformat(stats["end"])
                 dur = (e - s).total_seconds() / 60.0
                 duration_str = f"{dur:.1f}m"
-                fill = min(int(dur / 5), bar_width)
-                bar = "#" * fill + "." * (bar_width - fill)
+                bar = _stage_bar(dur, bar_width)
             except (ValueError, TypeError):
                 bar = "." * bar_width
         else:

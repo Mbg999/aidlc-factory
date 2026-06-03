@@ -272,19 +272,17 @@ def hot_path_report(md_path: Path) -> dict:
     }
 
 
-def _format_hot_path(report: dict) -> str:
-    out = io.StringIO()
-    out.write(f"HOT-PATH REPORT: {report['source']}\n")
-    out.write(f"total: {report['total_bytes']:,} bytes / {report['total_lines']:,} lines / "
-              f"{report['section_count']} H2 sections\n")
-    out.write("-" * 100 + "\n")
+def _format_hot_path_table(out: io.StringIO, report: dict) -> None:
+    """Render the section-size table from a hot-path report."""
     out.write(f"{'reach':<7} {'bytes':>7} {'lines':>5} {'redun':>5} {'boiler':>6} {'ptrs':>5}  title\n")
     out.write("-" * 100 + "\n")
     for r in sorted(report["sections"], key=lambda r: r["bytes"], reverse=True):
         out.write(f"{r['reach']:<7} {r['bytes']:>7,} {r['lines']:>5,} "
                   f"{r['redundancy']:>5.2f} {r['boilerplate_hit_total']:>6} {r['pointer_hit_total']:>5}  {r['title'][:55]}\n")
-    out.write("-" * 100 + "\n")
 
+
+def _format_hot_path_phrases(out: io.StringIO, report: dict) -> tuple[int, int]:
+    """Render boilerplate and pointer phrase sections. Returns (boiler_total, pointer_total)."""
     boiler_total = sum(r["boilerplate_hit_total"] for r in report["sections"])
     pointer_total = sum(r["pointer_hit_total"] for r in report["sections"])
     out.write(f"\nBOILERPLATE HITS (target=0): {boiler_total}\n")
@@ -305,6 +303,11 @@ def _format_hot_path(report: dict) -> str:
                     ptr_totals[p] += n
         for phrase, n in ptr_totals.most_common():
             out.write(f"  {n:>3}  {phrase}\n")
+    return boiler_total, pointer_total
+
+
+def _format_hot_path_reach(out: io.StringIO, report: dict) -> None:
+    """Render reach breakdown (always/hot/cold)."""
     cold = sum(r["bytes"] for r in report["sections"] if r["reach"] == "cold")
     hot = sum(r["bytes"] for r in report["sections"] if r["reach"] == "hot")
     always = sum(r["bytes"] for r in report["sections"] if r["reach"] == "always")
@@ -314,6 +317,18 @@ def _format_hot_path(report: dict) -> str:
         out.write(f"  always: {always:>7,} bytes ({always / total * 100:>5.1f}%)\n")
         out.write(f"  hot:    {hot:>7,} bytes ({hot   / total * 100:>5.1f}%)\n")
         out.write(f"  cold:   {cold:>7,} bytes ({cold  / total * 100:>5.1f}%)  <- Phase 3 target\n")
+
+
+def _format_hot_path(report: dict) -> str:
+    out = io.StringIO()
+    out.write(f"HOT-PATH REPORT: {report['source']}\n")
+    out.write(f"total: {report['total_bytes']:,} bytes / {report['total_lines']:,} lines / "
+              f"{report['section_count']} H2 sections\n")
+    out.write("-" * 100 + "\n")
+    _format_hot_path_table(out, report)
+    out.write("-" * 100 + "\n")
+    _format_hot_path_phrases(out, report)
+    _format_hot_path_reach(out, report)
     return out.getvalue()
 
 
@@ -664,44 +679,49 @@ def aggregate_runs(run_records: list[dict]) -> dict:
     return out
 
 
-def cmd_aggregate(args: argparse.Namespace) -> None:
-    if args.auto_discover:
-        roots = [Path(r) for r in (args.root or [str(DEFAULT_REPO_ROOT)])]
-        records = discover_runs(roots, scan_siblings=args.scan_siblings)
-    elif args.run:
-        records = []
-        for p in args.run:
-            path = Path(p).expanduser().resolve()
-            mp = path / "manifest.yaml"
-            if not mp.exists():
-                print(f"skipping: no manifest.yaml at {path}", file=sys.stderr)
-                continue
-            try:
-                manifest = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
-            except (yaml.YAMLError, OSError):
-                continue
-            events = _read_timeline(path / "timeline.jsonl")
-            stages = _stage_costs_from_timeline(events)
-            records.append({
-                "run_path": str(path),
-                "tier": _derive_tier(manifest),
-                "run_id": manifest.get("run_id") or path.name,
-                "total_tokens": sum(s["tokens_in"] + s["tokens_out"] for s in stages.values()),
-                "completed_stages": manifest.get("completed_stages") or [],
-            })
-    else:
-        print("either --auto-discover or --run is required", file=sys.stderr)
-        sys.exit(2)
+def _collect_runs_auto_discover(args: argparse.Namespace) -> list[dict]:
+    """Discover runs via --auto-discover flag."""
+    roots = [Path(r) for r in (args.root or [str(DEFAULT_REPO_ROOT)])]
+    return discover_runs(roots, scan_siblings=args.scan_siblings)
 
-    agg = aggregate_runs(records)
-    if args.json:
-        out_path = Path(args.json).expanduser()
-        if not out_path.is_absolute():
-            out_path = (DEFAULT_REPO_ROOT / out_path).resolve()
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(agg, indent=2), encoding="utf-8")
-        print(f"wrote aggregate to {out_path}", file=sys.stderr)
-    # Human table
+
+def _collect_runs_explicit(args: argparse.Namespace) -> list[dict]:
+    """Collect runs from explicit --run paths."""
+    records: list[dict] = []
+    for p in args.run:
+        path = Path(p).expanduser().resolve()
+        mp = path / "manifest.yaml"
+        if not mp.exists():
+            print(f"skipping: no manifest.yaml at {path}", file=sys.stderr)
+            continue
+        try:
+            manifest = yaml.safe_load(mp.read_text(encoding="utf-8")) or {}
+        except (yaml.YAMLError, OSError):
+            continue
+        events = _read_timeline(path / "timeline.jsonl")
+        stages = _stage_costs_from_timeline(events)
+        records.append({
+            "run_path": str(path),
+            "tier": _derive_tier(manifest),
+            "run_id": manifest.get("run_id") or path.name,
+            "total_tokens": sum(s["tokens_in"] + s["tokens_out"] for s in stages.values()),
+            "completed_stages": manifest.get("completed_stages") or [],
+        })
+    return records
+
+
+def _write_json_output(data, out_path_raw: str, label: str) -> None:
+    """Write data as JSON, resolving relative paths against DEFAULT_REPO_ROOT."""
+    out_path = Path(out_path_raw).expanduser()
+    if not out_path.is_absolute():
+        out_path = (DEFAULT_REPO_ROOT / out_path).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"wrote {label} to {out_path}", file=sys.stderr)
+
+
+def _print_aggregate_table(agg: dict) -> None:
+    """Print human-readable aggregate table to stdout."""
     print(f"AGGREGATE across {sum(t['run_count'] for t in agg.values())} run(s), {len(agg)} tier(s):")
     print("-" * 100)
     for tier in sorted(agg):
@@ -717,6 +737,21 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
     print("\n" + "-" * 100)
 
 
+def cmd_aggregate(args: argparse.Namespace) -> None:
+    if args.auto_discover:
+        records = _collect_runs_auto_discover(args)
+    elif args.run:
+        records = _collect_runs_explicit(args)
+    else:
+        print("either --auto-discover or --run is required", file=sys.stderr)
+        sys.exit(2)
+
+    agg = aggregate_runs(records)
+    if args.json:
+        _write_json_output(agg, args.json, "aggregate")
+    _print_aggregate_table(agg)
+
+
 # ---------------------------------------------------------------------------
 # report: end-to-end markdown baseline doc
 # ---------------------------------------------------------------------------
@@ -725,6 +760,114 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
 def _bytes_to_tokens(n: int) -> int:
     """Rough estimate: 4 bytes per token, +5% BPE overhead. Good enough for relative compare."""
     return int(round(n / 4 * 1.05))
+
+
+def _render_hot_path_section(out: io.StringIO, hot_path: dict) -> tuple[int, int, int]:
+    """Render the hot-path inventory section. Returns (boiler_total, pointer_total, cold_bytes)."""
+    out.write("## 1. Hot-path inventory (static)\n\n")
+    out.write(f"Source: `{hot_path['source']}`\n\n")
+    out.write(f"- **Total:** {hot_path['total_bytes']:,} bytes / {hot_path['total_lines']:,} lines / "
+              f"{hot_path['section_count']} H2 sections\n")
+    out.write(f"- **Heuristic kernel-token load** (≈4B/token + 5% BPE): "
+              f"**{_bytes_to_tokens(hot_path['total_bytes']):,} tokens**\n\n")
+
+    out.write("**Top sections by size:**\n\n")
+    out.write("| Reach | Bytes | Lines | Redundancy | Boilerplate | Pointers | Title |\n")
+    out.write("|---|---:|---:|---:|---:|---:|---|\n")
+    for r in sorted(hot_path["sections"], key=lambda r: r["bytes"], reverse=True)[:10]:
+        out.write(f"| {r['reach']} | {r['bytes']:,} | {r['lines']:,} | {r['redundancy']:.2f} | "
+                  f"{r['boilerplate_hit_total']} | {r['pointer_hit_total']} | {r['title']} |\n")
+
+    boiler_total = sum(r["boilerplate_hit_total"] for r in hot_path["sections"])
+    pointer_total = sum(r["pointer_hit_total"] for r in hot_path["sections"])
+
+    _render_phrase_table(out, "Boilerplate phrase occurences (target=0):", boiler_total,
+                         hot_path["sections"], BOILERPLATE_PHRASES)
+    out.write(f"\n**Pointer references** (target=N): {pointer_total}\n")
+    _render_phrase_table(out, None, pointer_total,
+                         hot_path["sections"], POINTER_PHRASES)
+    out.write(f"\n**Total boilerplate+pointer hits:** {boiler_total + pointer_total}\n\n")
+
+    cold = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "cold")
+    hot = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "hot")
+    always = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "always")
+    out.write("**Reach breakdown:**\n\n")
+    out.write(f"- always: {always:,} bytes\n")
+    out.write(f"- hot:    {hot:,} bytes\n")
+    out.write(f"- cold:   {cold:,} bytes  <- TODO Phase 3 target\n\n")
+    return boiler_total, pointer_total, cold
+
+
+def _render_phrase_table(out: io.StringIO, header: str | None, total: int,
+                         sections: list[dict], phrase_set: frozenset) -> None:
+    """Render a phrase occurrence table, or 'none' text if total is zero."""
+    if header:
+        out.write(f"\n**{header}**\n\n")
+    if total == 0:
+        out.write("_None._\n")
+        return
+    totals: Counter = Counter()
+    for r in sections:
+        for p, n in r["audit_phrase_hits"].items():
+            if p in phrase_set:
+                totals[p] += n
+    out.write("| Hits | Phrase |\n|---:|---|\n")
+    for phrase, n in totals.most_common():
+        rendered = f"<code>{phrase}</code>" if "`" in phrase else f"`{phrase}`"
+        out.write(f"| {n} | {rendered} |\n")
+
+
+def _render_runs_table(out: io.StringIO, runs: list[dict]) -> None:
+    """Render discovered runs table (section 2)."""
+    out.write("---\n\n## 2. Discovered runs (real telemetry on disk)\n\n")
+    out.write(f"**Total runs discovered:** {len(runs)}  across "
+              f"{len(set(r['repo_root'] for r in runs))} repo root(s).\n\n")
+    out.write("> **Tier legend:** `UNKNOWN` means the manifest has no `complexity_tier`\n"
+              "> field and the heuristic (skip-stages + unit count) couldn't classify the\n"
+              "> run -- normal for runs that crashed before the Complexity Routing Gate.\n"
+              "> The token data is still usable as a baseline.\n\n")
+    out.write("| Tier | Status | Tokens | Stages | Events | Run ID | Project |\n")
+    out.write("|---|---|---:|---:|---:|---|---|\n")
+    for r in runs:
+        out.write(f"| {r['tier']} | {r['status']} | {r['total_tokens']:,} | "
+                  f"{len(r['completed_stages'])} | {r['event_count']} | "
+                  f"`{r['run_id']}` | {r['project_slug']} |\n")
+
+
+def _render_aggregated_tiers(out: io.StringIO, aggregate: dict) -> None:
+    """Render aggregated per-tier baseline table (section 3)."""
+    out.write("\n---\n\n## 3. Aggregated per-tier baselines\n\n")
+    if not aggregate:
+        out.write("_No runs discovered. Re-run with `--scan-siblings` or pass `--root`._\n\n")
+        return
+    for tier in sorted(aggregate):
+        data = aggregate[tier]
+        out.write(f"### Tier {tier} -- {data['run_count']} run(s)\n\n")
+        tt = data["total_tokens"]
+        out.write(f"- **Total tokens/run:** mean={tt['mean']:,.0f}  "
+                  f"min={tt['min']:,.0f}  max={tt['max']:,.0f}  σ={tt['stddev']:,.0f}  n={tt['n']}\n\n")
+        out.write("| Stage | Mean tokens | Min | Max | σ | Wall min (avg) | n |\n")
+        out.write("|---|---:|---:|---:|---:|---:|---:|\n")
+        for stage, s in data["per_stage"].items():
+            t, w = s["tokens"], s["wall_min"]
+            out.write(f"| {stage} | {t['mean']:,.0f} | {t['min']:,.0f} | {t['max']:,.0f} | "
+                      f"{t['stddev']:,.1f} | {w['mean']:.1f} | {t['n']} |\n")
+        out.write("\n")
+
+
+def _render_baseline_numbers(out: io.StringIO, hot_path: dict, boiler_total: int,
+                              cold: int, aggregate: dict) -> None:
+    """Render locked baseline numbers for refactor comparison (section 4)."""
+    out.write("---\n\n## 4. Baseline numbers locked for refactor comparison\n\n")
+    out.write("These are the headline numbers that every post-refactor re-run MUST diff against:\n\n")
+    out.write(f"- `BASELINE_KERNEL_BYTES` = **{hot_path['total_bytes']:,}**\n")
+    out.write(f"- `BASELINE_KERNEL_TOKENS_EST` = **{_bytes_to_tokens(hot_path['total_bytes']):,}**\n")
+    out.write(f"- `BASELINE_BOILERPLATE_HITS` = **{boiler_total}**\n")
+    out.write(f"- `BASELINE_COLD_PATH_BYTES` = **{cold:,}**\n")
+    for tier in ("SMALL", "MEDIUM", "LARGE", "UNKNOWN"):
+        if tier in aggregate:
+            mean = aggregate[tier]["total_tokens"]["mean"]
+            out.write(f"- `BASELINE_{tier}_TOKENS_MEAN` = **{mean:,.0f}** (n={aggregate[tier]['run_count']})\n")
 
 
 def render_baseline_md(repo_root: Path,
@@ -743,97 +886,10 @@ def render_baseline_md(repo_root: Path,
     out.write("no session needs to spawn three live `/factory-spec` invocations.\n\n")
     out.write("---\n\n")
 
-    out.write("## 1. Hot-path inventory (static)\n\n")
-    out.write(f"Source: `{hot_path['source']}`\n\n")
-    out.write(f"- **Total:** {hot_path['total_bytes']:,} bytes / {hot_path['total_lines']:,} lines / "
-              f"{hot_path['section_count']} H2 sections\n")
-    out.write(f"- **Heuristic kernel-token load** (≈4B/token + 5% BPE): "
-              f"**{_bytes_to_tokens(hot_path['total_bytes']):,} tokens**\n\n")
-
-    out.write("**Top sections by size:**\n\n")
-    out.write("| Reach | Bytes | Lines | Redundancy | Boilerplate | Pointers | Title |\n")
-    out.write("|---|---:|---:|---:|---:|---:|---|\n")
-    for r in sorted(hot_path["sections"], key=lambda r: r["bytes"], reverse=True)[:10]:
-        out.write(f"| {r['reach']} | {r['bytes']:,} | {r['lines']:,} | {r['redundancy']:.2f} | "
-                  f"{r['boilerplate_hit_total']} | {r['pointer_hit_total']} | {r['title']} |\n")
-
-    boiler_total = sum(r["boilerplate_hit_total"] for r in hot_path["sections"])
-    pointer_total = sum(r["pointer_hit_total"] for r in hot_path["sections"])
-    out.write("\n**Boilerplate phrase occurrences** (target=0):\n\n")
-    if boiler_total:
-        bp_totals: Counter = Counter()
-        for r in hot_path["sections"]:
-            for p, n in r["audit_phrase_hits"].items():
-                if p in BOILERPLATE_PHRASES:
-                    bp_totals[p] += n
-        out.write("| Hits | Phrase |\n|---:|---|\n")
-        for phrase, n in bp_totals.most_common():
-            rendered = f"<code>{phrase}</code>" if "`" in phrase else f"`{phrase}`"
-            out.write(f"| {n} | {rendered} |\n")
-    else:
-        out.write("_None -- all boilerplate eliminated._\n")
-    out.write(f"\n**Pointer references** (target=N): {pointer_total}\n")
-    if pointer_total:
-        ptr_totals: Counter = Counter()
-        for r in hot_path["sections"]:
-            for p, n in r["audit_phrase_hits"].items():
-                if p in POINTER_PHRASES:
-                    ptr_totals[p] += n
-        out.write("| Hits | Phrase |\n|---:|---|\n")
-        for phrase, n in ptr_totals.most_common():
-            out.write(f"| {n} | `{phrase}` |\n")
-
-    out.write(f"\n**Total boilerplate+pointer hits:** {boiler_total + pointer_total}\n\n")
-
-    cold = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "cold")
-    hot = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "hot")
-    always = sum(r["bytes"] for r in hot_path["sections"] if r["reach"] == "always")
-    out.write("**Reach breakdown:**\n\n")
-    out.write(f"- always: {always:,} bytes\n")
-    out.write(f"- hot:    {hot:,} bytes\n")
-    out.write(f"- cold:   {cold:,} bytes  <- TODO Phase 3 target\n\n")
-
-    out.write("---\n\n## 2. Discovered runs (real telemetry on disk)\n\n")
-    out.write(f"**Total runs discovered:** {len(runs)}  across "
-              f"{len(set(r['repo_root'] for r in runs))} repo root(s).\n\n")
-    out.write("> **Tier legend:** `UNKNOWN` means the manifest has no `complexity_tier`\n"
-              "> field and the heuristic (skip-stages + unit count) couldn't classify the\n"
-              "> run -- normal for runs that crashed before the Complexity Routing Gate.\n"
-              "> The token data is still usable as a baseline.\n\n")
-    out.write("| Tier | Status | Tokens | Stages | Events | Run ID | Project |\n")
-    out.write("|---|---|---:|---:|---:|---|---|\n")
-    for r in runs:
-        out.write(f"| {r['tier']} | {r['status']} | {r['total_tokens']:,} | "
-                  f"{len(r['completed_stages'])} | {r['event_count']} | "
-                  f"`{r['run_id']}` | {r['project_slug']} |\n")
-
-    out.write("\n---\n\n## 3. Aggregated per-tier baselines\n\n")
-    if not aggregate:
-        out.write("_No runs discovered. Re-run with `--scan-siblings` or pass `--root`._\n\n")
-    for tier in sorted(aggregate):
-        data = aggregate[tier]
-        out.write(f"### Tier {tier} -- {data['run_count']} run(s)\n\n")
-        tt = data["total_tokens"]
-        out.write(f"- **Total tokens/run:** mean={tt['mean']:,.0f}  "
-                  f"min={tt['min']:,.0f}  max={tt['max']:,.0f}  σ={tt['stddev']:,.0f}  n={tt['n']}\n\n")
-        out.write("| Stage | Mean tokens | Min | Max | σ | Wall min (avg) | n |\n")
-        out.write("|---|---:|---:|---:|---:|---:|---:|\n")
-        for stage, s in data["per_stage"].items():
-            t, w = s["tokens"], s["wall_min"]
-            out.write(f"| {stage} | {t['mean']:,.0f} | {t['min']:,.0f} | {t['max']:,.0f} | "
-                      f"{t['stddev']:,.1f} | {w['mean']:.1f} | {t['n']} |\n")
-        out.write("\n")
-
-    out.write("---\n\n## 4. Baseline numbers locked for refactor comparison\n\n")
-    out.write("These are the headline numbers that every post-refactor re-run MUST diff against:\n\n")
-    out.write(f"- `BASELINE_KERNEL_BYTES` = **{hot_path['total_bytes']:,}**\n")
-    out.write(f"- `BASELINE_KERNEL_TOKENS_EST` = **{_bytes_to_tokens(hot_path['total_bytes']):,}**\n")
-    out.write(f"- `BASELINE_BOILERPLATE_HITS` = **{boiler_total}**\n")
-    out.write(f"- `BASELINE_COLD_PATH_BYTES` = **{cold:,}**\n")
-    for tier in ("SMALL", "MEDIUM", "LARGE", "UNKNOWN"):
-        if tier in aggregate:
-            mean = aggregate[tier]["total_tokens"]["mean"]
-            out.write(f"- `BASELINE_{tier}_TOKENS_MEAN` = **{mean:,.0f}** (n={aggregate[tier]['run_count']})\n")
+    boiler_total, pointer_total, cold = _render_hot_path_section(out, hot_path)
+    _render_runs_table(out, runs)
+    _render_aggregated_tiers(out, aggregate)
+    _render_baseline_numbers(out, hot_path, boiler_total, cold, aggregate)
 
     out.write("\n---\n\n## 5. How to re-generate this report\n\n")
     out.write("```bash\n")

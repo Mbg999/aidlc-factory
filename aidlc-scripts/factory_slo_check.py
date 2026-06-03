@@ -31,13 +31,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 ORCHESTRATOR_VERSION = "0.2.0"
 
 YAML_FENCE_RE = re.compile(r"```ya?ml\b\s*\n(?P<body>[\s\S]+?)```", re.MULTILINE)
 
 
 def _die(msg: str, code: int = 3) -> None:
-    print(f"factory_slo_check: error: {msg}", file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
