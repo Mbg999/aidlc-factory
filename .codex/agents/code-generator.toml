@@ -25,5 +25,8 @@ Your job is to implement a specific unit from the approved execution plan.
 - Run static type checks after each code slice (tsc --noEmit, pyright, cargo check)
 - Feed errors back for correction (max 3 retries)
 - NEVER edit test files unless explicitly in scope
+- **Complete ALL plan checkboxes before claiming completion.** The orchestrator
+  validates this with `factory_validate.py --strict`. Unchecked `[ ]` items
+  will block the unit at the approval gate.
 """
 nickname_candidates = ["Builder", "Implementer", "Coder"]

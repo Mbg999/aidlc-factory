@@ -59,6 +59,91 @@ def test_validate_strict_missing_recommendation(env_setup):
     assert "no `recommendation`" in result.stderr
 
 
+def test_validate_strict_plan_unchecked_blocks(env_setup):
+    """Plan file with unchecked [ ] checkboxes must fail --strict."""
+    schema_path = env_setup / "code-generator.output.v1.json"
+    schema_path.write_text(json.dumps({
+        "$id": "code-generator.output.v1.json",
+        "type": "object",
+        "required": ["status", "sub_stage", "unit_name"],
+        "properties": {
+            "status": {"type": "string"},
+            "sub_stage": {"type": "string", "enum": ["plan", "generated", "complete"]},
+            "unit_name": {"type": "string"},
+            "artifacts": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"path": {"type": "string"}, "kind": {"type": "string"}}},
+            },
+        },
+        "additionalProperties": True,
+    }))
+    # Create a real plan file with an unchecked checkbox
+    plan_file = env_setup / "plans" / "test-plan.md"
+    plan_file.parent.mkdir(parents=True)
+    plan_file.write_text(
+        "# Code Generation Plan\n\n"
+        "- [x] Implement model\n"
+        "- [ ] Add validation\n"
+        "- [x] Write tests\n"
+    )
+    doc = env_setup / "test-unchecked.yaml"
+    doc.write_text(
+        "status: needs_human\nsub_stage: generated\nunit_name: auth\n"
+        "artifacts:\n"
+        "  - path: plans/test-plan.md\n"
+        "    kind: plan\n"
+    )
+    result = subprocess.run(
+        [sys.executable, str(VALIDATE_PY), str(schema_path), str(doc), "--strict"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1, f"expected STRICT FAIL, got: {result.stdout}{result.stderr}"
+    assert "STRICT FAIL" in result.stderr
+    assert "unchecked" in result.stderr
+    assert "Add validation" in result.stderr
+
+
+def test_validate_strict_plan_all_checked_passes(env_setup):
+    """Plan file with all [x] checkboxes must pass --strict."""
+    schema_path = env_setup / "code-generator.output.v1.json"
+    schema_path.write_text(json.dumps({
+        "$id": "code-generator.output.v1.json",
+        "type": "object",
+        "required": ["status", "sub_stage", "unit_name"],
+        "properties": {
+            "status": {"type": "string"},
+            "sub_stage": {"type": "string", "enum": ["plan", "generated", "complete"]},
+            "unit_name": {"type": "string"},
+            "artifacts": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"path": {"type": "string"}, "kind": {"type": "string"}}},
+            },
+        },
+        "additionalProperties": True,
+    }))
+    plan_file = env_setup / "plans" / "test-plan-ok.md"
+    plan_file.parent.mkdir(parents=True)
+    plan_file.write_text(
+        "# Code Generation Plan\n\n"
+        "- [x] Implement model\n"
+        "- [x] Add validation\n"
+        "- [x] Write tests\n"
+    )
+    doc = env_setup / "test-all-checked.yaml"
+    doc.write_text(
+        "status: needs_human\nsub_stage: generated\nunit_name: auth\n"
+        "artifacts:\n"
+        "  - path: plans/test-plan-ok.md\n"
+        "    kind: plan\n"
+    )
+    result = subprocess.run(
+        [sys.executable, str(VALIDATE_PY), str(schema_path), str(doc), "--strict"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, f"expected OK, got: {result.stdout}{result.stderr}"
+    assert "OK" in result.stdout
+
+
 def test_validate_strict_ok(env_setup):
     # Use a custom relaxed schema that allows artifacts for strict testing
     schema_path = env_setup / "test-schema.json"

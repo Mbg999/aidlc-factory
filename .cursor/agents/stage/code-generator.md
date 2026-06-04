@@ -257,10 +257,17 @@ Apply `code-review-and-quality` skill **on yourself** (five-axis self-review)
 when the unit's last task is done. Note the self-review summary in
 `audit_entries[]`.
 
-#### End-of-Unit Audit (per upstream `code-generation.md` Critical Rules — content embedded)
+#### HARD RULE: End-of-Unit Audit — 100% Plan Completion Required
 
-Before presenting completion:
-1. **Checkbox scan** — scan the plan file for any remaining `[ ]` items. Mark them `[x]` or document why they were skipped. A completion message MUST NOT be presented with open `[ ]` items.
+Before presenting completion, you MUST pass this audit. If ANY check fails,
+set `status: blocked` and DO NOT emit completion.
+
+1. **Checkbox scan (BLOCKING)** — scan the plan file for ANY remaining `[ ]` items.
+   If found: you MUST go back and implement them OR set `status: blocked` with
+   `[PlanIncomplete]` listing the unchecked tasks. A completion message MUST
+   NEVER be presented with open `[ ]` items. The orchestrator also validates
+   this with `factory_validate.py --strict` — lying about completion will be
+   caught and your unit will be rejected at the approval gate.
 2. **data-testid verification** (UI units only) — grep generated files for interactive elements (buttons, links, inputs, selects) and confirm each has a `data-testid` matching `{component}-{element-role}`.
 3. **Token compliance** (UI units only) — verify no raw hex colors, arbitrary Tailwind values (`px-[*]`, `rounded-[*]`), or inline style values for spacing/radius/font-size.
 4. Emit: `[Audit] all plan checkboxes [x] | data-testid: PASS | tokens: PASS`
@@ -341,3 +348,7 @@ Completion messages: emoji prefix + status. Approval gates: explicit user signal
 - Do not modify files outside `<unit-name>` boundaries unless the plan declares the cross-cutting need.
 - Do not modify audit.md / aidlc-state.md directly.
 - Do not exceed declared `locks_required[]`.
+- **Do NOT present completion with unchecked `[ ]` checkboxes.** This is enforced by
+  the orchestrator via `factory_validate.py --strict`. A unit with unchecked items
+  will be rejected at the approval gate and surfaced as blocked. Complete every
+  plan task before claiming completion.

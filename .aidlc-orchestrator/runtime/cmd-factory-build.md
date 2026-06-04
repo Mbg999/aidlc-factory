@@ -151,12 +151,14 @@ Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
          .aidlc-orchestrator/contracts/code-generator.output.v1.json \
          <output-handoff-path> --strict
      ```
-     `--strict` is MANDATORY: it enforces that any non-fast_path output with
-     `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
-     that the plan file actually exists on disk. This catches the silent-skip
-     failure where an agent claims `generated` without writing the construction
-     plan, which breaks downstream stages. On exit≠0: mark unit `blocked`, log
-     stderr to audit.md, DO NOT advance the unit, surface BEFORE the gate.
+      `--strict` is MANDATORY: it enforces that any non-fast_path output with
+      `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
+      that the plan file exists on disk AND that the plan file has ZERO remaining
+      unchecked `[ ]` checkboxes. This catches both the silent-skip failure
+      where an agent claims `generated` without writing the plan, and the partial
+      failure where an agent leaves tasks incomplete. On exit≠0: mark unit
+      `blocked`, log stderr to audit.md, DO NOT advance the unit, surface BEFORE
+      the gate.
    - AST drift check → knowledge save → audit append.
 3. If AST drift conflict OR strict-validation failure written, surface BEFORE approval gate.
 4. Approval gate: surface ALL units. User can approve all, reject specific units

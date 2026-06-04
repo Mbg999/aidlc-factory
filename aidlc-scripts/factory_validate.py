@@ -80,10 +80,25 @@ def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
                         Path.cwd() / art_path,
                         _AIDLC_ROOT / art_path,
                     ]
-                    if not any(c.exists() for c in candidates):
+                    resolved = next((c for c in candidates if c.exists()), None)
+                    if not resolved:
                         issues.append(
                             f"plan artifact declared at {art['path']} but file does not exist on disk"
                         )
+                    else:
+                        # Plan content: scan for remaining unchecked checkboxes.
+                        # This catches the silent-skip failure where an agent claims
+                        # "generated" / "complete" but left tasks unchecked.
+                        text = resolved.read_text(encoding="utf-8", errors="replace")
+                        unchecked = [ln.strip() for ln in text.splitlines() if "- [ ]" in ln]
+                        if unchecked:
+                            preview = "; ".join(u[:80] for u in unchecked[:5])
+                            if len(unchecked) > 5:
+                                preview += f" ... (and {len(unchecked) - 5} more)"
+                            issues.append(
+                                f"plan file '{art['path']}' has {len(unchecked)} unchecked "
+                                f"checkbox(es): {preview}"
+                            )
 
     # tests_added > 0 requires at least 1 test file in artifacts
     tests_added = doc.get("tests_added", 0)
@@ -256,8 +271,9 @@ def main() -> None:
     else:
         _die(f"unsupported document extension: {suffix} (expected .yaml/.yml/.json)")
 
-    # Version check: schema $id should indicate expected schema version
-    schema_id = schema.get("$id", "")
+    # Version check: schema $id should indicate expected schema version.
+    # Fall back to file name when $id is empty (common in simple schemas).
+    schema_id = schema.get("$id", "") or schema_path.name
     schema_ver = schema.get("schema_version")
     if schema_ver is not None and schema_ver != EXPECTED_SCHEMA_VERSION:
         _log("WARNING", f"VERSION MISMATCH schema_version={schema_ver}, expected {EXPECTED_SCHEMA_VERSION} (orchestrator v{ORCHESTRATOR_VERSION})")

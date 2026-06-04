@@ -51,6 +51,13 @@ Functional Design → NFR Requirements → NFR Design → Infrastructure Design 
 Code Gen: plan → implement (TDD thin slices) → self-review → wait for approval.
 Build & Test: run build → run tests → debug if failures → produce instructions → wait for approval.
 
+## MANDATORY: Plan Completion Discipline
+**Every task in the construction plan MUST be completed before the unit exits.**
+The orchestrator validates this at the approval gate via `factory_validate.py --strict`,
+which scans the plan file for remaining `[ ]` checkboxes. Any unchecked item
+causes the unit to be marked `blocked` and surfaced to the user. Do NOT proceed
+to the next unit or stage with incomplete tasks — the gate will reject the unit.
+
 ---
 
 # 🟡 OPERATIONS PHASE

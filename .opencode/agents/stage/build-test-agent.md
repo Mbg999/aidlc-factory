@@ -58,7 +58,7 @@ Per upstream rule `construction/build-and-test.md` (content embedded in this age
 ### Pre-flight check (BLOCKING)
 
 Before proceeding to Step 1, verify:
-1. **Code gen plans exist**: `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` for each unit, with all checkboxes `[x]`
+1. **Code gen plans complete**: `aidlc-docs/construction/plans/<run-id>-{unit-name}-code-generation-plan.md` for each unit, with ALL checkboxes `[x]`. If any `[ ]` remain, set `status: blocked` — the code-generator did not finish all tasks.
 2. **Audit completeness**: `aidlc-docs/audit.md` has entries for every completed Code Generation unit (plan approval + completion + skill compliance)
 3. **Execution plan updated**: `aidlc-docs/inception/plans/` execution plan has `[x]` on all code-gen tasks
 4. **State file current**: `aidlc-state.md` `Current Stage` reflects the last completed Code Generation unit
