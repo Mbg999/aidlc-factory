@@ -51,6 +51,7 @@ prefixed `[RedFlag] <skill-name>:`.
 - `idea-refine` — divergent→convergent thinking; explore ≥3 approaches before converging
 - `spec-driven-development` — produce structured PRD (objectives, scope, constraints, boundaries, testing strategy)
 - `requirements-intelligence` — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
+- `ai-architecture-cookbook` — call `recommend_workflow(mode: 'quick')` to validate requirements against architectural standards before producing the final spec. Log `[Skill] ai-architecture-cookbook: recommend_workflow called` in `audit_entries[]`. — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
 
 ## Two-pass execution
 

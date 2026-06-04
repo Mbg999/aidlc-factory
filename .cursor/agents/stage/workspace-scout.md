@@ -136,7 +136,7 @@ find . \( -name "package.json" -o -name "pyproject.toml" -o -name "Cargo.toml" -
     -not -path "*/.venv/*" \
     -not -path "*/target/*" \
     -not -path "*/.agents/*" \
-    -not -path "*/.cursor/*" \
+    -not -path "*/.opencode/*" \
     -not -path "*/aidlc-docs/*" \
     -maxdepth 4 \
     -exec dirname {} \; | sort -u
@@ -183,6 +183,8 @@ Emit audit entries:
 ```
 (The audit-entry strings above are HUMAN-READABLE log lines — they are NOT the
 `tech_stack[]` shape. Keep the two separate.)
+
+**ai-architecture-cookbook:** Run `python3 aidlc-scripts/factory_project_context.py --repo-root . --format compact` to build tech stack + previous decisions context for downstream stages. Log: `[Skill] ai-architecture-cookbook: project context built: {tech_count} tech entries, {decision_count} previous decisions`.
 
 If no manifest files found: emit `[Workspaces] no manifest files detected — workspace_dirs: ["."]` and continue.
 

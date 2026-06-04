@@ -63,9 +63,11 @@ silent error handling, `# noqa` without justification → `status: needs_human`.
 **Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
 `validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
-`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
+`api-and-interface-design*`, `secret-knowledge`, `ai-architecture-cookbook` (* = conditional on profile). When both `design-system-composer`
 and `ui-constraint-validator` are present, run them as a pipeline:
 `design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
+
+**Cookbook integration:** Before code generation, call `query_standard` for the relevant domain(s) to get `tech_stack_mappings` (if available), which provide implementation snippets specific to the project's tech stack (e.g., Prisma-specific repository pattern vs sqlx). Use `explain_decision` to validate pattern choices with structured tradeoff analysis. Call `get_checklist(severity: critical)` to self-verify generated code against architectural standards. Budget: ≤ 3 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
 
 **Lockfile-aware skill loading:** Before loading any framework skill from `.agents/skills/`
 or `.agents/custom-skills/`, read `manifest.workspace_state.tech_stack[]`. For each skill

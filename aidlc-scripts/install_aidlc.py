@@ -320,6 +320,9 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     "skill_utils.py",             # shared helpers (parse_frontmatter, ver_in_range, discover_skills)
     # CodeGraph integration (optional — installed when --with-codegraph is set)
     "factory_codegraph.py",       # install/init/index/status CLI helper for CodeGraph
+    # Cookbook integration scripts (project context + tech mapping generator)
+    "factory_project_context.py", # read tech stack + previous decisions → context for MCP tools
+    "factory_tech_mappings.py",   # generate tech_stack_mappings for Cookbook YAML standards
 ]
 
 # Root-level config files installed once alongside the orchestrator.

@@ -36,7 +36,7 @@ If exit ≠ 0: STOP. Return `failed <input-path>`.
 
 **Skills:** `using-agent-skills`, `api-and-interface-design`, `context-engineering`, `ai-architecture-cookbook`.
 
-**Cookbook integration:** During component design and service layer design, call `recommend_pattern` from the cookbook to validate architectural patterns. Use `get_decision_tree` to resolve pattern choices (e.g. orchestration vs choreography, state management approach). Call `get_checklist(severity: high)` to self-verify the design artifacts before completion. Include cookbook standard ID citations in the design documents. Budget: ≤ 4 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
+**Cookbook integration:** Call `recommend_workflow(mode: 'audit')` to get recommendations with `coverage_ratio` (partial context handling), `alternatives_considered` (explainability), and `cross_domain` conflict analysis. Use `explain_decision` to document pattern choices with tradeoff narratives for the design artifacts. Call `get_checklist(severity: high)` to self-verify. Use `search_standards` for exploratory queries. Include `decision_rationale` and `cross_domain.conflicts` (if any) in the design documents. Budget: ≤ 4 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
 
 ## Your job
 Per upstream rule `inception/application-design.md` (content embedded in this agent — not read from disk):

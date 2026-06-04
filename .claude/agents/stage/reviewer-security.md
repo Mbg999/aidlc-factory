@@ -65,6 +65,8 @@ Log: `[CodeGraph] security severity bump: <symbol> blast_radius=<N> — <N> call
 
 When CodeGraph is absent: skip enrichment, proceed with standard security review.
 
+**ai-architecture-cookbook:** Call `get_checklist(severity: critical)` for each security-relevant domain (authentication, encryption, input-validation, rate-limiting, session-management). Use `explain_decision` with the security domain to get structured tradeoff analysis. Cross-reference findings against `decision_rationale` in the execution plan. Budget: ≤ 3 calls per invocation.
+
 Severity: `P0` (exploitable as-coded) | `P1` (defense-in-depth gap) | `P2` (hardening hint) | `P3` (informational/best-practice note).
 
 ## Your output
@@ -119,7 +121,7 @@ cause):
 - Body: describe the **root cause** and the attack vector, NOT the specific
   patch. Future runs need the failure shape, not your fix.
 
-Full guidance: `.claude/agents/cross-cutting/knowledge-agent.md`. Security
+Full guidance: `.opencode/agents/cross-cutting/knowledge-agent.md`. Security
 antipatterns are auto-included in future security-review queries regardless
 of relevance score (cheap to ignore, expensive to miss).
 

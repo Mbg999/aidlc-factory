@@ -58,7 +58,7 @@ silent error handling, `# noqa` without justification → `status: needs_human`.
 **Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `library-docs-with-context7`, `environment-detection`,
 `incremental-implementation`, `test-driven-development`, `source-driven-development`,
 `validator-retry`, `frontend-ui-engineering*`, `design-system-composer*`, `ui-constraint-validator*`,
-`api-and-interface-design*`, `secret-knowledge` (* = conditional on profile). When both `design-system-composer`
+`api-and-interface-design*`, `secret-knowledge`, `ai-architecture-cookbook` (* = conditional on profile). When both `design-system-composer`
 and `ui-constraint-validator` are present, run them as a pipeline:
 `design-system-composer` (compose) → `ui-constraint-validator` (validate + autocorrect).
 

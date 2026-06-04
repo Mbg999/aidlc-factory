@@ -66,6 +66,8 @@ Log: `[CodeGraph] severity bump: <symbol> blast_radius=<N> → P2→P1`
 
 When CodeGraph is absent: skip enrichment, proceed with standard review.
 
+**ai-architecture-cookbook:** Call `get_checklist(severity: high)` for each domain in the code to validate against architectural standards. Use `explain_decision` when questioning a pattern choice — it returns `alternatives_considered` and `why_not_selected`. Include cookbook standard ID citations in findings. Budget: ≤ 3 calls per invocation.
+
 Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to have) | `P3` (style/nit/info).
 
 ## Your output

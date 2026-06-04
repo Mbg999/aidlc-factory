@@ -86,6 +86,10 @@ Runs ONCE before any unit is spawned, when `manifest.project_profile.ui == true`
    warning and continue — the build proceeds without token enforcement.
    Token Bridge failure never blocks a build.
 
+## Pre-Build Step 0.6 — Cookbook context load
+
+**Cookbook**: Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present. For each unit's code-generator input handoff, inject the context's `techStack[]` so the code-generator's `recommend_workflow` and `query_standard` calls filter patterns to the project's tech stack (e.g., Prisma-specific repository patterns vs sqlx). Log: `[Cookbook] Context injected into <N> unit handoffs` or `[Cookbook] No context file found — tech stack filtering disabled`.
+
 ---
 
 ## Step A — Compute unit dependency waves

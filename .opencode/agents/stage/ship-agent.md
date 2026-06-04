@@ -44,7 +44,9 @@ unit, version-bump without rationale, missing migration plan when
 `has_legacy` is true.
 
 **Skills:** `using-agent-skills`, `shipping-and-launch`, `git-workflow-and-versioning`,
-`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`, `secret-knowledge`.
+`ci-cd-and-automation`, `documentation-and-adrs`, `deprecation-and-migration*`, `secret-knowledge`, `ai-architecture-cookbook`.
+
+**Cookbook integration:** When generating ADRs, use `explain_decision` with `format:'short'` to include `decision_rationale` and `alternatives_considered` from the cookbook. This enriches ADRs with structured tradeoff analysis. Call `get_checklist(severity: high)` for each domain in the run to validate architectural compliance before shipping. Include cookbook standard ID citations in ADR context sections. Budget: ≤ 3 calls per invocation.
 
 ## Your job
 1. **Release notes** → `RELEASE_NOTES.md` (or append to it). Sections: Added, Changed, Fixed, Deprecated, Removed, Security. Match the diff scope of this run.

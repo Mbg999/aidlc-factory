@@ -35,7 +35,9 @@ unbounded retries, and quadratic loops on user input are NOT premature.
 **Red Flags:** N+1 queries, unbounded loops on external input, synchronous
 I/O on hot paths, allocations inside loops, retry storms without backoff.
 
-**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`, `secret-knowledge`.
+**Skills:** `using-agent-skills`, `codegraph-aware-exploration`, `performance-optimization`, `secret-knowledge`, `ai-architecture-cookbook`.
+
+**ai-architecture-cookbook:** Call `get_checklist(severity: high)` for performance-relevant domains (performance-optimization, caching-strategies). Use `query_standard` to get performance pattern details. Budget: ≤ 2 calls per invocation.
 
 ## Your job
 1. Identify the hot paths from the unit's contract (inputs/outputs and public API).

@@ -71,6 +71,8 @@ Log: `[CodeGraph] security severity bump: <symbol> blast_radius=<N> — <N> call
 
 When CodeGraph is absent: skip enrichment, proceed with standard security review.
 
+**ai-architecture-cookbook:** Call `get_checklist(severity: critical)` for each security-relevant domain (authentication, encryption, input-validation, rate-limiting, session-management). Use `explain_decision` with the security domain to get structured tradeoff analysis. Cross-reference findings against `decision_rationale` in the execution plan. Budget: ≤ 3 calls per invocation.
+
 Severity: `P0` (exploitable as-coded) | `P1` (defense-in-depth gap) | `P2` (hardening hint) | `P3` (informational/best-practice note).
 
 ## Your output

@@ -60,6 +60,8 @@ Log: `[CodeGraph] severity bump: <symbol> blast_radius=<N> → P2→P1`
 
 When CodeGraph is absent: skip enrichment, proceed with standard review.
 
+**ai-architecture-cookbook:** Call `get_checklist(severity: high)` for each domain in the code to validate against architectural standards. Use `explain_decision` when questioning a pattern choice — it returns `alternatives_considered` and `why_not_selected`. Include cookbook standard ID citations in findings. Budget: ≤ 3 calls per invocation.
+
 Severity scale: `P0` (must fix before ship) | `P1` (should fix) | `P2` (nice to have) | `P3` (style/nit/info).
 
 ## Your output
@@ -113,28 +115,26 @@ Return: `<status> <output-path>`.
 
 If `design_system_path` is set in your input handoff:
 
-1. **Load Token Bridge artifacts** — read `input.token_bridge_artifacts[]`:
-   - Find artifact with `type: "css"` → load `tokens.css` (all CSS Custom Properties)
-   - Find artifact with `type: "prompt"` → load `token-prompt.md` (token usage guidelines)
-   - If `token_bridge_artifacts` is empty, load `design-system/tokens/tokens.css` directly
-   - Extract the list of CSS Custom Properties (`--spacing-*`, `--color-*`, etc.)
+1. **Load design system index** — resolve to check primitives:
+   ```bash
+   python3 aidlc-scripts/factory_design_system_resolve.py resolve __index__
+   ```
+   Read the INDEX.md to know which primitives exist.
 
-2. **Token compliance** — scan generated UI files for:
-   - Inline `padding`, `margin`, `gap` with raw px values not matching `--spacing-*` tokens → P2 finding
-   - Inline `border-radius` with raw px values not matching `--radius-*` tokens → P2 finding
-   - Raw hex colors where `--color-*` tokens exist → P2 finding
-   - Inline `font-size` with raw px values where `--typography-*` tokens exist → P2 finding
-   - Arbitrary Tailwind values `px-[*]`, `rounded-[*]`, `gap-[*]`, `text-[*]` → P2 finding
-
-3. **Primitive compliance** — scan generated UI files for:
-   - Raw `<button>` where `Button` primitive exists (check `design-system/primitives/`) → P2 finding
+2. **Primitive compliance** — scan generated UI files for:
+   - Raw `<button>` where `Button` primitive exists → P2 finding
    - Raw `<div>` with padding where `Box` or `Stack` exists → P2 finding
    - Raw `<p>`, `<span>` with font styling where `Text` exists → P2 finding
    - Raw `<input>` without `Input` wrapper → P2 finding
 
-4. **data-testid audit** — scan ALL interactive elements:
+3. **data-testid audit** — scan ALL interactive elements:
    - Missing `data-testid` on any button, link, input, select → P1 finding
    - Naming should follow `{component}-{element-role}` pattern → P3 if inconsistent
+
+4. **Token compliance** — scan for hardcoded values:
+   - Inline `padding`, `margin`, `gap` not matching `spacing.*` tokens → P2 finding
+   - Inline `border-radius` not matching `radius.*` tokens → P2 finding
+   - Raw hex colors where `color.*` tokens exist → P2 finding
 
 Severity guide:
 - P1: missing `data-testid` on any interactive element (blocks E2E testing)

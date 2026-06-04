@@ -32,7 +32,9 @@ python3 aidlc-scripts/factory_validate.py \
 
 **Anti-bypass / Red Flags** — same as other stages.
 
-**Skills:** `using-agent-skills`, `planning-and-task-breakdown`, `requirements-intelligence` (plan-stage variant only).
+**Skills:** `using-agent-skills`, `planning-and-task-breakdown`, `requirements-intelligence` (plan-stage variant only), `ai-architecture-cookbook`.
+
+**Cookbook integration:** Call `recommend_workflow(mode: 'audit')` to get enriched recommendations with `coverage_ratio`, `alternatives_considered`, and `cross_domain` conflict detection. Use `search_standards` for exploratory queries. Call `explain_decision` for high-risk decisions to get structured tradeoff analysis. Run `factory_project_context.py --format compact` to inject project tech stack and previous decisions into the cookbook context. Include `decision_rationale` and `alternatives_considered` in the plan's risk assessment section. Budget: ≤ 3 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
 
 **Plan-stage variant of `requirements-intelligence`:** load the skill in *plan-stage* mode (see `requirements-intelligence/SKILL.md` § "Plan-stage variant" and `pre-mortem.md` § "Plan-stage variant"). Run the pre-mortem rubric against the plan artifact and emit ≤3 plan-risk questions appended to the approval surface (NOT a separate questions file). Pre-mortem-on-plan asks: (1) where will this plan break first during construction, (2) which unit boundary, if wrong, forces a re-plan, (3) which task has the weakest acceptance criterion. Skip if the plan is single-unit AND every task already has ≥2 acceptance criteria.
 

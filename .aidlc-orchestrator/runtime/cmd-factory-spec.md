@@ -60,6 +60,32 @@ After the profile pipeline completes, decide whether to run `reverse-engineer` b
 
 > **Cookbook**: If reverse-engineer runs, its agent loads the `ai-architecture-cookbook` skill (`recommend_pattern` + `query_standard`) to identify architectural patterns in the existing codebase and annotate detected domains with standard IDs, so downstream stages have cookbook context from the start.
 
+## Step 3.6 — Cookbook project context injection
+
+After the project-profile pipeline (and optional reverse-engineer), build the cookbook project context from the detected tech stack and previous architecture decisions:
+
+```bash
+python3 aidlc-scripts/factory_project_context.py --repo-root . --format compact \
+    > .aidlc-orchestrator/runs/<run-id>/cookbook-context.json
+```
+
+This script reads lockfiles (package.json, Cargo.toml, pyproject.toml, go.mod) and aidlc-docs/ to extract:
+- `techStack[]` — detected technologies per layer (frontend, backend, database, etc.)
+- `scale` — inferred from audit.md
+- `compliance[]` — extracted from requirements.md (gdpr, hipaa, pci-dss, etc.)
+- `previous_decisions[]` — from ADRs and execution plan
+- `client_types[]` — inferred from tech stack layers
+
+Store the result path in the manifest:
+```bash
+python3 aidlc-scripts/factory_run.py set <run-id> \
+    --field cookbook_context_path=.aidlc-orchestrator/runs/<run-id>/cookbook-context.json
+```
+
+Log: `[Cookbook] Project context built and stored at cookbook-context.json`.
+
+Downstream stages (workflow-planner, application-designer, code-generator, reviewers) can read this file and pass its contents as `context` to `recommend_workflow` / `recommend_pattern` / `explain_decision` MCP tools.
+
 Then proceed to Step 4.
 
 ## Step 4 — Requirements Analyst (two-pass, inline)
