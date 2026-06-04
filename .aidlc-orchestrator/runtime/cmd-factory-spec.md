@@ -58,6 +58,8 @@ This script:
 **Reverse-engineer routing** (same as before — decision lives in `project-profile.md` §B):
 After the profile pipeline completes, decide whether to run `reverse-engineer` based on brownfield state and artifact presence.
 
+> **Cookbook**: If reverse-engineer runs, its agent loads the `ai-architecture-cookbook` skill (`recommend_pattern` + `query_standard`) to identify architectural patterns in the existing codebase and annotate detected domains with standard IDs, so downstream stages have cookbook context from the start.
+
 Then proceed to Step 4.
 
 ## Step 4 — Requirements Analyst (two-pass, inline)

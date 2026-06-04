@@ -23,13 +23,13 @@ SPAWN_LOOP = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "spawn-loop.md"
 
 class TestOrchestratormdHasApprovalGateRule:
     def test_orchestrator_md_explicit_approval_rule(self):
-        text = CLAUDE_ORCHESTRATOR.read_text()
+        text = CLAUDE_ORCHESTRATOR.read_text(encoding="utf-8")
         assert "Commits require explicit user approval" in text or \
                "auto-commit" not in text, \
             "orchestrator.md must restrict commits to explicit approval"
 
     def test_orchestrator_md_lists_approval_signals(self):
-        text = CLAUDE_ORCHESTRATOR.read_text()
+        text = CLAUDE_ORCHESTRATOR.read_text(encoding="utf-8")
         # At minimum the orchestrator should mention the signals or reference
         # core-workflow.md which lists them
         for signal in ("approve", "go ahead", "continue", "lgtm", "dale", "sí"):
@@ -38,51 +38,51 @@ class TestOrchestratormdHasApprovalGateRule:
         pytest.fail("orchestrator.md must reference at least one approval signal")
 
     def test_orchestrator_md_no_auto_commit_on_stage_complete(self):
-        text = CLAUDE_ORCHESTRATOR.read_text()
+        text = CLAUDE_ORCHESTRATOR.read_text(encoding="utf-8")
         # The hard rule: "Never auto-commit when a stage or phase completes"
         assert "Never auto-commit" in text or "never auto-commit" in text.lower(), \
             "orchestrator.md must prohibit auto-commit on stage completion"
 
     def test_orchestrator_md_references_commit_deferral(self):
-        text = CLAUDE_ORCHESTRATOR.read_text()
+        text = CLAUDE_ORCHESTRATOR.read_text(encoding="utf-8")
         assert "commit" in text.lower(), \
             "orchestrator.md must mention commit behavior"
 
 
 class TestCoreWorkflowHasApprovalMandate:
     def test_core_workflow_has_approval_signals_list(self):
-        text = CORE_WORKFLOW.read_text()
+        text = CORE_WORKFLOW.read_text(encoding="utf-8")
         found = [s for s in APPROVAL_SIGNALS if s in text]
         assert len(found) >= 5, \
             f"core-workflow.md should enumerate most approval signals, found only {found}"
 
     def test_core_workflow_says_commit_on_approval_only(self):
-        text = CORE_WORKFLOW.read_text()
+        text = CORE_WORKFLOW.read_text(encoding="utf-8")
         assert "Approval ONLY" in text or \
                "only after" in text.lower() and "approval" in text.lower(), \
             "core-workflow.md must restrict commits to approval-only"
 
     def test_core_workflow_has_anti_pattern(self):
-        text = CORE_WORKFLOW.read_text()
+        text = CORE_WORKFLOW.read_text(encoding="utf-8")
         assert "Anti-pattern" in text or "anti-pattern" in text, \
             "core-workflow.md must document the anti-pattern to reject"
 
     def test_core_workflow_anti_pattern_rejects_commit_on_complete(self):
-        text = CORE_WORKFLOW.read_text()
+        text = CORE_WORKFLOW.read_text(encoding="utf-8")
         assert "status: complete" in text, \
             "core-workflow.md anti-pattern must reference 'status: complete'"
 
 
 class TestSpawnLoopDefersCommit:
     def test_spawn_loop_step9_defers_to_command_boundary(self):
-        text = SPAWN_LOOP.read_text()
+        text = SPAWN_LOOP.read_text(encoding="utf-8")
         assert "DEFERRED" in text, \
             "spawn-loop.md step 9 must say DEFERRED for auto-commit"
         assert "command boundary" in text.lower(), \
             "spawn-loop.md must defer commit to command boundary"
 
     def test_spawn_loop_no_per_stage_commit_language(self):
-        text = SPAWN_LOOP.read_text()
+        text = SPAWN_LOOP.read_text(encoding="utf-8")
         # Ensure it doesn't say "commit" in the bookkeeping steps before approval
         # Step 9 is the commit step and it should say deferred
         commit_lines = [l for l in text.splitlines() if "commit" in l.lower()]
@@ -92,7 +92,7 @@ class TestSpawnLoopDefersCommit:
                 f"Every commit reference should mention deferral: {line!r}"
 
     def test_post_exec_loop_also_defers_commit(self):
-        text = SPAWN_LOOP.read_text()
+        text = SPAWN_LOOP.read_text(encoding="utf-8")
         post_exec_section = text.split("Post-execution loop")[-1] if "Post-execution loop" in text else ""
         if post_exec_section:
             assert "DEFERRED" in post_exec_section or "deferred" in post_exec_section.lower(), \
@@ -115,7 +115,7 @@ class TestAllToolOrchestratorsHaveApprovalRule:
 
     @pytest.mark.parametrize("name,path", TOOL_ORCHESTRATORS)
     def test_each_orchestrator_has_approval_rule(self, name, path):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert "commit" in text.lower(), \
             f"{name} must mention commit behavior"
         assert "applause" not in text, \
@@ -141,7 +141,7 @@ class TestNoAutoCommitInFactoryCommands:
 
     def test_no_command_runs_git_commit(self):
         for cmd in self._get_command_files():
-            text = cmd.read_text()
+            text = cmd.read_text(encoding="utf-8")
             # Command files should reference the orchestrator for commit,
             # not run git commit themselves
             if "git commit" in text:

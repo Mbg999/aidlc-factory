@@ -497,8 +497,8 @@ class TestAutoInitCodeGraph:
             install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
 
         captured = capsys.readouterr()
-        assert "WARNING" in captured.out
-        assert "exited with an error" in captured.out
+        assert "WARNING" in captured.out or "WARNING" in captured.err
+        assert "exited with an error" in captured.out or "exited with an error" in captured.err
         assert "Run manually" in captured.out
 
     def test_skip_when_subprocess_times_out(self, tmp_path: Path, monkeypatch):
@@ -1110,3 +1110,135 @@ class TestCheckNodeVersion:
         ok, ver = install_aidlc._check_node_version(18)
         assert not ok
         assert ver == "not found"
+
+
+# ── _run_codegraph (Bug B2 regression) ────────────────────────────────────
+
+
+class TestRunCodegraph:
+    """Regression tests for _run_codegraph Windows wrapper (Bug B2)."""
+
+    def test_windows_adds_cmd_prefix(self):
+        """On Windows, _run_codegraph should prefix with ['cmd', '/c']."""
+        with patch("install_aidlc._is_windows", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "init"])
+                args, kwargs = mock_run.call_args
+                assert args[0] == ["cmd", "/c", "codegraph", "init"]
+
+    def test_non_windows_passes_through(self):
+        """On non-Windows, _run_codegraph should pass the command as-is."""
+        with patch("install_aidlc._is_windows", return_value=False):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "init"])
+                args, kwargs = mock_run.call_args
+                assert args[0] == ["codegraph", "init"]
+
+    def test_windows_passes_target_root(self, tmp_path):
+        """On Windows, _run_codegraph should forward cwd to subprocess.run."""
+        with patch("install_aidlc._is_windows", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+                install_aidlc._run_codegraph(["codegraph", "status"], target_root=tmp_path)
+                args, kwargs = mock_run.call_args
+                assert kwargs["cwd"] == str(tmp_path)
+
+
+# ---------- Cookbook: _cleanup_cookbook ----------
+
+def _stub_cookbook(target_root: Path) -> Path:
+    """Create a stub cookbook directory structure for cleanup tests."""
+    cbd = target_root / install_aidlc.COOKBOOK_TARGET_DIR
+    # Essential: YAML categories
+    for cat in ("foundational", "application-architecture", "infrastructure",
+                "security-quality", "integration-data"):
+        (cbd / cat / "auth").mkdir(parents=True, exist_ok=True)
+        (cbd / cat / "auth" / "auth.yaml").write_text("key: value\n")
+    # Essential: index.yaml
+    (cbd / "index.yaml").write_text("version: 1\n")
+    # Essential: mcp-server
+    (cbd / "mcp-server" / "dist").mkdir(parents=True, exist_ok=True)
+    (cbd / "mcp-server" / "dist" / "server.js").write_text("// built\n")
+    (cbd / "mcp-server" / "node_modules" / "dep").mkdir(parents=True, exist_ok=True)
+    # Removable: git
+    (cbd / ".git" / "objects").mkdir(parents=True, exist_ok=True)
+    (cbd / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    # Removable: agent config dirs
+    for d in (".claude", ".cursor", ".github", ".vscode"):
+        (cbd / d).mkdir(parents=True, exist_ok=True)
+    # Removable: tooling dirs
+    for d in ("scripts", "tools", "prompts", "aidlc-docs", "aidlc-rule-details"):
+        (cbd / d).mkdir(parents=True, exist_ok=True)
+    # Removable: root files
+    for f in (".cursorrules", ".windsurfrules", ".DS_Store", ".gitignore",
+              ".mcp.json", "base-template.yaml", "CLAUDE.md", "CONTRIBUTING.md",
+              "LICENSE", "README.md", "requirements.txt"):
+        (cbd / f).write_text("x\n")
+    return cbd
+
+
+class TestCleanupCookbook:
+    def test_removes_git_dir(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        assert (cbd / ".git").exists()
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        assert not (cbd / ".git").exists()
+
+    def test_removes_agent_config_dirs(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        for d in (".claude", ".cursor", ".github", ".vscode"):
+            assert (cbd / d).exists()
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        for d in (".claude", ".cursor", ".github", ".vscode"):
+            assert not (cbd / d).exists()
+
+    def test_removes_tooling_dirs(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        for d in ("scripts", "tools", "prompts", "aidlc-docs", "aidlc-rule-details"):
+            assert not (cbd / d).exists()
+
+    def test_removes_root_files(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        for f in (".cursorrules", ".windsurfrules", ".gitignore",
+                  ".mcp.json", "base-template.yaml", "CLAUDE.md",
+                  "CONTRIBUTING.md", "LICENSE", "README.md", "requirements.txt"):
+            assert not (cbd / f).exists(), f"{f} was not removed"
+
+    def test_keeps_yaml_categories(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        for cat in ("foundational", "application-architecture", "infrastructure",
+                    "security-quality", "integration-data"):
+            assert (cbd / cat).exists(), f"{cat} was removed but should be kept"
+            assert (cbd / cat / "auth" / "auth.yaml").exists()
+
+    def test_keeps_mcp_server(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        assert (cbd / "mcp-server").exists()
+        assert (cbd / "mcp-server" / "node_modules").exists()
+
+    def test_keeps_index_yaml(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        assert (cbd / "index.yaml").exists()
+
+    def test_dry_run_does_not_remove(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=True)
+        assert (cbd / ".git").exists()
+        assert (cbd / ".claude").exists()
+        assert (cbd / "scripts").exists()
+
+    def test_noop_when_cookbook_dir_missing(self, tmp_path: Path):
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+
+    def test_handles_missing_items_gracefully(self, tmp_path: Path):
+        cbd = _stub_cookbook(tmp_path)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        install_aidlc._cleanup_cookbook(tmp_path, dry_run=False)
+        # Second call must not crash — items already removed

@@ -17,11 +17,15 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
    `stage/story-writer.md` inline per the [post-execution loop](spawn-loop.md).
    Predecessor: requirements-analyst output.
 
+   > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner.
+
 2. **Workflow Planner (always)** — `model: opus`. Required. Execute
    `stage/workflow-planner.md` inline per the [post-execution loop](spawn-loop.md).
    Predecessors: requirements + (if present) stories. The planner emits
    `status: needs_human` after producing the plan; on user response, call
    `emit_audit_block` per [`audit-block.protocol.md` § workflow-planner gate](../contracts/audit-block.protocol.md).
+
+   > **Cookbook**: The workflow-planner loads `ai-architecture-cookbook` (`recommend_pattern`) to suggest architecture patterns the plan must cover, tagged with cookbook standard IDs.
 
 3. **Unit Decomposer (conditional)** — skip when ANY of:
    - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov)
@@ -29,6 +33,8 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    When skipping due to ComplexityGov, follow complexity-gate skip enforcement.
    Otherwise execute `stage/unit-decomposer.md` inline per the [post-execution loop](spawn-loop.md).
+
+   > **Cookbook**: The unit-decomposer loads `ai-architecture-cookbook` (`get_decision_tree`) to ensure decomposed units carry architecture-standard context for each domain they touch.
 
 4. Auto-commit `docs(workflow-planning): complete workflow planning` and update
    state. Present completion + offer `/factory-build <run-id>` (MUST substitute the

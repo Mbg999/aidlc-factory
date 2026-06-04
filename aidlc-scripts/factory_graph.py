@@ -37,6 +37,13 @@ import sys
 from pathlib import Path
 
 try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
+try:
     import yaml
 except ImportError:
     print(f"missing dependency: {sys.executable} -m pip install pyyaml", file=sys.stderr)
@@ -48,7 +55,7 @@ RUNS_ROOT = REPO_ROOT / ".aidlc-orchestrator" / "runs"
 
 
 def _die(msg: str, code: int = 1) -> None:
-    print(msg, file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 

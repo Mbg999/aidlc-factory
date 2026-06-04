@@ -428,6 +428,64 @@ class TestFlock:
                 sys.modules["msvcrt"] = saved_msvcrt
         lf.close()
 
+    def test_flock_creates_parent_dirs(self, tmp_path):
+        """_flock should create parent directories when the path doesn't exist."""
+        deep_path = tmp_path / "a" / "b" / "c" / "target.txt"
+        assert not deep_path.parent.exists()
+        with _factory_run_mod._flock(deep_path):
+            deep_path.write_text("created deep")
+        assert deep_path.read_text() == "created deep"
+
+    def test_flock_nested_dir_concurrent(self, tmp_path):
+        """Two threads can use _flock on a deep path simultaneously."""
+        path_a = tmp_path / "sub" / "a" / "shared.txt"
+        path_b = tmp_path / "sub" / "b" / "shared.txt"
+        barrier = threading.Barrier(2, timeout=10)
+
+        def writer(path, letter, count):
+            barrier.wait()
+            for _ in range(count):
+                with _factory_run_mod._flock(path):
+                    content = path.read_text() if path.exists() else ""
+                    path.write_text(content + letter)
+
+        t1 = threading.Thread(target=writer, args=(path_a, "X", 20))
+        t2 = threading.Thread(target=writer, args=(path_b, "Y", 20))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+        assert path_a.read_text().count("X") == 20
+        assert path_b.read_text().count("Y") == 20
+
+    def test_concurrent_writes_without_fcntl(self, tmp_path):
+        """Mutual exclusion via _flock must work even when fcntl is removed."""
+        path = tmp_path / "nofcntl.txt"
+        barrier = threading.Barrier(2, timeout=10)
+        saved_fcntl = sys.modules.pop("fcntl", None)
+        try:
+            def writer(letter: str, count: int):
+                barrier.wait()
+                for _ in range(count):
+                    with _factory_run_mod._flock(path):
+                        content = path.read_text() if path.exists() else ""
+                        path.write_text(content + letter)
+
+            t1 = threading.Thread(target=writer, args=("P", 30))
+            t2 = threading.Thread(target=writer, args=("Q", 30))
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+
+            text = path.read_text()
+            assert len(text) == 60
+            assert text.count("P") == 30
+            assert text.count("Q") == 30
+        finally:
+            if saved_fcntl is not None:
+                sys.modules["fcntl"] = saved_fcntl
+
     def test_append_audit_block_still_works_without_fcntl(self, tmp_path):
         """The end-to-end audit write must work even when fcntl is absent."""
         saved_docs = _factory_run_mod.AIDLC_DOCS

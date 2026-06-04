@@ -117,6 +117,9 @@ For each layer in order:
     - **Framework skill injection**: add ALL entries from `manifest.framework_skill_names`
       to `skills_required[]` so framework skills (e.g. `react-best-practices`,
       `typescript-advanced-types`) are loaded by the code-generator.
+    - **Cookbook integration**: when `architecture_cookbook_enabled` in manifest features
+      is not explicitly `false` (defaults to `true`), add `ai-architecture-cookbook` to
+      `skills_required[]` and merge its resolved path from `skill_paths_resolved[]`.
     - **Filter**: include only paths for skills referenced in `skills_required[]` plus
       context-enrichment skills (`codegraph-aware-exploration`, `context-engineering`).
       Discard paths for skills irrelevant to this stage.

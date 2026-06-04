@@ -7,7 +7,9 @@ Used by: factory_skill_sync.py, factory_skill_drift.py, factory_custom_skills.py
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -219,3 +221,38 @@ def find_workspace_dirs(repo_root: Path, max_depth: int = 4) -> list[Path]:
     result = [repo_root]
     result += sorted(p for p in found if p != repo_root)
     return result
+
+
+# ── Unified logging for factory scripts ──────────────────────────────────────
+
+_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+
+
+def _log(level: str, msg: str, *, script: str = "") -> None:
+    """Unified logging for AIDLC factory scripts.
+
+    Outputs ERROR/WARNING to sys.stderr, DEBUG/INFO to sys.stdout.
+    Format: ``[<script>] <LEVEL>: <msg>``
+
+    Args:
+        level: One of DEBUG, INFO, WARNING, ERROR, CRITICAL.
+        msg: The log message.
+        script: Override script name (auto-detected from argv[0] when empty).
+
+    This function is designed to never raise.  If something goes wrong
+    (e.g. encoding issues on stderr) the error is silently swallowed so
+    logging never interrupts the caller's control flow.
+    """
+    try:
+        level_upper = level.upper() if isinstance(level, str) else "INFO"
+        if level_upper not in _LOG_LEVELS:
+            level_upper = "INFO"
+        if not script:
+            script = os.path.basename(sys.argv[0] if sys.argv and sys.argv[0] else "aidlc")
+            if script.endswith(".py"):
+                script = script[:-3]
+        label = f"[{script}] {level_upper}: {msg}"
+        stream = sys.stderr if level_upper in ("ERROR", "WARNING", "CRITICAL") else sys.stdout
+        print(label, file=stream)
+    except Exception:
+        pass

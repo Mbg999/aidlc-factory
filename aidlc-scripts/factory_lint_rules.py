@@ -28,6 +28,13 @@ import re
 import sys
 from pathlib import Path
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 ORCHESTRATOR_VERSION = "0.2.0"
 
 # Heuristic mapping from stage-agent name to rule-file basename.
@@ -72,7 +79,7 @@ NON_SKILL_IDENTIFIERS = {
 
 
 def _die(msg: str, code: int = 2) -> None:
-    print(f"factory_lint_rules: error: {msg}", file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
@@ -291,14 +298,14 @@ def main() -> None:
     errors, warnings = lint(repo_root)
 
     if warnings:
-        print("Warnings:", file=sys.stderr)
+        _log("WARNING", "Lint warnings:")
         for w in warnings:
-            print(f"  [WARN]  {w}", file=sys.stderr)
+            _log("WARNING", f"  {w}")
 
     if errors:
-        print(f"\n{len(errors)} drift error(s) detected:", file=sys.stderr)
+        _log("ERROR", f"{len(errors)} drift error(s) detected:")
         for e in errors:
-            print(f"  [FAIL] {e}", file=sys.stderr)
+            _log("ERROR", f"  {e}")
         sys.exit(1)
 
     if not args.quiet:

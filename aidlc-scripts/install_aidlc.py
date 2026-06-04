@@ -25,6 +25,15 @@ from pathlib import Path
 import textwrap
 import subprocess
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        """Fallback _log if skill_utils is not available."""
+        import sys as _sys
+        stream = _sys.stderr if level in ("ERROR", "WARNING") else _sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 
 def copy_tree(src: Path, dst: Path, dry_run: bool, exclude: set[str] | None = None) -> None:
     """Copy a directory tree from `src` to `dst`.
@@ -82,13 +91,6 @@ def _rmtree_force(path: Path) -> None:
                 pass
     shutil.rmtree(path, ignore_errors=False)
 
-
-def write_file(path: Path, content: str, dry_run: bool) -> None:
-    if dry_run:
-        print(f"[DRY-RUN] Would write file {path}")
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
 
 
 def _retry_op(func, path: Path, max_retries: int = 3) -> None:
@@ -212,7 +214,7 @@ def create_venv_and_install_requirements(target_root: Path, requirements_path: P
             check=True,
         )
     except subprocess.CalledProcessError:
-        print("Warning: Failed to upgrade pip in the virtualenv; continuing.")
+        _log("WARNING", "Failed to upgrade pip in the virtualenv; continuing.")
 
     try:
         rel = requirements_path.relative_to(target_root) if target_root in requirements_path.parents else requirements_path
@@ -375,6 +377,8 @@ ORCHESTRATOR_GITIGNORE_ENTRIES = [
     ".aidlc-orchestrator/runs/",
     ".aidlc-orchestrator/knowledge/",
     ".codegraph/",  # CodeGraph index — rebuilt locally, no git history value
+    ".venv/",
+    "__pycache__/",
 ]
 ORCHESTRATOR_GITIGNORE_HEADER = "# AIDLC orchestrator runtime state"
 
@@ -889,18 +893,8 @@ def _install_copilot_instruction_files(repo_root: Path, target_root: Path, dry_r
         copy_file(src, dst, dry_run)
 
 
-def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False, args: argparse.Namespace | None = None) -> None:
-    """Install AIDLC Orchestrator (Phases 0-6) artifacts for one or more tools.
-
-    Layers:
-      1. Shared (runs once regardless of tool count): factory scripts, contracts, default budget
-      2. Per-tool: subagents + slash commands + workflow doc pointer
-      3. Shared: Python deps, gitignore runtime state, optional .aidlc-env (non-Claude tools)
-    """
-    tools_label = ", ".join(tools)
-    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tools_label} ---")
-
-    # Shared Layer 1: factory scripts (any tool)
+def _install_factory_scripts(repo_root: Path, target_root: Path, dry_run: bool, force: bool) -> None:
+    """Shared Layer 1: factory scripts, contracts, runtime, budget, executors, quality docs."""
     src_scripts = repo_root / "aidlc-scripts"
     dst_scripts = target_root / "aidlc-scripts"
     print(f"  factory scripts -> {dst_scripts.relative_to(target_root)}/")
@@ -917,19 +911,14 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             except OSError:
                 pass
 
-    # Shared Layer 1: contracts + default budget (any tool)
-    src_contracts = repo_root / ".aidlc-orchestrator" / "contracts"
-    dst_contracts = target_root / ".aidlc-orchestrator" / "contracts"
-    if src_contracts.exists():
-        print(f"  contracts -> {dst_contracts.relative_to(target_root)}/")
-        copy_tree(src_contracts, dst_contracts, dry_run)
-
-    # Shared Layer 1: runtime architecture + commands (any tool)
-    src_runtime = repo_root / ".aidlc-orchestrator" / "runtime"
-    dst_runtime = target_root / ".aidlc-orchestrator" / "runtime"
-    if src_runtime.exists():
-        print(f"  runtime -> {dst_runtime.relative_to(target_root)}/")
-        copy_tree(src_runtime, dst_runtime, dry_run)
+    for rel_src, label, is_dir in [
+        (repo_root / ".aidlc-orchestrator" / "contracts", "contracts", True),
+        (repo_root / ".aidlc-orchestrator" / "runtime", "runtime", True),
+    ]:
+        if rel_src.exists():
+            dst = target_root / rel_src.relative_to(repo_root)
+            print(f"  {label} -> {dst.relative_to(target_root)}/")
+            copy_tree(rel_src, dst, dry_run)
 
     src_budget = repo_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
     dst_budget = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
@@ -937,14 +926,12 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         print(f"  budget policy -> {dst_budget.relative_to(target_root)}")
         copy_file(src_budget, dst_budget, dry_run)
 
-    # Shared Layer 1: executor adapter package (Phase 5 — tool-agnostic spawn)
     src_executors = repo_root / ORCHESTRATOR_EXECUTOR_PKG_DIR
     dst_executors = target_root / ORCHESTRATOR_EXECUTOR_PKG_DIR
     if src_executors.exists():
         print(f"  executor adapters -> {dst_executors.relative_to(target_root)}/")
         copy_tree(src_executors, dst_executors, dry_run)
 
-    # Shared Layer 1: quality docs (Phase 3 — SLO definitions)
     for rel in ORCHESTRATOR_QUALITY_DOCS:
         src_q = repo_root / rel
         dst_q = target_root / rel
@@ -952,8 +939,6 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             print(f"  quality doc -> {dst_q.relative_to(target_root)}")
             copy_file(src_q, dst_q, dry_run)
 
-    # Shared Layer 1: root-level config files (e.g. skill-sources.yaml).
-    # Never overwrite existing files unless --force — users customise these.
     for name in ORCHESTRATOR_ROOT_CONFIGS:
         src_cfg = repo_root / name
         dst_cfg = target_root / name
@@ -965,159 +950,150 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
         print(f"  {name} -> {dst_cfg.relative_to(target_root)}")
         copy_file(src_cfg, dst_cfg, dry_run)
 
-    # Per-tool Layer 2: subagents + slash commands + workflow doc pointer
-    for tool in tools:
-        print(f"\n  -- {tool} --")
-        agent_dir = _tool_agent_dir(tool)
-        cmd_dir = _tool_commands_dir(tool)
 
-        # Source agent/command dirs vary per tool
-        # OpenCode and Cursor have pre-adapted agent files; others use the canonical Claude source
-        if tool == "opencode":
-            src_agents = repo_root / ".opencode" / "agents"
-            src_cmds = repo_root / ".opencode" / "commands"
-        elif tool == "copilot":
-            src_agents = repo_root / ".github" / "agents"
-            src_cmds = None  # Copilot uses prompt files, not slash commands
-        elif tool == "cursor":
-            src_agents = repo_root / ".cursor" / "agents"
-            src_cmds = repo_root / ".cursor" / "commands"
-        elif tool == "codex":
-            src_agents = repo_root / ".codex" / "agents"
-            src_cmds = None    # Codex built-in slash commands only
-        else:
-            src_agents = repo_root / ".claude" / "agents"
-            src_cmds = repo_root / ".claude" / "commands"
+def _install_per_tool_layer(tool: str, repo_root: Path, target_root: Path, dry_run: bool, force: bool) -> None:
+    """Per-tool Layer 2: subagents + slash commands + workflow doc pointer."""
+    print(f"\n  -- {tool} --")
+    agent_dir = _tool_agent_dir(tool)
+    cmd_dir = _tool_commands_dir(tool)
 
-        if agent_dir is not None and src_agents is not None and src_agents.exists():
-            dst_agents = target_root / agent_dir
-            print(f"  agents -> {agent_dir}/")
-            copy_tree(src_agents, dst_agents, dry_run)
+    if tool == "opencode":
+        src_agents = repo_root / ".opencode" / "agents"
+        src_cmds = repo_root / ".opencode" / "commands"
+    elif tool == "copilot":
+        src_agents = repo_root / ".github" / "agents"
+        src_cmds = None
+    elif tool == "cursor":
+        src_agents = repo_root / ".cursor" / "agents"
+        src_cmds = repo_root / ".cursor" / "commands"
+    elif tool == "codex":
+        src_agents = repo_root / ".codex" / "agents"
+        src_cmds = None
+    else:
+        src_agents = repo_root / ".claude" / "agents"
+        src_cmds = repo_root / ".claude" / "commands"
 
-        if cmd_dir is not None and src_cmds is not None:
-            dst_cmds = target_root / cmd_dir
-            if src_cmds.exists():
-                print(f"  slash commands -> {cmd_dir}/factory-*.md")
-                for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
-                    copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
+    if agent_dir is not None and src_agents is not None and src_agents.exists():
+        dst_agents = target_root / agent_dir
+        print(f"  agents -> {agent_dir}/")
+        copy_tree(src_agents, dst_agents, dry_run)
 
-        # Copilot: copy skills + prompts, instruction files, and VS Code settings
-        if tool == "copilot":
-            src_skills = repo_root / ".agents" / "custom-skills"
-            dst_skills_github = target_root / ".github" / "skills"
-            dst_skills_custom = target_root / ".agents" / "custom-skills"
-            if src_skills.exists():
-                print(f"  skills -> .github/skills/ + .agents/custom-skills/")
-                copy_tree(src_skills, dst_skills_github, dry_run)
-                copy_tree(src_skills, dst_skills_custom, dry_run)
-            src_prompts = repo_root / ".github" / "prompts"
-            dst_prompts = target_root / ".github" / "prompts"
-            if src_prompts.exists():
-                print(f"  prompts -> .github/prompts/")
-                copy_tree(src_prompts, dst_prompts, dry_run)
-            src_instructions = repo_root / ".github" / "instructions"
-            dst_instructions = target_root / ".github" / "instructions"
-            if src_instructions.exists():
-                print(f"  instructions -> .github/instructions/")
-                copy_tree(src_instructions, dst_instructions, dry_run)
-            _install_copilot_instruction_files(repo_root, target_root, dry_run, force)
-            _install_vscode_copilot_settings(target_root, dry_run)
+    if cmd_dir is not None and src_cmds is not None:
+        dst_cmds = target_root / cmd_dir
+        if src_cmds.exists():
+            print(f"  slash commands -> {cmd_dir}/factory-*.md")
+            for cmd_file in sorted(src_cmds.glob(ORCHESTRATOR_CLAUDE_COMMANDS_GLOB)):
+                copy_file(cmd_file, dst_cmds / cmd_file.name, dry_run)
 
-        # Codex: copy project-level config.toml snippet
-        if tool == "codex":
-            src_codex_cfg = repo_root / ".codex" / "config.toml"
-            dst_codex_cfg = target_root / ".codex" / "config.toml"
-            if src_codex_cfg.exists():
-                if dst_codex_cfg.exists() and not force:
-                    print(f"  .codex/config.toml already exists -- skipping (use --force to overwrite)")
-                else:
-                    print(f"  codex config -> .codex/config.toml")
-                    copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
+    if tool == "copilot":
+        src_skills = repo_root / ".agents" / "custom-skills"
+        dst_skills_github = target_root / ".github" / "skills"
+        dst_skills_custom = target_root / ".agents" / "custom-skills"
+        if src_skills.exists():
+            print(f"  skills -> .github/skills/ + .agents/custom-skills/")
+            copy_tree(src_skills, dst_skills_github, dry_run)
+            copy_tree(src_skills, dst_skills_custom, dry_run)
+        src_prompts = repo_root / ".github" / "prompts"
+        dst_prompts = target_root / ".github" / "prompts"
+        if src_prompts.exists():
+            print(f"  prompts -> .github/prompts/")
+            copy_tree(src_prompts, dst_prompts, dry_run)
+        src_instructions = repo_root / ".github" / "instructions"
+        dst_instructions = target_root / ".github" / "instructions"
+        if src_instructions.exists():
+            print(f"  instructions -> .github/instructions/")
+            copy_tree(src_instructions, dst_instructions, dry_run)
+        _install_copilot_instruction_files(repo_root, target_root, dry_run, force)
+        _install_vscode_copilot_settings(target_root, dry_run)
 
-        # Custom skills: copy for Claude, OpenCode, Cursor, Codex (Copilot and Frida handled below)
-        if tool in ("claude", "opencode", "cursor", "codex"):
-            src_custom_skills = repo_root / ".agents" / "custom-skills"
-            dst_custom_skills = target_root / ".agents" / "custom-skills"
-            if src_custom_skills.exists():
-                print(f"  custom skills -> .agents/custom-skills/")
-                copy_tree(src_custom_skills, dst_custom_skills, dry_run)
-
-        # Frida: copy factory-command skills from .frida/skills/ + write MCP config globally
-        if tool == "frida":
-            src_frida_skills = repo_root / ".frida" / "skills"
-            dst_frida_skills = target_root / ".agents" / "skills"
-            if src_frida_skills.exists():
-                print(f"  factory-command skills -> .agents/skills/")
-                copy_tree(src_frida_skills, dst_frida_skills, dry_run)
-            # Also copy custom-skills as fallback process definitions
-            src_frida_custom = repo_root / ".agents" / "custom-skills"
-            dst_frida_custom = target_root / ".agents" / "skills"
-            if src_frida_custom.exists():
-                print(f"  custom skills -> .agents/skills/")
-                copy_tree(src_frida_custom, dst_frida_custom, dry_run)
-            # Frida-specific global MCP config (context7, chrome-devtools, codegraph, engram)
-            _ensure_frida_mcp_config(str(target_root), dry_run)
-
-        # Per-tool MCP config (Context7 + Chrome DevTools). User-customizable —
-        # skip if destination already exists unless --force.
-        # Frida uses its own global MCP path handled in the Frida section below.
-        if tool == "frida":
-            pass
-        else:
-            mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
-            if mcp_rel is not None:
-                src_mcp = repo_root / mcp_rel
-                dst_mcp = target_root / mcp_rel
-                if src_mcp.exists():
-                    if dst_mcp.exists() and not force:
-                        print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
-                    else:
-                        print(f"  mcp config -> {mcp_rel}")
-                        copy_file(src_mcp, dst_mcp, dry_run)
-
-        wf_doc = _tool_workflow_doc(tool, target_root)
-        if wf_doc:
-            print(f"  workflow content -> {wf_doc.name}")
-            core_content = _tool_core_workflow_content(repo_root, tool)
-            if core_content is None:
-                # Fallback: legacy pointer block (core-workflow.md not bundled)
-                fallback_blocks = {
-                    "opencode": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                        ".claude/agents/", ".opencode/agents/"
-                    ).replace(
-                        ".claude/commands/", ".opencode/commands/"
-                    ),
-                    "copilot": ORCHESTRATOR_COPILOT_POINTER_BLOCK,
-                    "cursor": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
-                        ".claude/agents/", ".cursor/agents/"
-                    ).replace(
-                        "/factory-", " /orchestrator factory-"
-                    ),
-                    "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
-                    "frida": ORCHESTRATOR_FRIDA_POINTER_BLOCK,
-                }
-                pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
-                update_workflow_doc_pointer(
-                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, pointer_block,
-                    dry_run, force=force, core_workflow_content=None,
-                )
+    if tool == "codex":
+        src_codex_cfg = repo_root / ".codex" / "config.toml"
+        dst_codex_cfg = target_root / ".codex" / "config.toml"
+        if src_codex_cfg.exists():
+            if dst_codex_cfg.exists() and not force:
+                print(f"  .codex/config.toml already exists -- skipping (use --force to overwrite)")
             else:
-                update_workflow_doc_pointer(
-                    wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, "",
-                    dry_run, force=force, core_workflow_content=core_content,
-                )
+                print(f"  codex config -> .codex/config.toml")
+                copy_file(src_codex_cfg, dst_codex_cfg, dry_run)
 
-    # Shared Layer 3: Python deps
+    if tool in ("claude", "opencode", "cursor", "codex"):
+        src_custom_skills = repo_root / ".agents" / "custom-skills"
+        dst_custom_skills = target_root / ".agents" / "custom-skills"
+        if src_custom_skills.exists():
+            print(f"  custom skills -> .agents/custom-skills/")
+            copy_tree(src_custom_skills, dst_custom_skills, dry_run)
+
+    if tool == "frida":
+        src_frida_skills = repo_root / ".frida" / "skills"
+        dst_frida_skills = target_root / ".agents" / "skills"
+        if src_frida_skills.exists():
+            print(f"  factory-command skills -> .agents/skills/")
+            copy_tree(src_frida_skills, dst_frida_skills, dry_run)
+        src_frida_custom = repo_root / ".agents" / "custom-skills"
+        dst_frida_custom = target_root / ".agents" / "skills"
+        if src_frida_custom.exists():
+            print(f"  custom skills -> .agents/skills/")
+            copy_tree(src_frida_custom, dst_frida_custom, dry_run)
+        _ensure_frida_mcp_config(str(target_root), dry_run)
+
+    if tool == "frida":
+        pass
+    else:
+        mcp_rel = ORCHESTRATOR_TOOL_MCP_CONFIGS.get(tool)
+        if mcp_rel is not None:
+            src_mcp = repo_root / mcp_rel
+            dst_mcp = target_root / mcp_rel
+            if src_mcp.exists():
+                if dst_mcp.exists() and not force:
+                    print(f"  {mcp_rel} already exists -- skipping (use --force to overwrite)")
+                else:
+                    print(f"  mcp config -> {mcp_rel}")
+                    copy_file(src_mcp, dst_mcp, dry_run)
+
+    _install_workflow_pointer(tool, repo_root, target_root, dry_run, force)
+
+
+def _install_workflow_pointer(tool: str, repo_root: Path, target_root: Path, dry_run: bool, force: bool) -> None:
+    """Install workflow doc pointer for a tool (embedded or fallback)."""
+    wf_doc = _tool_workflow_doc(tool, target_root)
+    if not wf_doc:
+        return
+    print(f"  workflow content -> {wf_doc.name}")
+    core_content = _tool_core_workflow_content(repo_root, tool)
+    if core_content is None:
+        fallback_blocks = {
+            "opencode": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                ".claude/agents/", ".opencode/agents/"
+            ).replace(".claude/commands/", ".opencode/commands/"),
+            "copilot": ORCHESTRATOR_COPILOT_POINTER_BLOCK,
+            "cursor": ORCHESTRATOR_CLAUDE_POINTER_BLOCK.replace(
+                ".claude/agents/", ".cursor/agents/"
+            ).replace("/factory-", " /orchestrator factory-"),
+            "codex": ORCHESTRATOR_CODEX_POINTER_BLOCK,
+            "frida": ORCHESTRATOR_FRIDA_POINTER_BLOCK,
+        }
+        pointer_block = fallback_blocks.get(tool, ORCHESTRATOR_CLAUDE_POINTER_BLOCK)
+        update_workflow_doc_pointer(
+            wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, pointer_block,
+            dry_run, force=force, core_workflow_content=None,
+        )
+    else:
+        update_workflow_doc_pointer(
+            wf_doc, ORCHESTRATOR_CLAUDE_POINTER_MARKER, "",
+            dry_run, force=force, core_workflow_content=core_content,
+        )
+
+
+def _install_shared_deps(tools: list[str], target_root: Path, dry_run: bool, force: bool) -> None:
+    """Shared Layer 3: Python deps, gitignore, optional .aidlc-env."""
     print(f"\n  Python deps -> requirements.txt")
     update_requirements(target_root, ORCHESTRATOR_PYTHON_DEPS, dry_run)
 
-    # Shared Layer 3: gitignore runtime state (any tool)
     print(f"  runtime state -> .gitignore")
     update_gitignore(target_root, ORCHESTRATOR_GITIGNORE_ENTRIES, ORCHESTRATOR_GITIGNORE_HEADER, dry_run, force=force)
 
     if not dry_run:
         print(f"\n  Then: invoke /factory-spec <feature> in the tool to start a run.")
-        # Non-Claude tools need AIDLC_DEFAULT_MODEL to skip Claude-specific model names
         non_claude = [t for t in tools if t != "claude"]
         if non_claude:
             env_path = target_root / ".aidlc-env"
@@ -1130,6 +1106,22 @@ def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, d
             print(f"  Non-Claude tool(s) selected ({', '.join(non_claude)}) should set:")
             print(f"    export AIDLC_DEFAULT_MODEL=default")
             print(f"  Or source the env file:  source {env_path.relative_to(target_root)}")
+
+
+def install_orchestrator(tools: list[str], repo_root: Path, target_root: Path, dry_run: bool, force: bool = False, args: argparse.Namespace | None = None) -> None:
+    """Install AIDLC Orchestrator (Phases 0-6) artifacts for one or more tools.
+
+    Layers:
+      1. Shared (runs once regardless of tool count): factory scripts, contracts, default budget
+      2. Per-tool: subagents + slash commands + workflow doc pointer
+      3. Shared: Python deps, gitignore runtime state, optional .aidlc-env (non-Claude tools)
+    """
+    tools_label = ", ".join(tools)
+    print(f"\n--- Installing AIDLC Orchestrator (Phases 0-6) for {tools_label} ---")
+    _install_factory_scripts(repo_root, target_root, dry_run, force)
+    for tool in tools:
+        _install_per_tool_layer(tool, repo_root, target_root, dry_run, force)
+    _install_shared_deps(tools, target_root, dry_run, force)
 
 
 def clone_agent_skills(dest: Path, dry_run: bool) -> Path:
@@ -1306,7 +1298,7 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
     print("  Running codegraph init -i (may take 30s-4min)...")
     init_result = _run_codegraph(["codegraph", "init", "-i"], target_root)
     if init_result.returncode != 0:
-        print("  WARNING: codegraph init -i exited with an error -- index may be incomplete.")
+        _log("WARNING", "codegraph init -i exited with an error -- index may be incomplete.")
         print(f"  Run manually:  cd {target_root} && codegraph init -i")
     else:
         print("  CodeGraph index built successfully.")
@@ -1539,6 +1531,395 @@ def install_design_system(repo_root: Path, target_root: Path, dry_run: bool) -> 
     print("  Design system installed.")
 
 
+# ── AI Architecture Cookbook (always installed) ──────────────────────────────
+
+COOKBOOK_REPO_URL = "https://github.com/Mbg999/AI-Architecture-Cookbook.git"
+COOKBOOK_TARGET_DIR = ".ai-architecture-cookbook"
+COOKBOOK_MCP_RELPATH = "mcp-server"
+COOKBOOK_SERVER_RELPATH = "mcp-server/dist/server.js"
+COOKBOOK_SKILL_NAME = "ai-architecture-cookbook"
+COOKBOOK_SKILL_DIR = ".agents/custom-skills/ai-architecture-cookbook"
+COOKBOOK_SKILL_RELPATH = ".agents/custom-skills/ai-architecture-cookbook/SKILL.md"
+
+COOKBOOK_MCP_SERVER_ENTRY = {
+    "command": "node",
+    "args": [f"./{COOKBOOK_TARGET_DIR}/{COOKBOOK_SERVER_RELPATH}"],
+}
+
+COOKBOOK_MCP_SERVER_ENTRY_OPENCODE = {
+    "type": "local",
+    "command": ["node", f"./{COOKBOOK_TARGET_DIR}/{COOKBOOK_SERVER_RELPATH}"],
+    "enabled": True,
+}
+
+# MCP config files and their key names (varies per tool)
+COOKBOOK_MCP_TARGET_FILES = [
+    (".mcp.json",      "mcpServers"),       # Standard MCP (Claude, Cursor, etc.)
+    (".cursor/mcp.json", "mcpServers"),      # Cursor
+    ("opencode.json",    "mcp"),             # OpenCode
+    ("codex.json",       "mcpServers"),      # Codex
+    (".vscode/mcp.json", "servers"),         # VS Code / GitHub Copilot
+]
+
+# Per-tool mapping: which MCP config files each tool uses
+COOKBOOK_MCP_TOOL_FILES: dict[str, list[str]] = {
+    "claude":   [".mcp.json"],
+    "cursor":   [".cursor/mcp.json"],
+    "copilot":  [".vscode/mcp.json"],
+    "opencode": ["opencode.json"],
+    "codex":    ["codex.json"],
+    "frida":    [".mcp.json"],
+    "other":    [".mcp.json"],
+}
+
+
+# Cookbook skill content is read at install-time from:
+#   .agents/custom-skills/ai-architecture-cookbook/SKILL.md
+# See _read_cookbook_skill_content() and _write_cookbook_skill().
+
+
+def _check_node_for_cookbook(min_major: int = 18) -> tuple[bool, str]:
+    """Check Node.js availability and version for Cookbook MCP build.
+    Return (ok, version_string)."""
+    return _check_node_version(min_major)
+
+
+def _find_cookbook_source(repo_root: Path) -> Path | None:
+    """Resolve the Cookbook source directory. Returns None if not found.
+
+    Resolution order:
+      1. Subdirectory of repo root: <repo_root>/AI-Architecture-Cookbook/
+      2. Sibling directory: <repo_root>/../AI-Architecture-Cookbook/
+    """
+    subdir = repo_root / "AI-Architecture-Cookbook"
+    if subdir.exists():
+        return subdir
+
+    sibling = repo_root.parent / "AI-Architecture-Cookbook"
+    if sibling.exists():
+        return sibling
+    return None
+
+
+def _clone_cookbook_from_github(target_root: Path, dry_run: bool) -> bool:
+    """Clone Cookbook from GitHub into target. Returns True on success."""
+    dest = target_root / COOKBOOK_TARGET_DIR
+    if dest.exists():
+        print(f"  Cookbook already exists at {dest.relative_to(target_root)} -- skipping clone.")
+        return True
+    if dry_run:
+        print(f"[DRY-RUN] Would clone {COOKBOOK_REPO_URL} into {dest.relative_to(target_root)}")
+        return True
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        print(f"  Cloning Cookbook from {COOKBOOK_REPO_URL}...")
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--single-branch", "--no-tags",
+             COOKBOOK_REPO_URL, str(dest)],
+            check=True, capture_output=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  WARNING: Failed to clone Cookbook: {e}")
+        return False
+
+
+def _copy_cookbook_from_source(source: Path, target_root: Path, dry_run: bool) -> bool:
+    """Copy Cookbook from local source directory into target."""
+    dest = target_root / COOKBOOK_TARGET_DIR
+    if dest.exists():
+        print(f"  Cookbook already exists at {dest.relative_to(target_root)} -- skipping copy.")
+        return True
+    if dry_run:
+        print(f"[DRY-RUN] Would copy {source} -> {dest.relative_to(target_root)}")
+        return True
+    print(f"  Copying Cookbook from {source}...")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    copy_tree(source, dest, dry_run=False)
+    return True
+
+
+def _build_cookbook_mcp(target_root: Path, dry_run: bool) -> bool:
+    """Run npm install && npm run build inside Cookbook MCP server.
+    Returns True on success, False on failure (graceful degradation)."""
+    mcp_dir = target_root / COOKBOOK_TARGET_DIR / COOKBOOK_MCP_RELPATH
+    if not mcp_dir.exists():
+        print("  WARNING: Cookbook MCP server directory not found -- skipping build.")
+        return False
+    if dry_run:
+        print(f"[DRY-RUN] Would run 'npm install && npm run build' in {mcp_dir.relative_to(target_root)}")
+        return True
+
+    def _npm_run(args: list[str], label: str, cwd: str) -> bool:
+        """Run npm command with Windows compatibility."""
+        cmd: list[str] = ["npm"] + args
+        if sys.platform == "win32":
+            cmd = ["cmd", "/c"] + cmd
+        try:
+            result = subprocess.run(
+                cmd, cwd=cwd, capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                print(f"  WARNING: {label} failed (exit {result.returncode}) -- Cookbook MCP unavailable.")
+                if result.stderr:
+                    print(f"    {result.stderr.strip().splitlines()[-1]}")
+                return False
+            return True
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            print(f"  WARNING: {label} failed: {e}")
+            return False
+
+    mcp_dir_str = str(mcp_dir)
+    print(f"  Building Cookbook MCP server (npm install)...")
+    if not _npm_run(["install"], "npm install", mcp_dir_str):
+        return False
+    print(f"  Building Cookbook MCP server (npm run build)...")
+    if not _npm_run(["run", "build"], "npm run build", mcp_dir_str):
+        return False
+    print(f"  Cookbook MCP server built successfully.")
+    return True
+
+
+def _write_cookbook_mcp_config(target_root: Path, dry_run: bool,
+                                tools: list[str] | None = None) -> int:
+    """Write Cookbook MCP server entry to MCP config files for selected tools.
+    Merges with existing entries — never overwrites user-defined servers.
+    When tools is None or empty, writes to all 5 target files (backward compat).
+    Returns count of files written/merged."""
+    import json
+    written = 0
+
+    allowed = set()
+    if tools:
+        for t in tools:
+            allowed.update(COOKBOOK_MCP_TOOL_FILES.get(t, []))
+    else:
+        # No tools specified: write all (backward compat for callers without tools)
+        for f, _ in COOKBOOK_MCP_TARGET_FILES:
+            allowed.add(f)
+
+    for relpath, servers_key in COOKBOOK_MCP_TARGET_FILES:
+        if relpath not in allowed:
+            continue
+        mcp_path = target_root / relpath
+        if dry_run:
+            print(f"[DRY-RUN] Would merge Cookbook MCP entry into {relpath}")
+            written += 1
+            continue
+
+        existing: dict = {}
+        if mcp_path.exists():
+            try:
+                existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+
+        if relpath == "opencode.json":
+            existing.setdefault(servers_key, {})
+            if COOKBOOK_SKILL_NAME in existing[servers_key]:
+                print(f"  {relpath} already has '{COOKBOOK_SKILL_NAME}' -- skipping")
+                continue
+            existing[servers_key][COOKBOOK_SKILL_NAME] = COOKBOOK_MCP_SERVER_ENTRY_OPENCODE
+        else:
+            existing.setdefault(servers_key, {})
+            if COOKBOOK_SKILL_NAME in existing[servers_key]:
+                print(f"  {relpath} already has '{COOKBOOK_SKILL_NAME}' -- skipping")
+                continue
+            existing[servers_key][COOKBOOK_SKILL_NAME] = dict(COOKBOOK_MCP_SERVER_ENTRY)
+
+        mcp_path.parent.mkdir(parents=True, exist_ok=True)
+        mcp_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        print(f"  Cookbook MCP -> {relpath}")
+        written += 1
+
+    return written
+
+
+def _read_cookbook_skill_content(repo_root: Path) -> str | None:
+    """Read the Cookbook SKILL.md content from the source repo.
+    Returns None if not found (gracefully skip skill registration)."""
+    skill_src = repo_root / COOKBOOK_SKILL_RELPATH
+    if skill_src.exists():
+        return skill_src.read_text(encoding="utf-8")
+    return None
+
+
+def _write_cookbook_skill(repo_root: Path, target_root: Path, dry_run: bool) -> bool:
+    """Write the Cookbook SKILL.md file."""
+    skill_dir = target_root / COOKBOOK_SKILL_DIR
+    skill_path = skill_dir / "SKILL.md"
+    if dry_run:
+        print(f"[DRY-RUN] Would write Cookbook skill to {skill_path.relative_to(target_root)}")
+        return True
+    content = _read_cookbook_skill_content(repo_root)
+    if content is None:
+        print(f"  WARNING: Cookbook skill source not found at {repo_root / COOKBOOK_SKILL_RELPATH} -- skipping skill registration.")
+        return False
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_path.write_text(content, encoding="utf-8")
+    print(f"  Cookbook skill -> {COOKBOOK_SKILL_DIR}/SKILL.md")
+    return True
+
+
+def _set_cookbook_budget_flag(target_root: Path, dry_run: bool) -> bool:
+    """Enable the architecture_cookbook_enabled feature flag in the target budget."""
+    budget_path = target_root / ".aidlc-orchestrator" / "budgets" / "default.yaml"
+    if dry_run:
+        print(f"[DRY-RUN] Would set architecture_cookbook_enabled: true in {budget_path.relative_to(target_root)}")
+        return True
+    if not budget_path.exists():
+        print(f"  WARNING: budget file not found at {budget_path.relative_to(target_root)} -- skipping flag.")
+        return False
+    content = budget_path.read_text(encoding="utf-8")
+    if "architecture_cookbook_enabled: true" in content:
+        print(f"  Budget flag already set -- skipping.")
+        return True
+    if "architecture_cookbook_enabled: false" in content:
+        updated = content.replace(
+            "architecture_cookbook_enabled: false",
+            "architecture_cookbook_enabled: true"
+        )
+        budget_path.write_text(updated, encoding="utf-8")
+        print(f"  Budget flag: architecture_cookbook_enabled: true")
+        return True
+    print(f"  Budget flag: architecture_cookbook_enabled: true (appended)")
+    with budget_path.open("a") as f:
+        f.write(f"\n  architecture_cookbook_enabled: true\n")
+    return True
+
+
+def _cleanup_cookbook(target_root: Path, dry_run: bool) -> None:
+    """Remove non-essential files from the installed Cookbook directory.
+
+    Keeps only what the SKILL.md references:
+      - YAML standards categories (foundational/, application-architecture/, ...)
+      - mcp-server/ (compiled server + node_modules)
+      - index.yaml
+
+    Removes git history, CI configs, agent configs, build tooling, docs, etc.
+    """
+    cookbook_dir = target_root / COOKBOOK_TARGET_DIR
+    if not cookbook_dir.exists():
+        return
+
+    removals = [
+        ".git",
+        ".claude",
+        ".cursor",
+        ".github",
+        ".vscode",
+        "aidlc-docs",
+        "aidlc-rule-details",
+        "scripts",
+        "tools",
+        "prompts",
+        ".cursorrules",
+        ".windsurfrules",
+        ".DS_Store",
+        ".gitignore",
+        ".mcp.json",
+        "base-template.yaml",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "requirements.txt",
+    ]
+
+    removed = 0
+    skipped = 0
+    for name in removals:
+        path = cookbook_dir / name
+        if not path.exists():
+            continue
+        if dry_run:
+            print(f"[DRY-RUN]   remove {COOKBOOK_TARGET_DIR}/{name}")
+            removed += 1
+            continue
+        try:
+            if path.is_dir():
+                _rmtree_force(path)
+            else:
+                path.unlink()
+            removed += 1
+        except OSError as e:
+            print(f"  WARNING: could not remove {COOKBOOK_TARGET_DIR}/{name}: {e}")
+            skipped += 1
+
+    if dry_run:
+        print(f"[DRY-RUN]   Would remove {removed} item(s) from {COOKBOOK_TARGET_DIR}/")
+    else:
+        parts = [f"removed {removed} item(s)"]
+        if skipped:
+            parts.append(f"{skipped} skipped")
+        print(f"  Cookbook cleanup: {', '.join(parts)}")
+
+
+def _install_cookbook(repo_root: Path, target_root: Path, dry_run: bool,
+                      tools: list[str] | None = None) -> None:
+    """Install the AI Architecture Cookbook with MCP server and skill.
+
+    Steps:
+      1. Detect Node.js >= 18
+      2. Copy Cookbook source from repo subdirectory or sibling (or GitHub fallback)
+      3. Build MCP server (npm install && npm run build)
+      4. Write MCP config to 5 files
+      5. Write SKILL.md
+      6. Set architecture_cookbook_enabled flag in budget
+      7. Cleanup: remove non-essential files (.git/, scripts/, tools/, etc.)
+    """
+    print("\n--- Installing AI Architecture Cookbook ---")
+
+    node_ok = False
+    ok, version_str = _check_node_for_cookbook(18)
+    if not ok:
+        print(f"  WARNING: Node.js >= 18 required for Cookbook MCP server (detected: {version_str}).")
+        print(f"  Cookbook YAML standards can still be read directly, but the MCP server will not run.")
+        print(f"  Install Node.js 18+ and re-run the installer to enable MCP.")
+    else:
+        print(f"  Node.js: {version_str} -- OK")
+        node_ok = True
+
+    # Step 2: Copy Cookbook source from bundled path (or GitHub fallback)
+    cookbook_dir = target_root / COOKBOOK_TARGET_DIR
+    if cookbook_dir.exists():
+        print(f"  Cookbook already installed at {COOKBOOK_TARGET_DIR}/ -- skipping copy.")
+    else:
+        source = _find_cookbook_source(repo_root)
+        if source:
+            if not _copy_cookbook_from_source(source, target_root, dry_run):
+                print("  WARNING: Failed to copy Cookbook from local source.")
+        else:
+            if not _clone_cookbook_from_github(target_root, dry_run):
+                print("  WARNING: Failed to clone Cookbook from GitHub.")
+                return
+
+    # Step 3: Build MCP server
+    mcp_built = _build_cookbook_mcp(target_root, dry_run) if node_ok else False
+
+    # Step 4: Write MCP config to 5 files (always — even if MCP build failed)
+    # The MCP config points to where server.js WILL be once Node.js is available.
+    # The SKILL.md handles YAML fallback when the MCP server can't start.
+    written = _write_cookbook_mcp_config(target_root, dry_run, tools=tools)
+    if not dry_run:
+        print(f"  MCP config written to {written} files.")
+    if not node_ok and not dry_run:
+        print("  (MCP server not built — Node.js >= 18 required to build. Config is ready for when Node.js is available.)")
+    elif not mcp_built and not dry_run:
+        print("  (MCP server build failed — config is written but server.js may not exist.)")
+
+    # Step 5: Write SKILL.md
+    _write_cookbook_skill(repo_root, target_root, dry_run)
+
+    # Step 6: Set architecture_cookbook_enabled flag in budget
+    _set_cookbook_budget_flag(target_root, dry_run)
+
+    # Step 7: Cleanup non-essential files
+    _cleanup_cookbook(target_root, dry_run)
+
+    print("  Cookbook installation complete.")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Install AI-DLC rules into a project for one or more agent tools",
@@ -1584,6 +1965,8 @@ def parse_args() -> argparse.Namespace:
                         "Default: install (recommended for UI projects).")
     p.add_argument("--no-design-system", dest="with_design_system", action="store_false",
                    help="Skip design system installation.")
+    p.add_argument("--no-cookbook", dest="with_cookbook", action="store_false", default=True,
+                   help="Skip AI Architecture Cookbook installation.")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Skip the upfront prerequisite check (python/git/node/npm/etc). "
                         "Use only if you know what you're doing — missing prereqs will "
@@ -1883,11 +2266,163 @@ def _prompt_destination() -> Path:
             print(f"  Could not resolve {resp!r}: {e}. Try again.")
 
 
+def _handle_agent_skills(args: argparse.Namespace, tools: list[str], target_root: Path) -> int | None:
+    """Install agent-skills from addyosmani/agent-skills repo. Returns exit code or None on skip."""
+    skills_dir = target_root / ".agents" / "skills"
+    skills_already = skills_dir.exists() and any(skills_dir.iterdir()) if skills_dir.exists() else False
+    if args.with_agent_skills and skills_already and not args.force:
+        print(f"\nAgent skills already installed at {skills_dir.relative_to(target_root)} -- skipping (use --force to re-install).")
+        return None
+    if not args.with_agent_skills:
+        return None
+
+    print("\n--- Installing Agent Skills (addyosmani/agent-skills) ---")
+    if args.agent_skills_path:
+        skills_repo = Path(args.agent_skills_path).expanduser().resolve()
+        if not skills_repo.exists():
+            print(f"ERROR: Provided agent-skills path does not exist: {skills_repo}")
+            return 5
+    else:
+        skills_repo = target_root / ".agent-skills-repo"
+        try:
+            clone_agent_skills(skills_repo, args.dry_run)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"ERROR: Failed to clone agent-skills repo: {e}")
+            print("  Ensure 'git' is installed, or use --agent-skills-path to provide a local clone.")
+            return 5
+
+    try:
+        for tool in tools:
+            install_agent_skills(tool, skills_repo, target_root, args.dry_run)
+    except Exception as e:
+        print(f"ERROR installing agent-skills: {e}")
+        return 5
+
+    if not args.agent_skills_path and skills_repo.exists() and not args.dry_run:
+        print(f"Cleaning up temporary clone: {skills_repo}")
+        _rmtree_force(skills_repo)
+    elif args.dry_run and not args.agent_skills_path:
+        print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
+    return None
+
+
+def _handle_custom_skills(args: argparse.Namespace, repo_root: Path, target_root: Path) -> int | None:
+    """Install custom or bundled skills. Returns exit code or None."""
+    if args.custom_skills_path:
+        custom_src = Path(args.custom_skills_path).expanduser().resolve()
+        if not custom_src.exists():
+            print(f"ERROR: Custom skills path not found: {custom_src}")
+            return 5
+        print(f"\n--- Installing Custom Skills ---")
+        return _copy_skill_dirs(custom_src, target_root, args.dry_run)
+
+    bundled_custom = repo_root / ".agents" / "custom-skills"
+    if bundled_custom.exists():
+        print(f"\n--- Installing Bundled Custom Skills ---")
+        count = _copy_skill_dirs(bundled_custom, target_root, args.dry_run)
+        if count:
+            print(f"Installed {count} bundled custom skill(s)")
+    return None
+
+
+def _copy_skill_dirs(src_dir: Path, target_root: Path, dry_run: bool) -> int:
+    """Copy skill directories from src_dir into target .agents/skills/. Returns count."""
+    skills_dest = target_root / ".agents" / "skills"
+    skills_dest.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for skill_dir in sorted(src_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        skill_md = skill_dir / "SKILL.md"
+        if not skill_md.exists():
+            continue
+        target_dir = skills_dest / skill_dir.name
+        if dry_run:
+            print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
+        else:
+            print(f"  {skill_dir.name}/ -> .agents/skills/{skill_dir.name}/")
+            copy_tree(skill_dir, target_dir, dry_run=False)
+        count += 1
+    if count == 0 and not dry_run:
+        print("  (no SKILL.md files found in custom skills path)")
+    if count:
+        print(f"Installed {count} custom skill(s)")
+    return count
+
+
+def _handle_orchestrator(tools: list[str], repo_root: Path, target_root: Path, args: argparse.Namespace) -> int | None:
+    """Install AIDLC orchestrator. Returns exit code or None."""
+    try:
+        install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force, args=args)
+    except Exception as e:
+        print(f"ERROR installing orchestrator: {e}")
+        return 6
+    return None
+
+
+def _handle_codegraph(tools: list[str], target_root: Path, args: argparse.Namespace) -> None:
+    """Install CodeGraph if enabled."""
+    if not args.with_codegraph:
+        return
+    try:
+        install_codegraph(tools, target_root, args.dry_run)
+    except Exception as e:
+        print(f"ERROR installing CodeGraph: {e}")
+        print("  CodeGraph is optional -- AIDLC will degrade gracefully without it.")
+
+
+def _handle_engram(tools: list[str], target_root: Path, args: argparse.Namespace) -> None:
+    """Install Engram if enabled."""
+    if args.with_engram:
+        install_engram(tools, target_root, args.dry_run)
+
+
+def _handle_design_system(repo_root: Path, target_root: Path, args: argparse.Namespace) -> None:
+    """Install design system if enabled."""
+    if not args.with_design_system:
+        return
+    try:
+        install_design_system(repo_root, target_root, args.dry_run)
+    except Exception as e:
+        print(f"ERROR installing design system: {e}")
+        print("  Design system is optional -- AIDLC will degrade gracefully without it.")
+
+
+def _handle_cookbook(repo_root: Path, target_root: Path, tools: list[str], args: argparse.Namespace) -> None:
+    """Install AI Architecture Cookbook if enabled."""
+    if not args.with_cookbook:
+        return
+    try:
+        _install_cookbook(repo_root, target_root, args.dry_run, tools=tools)
+    except Exception as e:
+        print(f"ERROR installing Cookbook: {e}")
+        print("  Cookbook MCP may need Node.js >= 18 -- YAML standards fallback will be used.")
+
+
+def _handle_venv(repo_root: Path, target_root: Path, args: argparse.Namespace) -> None:
+    """Set up Python venv + dependencies if not skipped."""
+    if args.no_venv:
+        print("\nSkipped Python venv setup (--no-venv).")
+        return
+    req_path = ensure_target_requirements(repo_root, target_root, args.dry_run)
+    if req_path is None:
+        print("\nNo requirements.txt found in target or source -- skipping venv setup.")
+        return
+    print("\n--- Setting up Python venv + dependencies ---")
+    try:
+        create_venv_and_install_requirements(target_root, req_path, args.dry_run)
+    except EnvironmentError as e:
+        print(f"WARNING: Could not create venv: {e}")
+        print("  You can install deps manually:  pip install -r requirements.txt")
+    except RuntimeError as e:
+        print(f"WARNING: {e}")
+        _pip_venv = ".venv/bin/pip" if sys.platform != "win32" else ".venv\\Scripts\\pip"
+        print(f"  You can retry manually:  {_pip_venv} install -r requirements.txt")
+
+
 def main() -> int:
     args = parse_args()
 
-    # Pass 1 — core preflight (python/git/node/npm + any conditional probes
-    # whose required_when() can be resolved from --tool/--with-* flags alone).
     rc = preflight_check(args, tools=None, label="core")
     if rc != 0:
         return rc
@@ -1915,149 +2450,29 @@ def main() -> int:
     else:
         tools = interactive_choose_tools()
 
-    # Pass 2 — tool-conditional preflight. If the user picked --tool
-    # interactively (no CLI flag), conditional probes for claude / engram /
-    # codegraph CLIs need to fire NOW that tools are resolved.
     if not args.tool:
         rc = preflight_check(args, tools=tools, label="tool-specific")
         if rc != 0:
             return rc
 
-    # Agent skills will be installed by default (no interactive prompt)
+    rc = _handle_agent_skills(args, tools, target_root)
+    if rc is not None:
+        return rc
 
-    # --- Agent Skills integration ---
-    skills_dir = target_root / ".agents" / "skills"
-    skills_already = skills_dir.exists() and any(skills_dir.iterdir()) if skills_dir.exists() else False
-    if args.with_agent_skills and skills_already and not args.force:
-        print(f"\nAgent skills already installed at {skills_dir.relative_to(target_root)} -- skipping (use --force to re-install).")
-    elif args.with_agent_skills:
-        print("\n--- Installing Agent Skills (addyosmani/agent-skills) ---")
+    rc = _handle_custom_skills(args, repo_root, target_root)
+    if rc is not None:
+        return rc
 
-        if args.agent_skills_path:
-            skills_repo = Path(args.agent_skills_path).expanduser().resolve()
-            if not skills_repo.exists():
-                print(f"ERROR: Provided agent-skills path does not exist: {skills_repo}")
-                return 5
-        else:
-            skills_repo = target_root / ".agent-skills-repo"
-            try:
-                clone_agent_skills(skills_repo, args.dry_run)
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print(f"ERROR: Failed to clone agent-skills repo: {e}")
-                print("  Ensure 'git' is installed, or use --agent-skills-path to provide a local clone.")
-                return 5
+    rc = _handle_orchestrator(tools, repo_root, target_root, args)
+    if rc is not None:
+        return rc
 
-        try:
-            for tool in tools:
-                install_agent_skills(tool, skills_repo, target_root, args.dry_run)
-        except Exception as e:
-            print(f"ERROR installing agent-skills: {e}")
-            return 5
+    _handle_codegraph(tools, target_root, args)
+    _handle_engram(tools, target_root, args)
+    _handle_design_system(repo_root, target_root, args)
+    _handle_cookbook(repo_root, target_root, tools, args)
+    _handle_venv(repo_root, target_root, args)
 
-        # Clean up the cloned repo — its contents have been copied into the project
-        if not args.agent_skills_path and skills_repo.exists() and not args.dry_run:
-            print(f"Cleaning up temporary clone: {skills_repo}")
-            _rmtree_force(skills_repo)
-        elif args.dry_run and not args.agent_skills_path:
-            print(f"[DRY-RUN] Would remove temporary clone: {skills_repo}")
-
-    # --- Custom Skills ---
-    if args.custom_skills_path:
-        custom_src = Path(args.custom_skills_path).expanduser().resolve()
-        if not custom_src.exists():
-            print(f"ERROR: Custom skills path not found: {custom_src}")
-            return 5
-        print(f"\n--- Installing Custom Skills ---")
-        skills_dest = target_root / ".agents" / "skills"
-        skills_dest.mkdir(parents=True, exist_ok=True)
-        count = 0
-        for skill_dir in sorted(custom_src.iterdir()):
-            if not skill_dir.is_dir():
-                continue
-            skill_md = skill_dir / "SKILL.md"
-            if not skill_md.exists():
-                continue
-            target_dir = skills_dest / skill_dir.name
-            if args.dry_run:
-                print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
-            else:
-                print(f"  {skill_dir.name}/ -> .agents/skills/{skill_dir.name}/")
-                copy_tree(skill_dir, target_dir, dry_run=False)
-            count += 1
-        if count == 0 and not args.dry_run:
-            print("  (no SKILL.md files found in custom skills path)")
-        print(f"Installed {count} custom skill(s)")
-    else:
-        # Also check for bundled custom skills in the repo itself
-        bundled_custom = repo_root / ".agents" / "custom-skills"
-        if bundled_custom.exists():
-            print(f"\n--- Installing Bundled Custom Skills ---")
-            skills_dest = target_root / ".agents" / "skills"
-            skills_dest.mkdir(parents=True, exist_ok=True)
-            count = 0
-            for skill_dir in sorted(bundled_custom.iterdir()):
-                if not skill_dir.is_dir():
-                    continue
-                skill_md = skill_dir / "SKILL.md"
-                if not skill_md.exists():
-                    continue
-                target_dir = skills_dest / skill_dir.name
-                if args.dry_run:
-                    print(f"[DRY-RUN]   {skill_dir.name}/ -> {target_dir}")
-                else:
-                    print(f"  {skill_dir.name}/ -> .agents/skills/{skill_dir.name}/")
-                    copy_tree(skill_dir, target_dir, dry_run=False)
-                count += 1
-            if count:
-                print(f"Installed {count} bundled custom skill(s)")
-
-    # --- AIDLC Orchestrator (always installed — mandatory for full workflow) ---
-    try:
-        install_orchestrator(tools, repo_root, target_root, args.dry_run, force=args.force, args=args)
-    except Exception as e:
-        print(f"ERROR installing orchestrator: {e}")
-        return 6
-
-    # --- CodeGraph (default: install, opt-out via --no-codegraph) ---
-    if args.with_codegraph:
-        try:
-            install_codegraph(tools, target_root, args.dry_run)
-        except Exception as e:
-            print(f"ERROR installing CodeGraph: {e}")
-            print("  CodeGraph is optional -- AIDLC will degrade gracefully without it.")
-
-    # --- Engram (default: install, opt-out via --no-engram) ---
-    if args.with_engram:
-        install_engram(tools, target_root, args.dry_run)
-
-    # --- Design System (optional, --with-design-system / --no-design-system) ---
-    if args.with_design_system:
-        try:
-            install_design_system(repo_root, target_root, args.dry_run)
-        except Exception as e:
-            print(f"ERROR installing design system: {e}")
-            print("  Design system is optional -- AIDLC will degrade gracefully without it.")
-
-    # --- Python venv + dependencies ---
-    if args.no_venv:
-        print("\nSkipped Python venv setup (--no-venv).")
-    else:
-        req_path = ensure_target_requirements(repo_root, target_root, args.dry_run)
-        if req_path is None:
-            print("\nNo requirements.txt found in target or source -- skipping venv setup.")
-        else:
-            print("\n--- Setting up Python venv + dependencies ---")
-            try:
-                create_venv_and_install_requirements(target_root, req_path, args.dry_run)
-            except EnvironmentError as e:
-                print(f"WARNING: Could not create venv: {e}")
-                print("  You can install deps manually:  pip install -r requirements.txt")
-            except RuntimeError as e:
-                print(f"WARNING: {e}")
-                _pip_venv = ".venv/bin/pip" if sys.platform != "win32" else ".venv\\Scripts\\pip"
-                print(f"  You can retry manually:  {_pip_venv} install -r requirements.txt")
-
-    # --- CodeGraph init (last step — runs after everything else) ---
     if args.with_codegraph:
         _auto_init_codegraph(target_root, args.dry_run)
 

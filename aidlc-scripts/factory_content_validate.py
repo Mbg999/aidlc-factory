@@ -29,6 +29,13 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
+
 ORCHESTRATOR_VERSION = "0.2.0"
 
 # Axes required at each depth, mirroring
@@ -71,16 +78,16 @@ COVERAGE_MAP_ROW_RE = re.compile(
 
 
 def _die(msg: str, code: int = 2) -> None:
-    print(f"factory_content_validate: error: {msg}", file=sys.stderr)
+    _log("ERROR", msg)
     sys.exit(code)
 
 
 def _warn(msg: str) -> None:
-    print(f"  [WARN]  {msg}", file=sys.stderr)
+    _log("WARNING", msg)
 
 
 def _fail(msg: str) -> None:
-    print(f"  [FAIL] {msg}", file=sys.stderr)
+    _log("ERROR", msg)
 
 
 def _ok(msg: str) -> None:
@@ -303,10 +310,10 @@ def cmd_requirements(args: argparse.Namespace) -> int:
         _fail(i)
 
     if args.mode == "strict":
-        print("\nFAIL (strict mode)", file=sys.stderr)
+        _log("ERROR", "FAIL (strict mode)")
         return 1
     else:
-        print("\nWARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
+        _log("WARNING", "WARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
         return 0
 
 
@@ -354,9 +361,9 @@ def _verdict(issues: list[str], mode: str) -> int:
     for i in issues:
         _fail(i)
     if mode == "strict":
-        print("\nFAIL (strict mode)", file=sys.stderr)
+        _log("ERROR", "FAIL (strict mode)")
         return 1
-    print("\nWARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
+    _log("WARNING", "WARN (warn mode -- non-blocking; flip to --mode strict to enforce)")
     return 0
 
 

@@ -34,6 +34,13 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+try:
+    from skill_utils import _log
+except ImportError:
+    def _log(level: str, msg: str, **kwargs) -> None:
+        stream = sys.stderr if level in ("ERROR", "WARNING") else sys.stdout
+        print(f"[{level}] {msg}", file=stream)
 from typing import Any
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -195,7 +202,7 @@ def check_skill(entry: dict) -> dict[str, Any]:
 
 def _load_sources(only: str | None) -> list[dict]:
     if not SOURCES_FILE.exists():
-        print(f"ERROR: {SOURCES_FILE} not found", file=sys.stderr)
+        _log("ERROR", f"{SOURCES_FILE} not found")
         sys.exit(2)
 
     text = SOURCES_FILE.read_text(encoding="utf-8")
@@ -204,7 +211,7 @@ def _load_sources(only: str | None) -> list[dict]:
     if only:
         entries = [e for e in entries if e["name"] == only]
         if not entries:
-            print(f"ERROR: skill '{only}' not found in skill-sources.yaml", file=sys.stderr)
+            _log("ERROR", f"skill '{only}' not found in skill-sources.yaml")
             sys.exit(2)
 
     return entries
@@ -246,7 +253,7 @@ def main() -> None:
 
     errors = [r for r in results if r["status"] in ("error", "missing", "drift")]
     if errors:
-        print(f"\n{len(errors)} skill(s) failed.", file=sys.stderr)
+        _log("ERROR", f"{len(errors)} skill(s) failed.")
         sys.exit(1)
 
     ok_count = sum(1 for r in results if r["status"] in ("ok",))
