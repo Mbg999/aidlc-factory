@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "aidlc-scripts"))
 from factory_ds_bootstrap import (
+    INDEX_MD,
     cmd_init,
     cmd_import,
     _build_imported_index,
@@ -16,6 +17,8 @@ from factory_ds_bootstrap import (
     _parse_stitch_designmd,
     _tokens_to_md,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────
@@ -190,6 +193,43 @@ def test_build_imported_index():
     assert "Spacing" in index
     assert "8, 16" in index
     assert "color" in index or "Color" in index
+
+
+# ── INDEX.md section tests ─────────────────────────────────────────────
+
+REQUIRED_INDEX_SECTIONS = [
+    "## Design sources",
+    "## Lifecycle",
+    "## Companion skills",
+    "## Contribution rules",
+]
+
+
+def test_live_index_md_has_design_sources_section():
+    index_path = REPO_ROOT / "design-system" / "INDEX.md"
+    assert index_path.exists(), "design-system/INDEX.md not found"
+    content = index_path.read_text(encoding="utf-8")
+    for section in REQUIRED_INDEX_SECTIONS:
+        assert section in content, f"Missing section '{section}' in live INDEX.md"
+
+
+def test_index_md_template_has_design_sources_section():
+    for section in REQUIRED_INDEX_SECTIONS:
+        assert section in INDEX_MD, f"Missing section '{section}' in INDEX_MD template"
+    assert "figma" in INDEX_MD.lower(), "INDEX_MD template missing Figma reference"
+    assert "stitch" in INDEX_MD.lower(), "INDEX_MD template missing Stitch reference"
+    assert "bootstrap" in INDEX_MD.lower(), "INDEX_MD template missing bootstrap reference"
+
+
+def test_build_imported_index_includes_all_sections():
+    tokens = {"spacing": {"sm": 8, "md": 16}, "color": {"primary": "#000"}}
+    index = _build_imported_index(tokens)
+    for section in REQUIRED_INDEX_SECTIONS:
+        assert section in index, f"Missing section '{section}' in _build_imported_index output"
+    assert "Bootstrap" in index or "bootstrap" in index, "Missing bootstrap reference in imported index"
+    assert "Figma" in index or "figma" in index, "Missing Figma reference in imported index"
+    assert "Stitch" in index or "stitch" in index, "Missing Stitch reference in imported index"
+    assert "`design-system-composer`" in index, "Missing design-system-composer skill in imported index"
 
 
 # ── Error handling ─────────────────────────────────────────────────────

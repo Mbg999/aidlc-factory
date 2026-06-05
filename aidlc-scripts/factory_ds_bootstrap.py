@@ -271,6 +271,57 @@ See `anti-patterns/`. Quick list:
 - `overflowing-content` — fixed heights without overflow handling
 - `no-hierarchy` — same font-size for heading and body
 - `giant-forms` — single-column forms > 8 fields without grouping
+
+---
+
+## Design sources
+
+Graphical design data is **snapped** to token-compliant primitives before the composer uses it.
+
+| Source | Detection | Snap adapter | Archaeologist |
+|--------|-----------|-------------|---------------|
+| Figma | `figma/` dir or `*.figma.json` | `harness_adapters/source/figma.py` | >10 errs → extract text+inputs only |
+| Stitch | `stitch/` dir / `.stitch-project.json` / `*.stitch.json` | `harness_adapters/source/stitch.py` | Same fallback as Figma |
+
+| Aspect | Figma | Stitch |
+|--------|-------|--------|
+| Input | Manual exports (JSON nodes) | AI-generated HTML/CSS from prompts |
+| Token import | N/A (snapped inline) | `tokens/stitch-*.md` from DESIGN.md |
+| MCP server | `figma-mcp` (npm) + Remote MCP | `@_davideast/stitch-mcp` (npm) |
+
+---
+
+## Lifecycle
+
+| Phase | Command | Effect |
+|-------|---------|--------|
+| Bootstrap | `factory_token_bridge.py bootstrap` | Write default tokens + `tokens.css` (greenfield) |
+| Init | `factory_ds_bootstrap.py init` | Full DS: tokens + INDEX.md + patterns + primitives |
+| Brownfield extract | `factory_design_system_extract_brownfield.py extract` | Extract tokens from existing CSS/MUI/Tailwind |
+| Snap | `harness_adapters/source/{figma,stitch}.py` | Convert raw design to token-compliant output |
+| Prepare | `factory_token_bridge.py prepare` | Generate `tokens.css` + `token-prompt.md` + Tailwind config |
+| Resolve | `factory_design_system_resolve.py resolve <types>` | Lazy-load only needed primitive docs |
+| Update index | `factory_design_system_learn.py update-index` | Refresh usage stats after approval |
+
+---
+
+## Companion skills
+
+| Skill | Role |
+|-------|------|
+| `design-system-composer` | Compose from INDEX.md primitives; Figma archaeologist; Stitch DESIGN.md import |
+| `ui-constraint-validator` | Post-generation token compliance scanner + autocorrect |
+| `frontend-ui-engineering` | Generic frontend patterns (responsive, state, component arch) |
+
+---
+
+## Contribution rules
+
+| Who | Can do | Requires |
+|-----|--------|----------|
+| Any contributor | Add primitives | `design.md` + `anatomy.md` + `do-dont.md` (≥3 DON'T) + token-only values |
+| Pipeline PR | Modify tokens | Update all `design.md` files referencing changed tokens |
+| ship-agent only | Approve examples | Human approval in visual feedback loop |
 """
 
 PATTERNS: dict[str, str] = {
@@ -698,6 +749,41 @@ def _build_imported_index(tokens: dict[str, Any]) -> str:
 
     lines.extend(["", "---", "", "## Anti-patterns", "",
                   "See `anti-patterns/` for known bad patterns to avoid."])
+
+    lines.extend(["", "---", "", "## Design sources", "",
+                  "| Source | Detection | Snap adapter |",
+                  "|--------|-----------|-------------|",
+                  "| Figma | `figma/` dir or `*.figma.json` | `harness_adapters/source/figma.py` |",
+                  "| Stitch | `stitch/` dir / `.stitch-project.json` / `*.stitch.json` | `harness_adapters/source/stitch.py` |",
+                  "", "| Aspect | Figma | Stitch |",
+                  "|--------|-------|--------|",
+                  "| Input | Manual exports (JSON nodes) | AI-generated HTML/CSS from prompts |",
+                  "| Token import | N/A (snapped inline) | `tokens/stitch-*.md` from DESIGN.md |",
+                  "| MCP server | `figma-mcp` (npm) + Remote MCP | `@_davideast/stitch-mcp` (npm) |"])
+
+    lines.extend(["", "---", "", "## Lifecycle", "",
+                  "| Phase | Command |",
+                  "|-------|---------|",
+                  "| Bootstrap | `factory_token_bridge.py bootstrap` |",
+                  "| Init | `factory_ds_bootstrap.py init` |",
+                  "| Snap | `harness_adapters/source/{figma,stitch}.py` |",
+                  "| Prepare | `factory_token_bridge.py prepare` |",
+                  "| Resolve | `factory_design_system_resolve.py resolve <types>` |",
+                  "| Update index | `factory_design_system_learn.py update-index` |"])
+
+    lines.extend(["", "---", "", "## Companion skills", "",
+                  "| Skill | Role |",
+                  "|-------|------|",
+                  "| `design-system-composer` | Compose from INDEX.md primitives; Figma archaeologist; Stitch DESIGN.md import |",
+                  "| `ui-constraint-validator` | Post-generation token compliance scanner + autocorrect |",
+                  "| `frontend-ui-engineering` | Generic frontend patterns (responsive, state, component arch) |"])
+
+    lines.extend(["", "---", "", "## Contribution rules", "",
+                  "| Who | Can do | Requires |",
+                  "|-----|--------|----------|",
+                  "| Any contributor | Add primitives | `design.md` + `anatomy.md` + `do-dont.md` (≥3 DON'T) + token-only values |",
+                  "| Pipeline PR | Modify tokens | Update all `design.md` files referencing changed tokens |",
+                  "| ship-agent only | Approve examples | Human approval in visual feedback loop |"])
     return "\n".join(lines) + "\n"
 
 

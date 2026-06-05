@@ -104,15 +104,31 @@ def test_bridge_list_prompts(repo_root: Path):
 def test_bridge_bootstrap_greenfield(tmp_path: Path):
     from factory_token_bridge import bootstrap_greenfield
     created = bootstrap_greenfield(tmp_path, force=True)
-    assert len(created) >= 4
+    assert len(created) >= 5
     assert (tmp_path / "design-system" / "tokens" / "spacing.md").exists()
     assert (tmp_path / "design-system" / "tokens" / "color.md").exists()
     assert (tmp_path / "design-system" / "tokens" / "tokens.css").exists()
+    assert (tmp_path / "design-system" / "INDEX.md").exists(), \
+        "bootstrap_greenfield should create INDEX.md"
+
+
+def test_bridge_bootstrap_creates_index_with_design_sources(tmp_path: Path):
+    from factory_token_bridge import bootstrap_greenfield
+    bootstrap_greenfield(tmp_path, force=True)
+    index = (tmp_path / "design-system" / "INDEX.md").read_text(encoding="utf-8")
+    assert "## Design sources" in index
+    assert "## Lifecycle" in index
+    assert "## Companion skills" in index
+    assert "## Contribution rules" in index
+    assert "Figma" in index or "figma" in index
+    assert "Stitch" in index or "stitch" in index
+    assert "bootstrap" in index.lower()
 
 
 def test_bridge_bootstrap_idempotent(tmp_path: Path):
     from factory_token_bridge import bootstrap_greenfield
     first = bootstrap_greenfield(tmp_path, force=True)
+    assert len(first) >= 6  # tokens + css + INDEX.md
     second = bootstrap_greenfield(tmp_path, force=False)
     assert len(second) == 0  # All exist, no overwrite
 

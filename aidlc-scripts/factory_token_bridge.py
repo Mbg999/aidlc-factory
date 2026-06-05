@@ -220,7 +220,8 @@ GREENFIELD_TOKENS: dict[str, str] = {
 
 def bootstrap_greenfield(repo_root: Path, force: bool = False) -> list[str]:
     """Create a default design system for greenfield projects."""
-    tokens_dir = repo_root / "design-system" / "tokens"
+    ds_dir = repo_root / "design-system"
+    tokens_dir = ds_dir / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
     created: list[str] = []
 
@@ -237,6 +238,14 @@ def bootstrap_greenfield(repo_root: Path, force: bool = False) -> list[str]:
         css_path = tokens_dir / "tokens.css"
         css_path.write_text(css, encoding="utf-8")
         created.append(str(css_path))
+
+    # Write INDEX.md if missing
+    index_path = ds_dir / "INDEX.md"
+    if not index_path.exists() or force:
+        from factory_ds_bootstrap import INDEX_MD
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(INDEX_MD, encoding="utf-8")
+        created.append(str(index_path))
 
     return created
 

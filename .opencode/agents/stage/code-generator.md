@@ -199,6 +199,15 @@ If `input.has_figma_data` is set AND `input.figma_snapped_path` exists:
 3. Otherwise: treat snapped JSON as the UI intent plan — components to build, layout to follow
 4. Log snap correction count in `audit_entries[]`
 
+#### Pre-Stitch: Snap Stitch data (when available)
+
+If `input.has_stitch_data` is set AND `input.stitch_snapped_path` exists:
+1. Load the snapped Stitch data from `input.stitch_snapped_path`
+2. In `stitch_archaeologist_mode`: extract only text, inputs, and reading order — same fallback as Figma — and rebuild using `design-system/patterns/`
+3. Otherwise: treat snapped Stitch HTML/CSS as the UI intent plan — extract layout + hierarchy + content, discard generated code
+4. Load any imported tokens from `design-system/tokens/stitch-*.md` if present
+5. Log snap correction count in `audit_entries[]`
+
 #### Design System Token Catalog (inline fallback)
 
 Load `tokens.css` from `token_bridge_artifacts[]` (if present) and read the actual
