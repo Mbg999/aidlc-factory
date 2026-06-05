@@ -1112,6 +1112,54 @@ class TestCheckNodeVersion:
         assert ver == "not found"
 
 
+# ── _cleanup_stale_codegraph_rules ─────────────────────────────────────
+
+
+class TestCleanupStaleCodegraphRules:
+    """Tests for _cleanup_stale_codegraph_rules — prevents cursor rules leak."""
+
+    def test_removes_cursor_rules_when_cursor_not_selected(self, tmp_path: Path):
+        cursor_rules = tmp_path / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "codegraph.mdc").write_text("stale\n")
+        install_aidlc._cleanup_stale_codegraph_rules(["opencode"], tmp_path)
+        assert not (cursor_rules / "codegraph.mdc").exists()
+
+    def test_keeps_cursor_rules_when_cursor_selected(self, tmp_path: Path):
+        cursor_rules = tmp_path / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "codegraph.mdc").write_text("keep\n")
+        install_aidlc._cleanup_stale_codegraph_rules(["cursor"], tmp_path)
+        assert (cursor_rules / "codegraph.mdc").exists()
+
+    def test_keeps_cursor_rules_with_multi_tool_including_cursor(self, tmp_path: Path):
+        cursor_rules = tmp_path / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "codegraph.mdc").write_text("keep\n")
+        install_aidlc._cleanup_stale_codegraph_rules(["cursor", "opencode"], tmp_path)
+        assert (cursor_rules / "codegraph.mdc").exists()
+
+    def test_noop_when_rules_file_does_not_exist(self, tmp_path: Path):
+        install_aidlc._cleanup_stale_codegraph_rules(["opencode"], tmp_path)
+
+    def test_noop_when_cursor_dir_does_not_exist(self, tmp_path: Path):
+        install_aidlc._cleanup_stale_codegraph_rules(["opencode"], tmp_path)
+
+    def test_removes_cursor_rules_also_for_claude(self, tmp_path: Path):
+        cursor_rules = tmp_path / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "codegraph.mdc").write_text("stale\n")
+        install_aidlc._cleanup_stale_codegraph_rules(["claude"], tmp_path)
+        assert not (cursor_rules / "codegraph.mdc").exists()
+
+    def test_removes_cursor_rules_for_codex(self, tmp_path: Path):
+        cursor_rules = tmp_path / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "codegraph.mdc").write_text("stale\n")
+        install_aidlc._cleanup_stale_codegraph_rules(["codex"], tmp_path)
+        assert not (cursor_rules / "codegraph.mdc").exists()
+
+
 # ── _run_codegraph (Bug B2 regression) ────────────────────────────────────
 
 

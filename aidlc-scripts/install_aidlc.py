@@ -1308,6 +1308,28 @@ def _auto_init_codegraph(target_root: Path, dry_run: bool) -> None:
         _run_codegraph(["codegraph", "status"], target_root)
 
 
+def _cleanup_stale_codegraph_rules(tools: list[str], target_root: Path) -> None:
+    """Remove CodeGraph agent-rule files for tools that were NOT selected.
+
+    The upstream codegraph CLI currently generates Cursor rules even when
+    --target=opencode is passed (upstream bug). We clean up stale artifacts
+    for any tool not in the user's selected list so that only the correct
+    agent's rules remain.
+    """
+    # Map from tool to the rule file path that codegraph install creates for it.
+    _cg_rule_paths: dict[str, Path] = {
+        "cursor": target_root / ".cursor" / "rules" / "codegraph.mdc",
+    }
+    selected = set(tools)
+    for tool, rule_path in _cg_rule_paths.items():
+        if tool not in selected and rule_path.exists():
+            if rule_path.is_dir():
+                _rmtree_force(rule_path)
+            else:
+                rule_path.unlink()
+            print(f"  cleaned up stale codegraph rule: {rule_path.relative_to(target_root)}")
+
+
 def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> None:
     """Install CodeGraph globally via npm and configure agents with --target.
 
@@ -1370,6 +1392,7 @@ def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> Non
             )
             if install_result.returncode == 0:
                 print(f"  CodeGraph configured for: {target_str}")
+                _cleanup_stale_codegraph_rules(tools, target_root)
                 return
             print(f"  codegraph install exited {install_result.returncode} -- falling back to manual .mcp.json")
 
@@ -1404,6 +1427,8 @@ def install_codegraph(tools: list[str], target_root: Path, dry_run: bool) -> Non
             json.dumps(existing, indent=2) + "\n", encoding="utf-8"
         )
         print(f"  .mcp.json -- added 'codegraph' MCP server entry")
+
+    _cleanup_stale_codegraph_rules(tools, target_root)
 
 
 # ─── Engram persistent memory ────────────────────────────────────────────────
