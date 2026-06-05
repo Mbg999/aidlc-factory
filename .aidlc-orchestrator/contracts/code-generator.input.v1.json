@@ -12,7 +12,7 @@
     "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
     "unit_spec_path": { "type": "string", "description": "Path to unit spec YAML. Required for non-fast-path code generation." },
     "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 4, "default": ["using-agent-skills", "incremental-implementation", "test-driven-development", "source-driven-development"] },
-    "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "description": "Resolved SKILL.md paths. FAST_PATH sets this empty; non-FAST_PATH requires ≥1." },
     "budget": { "type": "object" },
     "gates": { "type": "array", "items": { "type": "string" }, "default": ["require_human_approval"] },
     "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -98,6 +98,14 @@
   },
   "additionalProperties": false,
   "allOf": [
+    {
+      "if": { "properties": { "fast_path": { "const": false } } },
+      "then": {
+        "properties": {
+          "skill_paths_resolved": { "minItems": 1 }
+        }
+      }
+    },
     {
       "if": { "properties": { "fast_path": { "const": true } } },
       "then": {

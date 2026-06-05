@@ -11,7 +11,7 @@
 | Schema | Produced by | Consumed by | Key fields |
 |--------|-------------|-------------|------------|
 | `workspace-scout.input.v1.json` | orchestrator | workspace-scout | `user_request`, `skill_paths_resolved` |
-| `workspace-scout.output.v1.json` | workspace-scout | orchestrator, requirements-analyst | `workspace_state` (contains `project_type`, `existing_code`, `next_phase`), `project_profile`, `artifacts[]` |
+| `workspace-scout.output.v1.json` | workspace-scout | orchestrator, requirements-analyst | `workspace_state` (contains `project_type`, `existing_code`, `next_phase`), `artifacts[]` |
 | `reverse-engineer.input.v1.json` | orchestrator | reverse-engineer | `user_request`, `workspace_state`, `predecessor_artifacts`, `skills_required` |
 | `reverse-engineer.output.v1.json` | reverse-engineer | orchestrator, requirements-analyst | `tech_stack_summary`, `architecture_artifacts[]`, `artifacts[]` |
 | `requirements-analyst.input.v1.json` | orchestrator | requirements-analyst | `user_request`, `predecessor_artifacts`, `workspace_state`, `depth_override` |
@@ -23,7 +23,7 @@
 | `unit-decomposer.input.v1.json` | orchestrator | unit-decomposer | `units[]` from workflow-planner, `predecessor_artifacts` |
 | `unit-decomposer.output.v1.json` | unit-decomposer | orchestrator | `units_decomposed[]` (name, file, dependencies), `artifacts[]` |
 | `code-generator.input.v1.json` | orchestrator | code-generator | `user_request`, `unit_name`, `unit_spec_path`, `predecessor_artifacts`, `fast_path`, `tier`, `locks_required` |
-| `code-generator.output.v1.json` | code-generator | orchestrator, build-test-agent | `files_changed[]`, `tests_added`, `commits_made[]`, `artifacts[]`, `cost` |
+| `code-generator.output.v1.json` | code-generator | orchestrator, build-test-agent | `files_written`, `tests_added`, `commits_made`, `artifacts[]`, `cost` |
 | `build-test-agent.input.v1.json` | orchestrator | build-test-agent | `unit_name`, `unit_spec_path`, `build_tool`, `test_framework`, `predecessor_artifacts`, `locks_required` |
 | `build-test-agent.output.v1.json` | build-test-agent | orchestrator | `build_status`, `tests_total/passing/failing`, `coverage_pct`, `artifacts[]` (kind: doc/test/config/source), `skill_compliance[]` |
 | `reviewer.input.v1.json` | orchestrator | reviewer-* | `stage_id` (e.g. `reviewer-code`), `reviewer` (e.g. `code-quality`), `user_request`, `predecessor_artifacts`, `scope_paths` |
@@ -76,10 +76,10 @@ routing and the reviewer pool. Defined in `shared/complexity-tier.schema.json`.
 
 | Tier | Skip stages | Reviewer pool |
 |------|-------------|---------------|
-| TINY | story-writer, unit-decomposer, workflow-planner, build-test-agent | (none — FAST_PATH) |
-| SMALL | story-writer, unit-decomposer | code only |
-| MEDIUM | story-writer | code, security, simplifier |
-| LARGE | (none) | all 4 reviewers |
+| TINY | story-writer, unit-decomposer, workflow-planner, build-test-agent | (empty — FAST_PATH) |
+| SMALL | story-writer, unit-decomposer | reviewer-code only |
+| MEDIUM | story-writer | reviewer-code, reviewer-security, reviewer-simplifier |
+| LARGE | (none) | all 4 reviewers (reviewer-code, reviewer-security, reviewer-performance, reviewer-simplifier) |
 
 ---
 

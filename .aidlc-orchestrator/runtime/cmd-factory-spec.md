@@ -104,7 +104,7 @@ On user answers (between passes): call `emit_audit_block` per [`audit-block.prot
 Stage-specific knobs:
 - **skills_required**: `[idea-refine, spec-driven-development, using-agent-skills]`
 - **predecessor_artifacts**: workspace-scout's output handoff. Copy its `workspace_state` block into the input.
-- **state on Pass 2 success** (Bug B fix — three required mutations, do NOT skip any):
+- **state on Pass 2 success** (three required mutations):
   1. `Current Stage`: `INCEPTION - Requirements Analysis (complete) — awaiting /factory-plan`.
   2. `Stage Progress`: mark `[x] Requirements Analysis — <ISO date>`.
   3. `Extension Configuration` table (upsert per current iteration): parse the answered questions file for `^## Question: (.+) Extension$` headings. Map answer letter → enabled value via the option text: `A → Yes`; `B`/`C` → `Partial` if option text contains "Partial"/"only", else `No`; anything else → `Unknown` (and log warning). Upsert into `## Extension Configuration` table with `Decided At = Current iteration: Requirements Analysis (Answer <letter>) — run_id <run-id>`. Create the table with 3-column shape (`| Extension | Enabled | Decided At |`) if absent. Log `[Orchestrator] Extension Configuration upserted: <ext>=<val>` per row.

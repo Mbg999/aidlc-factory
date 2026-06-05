@@ -20,7 +20,7 @@
       },
       "minItems": 2
     },
-    "audit_entries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 2 },
+    "audit_entries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
     "skill_compliance": {
       "type": "array",
       "items": {
