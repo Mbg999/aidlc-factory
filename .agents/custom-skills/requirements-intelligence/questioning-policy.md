@@ -38,11 +38,26 @@ given request. Referenced by `SKILL.md` Step 3.
 
 | Depth | Min questions | Max questions | Drop priority (when above max) |
 |---|---|---|---|
-| minimal | 3 | 5 | Unknowns → Context → Limits → Risks → Expectations → Acceptance → Needs → Purpose |
-| standard | 5 | 10 | same |
-| comprehensive | 8 | 18 | same |
+| minimal | 4 | 7 | Unknowns → Context → Limits → Risks → Expectations → Acceptance → Needs → Purpose |
+| standard | 8 | 14 | same |
+| comprehensive | 14 | 26 | same |
 
 Drop priority is read left-to-right: Unknowns drops first, Purpose never drops.
+
+### Per-axis minimum questions by depth
+
+| Axis | minimal | standard | comprehensive |
+|---|---|---|---|
+| Purpose | 1 | 2 | 2 |
+| Needs | 1 | 2 | 3 |
+| Expectations | 1 | 2 | 2 |
+| Acceptance | 1 | 1 | 2 |
+| Limits | — | 1 | 2 |
+| Context | — | 1 | 2 |
+| Risks | — | — | 2 |
+| Unknowns | — | — | 1 |
+
+Below per-axis min → regain coverage by re-running the relevant technique (Socratic for Purpose, ambiguity-detection for Expectations, pre-mortem for Risks, etc.). Log the re-run: `[CoverageRecovery] <axis>: re-ran <technique> — <n> questions added`.
 
 ## Below-min recovery
 
@@ -51,6 +66,21 @@ If after dedupe the question count is below the depth's min:
 1. Re-run any triggered technique that produced zero candidates.
 2. If still below min, escalate the active depth one level (minimal→standard, standard→comprehensive). Log the escalation: `[DepthEscalation] from <old> to <new>: insufficient coverage`.
 3. If at comprehensive and still below min, set `status: needs_human` with `[RedFlag] requirements-intelligence: cannot reach minimum coverage at comprehensive depth — request likely too underspecified for MCQ format`.
+
+## Depth escalation rules
+
+Escalate when ANY of these fire:
+
+| Signal | Escalate to |
+|---|---|
+| `stakes == prod` AND `risk ∈ {medium, high}` | comprehensive |
+| `ambiguity_count ≥ 5` | comprehensive |
+| `novelty == high` AND `stakes ≠ prototype` | comprehensive |
+| `ambiguity_count ≥ 3` | standard (if currently minimal) |
+| `scope ∈ {System-wide, Cross-system}` | comprehensive |
+| Request mentions migration, backfill, breaking change | comprehensive |
+
+Log each escalation: `[DepthEscalation] forced to <depth>: <reason>`. These override the depth determined in Step 3 — the agent MUST respect them.
 
 ## Special cases
 

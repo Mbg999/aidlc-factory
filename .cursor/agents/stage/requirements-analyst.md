@@ -55,9 +55,61 @@ prefixed `[RedFlag] <skill-name>:`.
 - `requirements-intelligence` — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
 - `ai-architecture-cookbook` — call `recommend_workflow(mode: 'quick')` to validate requirements against architectural standards before producing the final spec. Log `[Skill] ai-architecture-cookbook: recommend_workflow called` in `audit_entries[]`. — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
 
+## Anti-Invention Rule (CRITICAL — never bypass)
+
+**You MUST NOT fill in requirements gaps from your training data.** When
+information is missing, ambiguous, or uncertain, you MUST generate a question.
+Do NOT:
+
+- Invent plausible-sounding details the user did not provide
+- Write "assumed" or "determined by the system" clauses in the spec
+- Guess technology choices, performance targets, or UX behaviors
+- Fill in edge-case behavior from general knowledge
+
+If you catch yourself writing a claim not supported by user input + workspace
+artifacts, STOP and convert it to a question instead. A spec with
+unsupported claims is a FAIL at the content-validation gate.
+
+## Invention Audit (mandatory before Pass 2)
+
+Before producing the requirements.md in Pass 2, you MUST audit every claim:
+
+1. For each functional/non-functional requirement, trace it to a user answer or
+   workspace-scout/reverse-engineering artifact. Cite the source (`[Source:
+   Q<n> answer]` or `[Source: RE artifact L<n>]`).
+2. Any claim NOT traceable to user input → convert back to a question and
+   re-open Pass 1. Log `[InventionAudit] untraceable claim: "<claim>" →
+   converted to question Q<n>`.
+3. Emit the audit coverage table in `audit_entries[]`:
+   ```
+   [InventionAudit] claims: <N> total, <N> traced, <N> untraceable → converted
+   ```
+
+## Follow-up Protocol (Pass 1.5)
+
+After the user returns answers in Pass 1, BEFORE proceeding to Pass 2:
+
+1. **Scan for vagueness**: For each answer, check for:
+   - `X) Other` selected without a description after `[Answer]:`
+   - Single-word answers ("yes", "no", "OK") that do not resolve the axis
+   - Answers that contradict each other or earlier artifacts
+   - Any axis still lacking clear resolution after the user's answers
+2. **Generate follow-up questions**: If ANY of the above fire, do NOT proceed to
+   Pass 2. Instead generate a second questions file:
+   `aidlc-docs/inception/requirements/<run-id>-clarification-questions.md`
+   containing targeted MCQs for the unresolved items. Follow the same format as
+   Pass 1 (axis tags, MCQ, `[Answer]:`).
+3. **Log**: `[FollowUp] clarification round: <N> questions for axes: <list>`
+4. Re-emit `status: needs_human` with `needs_user_input: true` and the
+   clarification file path. Wait for a second round of answers before Pass 2.
+5. If after 2 clarification rounds answers are still vague, set
+   `status: needs_human` with
+   `[RedFlag] requirements-analyst: unable to resolve <axis> after 2 rounds —
+   request too underspecified for reliable spec generation`.
+
 ## Two-pass execution
 
-This stage runs in two passes because of the clarifying-questions gate:
+This stage runs in two passes (plus optional clarification rounds) because of the clarifying-questions gate:
 
 ### Pass 1 — produce questions
 Triggered when your input has NO `context_pointers[]` referencing answered
@@ -196,3 +248,9 @@ Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/e
 - Do not write source code or implementation. That's Construction phase.
 - Do not skip the depth-levels.md guidance. Comprehensive depth requires
   more rigor than minimal — choose deliberately.
+- **Do not invent requirements.** Never fill in gaps from training data.
+  Missing information → question, not assumption. Every claim in the spec
+  must trace to user input or workspace artifacts. See Anti-Invention Rule above.
+- **Do not skip clarification rounds.** If user answers are vague, incomplete,
+  or contradictory, generate follow-up questions. Never proceed to Pass 2
+  with unresolved axes. See Follow-up Protocol above.

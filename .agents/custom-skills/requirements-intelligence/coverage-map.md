@@ -158,6 +158,13 @@ SKILL.md Step 4 emits a coverage table built from this taxonomy. SKILL.md Step 7
 verification gate refuses any cell `status != covered` for axes required at the
 active depth. This is non-negotiable.
 
+### Per-axis minimum questions
+
+Each axis also has a MINIMUM question count at each depth (defined in `questioning-policy.md`).
+A single question per axis is insufficient at standard+ depths — the agent MUST
+generate enough questions to reach the per-axis minimum before proceeding. Log
+re-runs with `[CoverageRecovery] <axis>: re-ran <technique> — <n> questions added`.
+
 ## Skipping axes (legitimate cases)
 
 - **Context skipped at standard depth** when workspace-scout output answers all context questions. Quote workspace-scout's output as the evidence (`[CoverageMap] Context: covered by workspace-scout L<n>`).
