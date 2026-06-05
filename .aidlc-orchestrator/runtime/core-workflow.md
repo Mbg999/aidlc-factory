@@ -19,12 +19,12 @@ Scope: command/stage in kebab-case (e.g. `requirements-analysis`, `workflow-plan
 
 **Anti-pattern to reject**: committing on `status: complete` from an intermediate stage (e.g. `docs(story-writer): create user stories and personas` fired before the user has reviewed/approved the plan that consumes those stories). The plan-stage approval gate is the commit trigger — story-writer's output rides along inside that commit.
 
-**Multi-stage commands**: `/factory-plan` may run story-writer → workflow-planner → unit-decomposer internally. ONE commit fires at command boundary after the user approves the workflow-planner plan, covering everything in the working tree.
+**Multi-stage commands**: `/factory-plan` may run story-writer → application-designer → workflow-planner → unit-decomposer internally. ONE commit fires at command boundary after the user approves the workflow-planner plan, covering everything in the working tree.
 
 ---
 
 # INCEPTION PHASE
-Purpose: WHAT to build. Stages: Workspace Detection, Reverse Engineering (cond), Requirements Analysis, User Stories (cond), Workflow Planning, Application Design (cond), Units Generation (cond).
+Purpose: WHAT to build. Stages: Workspace Detection, Reverse Engineering (cond), Requirements Analysis, User Stories (cond), Application Design (cond), Workflow Planning, Units Generation (cond).
 
 ## Workspace Detection (ALWAYS)
 Classify workspace → detect greenfield/brownfield → scan tech stack → determine next phase.

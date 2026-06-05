@@ -37,7 +37,7 @@ Users invoke this orchestrator with a command prefix:
 | Command | Route | Phase |
 |---|---|---|
 | `factory-spec` | triage → FAST_PATH OR workspace-scout → requirements-analyst | 0 |
-| `factory-plan` | (cond) story-writer → workflow-planner → (cond) unit-decomposer | 1 |
+| `factory-plan` | (cond) story-writer → (cond) application-designer → workflow-planner → (cond) unit-decomposer | 1 |
 | `factory-build` | per-unit: code-generator → build-test-agent | 1 |
 | `factory-review` | parallel reviewer pool (code, security, performance, simplifier) | 1 |
 | `factory-ship` | ship-agent | 1 |

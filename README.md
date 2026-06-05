@@ -87,7 +87,7 @@ python3 aidlc-scripts/install_aidlc.py
 ## What This Is
 
 The orchestrator is activated through `/factory-*` slash commands and executes
-**13 specialized stage subagents** with:
+**14 specialized stage subagents** with:
 
 - **Contract-validated handoffs** — every stage input/output is JSON-Schema-validated against `.aidlc-orchestrator/contracts/*.v1.json`.
 - **Parallel-safe codegen** — layered units run in parallel with file-glob locks and Python AST symbol-drift detection.
@@ -154,7 +154,7 @@ tool's agents directory (`<tool>/agents/orchestrator.md`).
 | `/factory-onboarding` | Setup | Interactive walkthrough of the AIDLC orchestrator. Recommended first command for new users. |
 | `/factory-help` | Setup | Full command reference and getting-started instructions. |
 | `/factory-spec <feature>` | 0. Inception | Workspace detection + adaptive requirements analysis (two-pass — Q&A → spec). Produces `aidlc-docs/<run-id>-requirements.md`. |
-| `/factory-plan <run-id>` | 1. Planning | Generates the execution plan, optional user stories/personas, and per-unit decomposition. |
+| `/factory-plan <run-id>` | 1. Planning | Generates the application design (components, interfaces, services), execution plan, optional user stories/personas, and per-unit decomposition. |
 | `/factory-product <feature>` | 0–1. Product | Combined run: workspace scout + requirements + personas + stories + execution plan. **Stops before code generation.** Useful for product-only iterations. |
 | `/factory-build <run-id>` | 5. Construction | Per-unit code generation + build/test. Layer-parallel (independent units run concurrently, layers sequential). Includes file-glob locks and AST symbol-drift checks. |
 | `/factory-review <run-id>` | 4. Review | Spawns the parallel reviewer pool: code quality, security, performance, simplification. Merges findings into a single report. |
@@ -387,7 +387,7 @@ Everything outside the per-tool block is shared across all five tools.
 ├── <tool>/                            # Per-tool orchestrator wiring (see table above)
 │   ├── agents/
 │   │   ├── orchestrator.md            # Multi-agent orchestrator entry point
-│   │   ├── stage/                     # 13 stage subagents
+│   │   ├── stage/                     # 14 stage subagents
 │   │   ├── cross-cutting/             # conflict-resolver, knowledge-agent
 │   │   └── custom/                    # Your custom agents (commit to repo)
 │   └── commands/ (or prompts/ or config.toml)  # 13 /factory-* slash commands, prompt files, or Codex TOML config
@@ -454,7 +454,7 @@ python3 aidlc-scripts/factory_custom_skills.py --dry-run
 | `aidlc-rules/adapters/` | Tool-specific adapter docs (Claude Code, Cursor, Copilot, OpenCode, Codex, generic) |
 | `.claude/`, `.cursor/`, `.github/`, `.opencode/`, `.codex/` | Per-tool agent + commands trees (kept in parity — same orchestrator, stages, and cross-cutting agents; frontmatter differs per tool) |
 | `<tool>/agents/orchestrator.md` | Multi-agent orchestrator entry point |
-| `<tool>/agents/stage/` | 13 stage subagents (workspace-scout, requirements-analyst, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
+| `<tool>/agents/stage/` | 14 stage subagents (workspace-scout, requirements-analyst, application-designer, workflow-planner, story-writer, unit-decomposer, code-generator, build-test-agent, reviewer-{code,security,performance,simplifier}, ship-agent, reverse-engineer) |
 | `<tool>/agents/cross-cutting/` | `conflict-resolver`, `knowledge-agent` |
 | `<tool>/agents/custom/` | Your custom subagents (auto-discovered) |
 | `<tool>/commands/` (or `.github/prompts/`) | 13 `/factory-*` slash command / prompt definitions |

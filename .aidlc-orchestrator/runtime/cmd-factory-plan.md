@@ -19,15 +19,31 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and pass its contents as `context` to cookbook MCP calls.
 
-2. **Workflow Planner (always)** — `model: opus`. Required. Execute
-   `stage/workflow-planner.md` inline per the [post-execution loop](spawn-loop.md).
-   Predecessors: requirements + (if present) stories. The planner emits
+2. **Application Designer (conditional)** — skip when ANY of:
+    - `manifest.skip_stages[]` contains `application-designer`
+    - The request scope is single-component AND involves no new interfaces/components
+    - The user explicitly provides an existing design
+
+    When skipping, log `[Skip] application-designer` to audit. Otherwise execute
+    `stage/application-designer.md` inline per the [post-execution loop](spawn-loop.md).
+
+    > **Two-pass execution**: application-designer has an integrated two-pass flow
+    > (Pass 1: questions → `needs_human` → wait for answers → Pass 2: generate
+    > 5 design artifacts). This mirrors the requirements-analyst two-pass pattern
+    > but is handled entirely within the agent — the orchestrator surfaces the
+    > `needs_human` gate with `needs_user_input: true` and re-spawns on answer.
+
+    Predecessors: requirements + (if present) stories + (if brownfield) reverse engineering.
+
+3. **Workflow Planner (always)** — `model: opus`. Required. Execute
+    `stage/workflow-planner.md` inline per the [post-execution loop](spawn-loop.md).
+    Predecessors: requirements + (if present) stories + (if present) application-design artifacts. The planner emits
    `status: needs_human` after producing the plan; on user response, call
    `emit_audit_block` per [`audit-block.protocol.md` § workflow-planner gate](../contracts/audit-block.protocol.md).
 
    > **Cookbook**: The workflow-planner loads `ai-architecture-cookbook` (`recommend_workflow(mode: 'audit')`) to suggest architecture patterns the plan must cover, tagged with cookbook standard IDs. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and inject the `techStack`, `scale`, `compliance`, and `previous_decisions` fields as `context` to the `recommend_workflow` call.
 
-3. **Unit Decomposer (conditional)** — skip when ANY of:
+4. **Unit Decomposer (conditional)** — skip when ANY of:
    - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov)
    - The approved plan enumerates < 2 units AND requirements do not call out distinct services/components
 

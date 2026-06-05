@@ -82,6 +82,7 @@ After inline stage execution, run these steps in order:
 | Stage | Delta |
 |-------|-------|
 | requirements-analyst | Two-pass: inline execution runs twice (Pass 1 → surface → Pass 2) |
+| application-designer | Two-pass: questions → `needs_human` with `needs_user_input: true` → re-spawn with answers → 5 design artifacts |
 | code-generator | Three sub-stages (plan → generated → approved); each runs full spawn loop with Task() |
 | reviewers (pool) | Step 4 spawns all active reviewers in parallel (≤ 4); full spawn loop |
 | build-test-agent | Per-unit in parallel per wave (≤ 4); full spawn loop |
