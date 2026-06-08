@@ -25,7 +25,7 @@ from typing import Any
 try:
     import yaml
 except ImportError:
-    print("ERROR: PyYAML required. Run: pip install pyyaml", file=sys.stderr)
+    print("ERROR: PyYAML required. Run: sys.executable -m pip install pyyaml", file=sys.stderr)
     sys.exit(1)
 
 

@@ -191,7 +191,7 @@ def test_missing_axis_tag_warns_in_warn_mode(fake_run):
 
     result = _run(["--mode", "warn", "requirements", str(handoff)])
     assert result.returncode == 0  # warn does not exit non-zero
-    assert "WARN" in result.stdout
+    assert "WARN" in result.stderr
 
 
 def test_missing_answer_tag(fake_run):

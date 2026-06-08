@@ -6,6 +6,7 @@
 !.claude/agents/**
 !.claude/commands/
 !.claude/commands/**
+!.claude/settings.local.json
 
 # AIDLC Orchestrator runtime state — ship contracts and default budgets, ignore the rest
 .aidlc-orchestrator/**

@@ -98,6 +98,7 @@ def _fake_spawn_writes_valid_handoff(*, output_handoff_path: Path, **kwargs):
             {"skill": "b", "status": "PASS", "evidence": "x"},
             {"skill": "c", "status": "PASS", "evidence": "x"},
             {"skill": "d", "status": "PASS", "evidence": "x"},
+            {"skill": "e", "status": "PASS", "evidence": "x"},
         ],
         "cost": {"tokens_in": 50_000, "tokens_out": 20_000, "wall_clock_min": 5.0},
     }))

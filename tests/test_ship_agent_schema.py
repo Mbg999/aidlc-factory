@@ -1,7 +1,4 @@
-"""Validate ship-agent.output.v1.json skill_compliance minItems reduced to 4.
-
-Regression test for Bug 5 — 6 skills just at the limit, any missing skill broke it.
-"""
+"""Validate ship-agent.output.v1.json skill_compliance minItems."""
 
 from __future__ import annotations
 
@@ -53,19 +50,19 @@ def _make_doc(n_skills: int, **overrides) -> dict:
 
 
 class TestMinItems:
-    def test_6_skills_base_passes(self, validator):
-        """6 core skills match ship-agent unconditional skills."""
-        doc = _make_doc(n_skills=6)
+    def test_10_skills_base_passes(self, validator):
+        """10 skills match ship-agent unconditional skills."""
+        doc = _make_doc(n_skills=10)
         errors = list(validator.iter_errors(doc))
         assert not errors, [e.message for e in errors]
 
-    def test_6_skills_passes(self, validator):
-        doc = _make_doc(n_skills=6)
+    def test_10_skills_passes(self, validator):
+        doc = _make_doc(n_skills=10)
         errors = list(validator.iter_errors(doc))
         assert not errors
 
-    def test_8_skills_passes(self, validator):
-        doc = _make_doc(n_skills=8)
+    def test_12_skills_passes(self, validator):
+        doc = _make_doc(n_skills=12)
         errors = list(validator.iter_errors(doc))
         assert not errors
 
