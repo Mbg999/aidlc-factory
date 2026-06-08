@@ -1,4 +1,4 @@
-# Release Notes — v0.3.0 (Proposed)
+# Release Notes — v0.3.0 (2026-06-08)
 
 ## Added
 
