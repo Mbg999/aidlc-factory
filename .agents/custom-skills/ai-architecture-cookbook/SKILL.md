@@ -13,9 +13,13 @@ Cookbook into AIDLC factory stages.
 
 ### Step 0 — Detect MCP availability
 
-Check for `.ai-architecture-cookbook/mcp-server/dist/server.js` at the project
-root. If the compiled MCP server exists, flag the MCP tools as available. If
-not, use the inline YAML fallback for all steps below.
+The MCP server runs via npx (`@ai-architecture-cookbook/mcp-server`) whenever
+the project's MCP config (`.mcp.json` etc.) includes the entry. Detection:
+
+1. Check that `npx` is available on the system (`npx --version`)
+2. Attempt one MCP tool call (e.g., `search_standards` with a broad query)
+   - **Success** → flag MCP tools as available
+   - **Failure** (timeout, npx not found, network error) → use YAML fallback
 
 Log: `[Skill] ai-architecture-cookbook: MCP {detected|unavailable} — using {mcp|yaml-fallback}`
 
@@ -104,42 +108,18 @@ Format: `[Skill] ai-architecture-cookbook: <tool> called for <domain> — <resul
 
 ---
 
-## Inline YAML Fallback (MCP unreachable)
+## When MCP is Unreachable
 
-When the MCP server is not available, read YAML standards directly from disk.
-This covers the same 5 tools with equivalent functionality.
+The MCP server is the primary and only supported data source — all 82 standards
+are bundled inside the `@ai-architecture-cookbook/mcp-server` npm package. The
+server runs via npx and caches locally after the first invocation, so it works
+offline after initial use.
 
-**Standards path:** `./.ai-architecture-cookbook/{category}/{domain}/{domain}.yaml`
+If the MCP call fails (network issue, npx not found, registry unreachable),
+retry once after a short delay. If it still fails, skip the Cookbook call
+for this stage — the standards data is not available locally.
 
-**Categories and domains:**
-
-| Category | Domains |
-|----------|---------|
-| `foundational` | authentication, api-design, error-handling, logging-observability, data-persistence, input-validation, messaging-events, configuration-management, authorization, session-management, secrets-management |
-| `application-architecture` | layered-architecture, service-architecture, domain-driven-design, state-management, dependency-injection, repository-pattern, design-patterns, resilience-chaos-engineering, feature-flags |
-| `infrastructure` | containerization, orchestration, ci-cd, infrastructure-as-code, cloud-architecture, database-migration, api-gateway-edge-security |
-| `security-quality` | encryption, rate-limiting, testing-strategies, code-quality, performance-optimization, accessibility, client-platform-security, secure-sdlc, compliance-data-privacy, security-monitoring |
-| `integration-data` | third-party-integration, webhooks, file-storage, search, data-transformation, versioning |
-
-**Fallback for each tool:**
-
-- **recommend_pattern** → Read YAML entries for relevant domains. Parse `decision_tree[]`
-  nodes and match against provided context using `context_inputs[]` names. Apply
-  `decision_metadata.fallback` when no node matches.
-
-- **search_standards** → Scan `meta.tags[]` and `meta.description` across all entries
-  for keyword matches. Sort by tag match count.
-
-- **get_decision_tree** → Read single entry YAML. Return `decision_tree[]` and
-  `context_inputs[]`.
-
-- **get_checklist** → Read single entry YAML. Return `checklist[]` array. Optionally
-  filter by `severity` field.
-
-- **query_standard** → Read single entry YAML. Return full content with `patterns[]`,
-  `anti_patterns[]`, `examples[]`, `prompt_recipes[]`, and `security_hardening`.
-
-**Fallback audit entry:** `[Skill] ai-architecture-cookbook: YAML-fallback used — MCP unreachable`
+**Audit entry on failure:** `[Skill] ai-architecture-cookbook: MCP call failed — <tool> skipped for <domain>`
 
 
 
@@ -149,7 +129,7 @@ Skip the Cookbook when:
 
 - The task is a **trivial single-file change** (typo fix, config tweak, minor refactor)
 - **No architectural decisions are involved** (e.g., updating docs, running tests)
-- The MCP server is unreachable AND the relevant domain has **no YAML file on disk**
+- The MCP server is unreachable (retry once, then skip for this stage)
 - The task has **already been verified** against Cookbook in a previous stage
 - The stage agent's call budget is exhausted (≤ 5 calls per invocation per the budget column in Step 1)
 
@@ -180,7 +160,7 @@ prompt recipes, security hardening, compliance considerations.
 - [ ] `[Skill]` audit entry emitted for every stage that consulted Cookbook
 - [ ] Call budget respected (≤ 5 per invocation, ≤ 25 per run)
 - [ ] Empty MCP recommendation → logged, not blocking
-- [ ] MCP unreachable → inline YAML fallback used (not crashed)
+- [ ] MCP unreachable → retry once, then skip gracefully (not crashed)
 - [ ] Cookbook standard ID cited in code-generation plan or review report
 - [ ] Checklist items filtered by severity for reviewer stages
 - [ ] Skip conditions documented when Cookbook is explicitly not used
@@ -191,8 +171,8 @@ prompt recipes, security hardening, compliance considerations.
   context-specific branching. Apply your context inputs before concluding.
 - "I already know this pattern" → Cookbook provides anti-patterns and checklists
   that catch edge cases you might miss.
-- "The MCP call might fail" → Inline YAML fallback exists for exactly this reason.
-  Always attempt the MCP call first.
+- "The MCP call might fail" → MCP caches locally after first npx invocation.
+  Retry once on failure, then skip for this stage.
 - "This task is too small" → Check the skip conditions in Step 1 before deciding.
   Single-file typos are valid skips. Feature work is not.
 - "I'll batch later" → Batching by domain within one call is correct. Deferring
@@ -200,7 +180,7 @@ prompt recipes, security hardening, compliance considerations.
 
 ## Red Flags (escalate)
 
-- **MCP server unreachable for 3+ consecutive calls** → report as `[Skill] ai-architecture-cookbook: MCP degraded — 3+ consecutive failures. Switching to YAML fallback for remainder of run.`
+- **MCP server unreachable for 3+ consecutive calls** → report as `[Skill] ai-architecture-cookbook: MCP degraded — 3+ consecutive failures. Check npx/node setup.`
 - **Recommendation contradicts another source** → log both recommendations and
   set `status: needs_human` with the conflict described.
 - **Decision tree returns no match AND no fallback** → log the missing domain and

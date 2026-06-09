@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.1] - 2026-06-089
+## [0.3.2] - 2026-06-09
+
+### Added
+
+- docs-website
+- `node_modules/`, `dist/` and `build/` at installed .gitignore
+
+### Changed
+
+- moved ai-architecture-cookbook MCP server from local install to npx repo
+
+
+## [0.3.1] - 2026-06-09
 
 ### Fixed
 

@@ -9,6 +9,7 @@ smoke-test stubs for manual execution.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -167,24 +168,21 @@ class TestReviewIncludesChecklistItems:
 class TestDegradation:
     """T6.4 — Verify --check-cookbook correctly identifies all three states."""
 
-    def test_healthy_with_mcp_and_yaml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_healthy_with_mcp_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("AIDLC_ROOT", str(tmp_path))
-        cookbook = tmp_path / ".ai-architecture-cookbook"
-        (cookbook / "mcp-server" / "dist").mkdir(parents=True)
-        (cookbook / "mcp-server" / "dist" / "server.js").write_text("// mock")
-        (cookbook / "standards").mkdir(parents=True)
-        (cookbook / "standards" / "test.yaml").write_text("key: val")
+        mcp_file = tmp_path / ".mcp.json"
+        mcp_file.write_text(
+            json.dumps({
+                "mcpServers": {
+                    "ai-architecture-cookbook": {
+                        "command": "npx",
+                        "args": ["-y", "@ai-architecture-cookbook/mcp-server"],
+                    }
+                }
+            })
+        )
         result = _run_validate("--check-cookbook")
         assert "unhealthy" not in result.stdout
-        assert result.returncode == 0
-
-    def test_degraded_yaml_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("AIDLC_ROOT", str(tmp_path))
-        cookbook = tmp_path / ".ai-architecture-cookbook"
-        (cookbook / "standards").mkdir(parents=True)
-        (cookbook / "standards" / "test.yaml").write_text("key: val")
-        result = _run_validate("--check-cookbook")
-        assert "degraded" in result.stdout.lower()
         assert result.returncode == 0
 
     def test_unhealthy_nothing_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

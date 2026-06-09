@@ -140,37 +140,42 @@ def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
 def _check_cookbook_health(project_root: Path) -> tuple[str, list[str]]:
     """Check the health of the AI Architecture Cookbook integration.
 
+    The MCP server runs via npx (@ai-architecture-cookbook/mcp-server) and is
+    configured in the project's MCP config files (.mcp.json etc.). All standards
+    data is bundled inside the npm package — no local YAML copy needed.
+
     Returns (status, details[]) where status is 'healthy', 'degraded', or 'unhealthy'.
     """
     import json
 
     status = "unhealthy"
     details: list[str] = []
-    cookbook_dir = project_root / ".ai-architecture-cookbook"
 
-    if not cookbook_dir.exists():
-        details.append("Cookbook directory not found at .ai-architecture-cookbook/")
-        return "unhealthy", details
+    # Check MCP config entry exists (npx-based)
+    mcp_configured = False
+    for mcp_file, key_name in [
+        (project_root / ".mcp.json", "mcpServers"),
+        (project_root / ".cursor" / "mcp.json", "mcpServers"),
+        (project_root / "opencode.json", "mcp"),
+        (project_root / ".vscode" / "mcp.json", "servers"),
+    ]:
+        if mcp_file.exists():
+            try:
+                cfg = json.loads(mcp_file.read_text(encoding="utf-8"))
+                servers = cfg.get(key_name, {})
+                if "ai-architecture-cookbook" in servers:
+                    mcp_configured = True
+                    details.append(f"MCP server: npx @ai-architecture-cookbook/mcp-server (configured in {mcp_file.name})")
+                    break
+            except (json.JSONDecodeError, OSError):
+                continue
 
-    # Check if MCP server dist exists (compiled)
-    server_path = cookbook_dir / "mcp-server" / "dist" / "server.js"
-    yaml_standards = cookbook_dir / "standards"
-    mcp_available = server_path.exists()
-    yaml_available = yaml_standards.exists() and any(yaml_standards.iterdir())
-
-    if mcp_available:
+    if mcp_configured:
         status = "healthy"
-        details.append(f"MCP server: {server_path} (available)")
-    elif yaml_available:
-        status = "degraded"
-        details.append(f"MCP server: not built ({server_path} missing)")
-        details.append(f"YAML standards: available at {yaml_standards}")
-        details.append("Cookbook is degraded — inline YAML fallback will be used.")
     else:
         status = "unhealthy"
-        details.append(f"MCP server: not built ({server_path} missing)")
-        details.append(f"YAML standards: not found")
-        details.append("Cookbook is unhealthy — re-run: python aidlc-scripts/install_aidlc.py --with-architecture-cookbook")
+        details.append("Cookbook MCP not configured in any config file.")
+        details.append("Re-run: python aidlc-scripts/install_aidlc.py --with-architecture-cookbook")
 
     # Check schemas exist
     schemas_dir = _REPO_ROOT / ".aidlc-orchestrator" / "contracts" / "cookbook"
@@ -181,8 +186,8 @@ def _check_cookbook_health(project_root: Path) -> tuple[str, list[str]]:
         else:
             details.append("Validation schemas: none found")
 
-    # Try a quick MCP server probe if available
-    if mcp_available:
+    # Try a quick MCP server probe if configured (via npx)
+    if mcp_configured:
         ok, version_str = _probe_node()
         if not ok:
             details.append(f"MCP probe skipped: Node.js not found ({version_str})")
