@@ -1,0 +1,6 @@
+{
+  "name": "AIDLC Factory Docs",
+  "description": "Official documentation for the AIDLC-Factory multi-agent orchestrator",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
