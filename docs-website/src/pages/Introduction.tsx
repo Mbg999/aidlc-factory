@@ -8,7 +8,7 @@ export default function Introduction() {
         style={{ backgroundImage: "url(/assets/images/hero.png)" }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/40 to-transparent pointer-events-none" />
-        <h1 className="text-4xl font-bold tracking-tight mb-4 relative z-10">AIDLC-Factory</h1>
+        <h2 className="text-4xl font-bold tracking-tight mb-4 relative z-10">AIDLC-Factory</h2>
         <p className="text-lg text-indigo-100 max-w-2xl relative z-10">
           AI-Driven Development Life Cycle &mdash; the multi-agent factory.
         </p>

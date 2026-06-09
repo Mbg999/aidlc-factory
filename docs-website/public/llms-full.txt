@@ -1,0 +1,154 @@
+# AIDLC-Factory — Full Documentation
+> Multi-Agent AI-Driven Development Life Cycle
+> https://mbg999.github.io/aidlc-factory
+
+## Introduction
+
+AIDLC-Factory is a multi-agent software-development workflow that takes a feature request from specification → plan → code → review → ship, with human approval gates between every stage and traceable artifacts at every step.
+
+Rather than rigid pipelines, it orchestrates 14 specialized stage subagents that collaborate to drive your project from conception to deployment. Each stage produces contract-validated handoffs, so nothing is lost between phases.
+
+Based on the AWS Labs AI-DLC methodology (v0.1.8), it adds a multi-agent orchestrator, a skills enforcement layer, hallucination prevention, CodeGraph integration, persistent memory (Engram), and parallel reviewer pools.
+
+### The Development Lifecycle
+A complete spec-to-ship sequence follows: spec → plan → build → review → ship
+
+### Quick Start
+```
+pipx run aidlc-factory-installer
+# then in your agentic coding tool:
+/factory-onboarding
+/factory-spec "Add user authentication with JWT"
+```
+
+---
+
+## Installation
+
+### Prerequisites
+- Python 3.10+
+- Git
+- Node ≥ 18 (only needed for CodeGraph)
+- An agentic coding tool (Claude Code, Cursor, GitHub Copilot, OpenCode, or Codex)
+- Engram (required for persistent cross-session memory)
+
+### One-Line Install
+```
+pipx run aidlc-factory-installer
+# or with uv
+uvx aidlc-factory-installer
+```
+
+### Installer Flags
+| Flag | Default | Description |
+|------|---------|-------------|
+| --tool | required | Target tool: claude, cursor, copilot, opencode, codex |
+| --dest | . | Project to install into |
+| --with-agent-skills | on | Install engineering-process skills |
+| --with-orchestrator | prompt | Install the multi-agent orchestrator |
+| --with-codegraph | off | Install CodeGraph code knowledge graph |
+| --with-engram | off | Set up Engram persistent memory |
+| --with-design-system | on | Install design-system tokens + UI skills |
+| --force | off | Re-install / upgrade |
+| --yes | off | Skip all interactive prompts |
+
+---
+
+## Usage Guide
+
+### Slash Commands
+```
+/factory-spec "<feature>"   # Requirements analysis → spec
+/factory-plan <run-id>      # Application design + execution plan
+/factory-build <run-id>     # Per-unit code generation + build/test
+/factory-review <run-id>    # Parallel reviewer pool → merged findings
+/factory-ship <run-id>      # Release notes + ADRs + CHANGELOG
+/factory-resume <run-id>    # Resume interrupted run
+/factory-replay <run-id> --from <stage>  # Re-run from specific stage
+/factory-state <run-id>     # Show run status
+/factory-help               # Full command reference
+```
+
+### Run Workflow
+```bash
+# 1. Inception — what to build
+/factory-spec "Add dark mode toggle to settings page"
+
+# 2. Planning — how to build it
+# (after approving the spec)
+/factory-plan <run-id>
+
+# 3. Construction — build it
+/factory-build <run-id>
+
+# 4. Review — quality gates
+/factory-review <run-id>
+
+# 5. Ship — release
+/factory-ship <run-id>
+```
+
+---
+
+## Architecture
+
+### Orchestrator Pattern
+The orchestrator is not a daemon or server. It is an agent prompt that the coding tool loads when a /factory-* slash command fires:
+
+1. Slash command invokes the orchestrator agent
+2. Plan reading: loads execution plan from .aidlc-orchestrator/runs/<run-id>/
+3. Spawn decision: resolves stage type, concurrency budget, model assignment
+4. Subagent execution: build/review stages via Task() spawns with JSON Schema validation
+5. Contract validation: every stage output is validated against its .v1.json schema
+6. Approval gate: pauses for human approval, then auto-commits
+7. Recovery: /factory-resume continues from last completed stage
+
+### Stage Pipeline
+| Stage | Spawn | Input Contract |
+|-------|-------|---------------|
+| workspace-scout | inline | feature-request |
+| reverse-engineer | inline | workspace-profile (optional) |
+| requirements-analyst | inline | workspace-profile |
+| story-writer | inline | requirements + plan |
+| application-designer | inline | requirements |
+| workflow-planner | inline | app-design + requirements |
+| unit-decomposer | inline | execution-plan |
+| code-generator | Task() | per-unit-spec |
+| build-test-agent | Task() | per-unit-output |
+| reviewer-* (4x) | Task() | per-unit-output |
+| ship-agent | inline | all unit outputs |
+
+### Skills Layer
+Resolution order (first found wins):
+1. .agents/custom-skills/<name>/SKILL.md
+2. .agents/skills/<name>/SKILL.md
+3. ~/.agents/skills/<name>/SKILL.md
+
+Bundled custom skills: validator-retry, library-docs-with-context7, design-system-composer, codegraph-aware-exploration, ai-architecture-cookbook, requirements-intelligence, ui-constraint-validator, environment-detection, code-review-and-quality, and more.
+
+### Concurrency & Parallelism
+- Layer-Parallel Code Generation: independent units run concurrently; layered dependencies run sequentially
+- File-glob lock registry prevents concurrent writes to same paths
+- Four parallel reviewers: code, security, performance, simplification
+
+### Multi-Tool Support
+Runs natively on Claude Code, Cursor, GitHub Copilot, OpenCode, and Codex. Each tool has its own subagent tree and command registration.
+
+---
+
+## Key Contracts
+Every stage input/output is governed by JSON Schema contracts in .aidlc-orchestrator/contracts/:
+- approval.v1.json, audit-block.v1.json, executor-conformance.v1.json
+- shared/: execution-context.v1.json, stage-output.v1.json
+- stage/: workspace-scope.output.v1.json, requirements.output.v1.json, execution-plan.output.v1.json, per-unit-spec.v1.json, per-unit-output.v1.json
+
+## Environment Setup (Contributors)
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pytest tests/
+```
+
+---
+
+*This documentation was generated from the AIDLC-Factory documentation website at https://mbg999.github.io/aidlc-factory*

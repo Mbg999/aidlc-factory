@@ -1,0 +1,33 @@
+# AIDLC-Factory Documentation
+> Multi-Agent AI-Driven Development Life Cycle — the multi-agent factory.
+> https://mbg999.github.io/aidlc-factory
+
+## About
+AIDLC-Factory is a multi-agent software-development workflow that takes a feature request from specification → plan → code → review → ship, with human approval gates between every stage and contract-validated handoffs at every step. Based on AWS Labs AI-DLC methodology (v0.1.8).
+
+## Key Features
+- Multi-Agent Orchestrator: 14 specialized subagents collaborating in sequence
+- Parallel Reviewer Pool: code quality, security, performance, simplification
+- Persistent Memory (Engram): cross-session knowledge, patterns, ADRs
+- CodeGraph: semantic code knowledge graph for instant symbol resolution
+- Skills Enforcement: 22+ bundled engineering-process skills
+- Multi-Tool Runtime: Claude Code, Cursor, GitHub Copilot, OpenCode, Codex
+
+## Quick Install
+```
+pipx run aidlc-factory-installer
+# or
+uvx aidlc-factory-installer
+```
+
+## Documentation Pages
+- Introduction: https://mbg999.github.io/aidlc-factory/
+- Installation: https://mbg999.github.io/aidlc-factory/installation
+- Usage Guide: https://mbg999.github.io/aidlc-factory/usage
+- Commands Reference: https://mbg999.github.io/aidlc-factory/commands
+- Architecture: https://mbg999.github.io/aidlc-factory/architecture
+- Configuration: https://mbg999.github.io/aidlc-factory/configuration
+- Examples: https://mbg999.github.io/aidlc-factory/examples
+
+## Full documentation
+https://mbg999.github.io/aidlc-factory/llms-full.txt

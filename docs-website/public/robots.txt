@@ -1,0 +1,12 @@
+# AIDLC-Factory Documentation
+# https://mbg999.github.io/aidlc-factory
+
+User-agent: *
+Allow: /
+Allow: /assets/
+Disallow: /node_modules/
+Disallow: /dist/
+
+Sitemap: https://mbg999.github.io/aidlc-factory/sitemap.xml
+
+# Crawl-delay: 1
