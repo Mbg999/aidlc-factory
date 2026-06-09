@@ -36,7 +36,7 @@ export function Sidebar({
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-800">
-          <img src="/assets/images/logo.png" alt="AIDLC Factory" className="w-8 h-8 mr-3" />
+          <img src={`${import.meta.env.BASE_URL}assets/images/logo.png`} alt="AIDLC Factory" className="w-8 h-8 mr-3" />
           <span className="font-semibold text-slate-900 dark:text-white tracking-wide">AIDLC Factory</span>
         </div>
 

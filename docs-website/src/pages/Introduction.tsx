@@ -5,7 +5,7 @@ export default function Introduction() {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div
         className="mb-8 rounded-2xl text-white shadow-lg relative overflow-hidden bg-slate-900 bg-contain bg-center bg-no-repeat min-h-[300px] flex flex-col justify-start p-8"
-        style={{ backgroundImage: "url(/assets/images/hero.png)" }}
+        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}assets/images/hero.png)` }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/40 to-transparent pointer-events-none" />
         <h2 className="text-4xl font-bold tracking-tight mb-4 relative z-10">AIDLC-Factory</h2>
