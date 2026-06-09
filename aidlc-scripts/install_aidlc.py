@@ -83,13 +83,30 @@ def _rmtree_force(path: Path) -> None:
     """Remove a directory tree, handling Windows read-only files (e.g. .git pack files)."""
     if not path.exists():
         return
+    import stat as _stat
+    import time as _time
+
+    def _onerror(func, pth, exc_info):
+        try:
+            os.chmod(pth, _stat.S_IWRITE)
+            func(pth)
+        except PermissionError:
+            _time.sleep(0.5)
+            try:
+                os.chmod(pth, _stat.S_IWRITE)
+                func(pth)
+            except Exception:
+                pass
+
     for p in path.rglob("*"):
         if p.is_file():
             try:
-                p.chmod(0o777)
+                os.chmod(p, _stat.S_IWRITE)
             except OSError:
                 pass
-    shutil.rmtree(path, ignore_errors=False)
+
+    kwargs = {"onerror": _onerror} if sys.version_info < (3, 12) else {"onexc": _onerror}
+    shutil.rmtree(path, ignore_errors=False, **kwargs)
 
 
 
