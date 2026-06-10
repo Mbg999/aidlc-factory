@@ -108,9 +108,6 @@ See `README.md` for details.
 ## CLI tools
 
 ```bash
-# Score a request without spawning agents
-python3 aidlc-scripts/factory_triage.py prefilter "add healthz" --dry-run
-
 # Validate a handoff contract
 python3 aidlc-scripts/factory_validate.py schema.json doc.yaml --strict
 
