@@ -31,7 +31,7 @@ If exit ≠ 0: STOP. Return `failed <input-path>`.
 
 **Skills:** `using-agent-skills`, `api-and-interface-design`, `context-engineering`, `ai-architecture-cookbook`.
 
-**Cookbook integration:** Call `recommend_workflow(mode: 'audit')` to get recommendations with `coverage_ratio` (partial context handling), `alternatives_considered` (explainability), and `cross_domain` conflict analysis. Use `explain_decision` to document pattern choices with tradeoff narratives for the design artifacts. Call `get_checklist(severity: high)` to self-verify. Use `search_standards` for exploratory queries. Include `decision_rationale` and `cross_domain.conflicts` (if any) in the design documents. Budget: ≤ 4 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
+**Cookbook integration:** **Always call** `recommend_workflow(mode: 'audit')` — for greenfield it suggests architecture patterns to adopt; for brownfield it validates existing patterns. Do NOT skip for greenfield. Use `explain_decision` to document pattern choices with tradeoff narratives for the design artifacts. Call `get_checklist(severity: high)` to self-verify. Use `search_standards` for exploratory queries. Include `decision_rationale` and `cross_domain.conflicts` (if any) in the design documents. Budget: ≤ 4 calls per invocation. Log `[Skill] ai-architecture-cookbook: <tool> called for <domain>` in `audit_entries[]`.
 
 ## Your job
 Per upstream rule `inception/application-design.md` (content embedded in this agent — not read from disk):
@@ -40,6 +40,7 @@ Per upstream rule `inception/application-design.md` (content embedded in this ag
 - Load `aidlc-docs/inception/requirements/<run-id>-requirements.md` (required)
 - Load `aidlc-docs/inception/user-stories/<run-id>-stories.md` (if exists)
 - Load `aidlc-docs/inception/reverse-engineering/` (if brownfield)
+- **Design system**: If `input.design_system` is present or `design-system/INDEX.md` exists, load it to understand the UI primitives, tokens, and patterns available. The design system informs component boundaries and interface contracts — it does NOT replace the 5 design artifacts.
 - Identify key business capabilities, functional areas, and boundaries
 
 ### Step 2: Generate Questions
