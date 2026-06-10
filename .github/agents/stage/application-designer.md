@@ -55,6 +55,20 @@ Save to `aidlc-docs/inception/plans/<run-id>-application-design-questions.md`.
 Set `status: needs_human` with `needs_user_input: true`.
 
 ### Step 3: Generate Design Artifacts (re-spawned with answers)
+
+### Step 3.5: Update Design System (when design system exists)
+If `design-system/INDEX.md` exists or `context_snapshot.project.design_system` is set:
+- **New primitives**: If architecture design identifies UI components not in INDEX.md, register them via:
+  ```bash
+  python3 aidlc-scripts/factory_ds_bootstrap.py import --source <component-data> --format json
+  ```
+  Or create `design-system/primitives/<name>/design.md` manually. Then run:
+  ```bash
+  python3 aidlc-scripts/factory_primitive_gen.py --ds-path design-system/primitives generate --all-missing --force
+  ```
+- **New patterns**: Add to `design-system/patterns/<name>.md` following existing format. `_build_imported_index()` reads them automatically next import.
+- **Token evolution**: If design needs values outside current tokens, flag in `audit_entries[]` with `[DSTokenGap]` — do NOT modify tokens without human approval.
+- **Goal**: `factory_ds_bootstrap.py` is the tool for design system mutations. Use it.
 Produce 5 artifacts in `aidlc-docs/inception/application-design/`:
 1. `<run-id>-components.md` — component definitions and responsibilities
 2. `<run-id>-component-methods.md` — method signatures (business logic deferred to Construction)

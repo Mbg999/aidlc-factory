@@ -67,6 +67,20 @@ Produce 5 artifacts in `aidlc-docs/inception/application-design/`:
 4. `<run-id>-component-dependency.md` — dependency relationships and communication patterns
 5. `<run-id>-application-design.md` — consolidated design document
 
+### Step 3.5: Update Design System (when design system exists)
+If `design-system/INDEX.md` exists or `context_snapshot.project.design_system` is set:
+- **New primitives**: If architecture design identifies UI components not in INDEX.md, register them via:
+  ```bash
+  python3 aidlc-scripts/factory_ds_bootstrap.py import --source <component-data> --format json
+  ```
+  Or create `design-system/primitives/<name>/design.md` manually. Then run:
+  ```bash
+  python3 aidlc-scripts/factory_primitive_gen.py --ds-path design-system/primitives generate --all-missing --force
+  ```
+- **New patterns**: Add to `design-system/patterns/<name>.md` following existing format. `_build_imported_index()` reads them automatically next import.
+- **Token evolution**: If design needs values outside current tokens, flag in `audit_entries[]` with `[DSTokenGap]` — do NOT modify tokens without human approval.
+- **Goal**: `factory_ds_bootstrap.py` is the tool for design system mutations. Use it.
+
 ### Step 4: Verify Completion
 - All 5 artifacts exist and are populated
 - Interfaces documented as contracts (input/output/error)
