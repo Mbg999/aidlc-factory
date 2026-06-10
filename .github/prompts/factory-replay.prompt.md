@@ -6,39 +6,10 @@ description: Re-run an AIDLC orchestrator run from a specific stage. Rolls the m
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.agent.md.
+Adopt the role and authority rules from @.github/agents/orchestrator.agent.md.
 
-**Arguments:** _(run-id and --from stage from the user's message)_
+**Arguments:** $ARGUMENTS
 
-Parse the `<run-id>` and `--from <stage>` value from the user's message. If
-malformed, refuse with a usage hint and stop.
-
-1. Roll the manifest back and archive handoffs:
-   ```bash
-   python aidlc-scripts/factory_run.py replay <run-id> --from <stage>
-   ```
-   This:
-   - Truncates `manifest.completed_stages[]` before `<stage>`
-   - Sets `manifest.current_stage = <stage>`
-   - Renames each rolled-back stage's `*.output.yaml` to
-     `*.replay-<unix-ts>.yaml` (so prior runs are kept for diff/inspection)
-   - Emits a `replay_requested` event to `timeline.jsonl`
-
-2. Surface the result to the user — list of `rolled_back` stages and
-   `archived_outputs` paths.
-
-3. Spawn the chosen stage per the orchestrator protocol (validate input,
-   apply pre-flight gates from Cost Governor + Conflict Resolver, etc.).
-
-**Use cases:**
-- A reviewer found a P0 issue that requires re-doing code generation
-  for a unit → replay from `code-generator`.
-- The user wants to adjust requirements after seeing the plan → replay
-  from `requirements-analyst`.
-- A schema bump (input or output contract) requires re-running a stage
-  with the new format.
-
-**Replay is destructive to the manifest's progress record but non-destructive
-to artifacts.** Old outputs are archived, never deleted.
+Execute the full sequence end-to-end per @.aidlc-orchestrator/runtime/cmd-factory-replay.md.
 
 Hard rules from @.github/agents/orchestrator.agent.md apply.

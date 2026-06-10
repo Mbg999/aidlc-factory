@@ -43,6 +43,13 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    > **Cookbook**: The workflow-planner loads `ai-architecture-cookbook` (`recommend_workflow(mode: 'audit')`) to suggest architecture patterns the plan must cover, tagged with cookbook standard IDs. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and inject the `techStack`, `scale`, `compliance`, and `previous_decisions` fields as `context` to the `recommend_workflow` call.
 
+3.5. **Pre-mortem visibility check (defensive guard)** — run after Workflow Planner output is received:
+   - Locate the `skill_compliance[]` row for `requirements-intelligence` in `workflow-planner.output.yaml`.
+     If MISSING → append `[PlanPreMortem] missing — workflow-planner contract violation: no requirements-intelligence row in skill_compliance` to `audit_entries[]` and continue (do NOT halt).
+   - Locate any `audit_entries[]` bullet starting with `[PlanPreMortem]`.
+     If the `skill_compliance[]` row is present but no `[PlanPreMortem]` bullet exists → append `[PlanPreMortem] orphan compliance row — workflow-planner emitted skill_compliance without matching audit_entry` to `audit_entries[]` and continue.
+   - These guards exist because the workflow-planner contract requires DUAL emission (compliance row + matching audit bullet); the orchestrator must log any violation so it appears in `audit.md` instead of being silently swallowed.
+
 4. **Unit Decomposer (conditional)** — skip when ANY of:
    - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov)
    - The approved plan enumerates < 2 units AND requirements do not call out distinct services/components
@@ -52,10 +59,18 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    > **Cookbook**: The unit-decomposer loads `ai-architecture-cookbook` (`get_decision_tree`) to ensure decomposed units carry architecture-standard context for each domain they touch. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present to incorporate the project's tech stack and previous decisions into the decomposition.
 
-4. Auto-commit `docs(workflow-planning): complete workflow planning` and update
+5. Auto-commit `docs(workflow-planning): complete workflow planning` and update
    state. Present completion + offer `/factory-build <run-id>` (MUST substitute the
    actual run_id for `<run-id>` — e.g. `/factory-build 2026-05-23T13-10-58Z-dragon-ball-z-app`).
    Also show the plan file path so the user can inspect it before approving.
+
+   **User-facing summary MUST include a `Pre-mortem:` line** populated from
+   `workflow-planner.output.skill_compliance[].requirements-intelligence`:
+   - `Pre-mortem: PASS — <N> plan-risk question(s)` (when status=PASS)
+   - `Pre-mortem: N/A — <evidence>` (when status=N/A, e.g. trivial plan)
+   - `Pre-mortem: MISSING — workflow-planner contract violation` (when row absent)
+
+   Never omit this line. The user must see it.
 
 > **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
 > Plan stages use `.agents/custom-skills/` process skills only.

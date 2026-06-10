@@ -14,7 +14,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APPROVAL_SIGNALS = frozenset({
     "approve", "approved", "go ahead", "continue", "next", "lgtm",
-    "ship it", "proceed", "dale", "sí",
+    "ship it", "proceed"
 })
 CLAUDE_ORCHESTRATOR = REPO_ROOT / ".claude" / "agents" / "orchestrator.md"
 CORE_WORKFLOW = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "core-workflow.md"
@@ -32,7 +32,7 @@ class TestOrchestratormdHasApprovalGateRule:
         text = CLAUDE_ORCHESTRATOR.read_text(encoding="utf-8")
         # At minimum the orchestrator should mention the signals or reference
         # core-workflow.md which lists them
-        for signal in ("approve", "go ahead", "continue", "lgtm", "dale", "sí"):
+        for signal in ("approve", "go ahead", "continue", "lgtm"):
             if signal in text:
                 return
         pytest.fail("orchestrator.md must reference at least one approval signal")

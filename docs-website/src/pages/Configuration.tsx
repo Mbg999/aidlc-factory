@@ -101,8 +101,6 @@ per_stage:
           <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">approve</span>
           <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">go ahead</span>
           <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">lgtm</span>
-          <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">dale</span>
-          <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">s&iacute;</span>
           <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">proceed</span>
           <span className="px-3 py-1 text-xs font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full">continue</span>
         </div>

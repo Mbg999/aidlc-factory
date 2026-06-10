@@ -5,86 +5,10 @@ argument-hint: <run-id>
 
 You are now the AIDLC orchestrator.
 
-Adopt the role from @.cursor/agents/orchestrator.md and execute the
-`/factory-build <run-id>` sequence (now **layer-parallel** per Phase 5).
+Adopt the role and authority rules from @.cursor/agents/orchestrator.md.
 
 **Run id:** $ARGUMENTS
 
-Sequence:
-1. Read `manifest.yaml`. Refuse if missing or if `workflow-planner` hasn't
-   completed with user approval.
-2. **Construction Phase Entry Checkpoint** (per core-workflow.md MANDATORY):
-   audit.md has Inception entries; aidlc-state.md Current Stage correct;
-    `aidlc-docs/construction/plans/` exists; `<run-id>-execution-plan.md` loaded.
-3. **Pre-Build Step 0 — Skill Sync** (once, before any unit is spawned):
-   a. Determine tech stack: read `manifest.yaml` → `tech_stack[]` (from workspace-scout)
-      and `project_type` (greenfield/brownfield). Also check `aidlc-docs/requirements/requirements.md`
-      for explicitly named technologies. Greenfield has no auto-detectable stack — you MUST
-      pass the technologies the user specified during requirements analysis.
-   b. Build `--tech` argument: if `tech_stack[]` has entries, map their `package` names to
-      autoskills technology IDs (e.g. `express` → `express`, `next` → `nextjs`,
-      `react` → `react`, `python` → `python`, etc.). Join with commas.
-      If greenfield and no tech_stack, leave `--tech` out entirely.
-   c. Run sync:
-      ```bash
-      python3 aidlc-scripts/factory_skill_sync.py sync${TECH_FLAGS:+ --tech "$TECH_FLAGS"}
-      ```
-      Capture stdout. Each `[Sync]` line is the single source of truth for the
-      audit — copy them verbatim into audit.md under `[Skills]` prefix
-      (e.g. `[Sync] SKIPPED — Node.js v18 ...` becomes `[Skills] SKIPPED — Node.js v18 ...`).
-      Skill failure never blocks a build (pre-shipped custom-skills still apply).
-      If you passed `--tech`, the audit should note: `[Skills] forced techs: <list>`.
-   d. Run select:
-      ```bash
-      python3 aidlc-scripts/factory_skill_sync.py select --output json
-      ```
-      Parse JSON → store `skill_paths_resolved` list in `manifest.yaml`. Include
-      this list in every subsequent stage input handoff YAML for this run.
-    e. Log to audit.md — use the actual data from select's JSON output:
-      ```
-      [Skills] resolved <N> skills: <name-list>
-      [Skills] warnings: <each entry from result.warnings[] on its own line, or "none">
-      ```
-       **Honesty rule:** if `[Sync] SKIPPED` appeared in step (c) but select's
-      `warnings[]` does not mention it, append a defensive
-      `[Skills] WARN: sync was skipped — see [Sync] block above` line.
-      Never emit `[Skills] warnings: none` while a `[Sync] SKIPPED` bullet
-      sits above it.
-4. **Topo-sort `manifest.units[]`** by `depends_on` into layers. Layer 0 = no
-   deps; Layer N = deps all in layers < N. Monolith → single virtual unit.
-5. **For each layer (sequential)**, run the parallel construction protocol:
-   a. **Pre-flight per unit (sequential, cheap)** — budget gate, lock acquire
-      (`factory_conflict.py acquire`), AST snapshot (Python only), knowledge
-      query, build+validate input handoff.
-   b. **Three sub-stages, parallel per sub_stage** —
-      `plan` → `generated` → `approved`. For each:
-        - Request N parallel `code-generator` subagent delegations (N = active set, ≤ 4)
-        - Wait for all
-        - Per-unit post-processing: validate output **with `--strict`**
-          (`factory_validate.py code-generator.output.v1.json <handoff> --strict`
-          — enforces plan-artifact existence on disk for non-fast_path runs;
-          catches silent skip of construction plan), AST drift check
-          (`factory_conflict.py check-symbols`), budget deduct, knowledge save,
-          audit append
-        - Surface any drift conflicts OR strict-validation failures BEFORE the approval gate
-        - Consolidated approval gate (plan + generated only)
-   c. **Build & Test parallel** — request N parallel `build-test-agent` delegations;
-      per-unit post-processing; consolidated approval gate.
-   d. **Release locks** — `factory_conflict.py release` per unit. Always
-      release, even on failure.
-   e. **Per-unit auto-commits** — `feat(<unit>): generate <unit> code` and
-      `build(<unit>): complete build and test`.
-6. After all layers: set `Current Stage: CONSTRUCTION - Complete`.
-7. **Present + offer next step (substitute `<run-id>` literally):** Run
-   `python3 aidlc-scripts/factory_run.py status <run-id> --next-cmd` to get
-   the ready-to-paste command, OR format manually as `/factory-review <RUN_ID_LITERAL>`
-   with the actual run_id. **Never present `<run-id>` literally to the user.**
+Execute the full sequence end-to-end per @.aidlc-orchestrator/runtime/cmd-factory-build.md.
 
 Hard rules from @.cursor/agents/orchestrator.md apply.
-
-**Concurrency cap: 4.** If a layer has > 4 units, batch them (4 at a time)
-within the layer.
-
-**Conflict resolution (Phase 5)**: escalation-only. On path collision or
-interface drift, surface to user; user re-plans, manually merges, or cancels.
-Full protocol: `.cursor/agents/cross-cutting/conflict-resolver.md`.

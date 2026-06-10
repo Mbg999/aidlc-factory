@@ -129,7 +129,7 @@ Bundled custom skills in this fork:
 - **Runtime state is gitignored**: `.aidlc-orchestrator/runs/`, `.aidlc-orchestrator/knowledge/`,
   `.codegraph/` — never commit these.
 - **Auto-commit fires on explicit approval only** — approval signals: `approve`, `go ahead`,
-  `continue`, `lgtm`, `dale`, `sí`, or equivalent. Never on `status: complete` alone.
+  `continue`, `lgtm`, or equivalent. Never on `status: complete` alone.
 
 ---
 

@@ -937,6 +937,7 @@ def _install_factory_scripts(repo_root: Path, target_root: Path, dry_run: bool, 
     for rel_src, label, is_dir in [
         (repo_root / ".aidlc-orchestrator" / "contracts", "contracts", True),
         (repo_root / ".aidlc-orchestrator" / "runtime", "runtime", True),
+        (repo_root / ".aidlc-orchestrator" / "prompts", "prompts", True),
     ]:
         if rel_src.exists():
             dst = target_root / rel_src.relative_to(repo_root)

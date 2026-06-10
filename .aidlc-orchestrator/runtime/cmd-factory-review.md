@@ -28,6 +28,8 @@ shipping. Pass `/factory-review --full` to activate all four (adds performance +
 > them and injects them into `reviewer-code`'s input handoff so the code reviewer has the same
 > framework context as the generator.
 
+**Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`, not their sum. Track via `manifest.events[]` timestamps and reviewer `cost.wall_clock_min`.
+
 ## Flow
 
 ### Pre-Review Step 0 — CodeGraph symbol cache (skip if `.codegraph/codegraph.db` absent)

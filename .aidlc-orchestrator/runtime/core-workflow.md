@@ -8,13 +8,13 @@ Assesses: user intent, codebase state, complexity, risk.
 ## MANDATORY: Auto-Commit on Approval ONLY
 **CRITICAL**: Commits fire ONLY after an EXPLICIT user approval signal — never on stage completion alone, never on `status: complete` from an agent.
 
-Approval signals are user messages containing: `approve`, `approved`, `go ahead`, `continue`, `next`, `lgtm`, `ship it`, `proceed`, `dale`, `sí`, or equivalent affirmative response to a `needs_human` gate. Silence or ambiguous responses are NOT approval.
+Approval signals are user messages containing: `approve`, `approved`, `go ahead`, `continue`, `next`, `lgtm`, `ship it`, `proceed`, or equivalent affirmative response to a `needs_human` gate. Silence or ambiguous responses are NOT approval.
 
 When (and only when) an approval signal arrives:
 ```bash
 git add -A && git commit -m "<type>(<scope>): <description>"
 ```
-Types: `docs` (plans/requirements), `feat` (code), `build` (build/test).
+Types (Angular convention): `build` (build system/deps), `ci` (CI config/scripts), `docs` (documentation), `feat` (new feature), `fix` (bug fix), `perf` (performance), `refactor` (no fix/feat), `style` (formatting), `test` (tests).
 Scope: command/stage in kebab-case (e.g. `requirements-analysis`, `workflow-planning`, `auth-unit`). If git fails, log warning and continue.
 
 **Anti-pattern to reject**: committing on `status: complete` from an intermediate stage (e.g. `docs(story-writer): create user stories and personas` fired before the user has reviewed/approved the plan that consumes those stories). The plan-stage approval gate is the commit trigger — story-writer's output rides along inside that commit.
@@ -89,6 +89,5 @@ This project ships with the AIDLC orchestrator. To run the multi-agent factory, 
 - `/factory-resume <run-id>` — resume interrupted run (or adopt legacy `aidlc-docs/`)
 - `/factory-replay <run-id> --from <stage>` — re-run from a specific stage
 
-Roles, contracts, budgets, and parallelism rules: see `.claude/agents/orchestrator.md`,
-`.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.
+Roles, contracts, budgets, and parallelism rules: see `<tool-folder>/agents/orchestrator.md` (where `<tool-folder>` is whichever agentic coding tool is installed: `.claude`, `.opencode`, `.codex`, `.github`, or `.cursor`), `.aidlc-orchestrator/contracts/`, and `.aidlc-orchestrator/budgets/default.yaml`.
 Design rationale and phase plan: `ORCHESTRATOR-PLAN.md` in the AIDLC source repo.

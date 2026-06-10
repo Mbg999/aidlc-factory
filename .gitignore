@@ -8,7 +8,7 @@
 !.claude/commands/**
 
 # AIDLC Orchestrator runtime state — ship contracts and default budgets, ignore the rest
-.aidlc-orchestrator/**
+.aidlc-orchestrator/runs/
 !.aidlc-orchestrator/contracts/
 !.aidlc-orchestrator/contracts/**
 !.aidlc-orchestrator/budgets/

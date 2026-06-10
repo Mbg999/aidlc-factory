@@ -100,7 +100,7 @@ export default function Usage() {
       <Section title="Auto-Commit on Approval">
         <p>
           When you explicitly approve a stage (signals: <code>approve</code>, <code>go ahead</code>,
-          <code>lgtm</code>, <code>dale</code>, <code>s&iacute;</code>, etc.), the orchestrator stages
+          <code>lgtm</code>, or equivalent.), the orchestrator stages
           and commits the produced artifacts with a stage-tagged message. Commits never fire on internal
           <code>status: complete</code> alone.
         </p>
@@ -108,10 +108,10 @@ export default function Usage() {
           language="text"
           code={`# Approval triggers:
 approve
+continue
 go ahead
 lgtm
-dale
-si
+or equivalent
 
 # Commit pattern:
 git commit -m "feat(requirements): user authentication with JWT"`}

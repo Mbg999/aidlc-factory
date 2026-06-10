@@ -114,7 +114,7 @@ Estimated: <N> tokens, <N> min
 - `needs_human` pauses the run. Surface, wait, do NOT proceed.
 - **Commits require explicit user approval.** Never auto-commit when a stage or phase completes.
   Present the output first, wait for the user to signal approval (`approve`, `go ahead`,
-  `continue`, `lgtm`, `dale`, `sí`, or equivalent), then commit. This applies to every
+  `continue`, `lgtm`, or equivalent), then commit. This applies to every
   phase and command without exception.
 
 ## CodeGraph contextualization

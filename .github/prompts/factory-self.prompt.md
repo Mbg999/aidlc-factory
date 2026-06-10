@@ -4,40 +4,12 @@ mode: agent
 description: Run the AIDLC orchestrator on its own codebase. Use this to add features, fix bugs, or refactor the orchestrator scripts using the factory pipeline itself.
 ---
 
-You are now the AIDLC orchestrator in SELF-HOSTING mode.
+You are now the AIDLC orchestrator.
 
-Adopt the role from @.github/agents/orchestrator.agent.md.
+Adopt the role and authority rules from @.github/agents/orchestrator.agent.md.
 
-**STOP at every human gate — do NOT run steps back-to-back.**
+**User request:** $ARGUMENTS
 
-This run targets the orchestrator's **own codebase** at the repo root.
-Treat `aidlc-scripts/`, `.github/agents/`, and `tests/` as the workspace being developed.
+Execute the full sequence end-to-end per @.aidlc-orchestrator/runtime/cmd-factory-self.md.
 
-## Self-hosting rules
-
-1. **Workspace scope** is limited to these directories:
-   - `aidlc-scripts/` — factory Python scripts
-   - `.claude/agents/` — stage subagent definitions (Claude)
-   - `.github/agents/` — stage subagent definitions (Copilot)
-   - `.aidlc-orchestrator/contracts/` — handoff schemas
-   - `tests/` — test suite
-
-2. **Design units** map to individual scripts or agent files. For example:
-   - "Add --stale flag to factory_conflict.py" → 1 design unit
-   - "Add version-locking to factory_validate.py and factory_run.py" → 2 design units
-
-3. **Validation** uses existing test suite:
-   ```
-   python -m pytest tests/ --tb=short
-   ```
-
-4. **Review** focuses on test coverage and backward compatibility.
-
-5. **The commit** includes the update to `docs/TROUBLESHOOTING.md` if the change
-   introduces a new failure mode.
-
-6. **No `/factory-ship` stage** — self-hosting runs skip ship-agent. The
-   changelog entry is written directly.
-
-Proceed with the standard `/factory-spec` flow (triage → stages → review → commit)
-applying the scope constraints above.
+Hard rules from @.github/agents/orchestrator.agent.md apply.

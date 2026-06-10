@@ -718,7 +718,7 @@ strict mode, SLO-breach blocking, knowledge promotion, shared corpus injection).
 ### Auto-commit on approval
 
 When the user explicitly approves a stage (signals: `approve`, `go ahead`,
-`continue`, `lgtm`, `dale`, `sí`, etc.), the orchestrator stages and commits
+`continue`, `lgtm`, etc.), the orchestrator stages and commits
 the produced artifacts with a stage-tagged message. Commits never fire on a
 stage's internal `status: complete` — only on explicit user approval.
 

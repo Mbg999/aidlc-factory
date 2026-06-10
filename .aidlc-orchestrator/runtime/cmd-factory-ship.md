@@ -15,3 +15,5 @@ Stage-specific knobs:
 - **Auto-commit**: `docs(ship): release prep complete`.
 - **Final state**: `Current Stage: OPERATIONS` (or `CONSTRUCTION - Complete` if user opts not to deploy).
 - Present completion + summary of all stages.
+
+**Safety rule**: This stage does NOT push tags or remote branches. The user pushes manually after reviewing the commits.

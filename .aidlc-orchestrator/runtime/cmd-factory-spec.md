@@ -5,8 +5,14 @@ PRIORITY: P2
 For `/factory-spec <description>`. Pass `--tier=small` to force SMALL tier and skip routing.
 
 ## Step 1 — Init run dir + budget
+
+Generate run-id via the cross-platform Python helper (no shell `date`command):
+
+```bash
+   run_id=$(python3 aidlc-scripts/factory_run.py generate-run-id --slug "<slug>")
 ```
-run_id = YYYY-MM-DDTHH-MM-SSZ-<slug>  # UTC timestamp; slug = first 3-4 words, hyphenated
+
+```
 mkdir -p .aidlc-orchestrator/runs/<run-id>/handoffs
 ```
 Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: workspace-scout, completed_stages: []}`.
@@ -16,7 +22,7 @@ Find each required SKILL.md: `.agents/custom-skills/<name>/SKILL.md` → `.agent
 
 > **Framework skills** (autoskills-installed) are NOT yet available at spec time —
 > they are synced and selected during `/factory-build` Pre-Build Step 0.
-> Spec and plan stages use `.agents/custom-skills/` process skills only.
+> Spec and plan stages use first `.agents/custom-skills/`, then `~/.agents/skills/<name>/SKILL.md`. Log any missing skills to audit.md. process skills only.
 
 ## Step 3 — Workspace Scout (inline)
 
