@@ -57,7 +57,7 @@ prefixed `[RedFlag] <skill-name>:`.
 - `idea-refine` — divergent→convergent thinking; explore ≥3 approaches before converging
 - `spec-driven-development` — produce structured PRD (objectives, scope, constraints, boundaries, testing strategy)
 - `requirements-intelligence` — adaptive elicitation: routes Socratic / pre-mortem / ambiguity / assumption-mining by signal; enforces coverage map (Purpose / Needs / Limits / Expectations / Context / Risks / Acceptance / Unknowns) so no axis goes unasked. **Must run BEFORE Step 6 question generation** — its routing and coverage-map gate the question file.
-- `ai-architecture-cookbook` — call `recommend_workflow(mode: 'quick')` to validate requirements against architectural standards before producing the final spec. Log `[Skill] ai-architecture-cookbook: recommend_workflow called` in `audit_entries[]`.
+- `ai-architecture-cookbook` — **conditional: brownfield** — call `recommend_workflow(mode: 'quick')` to validate against existing architecture. **greenfield** — skip with evidence: `"Greenfield — no existing architecture patterns to validate. Pattern recommendation delegated to application-designer."` Log `[Skill] ai-architecture-cookbook: recommend_workflow called` (brownfield) or `[Skill] ai-architecture-cookbook: skipped — greenfield, delegated to application-designer` (greenfield) in `audit_entries[]`.
 
 ## Anti-Invention Rule (CRITICAL — never bypass)
 

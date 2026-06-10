@@ -38,10 +38,25 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 2. **Application Designer (conditional)** — skip when ANY of:
     - `manifest.skip_stages[]` contains `application-designer`
     - The request scope is single-component AND involves no new interfaces/components
-    - The user explicitly provides an existing design
 
     When skipping, log `[Skip] application-designer` to audit. Otherwise execute
     `stage/application-designer.md` inline per the [post-execution loop](spawn-loop.md).
+
+    **Design system context**: If `manifest.workspace_state.has_stitch_data == true` or
+    `design-system/INDEX.md` exists, inject the design system info into
+    `context_snapshot.project_context.design_system`:
+    ```yaml
+    context_snapshot:
+      project_context:
+        design_system:
+          has_stitch_data: <bool>
+          design_system_path: <path to design-system/>
+          has_figma_data: <bool>
+    ```
+    The application-designer uses this to inform component/service design — the
+    design system provides UI primitives, but the designer still produces the
+    5 architecture artifacts (components, interfaces, services, dependencies,
+    consolidated design). Do NOT skip the designer when a design system exists.
 
     **Context Injection**: Before spawning, regenerate the context snapshot:
     ```bash
