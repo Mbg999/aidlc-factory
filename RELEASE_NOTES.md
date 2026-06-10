@@ -1,10 +1,7 @@
-# Release Notes — v0.3.2 (2026-06-09)
-
-### Added
-
-- docs-website
-- `node_modules/`, `dist/` and `build/` at installed .gitignore
+# Release Notes — v0.3.3 (2026-06-10)
 
 ### Changed
 
-- moved ai-architecture-cookbook MCP server from local install to npx repo
+- <agent-tool>/skills are now thin wrappers of .aidlc-orchestrator/runtime for simplicity and to avoid circular dependencies. See `.claude/commands/factory-*.md` for examples. The old skill files are deleted.
+- some cleanings
+- use autoskills from npx aidlc-factory/autoskills
