@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import subprocess
 import sys
-import shutil
-import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -16,22 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "aidlc-scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-
-def _symlink_or_copy(target: Path, source: Path):
-    """Symlink target→source, falling back to copy2/copytree on Windows."""
-    try:
-        target.symlink_to(source)
-    except (OSError, NotImplementedError, PermissionError):
-        if source.is_dir():
-            shutil.copytree(source, target)
-        else:
-            shutil.copy2(source, target)
-
 import factory_skill_sync as mod
 import skill_utils as su
 
-
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 def _make_skill_dir(base: Path, name: str, content: str = "") -> Path:
     d = base / name
@@ -43,32 +26,70 @@ def _make_skill_dir(base: Path, name: str, content: str = "") -> Path:
     return d
 
 
-# ── (consolidation helpers removed — no symlinks created) ─────────
+# ── _parse_node_version ─────────────────────────────────────────
 
-# ── _resolve_node ─────────────────────────────────────────────────────────────
+class TestParseNodeVersion:
+    def test_full_semver(self):
+        assert mod._parse_node_version("v22.6.0") == (22, 6, 0)
 
-class TestResolveNode:
-    def test_node_not_found_returns_none(self):
+    def test_no_v_prefix(self):
+        assert mod._parse_node_version("22.6.0") == (22, 6, 0)
+
+    def test_with_whitespace(self):
+        assert mod._parse_node_version("  v22.6.0\n") == (22, 6, 0)
+
+    def test_pads_missing_parts(self):
+        assert mod._parse_node_version("v22") == (22, 0, 0)
+        assert mod._parse_node_version("v22.6") == (22, 6, 0)
+
+    def test_non_numeric_returns_none(self):
+        assert mod._parse_node_version("v22.x.y") is None
+
+    def test_empty_string_returns_none(self):
+        assert mod._parse_node_version("") is None
+
+
+# ── _resolve_npx ────────────────────────────────────────────────
+
+class TestResolveNpx:
+    def test_file_not_found_returns_none(self):
         with patch("factory_skill_sync.subprocess.run", side_effect=FileNotFoundError):
-            assert mod._resolve_node() is None
+            assert mod._resolve_npx() is None
 
     def test_timeout_returns_none(self):
-        with patch("factory_skill_sync.subprocess.run",
-                   side_effect=subprocess.TimeoutExpired("node", 10)):
-            assert mod._resolve_node() is None
+        with patch(
+            "factory_skill_sync.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("node", 10),
+        ):
+            assert mod._resolve_npx() is None
 
-    def test_nonzero_exit_returns_none(self):
-        result = MagicMock()
-        result.returncode = 1
-        with patch("factory_skill_sync.subprocess.run", return_value=result):
-            assert mod._resolve_node() is None
+    def test_all_attempts_fail_returns_none(self):
+        """node, fnm, and volta all fail — returns None."""
+        results = [
+            MagicMock(returncode=1, stdout="", stderr=""),
+            MagicMock(returncode=1, stdout="", stderr=""),
+            MagicMock(returncode=1, stdout="", stderr=""),
+        ]
+        with patch("factory_skill_sync.subprocess.run", side_effect=results):
+            assert mod._resolve_npx() is None
+
+    def test_node_too_old_continues_to_next(self):
+        """node returns old version — fnm succeeds."""
+        old_node = MagicMock(returncode=0, stdout="v18.17.0\n")
+        good_node = MagicMock(returncode=0, stdout="v22.6.0\n")
+        with patch("factory_skill_sync.subprocess.run", side_effect=[old_node, good_node]):
+            resolved = mod._resolve_npx()
+        assert resolved is not None
+        prefix, label = resolved
+        assert prefix == ["fnm", "exec", "--using=22", "--"]
+        assert "fnm" in label
 
     def test_returns_system_node_when_meets_min(self):
         result = MagicMock()
         result.returncode = 0
         result.stdout = "v22.6.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
-            resolved = mod._resolve_node()
+            resolved = mod._resolve_npx()
         assert resolved is not None
         prefix, label = resolved
         assert prefix == ["node"]
@@ -79,132 +100,274 @@ class TestResolveNode:
         result.returncode = 0
         result.stdout = "v18.17.0\n"
         with patch("factory_skill_sync.subprocess.run", return_value=result):
-            assert mod._resolve_node() is None
+            assert mod._resolve_npx() is None
+
+    def test_second_attempt_succeeds_after_first_fails(self):
+        results = [
+            MagicMock(returncode=1, stdout="", stderr=""),
+            MagicMock(returncode=0, stdout="v22.6.0\n"),
+        ]
+        with patch("factory_skill_sync.subprocess.run", side_effect=results):
+            resolved = mod._resolve_npx()
+        assert resolved is not None
+        prefix, _label = resolved
+        assert prefix == ["fnm", "exec", "--using=22", "--"]
 
 
-# ── clone_autoskills ────────────────────────────────────────────────────────────
+# ── _run_npx ────────────────────────────────────────────────────
 
-class TestCloneAutoskills:
-    def test_dry_run_prints_and_returns_dest(self, tmp_path, capsys):
-        dest = tmp_path / "autoskills"
-        result = mod.clone_autoskills(dest, dry_run=True)
-        assert result == dest
+class TestRunNpx:
+    def test_runs_with_correct_args(self):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = "skills_installed"
+        proc.stderr = ""
+        with patch("factory_skill_sync.subprocess.run", return_value=proc) as mock_run:
+            result = mod._run_npx(
+                ["node"], ["-y", "--path", "/tmp/project", "--tech", "react,nextjs"],
+                project_dir=Path("/tmp/project"), timeout=180,
+            )
+        assert result is not None
+        assert result.stdout == "skills_installed"
+        mock_run.assert_called_once_with(
+            ["node", "npx", "-y", mod.PACKAGE_NAME, "-y", "--path", "/tmp/project", "--tech", "react,nextjs"],
+            cwd="/tmp/project", capture_output=True, text=True, timeout=180,
+        )
+
+    def test_without_project_dir(self):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = ""
+        proc.stderr = ""
+        with patch("factory_skill_sync.subprocess.run", return_value=proc) as mock_run:
+            result = mod._run_npx(["node"], ["--list-tech"])
+        assert result is not None
+        mock_run.assert_called_once_with(
+            ["node", "npx", "-y", mod.PACKAGE_NAME, "--list-tech"],
+            cwd=None, capture_output=True, text=True, timeout=180,
+        )
+
+    def test_file_not_found_returns_none(self):
+        with patch("factory_skill_sync.subprocess.run", side_effect=FileNotFoundError):
+            result = mod._run_npx(["node"], [], timeout=30)
+        assert result is None
+
+    def test_timeout_returns_none(self):
+        with patch(
+            "factory_skill_sync.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("npx", 30),
+        ):
+            result = mod._run_npx(["node"], [], timeout=30)
+        assert result is None
+
+    def test_oserror_returns_none(self):
+        with patch("factory_skill_sync.subprocess.run", side_effect=OSError("denied")):
+            result = mod._run_npx(["node"], [], timeout=30)
+        assert result is None
+
+
+# ── _collect_installed_skills ───────────────────────────────────
+
+class TestCollectInstalledSkills:
+    def test_empty_when_skills_dir_missing(self, tmp_path):
+        result = mod._collect_installed_skills(tmp_path)
+        assert result == []
+
+    def test_returns_valid_skill_dirs(self, tmp_path):
+        skills_dir = tmp_path / ".agents" / "skills"
+        _make_skill_dir(skills_dir, "react")
+        _make_skill_dir(skills_dir, "nextjs")
+        result = mod._collect_installed_skills(tmp_path)
+        assert len(result) == 2
+        names = {d.name for d in result}
+        assert names == {"react", "nextjs"}
+
+    def test_skips_dirs_without_skill_md(self, tmp_path):
+        skills_dir = tmp_path / ".agents" / "skills"
+        _make_skill_dir(skills_dir, "valid")
+        (skills_dir / "no-skill-dir").mkdir()
+        result = mod._collect_installed_skills(tmp_path)
+        assert len(result) == 1
+        assert result[0].name == "valid"
+
+    def test_only_returns_dirs(self, tmp_path):
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "file.txt").write_text("not a dir")
+        result = mod._collect_installed_skills(tmp_path)
+        assert result == []
+
+
+# ── cmd_sync ────────────────────────────────────────────────────
+
+class TestCmdSync:
+    def test_node_missing_exits_0(self, tmp_path, capsys):
+        with patch("factory_skill_sync._resolve_npx", return_value=None):
+            rc = mod.cmd_sync(tmp_path)
+        assert rc == 0
+
+    def test_dry_run_displays_correctly(self, tmp_path, capsys):
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ):
+            rc = mod.cmd_sync(tmp_path, dry_run=True)
+        assert rc == 0
         out = capsys.readouterr().out
         assert "[DRY-RUN]" in out
-        assert not dest.exists()
+        assert str(tmp_path) in out
 
-    def test_existing_git_dir_pulls(self, tmp_path):
-        dest = tmp_path / "autoskills"
-        dest.mkdir()
-        (dest / ".git").mkdir()
-        with patch("factory_skill_sync.subprocess.run") as mock_run:
-            mod.clone_autoskills(dest, dry_run=False)
-            calls = [c.args for c in mock_run.call_args_list]
-            assert any("pull" in str(a) for a in calls)
+    def test_dry_run_with_tech(self, tmp_path, capsys):
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ):
+            rc = mod.cmd_sync(tmp_path, dry_run=True, techs=["react", "nextjs"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "react,nextjs" in out
 
-    def test_clone_runs_git_clone(self, tmp_path):
-        dest = tmp_path / "autoskills"
-        with patch("factory_skill_sync.subprocess.run") as mock_run:
-            mod.clone_autoskills(dest, dry_run=False)
-            args = mock_run.call_args[0][0]
-            assert args[0] == "git"
-            assert "--depth" in args
-            assert "1" in args
-            assert "--single-branch" in args
-            assert "--no-tags" in args
-            assert mod.AUTOSKILLS_REPO in args
+    def test_runner_failure_is_graceful(self, tmp_path, capsys):
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=None):
+            rc = mod.cmd_sync(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "SKIP" in out
 
-
-# ── _build_autoskills ───────────────────────────────────────────────────────────
-
-class TestBuildAutoskills:
-    def test_cache_hit_skips_build(self, tmp_path):
-        autoskills_dir = tmp_path / "autoskills"
-        pkg = autoskills_dir / mod.AUTOSKILLS_PKG_DIR
-        pkg.mkdir(parents=True)
-        ts = pkg / "main.ts"
-        ts.write_text("// code")
-        entry = pkg / mod.AUTOSKILLS_ENTRY
-        entry.parent.mkdir(parents=True, exist_ok=True)
-        entry.write_text("built")
-        # Make entry newer than source
-        now = time.time()
-        os.utime(str(ts), (now - 100, now - 100))
-        os.utime(str(entry), (now, now))
-        with patch("factory_skill_sync.subprocess.run") as mock_run:
-            mod._build_autoskills(autoskills_dir, dry_run=False)
-            mock_run.assert_not_called()
-
-    def test_build_runs_install_and_build(self, tmp_path):
-        autoskills_dir = tmp_path / "autoskills"
-        pkg = autoskills_dir / mod.AUTOSKILLS_PKG_DIR
-        pkg.mkdir(parents=True)
-        ts = pkg / "main.ts"
-        ts.write_text("// code")
-        entry = pkg / mod.AUTOSKILLS_ENTRY
-        entry.parent.mkdir(parents=True, exist_ok=True)
-        entry.write_text("built")
-        # Make source newer than entry to force a rebuild
-        now = time.time()
-        os.utime(str(entry), (now - 100, now - 100))
-        os.utime(str(ts), (now, now))
-        with patch("factory_skill_sync.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            mod._build_autoskills(autoskills_dir, dry_run=False)
-            calls = [c.args[0] for c in mock_run.call_args_list]
-            assert any(c[0] == "npm" and "install" in c for c in calls)
-            assert any(c[0] == "npm" and "build" in c for c in calls)
-
-    def test_dry_run_does_not_run(self, tmp_path):
-        autoskills_dir = tmp_path / "autoskills"
-        with patch("factory_skill_sync.subprocess.run") as mock_run:
-            mod._build_autoskills(autoskills_dir, dry_run=True)
-            mock_run.assert_not_called()
-
-
-# ── _run_local_autoskills ─────────────────────────────────────────────────────
-
-class TestRunLocalAutoskills:
-    def test_dry_run_returns_empty(self, tmp_path):
-        result = mod._run_local_autoskills(
-            tmp_path, tmp_path / "autoskills", dry_run=True
+    def test_passes_args_to_run_npx(self, tmp_path):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = ""
+        proc.stderr = ""
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=proc) as mock_run:
+            mod.cmd_sync(tmp_path, techs=["react", "nextjs"])
+        mock_run.assert_called_once_with(
+            ["node"],
+            ["-y", "--path", str(tmp_path), "--tech", "react,nextjs"],
+            project_dir=tmp_path,
         )
-        assert result == []
 
-    def test_no_node_returns_empty(self, tmp_path):
-        with patch("factory_skill_sync._resolve_node", return_value=None):
-            result = mod._run_local_autoskills(
-                tmp_path, tmp_path / "autoskills", dry_run=False
-            )
-        assert result == []
+    def test_no_techs_passed(self, tmp_path):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = ""
+        proc.stderr = ""
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=proc) as mock_run:
+            mod.cmd_sync(tmp_path)
+        mock_run.assert_called_once_with(
+            ["node"],
+            ["-y", "--path", str(tmp_path)],
+            project_dir=tmp_path,
+        )
 
-    def test_runs_node_with_entry_and_tech(self, tmp_path):
-        autoskills_dir = tmp_path / "autoskills"
-        entry = autoskills_dir / mod.AUTOSKILLS_PKG_DIR / mod.AUTOSKILLS_ENTRY
-        entry.parent.mkdir(parents=True, exist_ok=True)
-        entry.write_text("// built")
+    def test_nonzero_exit_prints_error(self, tmp_path, capsys):
+        proc = MagicMock()
+        proc.returncode = 1
+        proc.stdout = ""
+        proc.stderr = "some error\nline2\nline3\nline4\nline5\nline6\n"
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=proc):
+            rc = mod.cmd_sync(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "exited 1" in out
 
-        proc_result = MagicMock()
-        proc_result.returncode = 0
-        proc_result.stdout = ""
-        proc_result.stderr = ""
+    def test_reports_installed_skill_count(self, tmp_path, capsys):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = ""
+        proc.stderr = ""
+        skills_dir = tmp_path / ".agents" / "skills"
+        _make_skill_dir(skills_dir, "react")
+        _make_skill_dir(skills_dir, "nextjs")
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=proc):
+            rc = mod.cmd_sync(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 skill(s)" in out
 
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")) as _mock_node, \
-             patch("factory_skill_sync.subprocess.run", return_value=proc_result) as mock_run:
-            mod._run_local_autoskills(
-                tmp_path, autoskills_dir, techs=["react", "nextjs"], dry_run=False
-            )
-            call_args = mock_run.call_args
-            args_list = call_args[0][0] if call_args[0] else call_args[1].get("args", [])
-            assert str(entry) in args_list
-            assert "--path" in args_list
-            assert str(tmp_path) in args_list
-            assert "--tech" in args_list
-            assert "react,nextjs" in args_list
+    def test_no_installed_skills_message(self, tmp_path, capsys):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = ""
+        proc.stderr = ""
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync._run_npx", return_value=proc):
+            rc = mod.cmd_sync(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "no matching technologies" in out
 
 
-# ── cmd_select ────────────────────────────────────────────────────────────────
+# ── cmd_list_tech ───────────────────────────────────────────────
+
+class TestCmdListTech:
+    def test_node_missing_exits_0(self, tmp_path, capsys):
+        with patch("factory_skill_sync._resolve_npx", return_value=None):
+            rc = mod.cmd_list_tech(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "SKIP" in out
+
+    def test_dry_run_prints_and_returns(self, tmp_path, capsys):
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ):
+            rc = mod.cmd_list_tech(tmp_path, dry_run=True)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert mod.PACKAGE_NAME in out
+
+    def test_prints_stdout_on_success(self, tmp_path, capsys):
+        proc = MagicMock()
+        proc.returncode = 0
+        proc.stdout = "react\nnextjs\npython\n"
+        proc.stderr = ""
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync.subprocess.run", return_value=proc):
+            rc = mod.cmd_list_tech(tmp_path)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "react" in out
+        assert "nextjs" in out
+        assert "python" in out
+
+    def test_nonzero_exit_prints_stderr(self, tmp_path, capsys):
+        proc = MagicMock()
+        proc.returncode = 1
+        proc.stdout = ""
+        proc.stderr = "error: something went wrong"
+        with patch(
+            "factory_skill_sync._resolve_npx",
+            return_value=(["node"], "node (v22.6.0)"),
+        ), patch("factory_skill_sync.subprocess.run", return_value=proc):
+            rc = mod.cmd_list_tech(tmp_path)
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "exited 1" in captured.out
+
+
+# ── cmd_select ──────────────────────────────────────────────────
 
 class TestCmdSelect:
     def _setup_skills(self, tmp_path):
@@ -217,7 +380,7 @@ class TestCmdSelect:
     def test_returns_json_by_default(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
         with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
-             patch("factory_skill_sync._resolve_node", return_value=None):
+             patch("factory_skill_sync._resolve_npx", return_value=None):
             mod.cmd_select(tmp_path, output_format="json")
 
         out = capsys.readouterr().out
@@ -230,7 +393,7 @@ class TestCmdSelect:
     def test_custom_skills_come_first(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
         with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
-             patch("factory_skill_sync._resolve_node", return_value=None):
+             patch("factory_skill_sync._resolve_npx", return_value=None):
             mod.cmd_select(tmp_path, output_format="json")
 
         data = json.loads(capsys.readouterr().out)
@@ -242,7 +405,7 @@ class TestCmdSelect:
     def test_text_output_one_path_per_line(self, tmp_path, capsys):
         self._setup_skills(tmp_path)
         with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
-             patch("factory_skill_sync._resolve_node", return_value=None):
+             patch("factory_skill_sync._resolve_npx", return_value=None):
             mod.cmd_select(tmp_path, output_format="text")
 
         lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
@@ -252,7 +415,7 @@ class TestCmdSelect:
 
     def test_no_skills_returns_empty_list(self, tmp_path, capsys):
         with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
-             patch("factory_skill_sync._resolve_node", return_value=None), \
+             patch("factory_skill_sync._resolve_npx", return_value=None), \
              patch.object(su.Path, "home", return_value=tmp_path):
             mod.cmd_select(tmp_path, output_format="json")
 
@@ -261,87 +424,110 @@ class TestCmdSelect:
         assert data["framework_skill_names"] == []
         assert data["skill_count"] == 0
 
+    def test_warns_when_npx_unavailable(self, tmp_path, capsys):
+        self._setup_skills(tmp_path)
+        with patch("factory_skill_sync.REPO_ROOT_DEFAULT", tmp_path), \
+             patch("factory_skill_sync._resolve_npx", return_value=None):
+            mod.cmd_select(tmp_path, output_format="json")
 
-# ── cmd_sync graceful degradation ────────────────────────────────────────────
-
-class TestCmdSyncGracefulDegradation:
-    def test_node_missing_exits_0(self, tmp_path, capsys):
-        with patch("factory_skill_sync._resolve_node", return_value=None):
-            result = mod.cmd_sync(tmp_path)
-        assert result == 0
-
-    def test_clone_failure_is_graceful(self, tmp_path, capsys):
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills",
-                   side_effect=subprocess.CalledProcessError(1, "git")):
-            result = mod.cmd_sync(tmp_path)
-        assert result == 0
-        out = capsys.readouterr().out
-        assert "failed to clone" in out.lower() or "warning" in out.lower()
-
-    def test_techs_passed_to_runner(self, tmp_path, capsys):
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills", return_value=tmp_path / "cache"), \
-             patch("factory_skill_sync._run_local_autoskills", return_value=[]) as mock_run:
-            result = mod.cmd_sync(tmp_path, techs=["python"])
-        assert result == 0
-        mock_run.assert_called_once()
-        _, kwargs = mock_run.call_args
-        assert kwargs.get("techs") == ["python"]
+        data = json.loads(capsys.readouterr().out)
+        assert len(data["warnings"]) >= 1
+        assert "autoskills was SKIPPED" in data["warnings"][0]
 
 
-# ── cmd_sync cache cleanup ────────────────────────────────────
-
-class TestCmdSyncCacheCleanup:
-    def test_cleans_up_autoskills_cache_after_success(self, tmp_path):
-        """cmd_sync should remove .autoskills-cache after successful run."""
-        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
-        cache_dir.mkdir(parents=True)
-        (cache_dir / "dummy").write_text("cache artifact")
-
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
-             patch("factory_skill_sync._run_local_autoskills", return_value=[]):
-            mod.cmd_sync(tmp_path)
-
-        assert not cache_dir.exists(), "cache dir was not cleaned up"
-
-    def test_does_not_clean_in_dry_run(self, tmp_path):
-        """cmd_sync should NOT remove .autoskills-cache in dry-run mode."""
-        cache_dir = tmp_path / mod.AUTOSKILLS_CACHE_DIR
-        cache_dir.mkdir(parents=True)
-
-        with patch("factory_skill_sync._resolve_node",
-                   return_value=(["node"], "system node v22.6.0")), \
-             patch("factory_skill_sync.clone_autoskills", return_value=cache_dir), \
-             patch("factory_skill_sync._run_local_autoskills", return_value=[]):
-            mod.cmd_sync(tmp_path, dry_run=True)
-
-        assert cache_dir.exists(), "cache dir was removed in dry-run"
-
-
-# ── CLI argument parsing ──────────────────────────────────────────────────────
+# ── CLI argument parsing ────────────────────────────────────────
 
 class TestCliParsing:
     def test_sync_with_tech(self, tmp_path):
         with patch("factory_skill_sync.cmd_sync", return_value=0) as mock_sync:
-            with patch("sys.argv", ["factory_skill_sync.py", "--repo-root", str(tmp_path), "sync", "--tech", "react,nextjs"]):
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "sync", "--tech", "react,nextjs",
+            ]):
                 with pytest.raises(SystemExit) as exc_info:
                     mod.main()
                 assert exc_info.value.code == 0
         assert mock_sync.called
-        _, kwargs = mock_sync.call_args
+        _args, kwargs = mock_sync.call_args
         assert kwargs["techs"] == ["react", "nextjs"]
 
     def test_sync_without_tech(self, tmp_path):
         with patch("factory_skill_sync.cmd_sync", return_value=0) as mock_sync:
-            with patch("sys.argv", ["factory_skill_sync.py", "--repo-root", str(tmp_path), "sync"]):
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "sync",
+            ]):
                 with pytest.raises(SystemExit) as exc_info:
                     mod.main()
                 assert exc_info.value.code == 0
         assert mock_sync.called
-        _, kwargs = mock_sync.call_args
+        _args, kwargs = mock_sync.call_args
         assert kwargs["techs"] is None
+
+    def test_sync_dry_run_flag(self, tmp_path):
+        with patch("factory_skill_sync.cmd_sync", return_value=0) as mock_sync:
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "sync", "--dry-run",
+            ]):
+                with pytest.raises(SystemExit) as exc_info:
+                    mod.main()
+                assert exc_info.value.code == 0
+        _args, kwargs = mock_sync.call_args
+        assert kwargs["dry_run"] is True
+
+    def test_select_json_default(self, tmp_path):
+        with patch("factory_skill_sync.cmd_select", return_value=0) as mock_select:
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "select",
+            ]):
+                with pytest.raises(SystemExit) as exc_info:
+                    mod.main()
+                assert exc_info.value.code == 0
+        _args, kwargs = mock_select.call_args
+        assert kwargs["output_format"] == "json"
+
+    def test_select_text_output(self, tmp_path):
+        with patch("factory_skill_sync.cmd_select", return_value=0) as mock_select:
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "select", "--output", "text",
+            ]):
+                with pytest.raises(SystemExit) as exc_info:
+                    mod.main()
+                assert exc_info.value.code == 0
+        _args, kwargs = mock_select.call_args
+        assert kwargs["output_format"] == "text"
+
+    def test_list_tech(self, tmp_path):
+        with patch("factory_skill_sync.cmd_list_tech", return_value=0) as mock_list:
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "list-tech",
+            ]):
+                with pytest.raises(SystemExit) as exc_info:
+                    mod.main()
+                assert exc_info.value.code == 0
+        assert mock_list.called
+
+    def test_list_tech_dry_run(self, tmp_path):
+        with patch("factory_skill_sync.cmd_list_tech", return_value=0) as mock_list:
+            with patch("sys.argv", [
+                "factory_skill_sync.py", "--repo-root", str(tmp_path),
+                "list-tech", "--dry-run",
+            ]):
+                with pytest.raises(SystemExit) as exc_info:
+                    mod.main()
+                assert exc_info.value.code == 0
+        _args, kwargs = mock_list.call_args
+        assert kwargs["dry_run"] is True
+
+    def test_unknown_command_exits_2(self, tmp_path):
+        with patch("sys.argv", [
+            "factory_skill_sync.py", "--repo-root", str(tmp_path),
+            "bogus",
+        ]):
+            with pytest.raises(SystemExit) as exc_info:
+                mod.main()
+            assert exc_info.value.code == 2
