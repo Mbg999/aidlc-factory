@@ -5,7 +5,13 @@ PRIORITY: P2
 Inception phase, post-requirements. Produces the execution plan and
 (optional) decomposes into units.
 
-1. Read `manifest.yaml` for the run. Refuse if missing or if the run is not
+**1. Validate stage prerequisites (MANDATORY):**
+   ```bash
+   python3 aidlc-scripts/stage_gate.py check <run-id> workflow-planner
+   ```
+   Exit 0 → continue. Exit 1 → **HALT**. Do NOT proceed.
+
+   Also read `manifest.yaml` for the run. Refuse if missing or if the run is not
    past `requirements-analyst`.
 
 Assume `<run-id>` points at an existing manifest. If missing, refuse

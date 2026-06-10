@@ -134,6 +134,12 @@ Then proceed to Step 4.
 
 PRIORITY: P2
 
+**Validate stage prerequisites (MANDATORY):**
+```bash
+python3 aidlc-scripts/stage_gate.py check <run-id> requirements-analyst
+```
+Exit 0 → continue. Exit 1 → **HALT**. Do NOT proceed.
+
 ### Context Injection (Pre-execution)
 
 Before spawning the stage, regenerate the context snapshot (depth auto-selects based on completed stage count):

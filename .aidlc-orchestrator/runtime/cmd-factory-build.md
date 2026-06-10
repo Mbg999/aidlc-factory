@@ -7,7 +7,15 @@ Construction phase. **Layer-parallel:** units are topologically sorted by
 sequential. Locks (file-glob) acquired per-unit before spawn; AST symbol
 drift detected post-spawn for Python files.
 
-1. Read `manifest.yaml`. Refuse if missing or if `workflow-planner` hasn't
+**1. Validate stage prerequisites (MANDATORY):**
+   ```bash
+   python3 aidlc-scripts/stage_gate.py check <run-id> code-generator
+   ```
+   Exit 0 → continue. Exit 1 → **HALT**. Do NOT proceed. Surface error to user
+   with missing prerequisites list. This prevents agents from skipping mandatory
+   stages (requirements-analyst, workflow-planner, etc.).
+
+   Also read `manifest.yaml`. Refuse if missing or if `workflow-planner` hasn't
    completed with user approval.
 
 **Construction Phase Entry Checkpoint** (run BEFORE first layer, per

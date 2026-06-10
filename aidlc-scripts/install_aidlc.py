@@ -340,6 +340,18 @@ ORCHESTRATOR_FACTORY_SCRIPTS = [
     # Cookbook integration scripts (project context + tech mapping generator)
     "factory_project_context.py", # read tech stack + previous decisions → context for MCP tools
     "factory_tech_mappings.py",   # generate tech_stack_mappings for Cookbook YAML standards
+    # Stage gate enforcement (prevents skipping mandatory stages)
+    "stage_gate.py",              # validates stage prerequisites before execution
+    # Context builder (traceability snapshots for context injection)
+    "factory_context_builder.py", # builds contextual snapshots from audit, state, manifest, timeline
+    # Project profile classifier (detects UI, framework, design system, legacy)
+    "factory_project_profile.py", # classifies project type and tech stack
+    # Design system pipeline scripts
+    "factory_drift_detect.py",    # detect skills whose version range lags behind latest stable
+    "factory_ds_bootstrap.py",    # bootstrap design system
+    "factory_figma_mcp.py",       # Figma MCP integration
+    "factory_primitive_gen.py",   # generate UI primitives from tokens
+    "factory_stitch_mcp.py",      # Stitch MCP integration
 ]
 
 # Root-level config files installed once alongside the orchestrator.

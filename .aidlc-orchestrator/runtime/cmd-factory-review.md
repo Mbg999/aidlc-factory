@@ -5,7 +5,13 @@ PRIORITY: P2
 Post-generation quality gate. **Parallel fan-out:** active reviewers in one
 `Task()` batch (≤ 4 concurrent).
 
-1. Read `manifest.yaml`. Refuse if construction isn't complete.
+**1. Validate stage prerequisites (MANDATORY):**
+   ```bash
+   python3 aidlc-scripts/stage_gate.py check <run-id> reviewer-code
+   ```
+   Exit 0 → continue. Exit 1 → **HALT**. Do NOT proceed.
+
+   Also read `manifest.yaml`. Refuse if construction isn't complete.
 
 1.5. **Collect framework skills from build** (Pre-Review Step 0.5): read
 `manifest.skill_paths` + all `code-generator.*.output.yaml` handoffs; extract

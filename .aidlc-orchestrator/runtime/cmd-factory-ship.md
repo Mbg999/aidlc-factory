@@ -5,7 +5,13 @@ PRIORITY: P2
 Final stage. Execute `stage/ship-agent.md` inline per the
 [post-execution loop](spawn-loop.md).
 
-1. Read `manifest.yaml`. Refuse if review hasn't completed with user approval.
+**1. Validate stage prerequisites (MANDATORY):**
+   ```bash
+   python3 aidlc-scripts/stage_gate.py check <run-id> ship-agent
+   ```
+   Exit 0 → continue. Exit 1 → **HALT**. Do NOT proceed.
+
+   Also read `manifest.yaml`. Refuse if review hasn't completed with user approval.
 
 2. **ship-agent** — spawn with `predecessor_artifacts` = all prior outputs +
    the merged review report. Pass `manifest.project_profile` so the agent
