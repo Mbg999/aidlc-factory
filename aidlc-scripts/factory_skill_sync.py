@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
 """factory_skill_sync.py — Sync skills via npx @aidlc-factory/autoskills.
 
-Three subcommands:
+Subcommands:
 
-  sync      Run `npx @aidlc-factory/autoskills` in the project root to install
-            framework skills. Pass --tech to force technologies (required for
-            greenfield projects).
-
-  select    List all skills currently installed and output their paths for use
-            in stage input handoffs (skill_paths_resolved[]).
-
-  list-tech List all supported technology IDs from the published autoskills
-            package via `npx ... --list-tech`.
+  sync          Install framework skills for given techs.
+  select        List installed skills for stage handoffs (skill_paths_resolved[]).
+  list-tech     List all technology IDs supported by autoskills.
+  resolve-tech  Intersect project tech_stack with supported autoskills techs.
 
 Usage:
     python3 aidlc-scripts/factory_skill_sync.py sync [--repo-root PATH] [--dry-run] [--tech react,nextjs]
     python3 aidlc-scripts/factory_skill_sync.py select [--repo-root PATH] [--output json|text]
     python3 aidlc-scripts/factory_skill_sync.py list-tech [--repo-root PATH]
+    python3 aidlc-scripts/factory_skill_sync.py resolve-tech [manifest-path]
 
 Exit codes:
     0  success (or graceful degradation — npx missing, network error)
-    1  hard error (file-system write failure)
+    1  hard error (file-system write failure, or resolve-tech failed)
     2  usage error
 """
 
@@ -59,21 +55,70 @@ def _parse_node_version(version_str: str) -> tuple[int, int, int] | None:
     return (nums[0], nums[1], nums[2])
 
 
-def _resolve_npx() -> tuple[list[str], str] | None:
-    """Check npx is available and Node >= 22.6.0. Returns (node cmd list, label) or None."""
-    for node_cmd in (["node"], ["fnm", "exec", "--using=22", "--"],
-                     ["volta", "run", "--node", "22"]):
+def _resolve_npx() -> tuple[list[str], str, str | None] | None:
+    """Check npx is available and Node >= 22.6.0. Returns (cmd, label, nvm_bin_path) or None."""
+    # 1. Try plain node first
+    try:
+        r = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            parsed = _parse_node_version(r.stdout.strip())
+            if parsed is not None and parsed >= NODE_MIN:
+                return (["node"], f"system node ({r.stdout.strip()})", None)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # 2. Try nvm (user-level, no sudo needed)
+    nvm_sh = Path.home() / ".nvm" / "nvm.sh"
+    if nvm_sh.exists():
         try:
-            result = subprocess.run(
-                node_cmd + ["--version"], capture_output=True, text=True, timeout=10
+            r = subprocess.run(
+                ["bash", "-c", f"source {nvm_sh} && nvm ls 22 --no-colors 2>/dev/null"],
+                capture_output=True, text=True, timeout=15
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            continue
-        if result.returncode != 0:
-            continue
-        parsed = _parse_node_version(result.stdout.strip())
-        if parsed is not None and parsed >= NODE_MIN:
-            return node_cmd, f"{node_cmd[0]} ({result.stdout.strip()})"
+            if r.returncode == 0 and r.stdout.strip():
+                best_ver: tuple[int, int, int] | None = None
+                for line in r.stdout.strip().splitlines():
+                    tokens = line.strip().split()
+                    ver_str = next((t for t in tokens if t.startswith("v")), "")
+                    if not ver_str:
+                        continue
+                    parsed = _parse_node_version(ver_str)
+                    if parsed is not None and parsed >= NODE_MIN:
+                        if best_ver is None or parsed > best_ver:
+                            best_ver = parsed
+                if best_ver is not None:
+                    nvm_prefix = Path.home() / ".nvm" / "versions" / "node" / f"v{best_ver[0]}.{best_ver[1]}.{best_ver[2]}"
+                    npx_path = nvm_prefix / "bin" / "npx"
+                    nvm_bin = str(nvm_prefix / "bin")
+                    if npx_path.exists():
+                        return ([str(npx_path)],
+                                f"nvm (v{best_ver[0]}.{best_ver[1]}.{best_ver[2]})",
+                                nvm_bin)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
+    # 3. Try fnm
+    try:
+        r = subprocess.run(["fnm", "exec", "--using=22", "--", "node", "--version"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            parsed = _parse_node_version(r.stdout.strip())
+            if parsed is not None and parsed >= NODE_MIN:
+                return (["fnm", "exec", "--using=22", "--", "npx"], f"fnm ({r.stdout.strip()})", None)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # 4. Try volta
+    try:
+        r = subprocess.run(["volta", "run", "--node", "22", "node", "--version"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            parsed = _parse_node_version(r.stdout.strip())
+            if parsed is not None and parsed >= NODE_MIN:
+                return (["volta", "run", "--node", "22", "npx"], f"volta ({r.stdout.strip()})", None)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
     return None
 
 
@@ -82,11 +127,21 @@ def _run_npx(
     args: list[str],
     project_dir: Path | None = None,
     timeout: int = 180,
+    nvm_bin: str | None = None,
 ) -> subprocess.CompletedProcess | None:
-    cmd = npx_cmd + ["npx", "-y", PACKAGE_NAME] + args
+    """Run npx with the PACKAGE_NAME. If npx_cmd ends in 'node', append
+    'npx -y <package>'. Otherwise assume the last element is the npx binary."""
+    if npx_cmd[-1] == "node":
+        cmd = npx_cmd + ["npx", "-y", PACKAGE_NAME] + args
+    else:
+        cmd = npx_cmd + ["-y", PACKAGE_NAME] + args
     cwd = str(project_dir) if project_dir else None
+    env = None
+    if nvm_bin:
+        env = dict(os.environ)
+        env["PATH"] = f"{nvm_bin}:{env.get('PATH', '')}"
     try:
-        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
 
@@ -106,17 +161,16 @@ def _collect_installed_skills(project_dir: Path) -> list[Path]:
 def cmd_list_tech(repo_root: Path, dry_run: bool = False) -> int:
     resolved = _resolve_npx()
     if resolved is None:
-        print("[list-tech] SKIP (no Node >= 22.6.0 available)")
+        print(f"[list-tech] SKIP (no Node >= {NODE_MIN[0]}.{NODE_MIN[1]} available)")
         return 0
+
+    npx_cmd, node_label, nvm_bin = resolved
 
     if dry_run:
         print(f"[DRY-RUN] Would run: npx {PACKAGE_NAME} --list-tech")
         return 0
 
-    result = subprocess.run(
-        ["npx", "-y", PACKAGE_NAME, "--list-tech"],
-        capture_output=True, text=True, timeout=180,
-    )
+    result = _run_npx(npx_cmd, ["--list-tech"], nvm_bin=nvm_bin)
 
     if result.returncode == 0:
         print(result.stdout)
@@ -134,8 +188,9 @@ def cmd_list_tech(repo_root: Path, dry_run: bool = False) -> int:
 def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = None) -> int:
     resolved = _resolve_npx()
     if resolved is None:
+        print(f"[Sync] SKIP (no Node >= {NODE_MIN[0]}.{NODE_MIN[1]} available)")
         return 0
-    npx_cmd, node_label = resolved
+    npx_cmd, node_label, nvm_bin = resolved
     print(f"[Sync] using {node_label}")
 
     if dry_run:
@@ -149,7 +204,7 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
     if techs:
         args.extend(["--tech", ",".join(techs)])
 
-    result = _run_npx(npx_cmd, args, project_dir=repo_root)
+    result = _run_npx(npx_cmd, args, project_dir=repo_root, nvm_bin=nvm_bin)
     if result is None:
         print("[Sync] SKIP (npx runner failed)")
         return 0
@@ -169,6 +224,82 @@ def cmd_sync(repo_root: Path, dry_run: bool = False, techs: list[str] | None = N
         print("[Sync] autoskills installed no skills (no matching technologies detected)")
 
     print(f"[Sync] done — {len(installed)} skill(s) in .agents/skills/")
+    return 0
+
+
+# ── resolve-tech subcommand ───────────────────────────────────
+
+def cmd_resolve_tech(repo_root: Path, manifest_path: str | None = None) -> int:
+    """List supported techs from autoskills, intersect with project tech_stack,
+    output comma-separated matching tech IDs."""
+    # Step 1: get supported techs from autoskills
+    resolved = _resolve_npx()
+    if resolved is None:
+        print("[resolve-tech] SKIP (no Node >= 22.6.0)")
+        return 1
+
+    npx_cmd, node_label, nvm_bin = resolved
+    result = _run_npx(npx_cmd, ["--list-tech"], nvm_bin=nvm_bin)
+    if result is None or result.returncode != 0:
+        print("[resolve-tech] failed to query autoskills --list-tech")
+        return 1
+
+    supported = set()
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line and not line.startswith(("┌", "├", "└", "│", " ", "▸", "◆", "")):
+            supported.add(line.lower())
+        elif "─" not in line and line and not line.startswith(("Auto", "npx")):
+            # Parse "  react  6" format
+            parts = line.split()
+            if parts and not parts[0].startswith(("(", ")", "-", "•")):
+                supported.add(parts[0].lower())
+
+    # Step 2: read project tech_stack from manifest
+    if not manifest_path:
+        manifest_path = str(repo_root / ".aidlc-orchestrator" / "runs" / "latest" / "manifest.yaml")
+        # Try to find most recent run
+        runs_dir = repo_root / ".aidlc-orchestrator" / "runs"
+        if runs_dir.exists():
+            runs = sorted([d for d in runs_dir.iterdir() if d.is_dir()], reverse=True)
+            if runs:
+                manifest_path = str(runs[0] / "manifest.yaml")
+
+    try:
+        import yaml
+        with open(manifest_path) as f:
+            m = yaml.safe_load(f)
+    except Exception:
+        print("[resolve-tech] no matching techs — universal skills only")
+        return 0
+
+    project_pkgs = {
+        t.get("package", "").lower()
+        for t in (m.get("workspace_state", {}).get("tech_stack", []) or [])
+        if t.get("package")
+    }
+
+    # Common package-name → tech-ID mappings
+    ALIASES = {
+        "@angular/core": "angular",
+        "@react-three/fiber": "@react-three/fiber",
+        "typescript": None,  # universal, skip
+        "eslint": None,
+        "prettier": None,
+    }
+
+    matched = []
+    for pkg in sorted(project_pkgs):
+        mapped = ALIASES.get(pkg, pkg)
+        if mapped is None:
+            continue
+        if mapped in supported:
+            matched.append(mapped)
+
+    if matched:
+        print(",".join(matched))
+    else:
+        print("[resolve-tech] no matching techs — universal skills only")
     return 0
 
 
@@ -253,6 +384,11 @@ def main() -> None:
     p_list.add_argument("--dry-run", action="store_true",
                         help="Preview without calling npx")
 
+    p_resolve = sub.add_parser("resolve-tech",
+                                help="Intersect project tech_stack with autoskills supported techs")
+    p_resolve.add_argument("manifest", type=str, nargs="?",
+                           help="Path to manifest.yaml (auto-detects latest run)")
+
     args = parser.parse_args()
     repo_root = args.repo_root or REPO_ROOT_DEFAULT
 
@@ -265,6 +401,8 @@ def main() -> None:
         sys.exit(cmd_select(repo_root, output_format=getattr(args, "output", "json")))
     elif args.command == "list-tech":
         sys.exit(cmd_list_tech(repo_root, dry_run=getattr(args, "dry_run", False)))
+    elif args.command == "resolve-tech":
+        sys.exit(cmd_resolve_tech(repo_root, manifest_path=args.manifest))
     else:
         parser.print_help()
         sys.exit(2)

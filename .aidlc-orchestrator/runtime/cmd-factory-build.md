@@ -27,44 +27,47 @@ the execution plan is loaded.
 
 Runs ONCE before any unit is spawned.
 
-1. **Sync** — install framework skills via the local autoskills fork.
-   ALWAYS pass `--tech` from the target project's tech stack (resolved from
-   workspace-scout or requirements). Never rely on autoskills auto-detection —
-   it scans the AIDLC repo (where the script runs) and may detect the wrong
-   stack (e.g. Python for a React project).
+1. **Resolve techs** — intersect project tech_stack with autoskills supported techs:
    ```bash
-   python3 aidlc-scripts/factory_skill_sync.py sync --tech react,nextjs
+   TECH=$(python3 aidlc-scripts/factory_skill_sync.py resolve-tech .aidlc-orchestrator/runs/<run-id>/manifest.yaml)
    ```
-    Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
-    On non-zero exit or Node.js missing: log warning and continue — skill failure
-    never blocks a build (universal custom-skills still apply).
-    If you passed `--tech`, the audit should note: `[Skills] forced techs: <list>`.
+   This queries autoskills `--list-tech`, reads `manifest.workspace_state.tech_stack[]`,
+   maps package names to tech IDs (e.g. `@angular/core` → `angular`), and outputs
+   comma-separated matching techs. If output contains "no matching techs" or starts
+   with "[", skip `--tech` — autoskills installs universal skills only.
 
-2. **Select** — resolve `skill_paths_resolved[]` for all stage input handoffs:
+2. **Sync** — install framework skills for the resolved techs:
+   ```bash
+   python3 aidlc-scripts/factory_skill_sync.py sync ${TECH:+--tech "$TECH"}
+   ```
+   Capture stdout → append `[Sync]` lines to audit.md under `[Skills]` prefix.
+   On non-zero exit or Node.js missing: log warning, skip, continue. Skill sync
+   never blocks build. If no `--tech` was passed, audit note:
+   `[Skills] no matching techs — universal skills only`.
+
+4. **Select** — resolve all installed skills for stage handoffs:
    ```bash
    python3 aidlc-scripts/factory_skill_sync.py select --output json
    ```
-Parse JSON → store in `manifest.yaml`:
-  `skill_paths_resolved` (all discovered skills, unfiltered)
-  `framework_skill_names` (framework skill names for skills_required[] injection).
+   Parse JSON → store in `manifest.yaml`:
+   - `skill_paths_resolved` — all discovered skill paths (unfiltered)
+   - `framework_skill_names` — framework skill names for `skills_required[]` injection
 
-When building per-stage handoffs in Step B.1, include ONLY the subset
-of `skill_paths_resolved[]` that corresponds to `skills_required[]` for
-that agent, PLUS any conditional skills injected by
-[`project-profile.md`](project-profile.md) §65-78. This keeps each
-agent's token load proportional to its actual skill needs.
+   When building per-stage handoffs in Step B.1, include ONLY the subset of
+   `skill_paths_resolved[]` that matches `skills_required[]` for that stage agent,
+   PLUS any conditional skills from [`project-profile.md`](project-profile.md) §65-78.
 
-3. **Log** to audit.md:
+5. **Log** to audit.md:
    ```
    [Skills] resolved <N> skills: <name-list>
-    [Skills] warnings: <list or "none">
-    ```
-
-    **Honesty rule:** if `[Sync] SKIPPED` appeared in step 1 but select's
-    `warnings[]` does not mention it, append a defensive
-    `[Skills] WARN: sync was skipped — see [Sync] block above` line.
-    Never emit `[Skills] warnings: none` while a `[Sync] SKIPPED` bullet
-    sits above it.
+   [Skills] warnings: <list or "none">
+   ```
+   **Honesty rule:** if `[Sync]` was skipped but select's `warnings[]` doesn't
+   mention it, append:
+   ```
+   [Skills] WARN: sync was skipped — see [Sync] block above
+   ```
+   Never emit `[Skills] warnings: none` while a sync skip sits above it.
 
 ## Pre-Build Step 0.5 — Prepare Token Bridge
 
