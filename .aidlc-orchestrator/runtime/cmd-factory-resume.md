@@ -1,41 +1,26 @@
 # `/factory-resume` — Resume Interrupted Run
 
-PRIORITY: P2
+PRIORITY: P3
 
-You are the AIDLC orchestrator resuming an interrupted run.
-
-If no run-id is provided: tell the user a run-id is required and show available
-runs with `python3 aidlc-scripts/factory_run.py list`.
-
-If a run-id is provided:
+Picks up an interrupted run from its last checkpoint.
 
 1. Read run state:
    ```bash
-   python3 aidlc-scripts/factory_run.py status <run-id>
-   ```
-
-2. Compute the next stage to spawn:
-   ```bash
    python3 aidlc-scripts/factory_run.py resume <run-id>
    ```
-   The output JSON includes `next_stage_suggestion` (the manifest's
-   `current_stage` if not already in `completed_stages[]`, or the next
-   uncompleted stage in PHASE_ORDER otherwise) and any `partial_outputs[]`
-   left from a prior crash.
+   This emits a JSON report with `completed_stages`, `current_stage`,
+   `next_stage_suggestion`, `partial_outputs[]`, `reconcile`, and
+   `version_warning` (if scripts version differs from manifest version).
+   It also appends a `resume_requested` event to `timeline.jsonl`.
 
-3. **If `partial_outputs[]` is non-empty**: warn the user that a prior
-   handoff exists. Two recovery options:
-   - **Trust and complete** — read the partial output, validate against
-     contract, and if valid, mark the stage complete via
-     `factory_run.py complete-stage`.
-   - **Re-spawn fresh** — delete the partial output, then proceed with
-     a clean spawn of the next stage.
-
-4. Surface the recovery choice to the user; await confirmation.
-
-5. Once confirmed, route to the appropriate slash command (e.g. if
-   `next_stage_suggestion` is `requirements-analyst`, the user can
-   invoke `/factory-spec` continuation in this same session, or spawn
-   the agent directly per the orchestrator protocol).
+2. If `partial_outputs[]` is non-empty, surface to the user with two
+   options:
+   - **Trust and complete** — accept partial outputs as-is; proceeds to
+     `next_stage_suggestion`.
+   - **Re-spawn fresh** — discard partial outputs for the interrupted stage
+     (re-queues it; re-spawns from scratch).
+3. If `partial_outputs[]` is empty, proceed directly to
+   `next_stage_suggestion`.
+4. Log `[RunManager] Resumed run <run-id> from stage <s>` to audit.
 
 Hard rules from the orchestrator apply.

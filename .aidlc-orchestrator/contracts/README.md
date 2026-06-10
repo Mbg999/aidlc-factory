@@ -38,6 +38,7 @@ Exit 0 = valid. Exit 1 = invalid (with path to failing field on stderr).
 | requirements-analyst | v1 | v1 | Phase 0 — two-pass with question gate |
 | reverse-engineer | v1 | v1 | Phase 1 — conditional (brownfield) |
 | story-writer | v1 | v1 | Phase 1 — conditional, two-pass |
+| application-designer | v1 | v1 | Phase 1 — two-pass with question gate, 5 design artifacts |
 | workflow-planner | v1 | v1 | Phase 1 — Opus |
 | unit-decomposer | v1 | v1 | Phase 1 — conditional |
 | code-generator | v1 | v1 | Phase 1 — per unit, three sub-stages (plan/generated/approved) |
@@ -45,7 +46,6 @@ Exit 0 = valid. Exit 1 = invalid (with path to failing field on stderr).
 | reviewer (shared) | v1 | v1 | Phase 1 — shared across 4 reviewer types. `stage_id` (e.g. `reviewer-code`) maps to `reviewer` (e.g. `code-quality`) |
 | ship-agent | v1 | v1 | Phase 1 |
 | custom-agent | v1 | v1 | Generic contract for user-defined subagents (see `.claude/agents/custom/` or `.opencode/agents/custom/`) |
-| approval | v1 | — | Structured approval gate presentation (input only, no output contract) |
 
 Phase 4+ refinements (parallelism, knowledge, conflict resolution) layer on
 top of these contracts without breaking them.

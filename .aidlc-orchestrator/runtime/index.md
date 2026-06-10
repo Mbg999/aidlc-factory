@@ -69,7 +69,8 @@ skill_paths: {<name>: <resolved path>}
 | `cmd-factory-ship.md` | P2 | `/factory-ship` procedure |
 | `fast-path.md` | P3 | TINY tier execution |
 | `recovery.md` | P3 | Failed→skipped recovery |
-| `replay-adopt.md` | P3 | Resume / replay |
+| `cmd-factory-resume.md` | P3 | `/factory-resume` procedure |
+| `cmd-factory-replay.md` | P3 | `/factory-replay` procedure |
 | `project-profile.md` | P3 | Profile classification + RE routing |
 | `run-manager.md` | P3 | Run Manager reference |
 | `conflict-resolver.md` | P3 | Conflict Resolver reference |

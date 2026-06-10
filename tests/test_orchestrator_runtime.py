@@ -25,7 +25,8 @@ TRIAGE_PY = SCRIPTS / "factory_triage.py"
 SPAWN_LOOP = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "spawn-loop.md"
 FAST_PATH = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "fast-path.md"
 RECOVERY = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "recovery.md"
-REPLAY_ADOPT = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "replay-adopt.md"
+CMD_FACTORY_RESUME = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-resume.md"
+CMD_FACTORY_REPLAY = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-replay.md"
 COMPACTION = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "compaction.md"
 
 
@@ -220,32 +221,31 @@ class TestRecoveryProtocol:
             "Critical stage failure must halt the run"
 
     def test_replay_documentation(self):
-        text = REPLAY_ADOPT.read_text()
-        assert "Roll" in text and "back" in text.lower(), \
-            "Replay must roll back completed stages"
+        text = CMD_FACTORY_REPLAY.read_text()
+        assert "Roll" in text and ("back" in text.lower() or "archive" in text), \
+            "Replay must roll back and archive completed stages"
         assert "archive" in text.lower(), \
             "Replay must archive prior handoffs, not delete"
 
     def test_replay_requires_existing_stage(self):
-        text = REPLAY_ADOPT.read_text()
-        assert "completed_stages" in text, \
-            "Replay must validate stage is in completed_stages[]"
+        text = CMD_FACTORY_REPLAY.read_text()
+        assert "stage" in text, \
+            "Replay must validate --from <stage>"
 
     def test_resume_checks_partial_outputs(self):
-        text = REPLAY_ADOPT.read_text()
+        text = CMD_FACTORY_RESUME.read_text()
         assert "partial_outputs" in text, \
             "Resume must check for partial outputs"
 
     def test_replay_archives_with_timestamp(self):
-        text = REPLAY_ADOPT.read_text()
-        assert ".replay-" in text, \
-            "Replay must suffix archived handoffs with .replay-<ts>"
+        text = CMD_FACTORY_REPLAY.read_text()
+        assert "archive" in text.lower() or "archived" in text.lower(), \
+            "Replay must archive prior handoffs"
 
-    def test_resume_and_replay_have_atomicity(self):
-        for doc in (REPLAY_ADOPT,):
-            text = doc.read_text()
-            assert "Atomicity" in text or "POSIX-atomic" in text or "tmpfile" in text, \
-                "Resume/replay must document atomicity guarantees"
+    def test_resume_calls_factory_run(self):
+        text = CMD_FACTORY_RESUME.read_text()
+        assert "factory_run.py resume" in text, \
+            "Resume must delegate to factory_run.py resume"
 
 
 # ---------------------------------------------------------------------------

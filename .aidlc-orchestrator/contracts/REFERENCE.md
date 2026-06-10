@@ -39,7 +39,6 @@
 |--------|---------|-------------|------------|
 | `custom-agent.input.v1.json` | Generic input for user-defined subagents | orchestrator | `task_description`, `context`, `budget` |
 | `custom-agent.output.v1.json` | Generic output for user-defined subagents | custom agent | `status`, `summary`, `artifacts[]` (path, kind, hash), `findings[]` |
-| `approval.input.v1.json` | Structured approval gate presentation | orchestrator | `run_id`, `stage`, `units[]` (name, tasks, acceptance_criteria), `estimated_tokens`, `estimated_minutes` |
 | `shared/complexity-tier.schema.json` | Complexity tier enum (TINY/SMALL/MEDIUM/LARGE) + routing | — | `complexity_tier`, `skip_stages[]`, `reviewer_pool[]` |
 | `shared/unit-graph.schema.json` | Unit dependency wave structure | — | `unit_waves[][]`, `unit_wave_count`, `unit_max_parallelism` |
 

@@ -123,7 +123,7 @@ POINTER_PHRASES = [
     "runtime/spawn-loop.md",
     "runtime/fast-path.md",
     "runtime/recovery.md",
-    "runtime/replay-adopt.md",
+    "runtime/cmd-factory-resume.md",
     "runtime/project-profile.md",
     "runtime/cmd-factory-spec.md",
     "runtime/cmd-factory-plan.md",
