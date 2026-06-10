@@ -142,7 +142,7 @@ Then execute inline. After each pass: lightweight validation, context compaction
 On user answers (between passes): call `emit_audit_block` per [`audit-block.protocol.md` § user_answers_received](../contracts/audit-block.protocol.md).
 
 Stage-specific knobs:
-- **skills_required**: `[idea-refine, spec-driven-development, using-agent-skills]`
+- **skills_required**: `[idea-refine, spec-driven-development, requirements-intelligence, using-agent-skills]`
 - **predecessor_artifacts**: workspace-scout's output handoff. Copy its `workspace_state` block into the input.
 - **state on Pass 2 success** (three required mutations):
   1. `Current Stage`: `INCEPTION - Requirements Analysis (complete) — awaiting /factory-plan`.

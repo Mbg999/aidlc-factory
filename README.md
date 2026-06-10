@@ -166,6 +166,7 @@ tool's agents directory (`<tool>/agents/orchestrator.md`).
 | `/factory-review <run-id>` | 4. Review | Spawns the parallel reviewer pool: code quality, security, performance, simplification. Merges findings into a single report. |
 | `/factory-ship <run-id>` | 6. Ship | Release notes, ADRs, CHANGELOG, version proposal, optional CI/CD wiring, deprecation/migration plan. |
 | `/factory-state <run-id>` | Utility | Show run status: completed stages, current stage, next steps, budget, any blocking issues. |
+| `/factory-context <run-id>` | Utility | Build a contextual snapshot from traceability files (audit.md, state, manifest, timeline) to understand project history and decisions before continuing work. |
 | `/factory-resume <run-id>` | Recovery | Resume an interrupted run from its last checkpoint. |
 | `/factory-replay <run-id> --from <stage>` | Recovery | Re-run from a specific stage. Rolls the manifest back and archives prior output handoffs. |
 | `/factory-code-tour` | Exploration | Dependency-ordered tour of an unfamiliar codebase: foundations → entry points. |

@@ -85,15 +85,15 @@ generated question covers it. Emit the table to `audit_entries[]` prefixed
 
 ```markdown
 | Axis | Required at | Question IDs | Status |
-|---|---|---|---|
+|---|---|---|---|---|
 | Purpose | all | Q1 | covered |
 | Needs | all | Q2, Q3 | covered |
-| Limits | standard+ | Q4 | covered |
+| Limits | all | Q4 | covered |
 | Expectations | all | Q5 | covered |
-| Context | standard+ | Q6 | covered |
-| Risks | comprehensive | Q7 | covered |
+| Context | all | Q6 | covered |
+| Risks | all | Q7 | covered |
 | Acceptance | all | Q8 | covered |
-| Unknowns | comprehensive | Q9 | covered |
+| Unknowns | all | Q9 | covered |
 ```
 
 If any axis required at the active depth is missing, STOP and add a question
@@ -117,10 +117,10 @@ Each technique outputs candidate questions tagged with the axis it covers.
 3. Apply the depth budget:
    | Depth | Min Qs | Max Qs |
    |---|---|---|
-   | minimal | 3 | 5 |
-   | standard | 5 | 10 |
-   | comprehensive | 8 | 18 |
-4. Below min → re-run missing techniques. Above max → drop lowest-priority candidates (Unknowns drops first, Purpose never drops).
+   | minimal | 8 | 14 |
+   | standard | 12 | 20 |
+   | comprehensive | 18 | 30 |
+4. Below min → escalate depth per questioning-policy.md (minimal→standard→comprehensive). Above max → drop lowest-priority candidates (Unknowns drops first, Purpose never drops).
 5. Write to `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`
    using the `[Answer]:` MCQ format from `aidlc-rules/aws-aidlc-rule-details/common/question-format-guide.md`.
    Every question MUST end with `X) Other (please describe after [Answer]: tag below)`.
@@ -147,7 +147,7 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 ```yaml
 - skill: requirements-intelligence
   status: PASS
-  evidence: "axes covered: 8/8; techniques: [coverage-map, ambiguity-detection, socratic]; questions: 9/10; rule-file quoted: requirements-analysis.md L47"
+  evidence: "axes covered: 8/8; techniques: [coverage-map, ambiguity-detection, socratic]; questions: 14/20; rule-file quoted: requirements-analysis.md L47"
 ```
 
 ## Verification (objective gates)
@@ -155,7 +155,7 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 | Check | How to verify |
 |---|---|
 | Rule file was read | ≥1 `[SkillRead]` entry in `audit_entries[]` |
-| Coverage map complete | every axis required at active depth shows `status: covered` |
+| Coverage map complete | all 8 axes show `status: covered` at any depth |
 | No chat questions | zero `?` in the chat reply outside artifact paths |
 | Ambiguity sweep performed | weasel words from `ambiguity-detection.md` lexicon either flagged or addressed |
 | MCQ format respected | every question has ≥2 options plus `X) Other` |
@@ -167,7 +167,7 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 |---|---|
 | "The request is clear, no questions needed" | Even clear requests have implicit assumptions. Run ambiguity-detection first. If `ambiguity_count == 0` AND classification is `Trivial + Single File + Clear`, the existing rule allows skipping — but log the skip with evidence. |
 | "I'll ask follow-up questions later in chat" | Forbidden by `question-format-guide.md`. All questions live in the file. |
-| "Coverage map is overkill for a small feature" | Use `minimal` depth — that's a 4-axis coverage (Purpose, Needs, Expectations, Acceptance). Don't skip it entirely. |
+| "Coverage map is overkill for a small feature" | Even at `minimal` depth, all 8 axes are required. Use the Trivial+Clear+Single File skip path if eligible, or generate tighter questions instead of skipping axes. |
 | "I already have enough context from workspace-scout" | Quote it. If you cannot quote, you do not have it. |
 | "Pre-mortem only matters for big stuff" | Pre-mortem fires only at `comprehensive` depth with prod stakes. If you are there, it IS the big stuff. |
 

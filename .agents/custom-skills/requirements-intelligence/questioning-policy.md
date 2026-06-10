@@ -38,9 +38,9 @@ given request. Referenced by `SKILL.md` Step 3.
 
 | Depth | Min questions | Max questions | Drop priority (when above max) |
 |---|---|---|---|
-| minimal | 4 | 7 | Unknowns → Context → Limits → Risks → Expectations → Acceptance → Needs → Purpose |
-| standard | 8 | 14 | same |
-| comprehensive | 14 | 26 | same |
+| minimal | 8 | 14 | Unknowns → Context → Limits → Risks → Expectations → Acceptance → Needs → Purpose |
+| standard | 12 | 20 | same |
+| comprehensive | 18 | 30 | same |
 
 Drop priority is read left-to-right: Unknowns drops first, Purpose never drops.
 
@@ -51,11 +51,11 @@ Drop priority is read left-to-right: Unknowns drops first, Purpose never drops.
 | Purpose | 1 | 2 | 2 |
 | Needs | 1 | 2 | 3 |
 | Expectations | 1 | 2 | 2 |
-| Acceptance | 1 | 1 | 2 |
-| Limits | — | 1 | 2 |
-| Context | — | 1 | 2 |
-| Risks | — | — | 2 |
-| Unknowns | — | — | 1 |
+| Acceptance | 1 | 2 | 2 |
+| Limits | 1 | 1 | 2 |
+| Context | 1 | 1 | 2 |
+| Risks | 1 | 1 | 2 |
+| Unknowns | 1 | 1 | 1 |
 
 Below per-axis min → regain coverage by re-running the relevant technique (Socratic for Purpose, ambiguity-detection for Expectations, pre-mortem for Risks, etc.). Log the re-run: `[CoverageRecovery] <axis>: re-ran <technique> — <n> questions added`.
 

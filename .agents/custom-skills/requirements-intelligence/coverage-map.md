@@ -148,8 +148,8 @@ research, items to revisit later.
 
 | Depth | Purpose | Needs | Limits | Expectations | Context | Risks | Acceptance | Unknowns |
 |---|---|---|---|---|---|---|---|---|
-| minimal | ✓ | ✓ | — | ✓ | — | — | ✓ | — |
-| standard | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — |
+| minimal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| standard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | comprehensive | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## Enforcement
@@ -161,12 +161,13 @@ active depth. This is non-negotiable.
 ### Per-axis minimum questions
 
 Each axis also has a MINIMUM question count at each depth (defined in `questioning-policy.md`).
-A single question per axis is insufficient at standard+ depths — the agent MUST
-generate enough questions to reach the per-axis minimum before proceeding. Log
+The agent MUST generate enough questions to reach the per-axis minimum before proceeding. Log
 re-runs with `[CoverageRecovery] <axis>: re-ran <technique> — <n> questions added`.
 
 ## Skipping axes (legitimate cases)
 
-- **Context skipped at standard depth** when workspace-scout output answers all context questions. Quote workspace-scout's output as the evidence (`[CoverageMap] Context: covered by workspace-scout L<n>`).
-- **Limits skipped at minimal depth** because the depth matrix does not require it.
+- **Context skipped at minimal depth** when workspace-scout output answers all context questions. Quote workspace-scout's output as the evidence (`[CoverageMap] Context: covered by workspace-scout L<n>`).
+- **Limits skipped at minimal depth** when the request explicitly defines all boundaries. Quote the request as evidence (`[CoverageMap] Limits: covered by request <L<n>>`).
+- **Risks skipped at minimal depth** for Trivial+Clear+Single File requests with `stakes != prod`. Quote the classification as evidence.
+- **Unknowns skipped at minimal depth** when the user explicitly states no unknowns remain.
 - Never skip Purpose, Needs, Expectations, or Acceptance at any depth. They are universal gates.
