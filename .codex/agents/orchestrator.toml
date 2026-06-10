@@ -10,6 +10,13 @@ You are the AIDLC Orchestrator. You coordinate the full software factory pipelin
 - Sync skills: `python3 aidlc-scripts/factory_skill_sync.py sync`
 - List agents: `python3 aidlc-scripts/factory_agent_discover.py list`
 
+## Contextualization
+Before spawning any stage, generate a context snapshot from traceability files:
+- `python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>`
+- Depths: minimal (200 tokens) → standard (800 tokens) → comprehensive (2000 tokens)
+- Inject the snapshot into each stage input handoff under `context_snapshot:`
+- Never cache across stages — always regenerate fresh
+
 ## Phases
 1. Inception: workspace-scout → requirements-analyst → (cond) application-designer → workflow-planner
 2. Construction: code-generator (parallel per unit) → build-test-agent
@@ -20,5 +27,6 @@ You are the AIDLC Orchestrator. You coordinate the full software factory pipelin
 - File-glob locks prevent concurrent edits (factory_conflict.py)
 - Approval gates between sub-stages (plan → generated → approved)
 - Runtime state in .aidlc-orchestrator/runs/ is gitignored
+- Traceability contextualization is mandatory for all stage inputs
 """
 nickname_candidates = ["Conductor", "Coordinator", "Maestro"]

@@ -13,11 +13,18 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
    - `requirements-analyst` output's `request_classification.scope` ∉ `{Multiple Components, System-wide, Cross-system}`
    - The user request does not involve user-facing flows
 
-   When skipping, follow complexity-gate skip enforcement. Otherwise execute
-   `stage/story-writer.md` inline per the [post-execution loop](spawn-loop.md).
-   Predecessor: requirements-analyst output.
+    When skipping, follow complexity-gate skip enforcement. Otherwise execute
+    `stage/story-writer.md` inline per the [post-execution loop](spawn-loop.md).
+    Predecessor: requirements-analyst output.
 
-   > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and pass its contents as `context` to cookbook MCP calls.
+    **Context Injection**: Before spawning, generate the context snapshot:
+    ```bash
+    python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+    ```
+    **Depth**: `auto` — with 2 completed stages (workspace-scout, requirements-analyst), this resolves to `standard` (~800 tokens). Includes requirements decisions and project profile.
+    Inject into the story-writer input handoff under `context_snapshot:`.
+
+    > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and pass its contents as `context` to cookbook MCP calls.
 
 2. **Application Designer (conditional)** — skip when ANY of:
     - `manifest.skip_stages[]` contains `application-designer`
@@ -27,9 +34,16 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
     When skipping, log `[Skip] application-designer` to audit. Otherwise execute
     `stage/application-designer.md` inline per the [post-execution loop](spawn-loop.md).
 
+    **Context Injection**: Before spawning, regenerate the context snapshot:
+    ```bash
+    python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+    ```
+    **Depth**: `auto` — resolves to `standard` or `comprehensive` based on completed stage count. Includes requirements, stories (if run), and any reverse-engineering artifacts.
+    Inject into the application-designer input handoff under `context_snapshot:`.
+
     > **Two-pass execution**: application-designer has an integrated two-pass flow
     > (Pass 1: questions → `needs_human` → wait for answers → Pass 2: generate
-    > 5 design artifacts). This mirrors the requirements-analyst two-pass pattern
+    >  5 design artifacts). This mirrors the requirements-analyst two-pass pattern
     > but is handled entirely within the agent — the orchestrator surfaces the
     > `needs_human` gate with `needs_user_input: true` and re-spawns on answer.
 
@@ -39,9 +53,16 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
     `stage/workflow-planner.md` inline per the [post-execution loop](spawn-loop.md).
     Predecessors: requirements + (if present) stories + (if present) application-design artifacts. The planner emits
    `status: needs_human` after producing the plan; on user response, call
-   `emit_audit_block` per [`audit-block.protocol.md` § workflow-planner gate](../contracts/audit-block.protocol.md).
+    `emit_audit_block` per [`audit-block.protocol.md` § workflow-planner gate](../contracts/audit-block.protocol.md).
 
-   > **Cookbook**: The workflow-planner loads `ai-architecture-cookbook` (`recommend_workflow(mode: 'audit')`) to suggest architecture patterns the plan must cover, tagged with cookbook standard IDs. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and inject the `techStack`, `scale`, `compliance`, and `previous_decisions` fields as `context` to the `recommend_workflow` call.
+    **Context Injection**: Before spawning, regenerate the context snapshot:
+    ```bash
+    python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+    ```
+    **Depth**: `auto` — typically resolves to `standard` or `comprehensive` for workflow planning. Includes all prior decisions, requirements, and design artifacts.
+    Inject into the workflow-planner input handoff under `context_snapshot:`.
+
+    > **Cookbook**: The workflow-planner loads `ai-architecture-cookbook` (`recommend_workflow(mode: 'audit')`) to suggest architecture patterns the plan must cover, tagged with cookbook standard IDs. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and inject the `techStack`, `scale`, `compliance`, and `previous_decisions` fields as `context` to the `recommend_workflow` call.
 
 3.5. **Pre-mortem visibility check (defensive guard)** — run after Workflow Planner output is received:
    - Locate the `skill_compliance[]` row for `requirements-intelligence` in `workflow-planner.output.yaml`.
@@ -56,6 +77,13 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    When skipping due to ComplexityGov, follow complexity-gate skip enforcement.
    Otherwise execute `stage/unit-decomposer.md` inline per the [post-execution loop](spawn-loop.md).
+
+   **Context Injection**: Before spawning, regenerate the context snapshot:
+   ```bash
+   python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+   ```
+   **Depth**: `auto` — typically resolves to `standard` or `comprehensive`. Includes approved plan, requirements, and design artifacts.
+   Inject into the unit-decomposer input handoff under `context_snapshot:`.
 
    > **Cookbook**: The unit-decomposer loads `ai-architecture-cookbook` (`get_decision_tree`) to ensure decomposed units carry architecture-standard context for each domain they touch. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present to incorporate the project's tech stack and previous decisions into the decomposition.
 

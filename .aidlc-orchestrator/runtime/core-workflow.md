@@ -71,6 +71,28 @@ Placeholder for deployment, monitoring, incident response.
 
 Directory: `aidlc-docs/{inception,construction,operations}/`. App code stays in workspace root.
 
+## MANDATORY: Traceability Contextualization
+
+Every stage input handoff MUST include a `context_snapshot` built from traceability files. This prevents agents from working without awareness of prior decisions.
+
+**Procedure:**
+1. Before writing any stage input handoff, run:
+   ```bash
+   python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>
+   ```
+2. Inject the output into the handoff YAML under `context_snapshot:` (or prepend as a comment block if the contract lacks this field).
+3. Regenerate fresh for each stage — do NOT cache across stages.
+
+**Depth mapping:**
+- `minimal` (~200 tokens): `workspace-scout` — current stage + last 3 audit entries
+- `standard` (~800 tokens): `requirements-analyst`, `story-writer`, `workflow-planner`, `application-designer`, `unit-decomposer`, `reviewer-*`
+- `comprehensive` (~2000 tokens): `code-generator`, `build-test-agent`, `ship-agent`
+
+**Manual inspection:**
+```
+/factory-context <run-id> [--depth minimal|standard|comprehensive]
+```
+
 <!-- AIDLC-ORCHESTRATOR-POINTER -->
 ## AIDLC Orchestrator (multi-agent factory mode)
 

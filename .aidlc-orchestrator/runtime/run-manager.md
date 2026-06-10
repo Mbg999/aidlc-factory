@@ -13,6 +13,7 @@ PRIORITY: P3
 | Resume | see [`runtime/cmd-factory-resume.md`](cmd-factory-resume.md) |
 | Replay | see [`runtime/cmd-factory-replay.md`](cmd-factory-replay.md) |
 | Non-spawn audit | `emit_audit_block` — see [`audit-block.protocol.md`](../contracts/audit-block.protocol.md) |
+| Context snapshot | `factory_context_builder.py <run-id> --depth <depth>` — see [`runtime/contextualization.md`](contextualization.md) |
 
 Atomicity: manifest POSIX-atomic (tmpfile+rename), timeline append-only atomic per line.
 Failed→skipped recovery: [`runtime/recovery.md`](recovery.md).

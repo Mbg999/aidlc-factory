@@ -1,39 +1,99 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "reviewer.input.v1",
-  "title": "Reviewer — Shared Input Contract (v1, used by all 4 reviewers)",
+  "title": "Reviewer \u2014 Shared Input Contract (v1, used by all 4 reviewers)",
   "description": "Shared input contract for all four reviewer types (code-quality, security, performance, simplifier). Includes code-generator outputs and CodeGraph cache.",
   "type": "object",
-  "required": ["run_id", "stage_id", "reviewer", "user_request", "predecessor_artifacts", "skills_required", "skill_paths_resolved"],
+  "required": [
+    "run_id",
+    "stage_id",
+    "reviewer",
+    "user_request",
+    "predecessor_artifacts",
+    "skills_required",
+    "skill_paths_resolved"
+  ],
   "properties": {
-    "run_id": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9-]+$"
+    },
     "stage_id": {
       "type": "string",
-      "enum": ["reviewer-code", "reviewer-security", "reviewer-performance", "reviewer-simplifier"]
+      "enum": [
+        "reviewer-code",
+        "reviewer-security",
+        "reviewer-performance",
+        "reviewer-simplifier"
+      ]
     },
     "reviewer": {
       "type": "string",
-      "enum": ["code-quality", "security", "performance", "simplifier"],
-      "description": "Reviewed by: stage_id=reviewer-code → reviewer=code-quality, stage_id=reviewer-security → reviewer=security, etc."
+      "enum": [
+        "code-quality",
+        "security",
+        "performance",
+        "simplifier"
+      ],
+      "description": "Reviewed by: stage_id=reviewer-code \u2192 reviewer=code-quality, stage_id=reviewer-security \u2192 reviewer=security, etc."
     },
-    "user_request": { "type": "string", "minLength": 1 },
+    "user_request": {
+      "type": "string",
+      "minLength": 1
+    },
     "predecessor_artifacts": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "minItems": 1,
       "description": "code-generator + build-test-agent outputs for all units under review"
     },
     "scope_paths": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "File globs the review covers; empty = whole project"
     },
-    "skills_required": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
-    "skill_paths_resolved": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-    "budget": { "type": "object" },
-    "gates": { "type": "array", "items": { "type": "string" }, "default": [] },
-    "context_pointers": { "type": "array", "items": { "type": "string" }, "default": [] },
-    "locks_required": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "skills_required": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2
+    },
+    "skill_paths_resolved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "budget": {
+      "type": "object"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "context_pointers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "locks_required": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "model_override": {
       "type": "string",
       "description": "Model to use for this stage. Overrides tool default. Set by orchestrator from budgets/default.yaml."
@@ -45,6 +105,56 @@
     "design_system_path": {
       "type": "string",
       "description": "Path to the design system (relative to repo root, e.g. 'design-system/'). Set when project_profile.ui == true and design-system/ exists at repo root. Null/absent means no design system available."
+    },
+    "context_snapshot": {
+      "type": "object",
+      "description": "Condensed historical context injected by the orchestrator before each stage spawn. See shared/context-snapshot.v1.json for schema.",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "standard",
+            "comprehensive"
+          ]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "project_context": {
+          "type": "object"
+        },
+        "current_state": {
+          "type": "object"
+        },
+        "recent_decisions": {
+          "type": "array"
+        },
+        "stage_timeline": {
+          "type": "array"
+        },
+        "open_items": {
+          "type": "object"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recent_handoffs": {
+          "type": "array"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Full markdown representation of the snapshot"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

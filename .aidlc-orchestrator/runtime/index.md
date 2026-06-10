@@ -80,4 +80,5 @@ skill_paths: {<name>: <resolved path>}
 | `compaction.md` | P3 | Context compaction rules |
 | `skill-protocol.md` | P4 | Skill execution protocol |
 | `audit-lifecycle.md` | P4 | Audit log lifecycle |
+| `contextualization.md` | P4 | Traceability contextualization protocol (context snapshot injection) |
 | `extension-loading.md` | P4 | Extension loading protocol |

@@ -34,6 +34,20 @@ Find each required SKILL.md: `.agents/custom-skills/<name>/SKILL.md` → `.agent
 
 PRIORITY: P2
 
+### Context Injection (Pre-execution)
+
+Before spawning the stage, build and inject the context snapshot:
+
+```bash
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth minimal --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+```
+
+**Depth**: `minimal` for workspace-scout (only current stage + last 3 audit entries).
+
+Inject into the workspace-scout input handoff under `context_snapshot:` (or prepend as YAML comment if contract lacks this field). The stage agent MUST read this snapshot before executing its workspace scan.
+
+### Stage execution
+
 Execute `stage/workspace-scout.md` inline (no `Task()`). Follow the
 [post-execution loop](spawn-loop.md) for bookkeeping.
 
@@ -103,6 +117,20 @@ Then proceed to Step 4.
 ## Step 4 — Requirements Analyst (two-pass, inline)
 
 PRIORITY: P2
+
+### Context Injection (Pre-execution)
+
+Before spawning the stage, regenerate the context snapshot (depth auto-selects based on completed stage count):
+
+```bash
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+```
+
+**Depth**: `auto` — with 1 completed stage (workspace-scout), this resolves to `minimal` (~200 tokens). The snapshot includes the workspace-scout decision and project profile.
+
+Inject into the requirements-analyst input handoff under `context_snapshot:`. The agent MUST read this to understand the workspace state before asking questions.
+
+### Stage execution
 
 Execute `stage/requirements-analyst.md` inline (no `Task()`). Follow the
 [post-execution loop](spawn-loop.md) for bookkeeping.

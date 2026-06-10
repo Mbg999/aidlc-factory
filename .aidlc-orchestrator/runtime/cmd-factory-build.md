@@ -146,29 +146,58 @@ Active set = units that passed all gates.
 `safe: false` → drop colliding units to next wave. If wave empties → halt.
 
 ### B.2 — Code generator (three sub-stages, parallel per sub_stage)
+
+**Context Injection (per unit, before each sub-stage)**:
+
+For each unit, regenerate the context snapshot with `comprehensive` depth before building the input handoff:
+
+```bash
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth comprehensive --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+```
+
+**Depth**: `comprehensive` (~2000 tokens) — code-generator needs full timeline, handoff summaries, and all prior decisions to avoid contradicting earlier design.
+
+Inject the snapshot into each unit's `code-generator.<unit>.input.yaml` under `context_snapshot:`. The code-generator MUST read this before planning to understand:
+- What units have already been built (to avoid duplication)
+- What decisions were made in requirements/design (to respect constraints)
+- What skills are active (to apply correct patterns)
+
 Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
 1. Parallel `Task(subagent_type="code-generator", ...)` in ONE message (≤ 4).
 2. Wait for all returns. Per-unit post-processing (any order):
-   - **Validate output (strict)** — for every returned output handoff:
-     ```bash
-     python3 aidlc-scripts/factory_validate.py \
-         .aidlc-orchestrator/contracts/code-generator.output.v1.json \
-         <output-handoff-path> --strict
-     ```
-      `--strict` is MANDATORY: it enforces that any non-fast_path output with
-      `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
-      that the plan file exists on disk AND that the plan file has ZERO remaining
-      unchecked `[ ]` checkboxes. This catches both the silent-skip failure
-      where an agent claims `generated` without writing the plan, and the partial
-      failure where an agent leaves tasks incomplete. On exit≠0: mark unit
-      `blocked`, log stderr to audit.md, DO NOT advance the unit, surface BEFORE
-      the gate.
-   - AST drift check → knowledge save → audit append.
+    - **Validate output (strict)** — for every returned output handoff:
+      ```bash
+      python3 aidlc-scripts/factory_validate.py \
+          .aidlc-orchestrator/contracts/code-generator.output.v1.json \
+          <output-handoff-path> --strict
+      ```
+       `--strict` is MANDATORY: it enforces that any non-fast_path output with
+       `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
+       that the plan file exists on disk AND that the plan file has ZERO remaining
+       unchecked `[ ]` checkboxes. This catches both the silent-skip failure
+       where an agent claims `generated` without writing the plan, and the partial
+       failure where an agent leaves tasks incomplete. On exit≠0: mark unit
+       `blocked`, log stderr to audit.md, DO NOT advance the unit, surface BEFORE
+       the gate.
+    - AST drift check → knowledge save → audit append.
 3. If AST drift conflict OR strict-validation failure written, surface BEFORE approval gate.
 4. Approval gate: surface ALL units. User can approve all, reject specific units
-   (re-plan with revised context), or cancel layer.
+    (re-plan with revised context), or cancel layer.
 
 ### B.3 — Build & test (parallel per unit, after all reach `approved`)
+
+**Context Injection (per unit)**:
+
+For each unit, regenerate the context snapshot:
+
+```bash
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth comprehensive --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
+```
+
+**Depth**: `comprehensive` — build-test-agent needs full context to understand what was generated and what constraints apply.
+
+Inject the snapshot into each unit's `build-test-agent.<unit>.input.yaml` under `context_snapshot:`.
+
 Parallel `Task(subagent_type="build-test-agent", ...)` in ONE message (≤ 4).
 Build input handoffs per B.1 Step 4 guidelines (filter to BTA-relevant skills only).
 If `manifest.project_profile.ui == true`: add `browser-testing-with-devtools` to

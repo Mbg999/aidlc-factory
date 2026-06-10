@@ -117,6 +117,43 @@ Estimated: <N> tokens, <N> min
   `continue`, `lgtm`, or equivalent), then commit. This applies to every
   phase and command without exception.
 
+## Traceability Contextualization
+
+The orchestrator MUST inject historical context from traceability files into every stage input handoff. This ensures continuity and prevents agents from working without awareness of prior decisions.
+
+### Automatic context injection
+
+Before writing any stage input handoff, generate a context snapshot:
+```bash
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>
+```
+
+**Depth mapping by stage:**
+- `workspace-scout`: `minimal` — only current stage + last 3 audit entries
+- `requirements-analyst`, `story-writer`: `standard` — full state + last 10 decisions
+- `workflow-planner`, `application-designer`, `unit-decomposer`: `standard`
+- `code-generator`, `build-test-agent`: `comprehensive` — full timeline + handoff summaries
+- `reviewer-*`: `standard` — enough to understand what was built
+- `ship-agent`: `comprehensive` — full history for release notes
+
+**Injection location:** Add the context snapshot to the input handoff YAML under the key `context_snapshot:`, which every stage contract already includes as optional. If the stage contract does not define it, prepend the snapshot as a comment block in the handoff file.
+
+### Manual context inspection
+
+Users can request a context snapshot at any time:
+```
+/orchestrator factory-context <run-id> [--depth minimal|standard|comprehensive]
+```
+
+This is useful for:
+- Returning to a project after a long pause
+- Understanding why a decision was made
+- Onboarding a new agent to an in-progress run
+
+### Context freshness
+
+The context snapshot is regenerated at the start of each stage spawn. Do NOT cache it across stages — the audit.md and timeline may have been updated by the previous stage.
+
 ## CodeGraph contextualization
 
 If `.codegraph/codegraph.db` exists in the workspace:
