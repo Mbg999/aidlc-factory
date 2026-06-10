@@ -5,6 +5,17 @@ PRIORITY: P2
 Final stage. Execute `stage/ship-agent.md` inline per the
 [post-execution loop](spawn-loop.md).
 
+1. Read `manifest.yaml`. Refuse if review hasn't completed with user approval.
+
+2. **ship-agent** — spawn with `predecessor_artifacts` = all prior outputs +
+   the merged review report. Pass `manifest.project_profile` so the agent
+   knows whether to load `deprecation-and-migration*` (when `has_legacy: true`).
+
+3. Validate output. Expected fields include `version_proposal` and `adr_count`.
+
+4. If `status: needs_human` (because the version bump or release plan needs
+   user OK): surface, wait, log answer.
+
 > **Framework skills** are available here if `/factory-build` ran first (stored in
 > `manifest.skill_paths_resolved`). Ship agent inherits this list from the manifest.
 
@@ -91,3 +102,10 @@ The run is complete. No further commands to suggest (this is the final stage).
 Remind the user to manually push tags and remote branches after reviewing the commits.
 
 **Safety rule**: This stage does NOT push tags or remote branches. The user pushes manually after reviewing the commits.
+
+---
+
+## Hard rules
+
+- Hard rules from the orchestrator apply.
+- **This agent does NOT push tags or remote branches.** User pushes manually.

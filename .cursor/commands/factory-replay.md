@@ -9,6 +9,10 @@ Adopt the role and authority rules from @.cursor/agents/orchestrator.md.
 
 **Arguments:** $ARGUMENTS
 
+**Platform-specific instructions for Cursor:**
+- Use "delegate" for all subagent invocations instead of `Task()`.
+- Cross-cutting agents are at `.cursor/agents/cross-cutting/`.
+
 Execute the full sequence end-to-end per @.aidlc-orchestrator/runtime/cmd-factory-replay.md.
 
 Hard rules from @.cursor/agents/orchestrator.md apply.

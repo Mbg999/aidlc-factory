@@ -7,6 +7,9 @@ Construction phase. **Layer-parallel:** units are topologically sorted by
 sequential. Locks (file-glob) acquired per-unit before spawn; AST symbol
 drift detected post-spawn for Python files.
 
+1. Read `manifest.yaml`. Refuse if missing or if `workflow-planner` hasn't
+   completed with user approval.
+
 **Construction Phase Entry Checkpoint** (run BEFORE first layer, per
 core-workflow.md): verify audit.md has all Inception entries, state file
 `Current Stage` is correct, `aidlc-docs/construction/plans/` exists, and
@@ -24,9 +27,10 @@ Runs ONCE before any unit is spawned.
    ```bash
    python3 aidlc-scripts/factory_skill_sync.py sync --tech react,nextjs
    ```
-   Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
-   On non-zero exit or Node.js missing: log warning and continue — skill failure
-   never blocks a build (universal custom-skills still apply).
+    Capture stdout → append each `[Sync]` line to audit.md under `[Skills]` prefix.
+    On non-zero exit or Node.js missing: log warning and continue — skill failure
+    never blocks a build (universal custom-skills still apply).
+    If you passed `--tech`, the audit should note: `[Skills] forced techs: <list>`.
 
 2. **Select** — resolve `skill_paths_resolved[]` for all stage input handoffs:
    ```bash
@@ -47,6 +51,12 @@ agent's token load proportional to its actual skill needs.
    [Skills] resolved <N> skills: <name-list>
     [Skills] warnings: <list or "none">
     ```
+
+    **Honesty rule:** if `[Sync] SKIPPED` appeared in step 1 but select's
+    `warnings[]` does not mention it, append a defensive
+    `[Skills] WARN: sync was skipped — see [Sync] block above` line.
+    Never emit `[Skills] warnings: none` while a `[Sync] SKIPPED` bullet
+    sits above it.
 
 ## Pre-Build Step 0.5 — Prepare Token Bridge
 
@@ -109,7 +119,8 @@ Emit `CONSTRUCTION - UNIT GRAPH` audit block. "Layer" = "wave".
 For each layer in order:
 
 ### B.1 — Sequential per-unit pre-flight (all before spawn)
-1. Lock acquire: `factory_conflict.py acquire <run-id> code-generator:<unit> <locks>`. Default: `src/<unit>/**`, `tests/<unit>/**`. exit 1 = drop.
+1. **Budget gate**: `factory_run.py budget_gate <run-id> code-generator:<unit>`. Checks: ok / downshift / skip / halt.
+2. Lock acquire: `factory_conflict.py acquire <run-id> code-generator:<unit> <locks>`. Default: `src/<unit>/**`, `tests/<unit>/**`. exit 1 = drop.
 2. AST snapshot (Python): `factory_conflict.py snapshot <run-id> code-generator:<unit> <files>`.
 3. Knowledge query: `mem_search` with unit tags; inject top-5 into `context_pointers[]`.
 4. Build input handoff `code-generator.<unit>.input.yaml`:
@@ -179,7 +190,7 @@ Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
        failure where an agent leaves tasks incomplete. On exit≠0: mark unit
        `blocked`, log stderr to audit.md, DO NOT advance the unit, surface BEFORE
        the gate.
-    - AST drift check → knowledge save → audit append.
+     - AST drift check → budget deduct → knowledge save → audit append.
 3. If AST drift conflict OR strict-validation failure written, surface BEFORE approval gate.
  4. **Approval gate (structured contract) — code-generator:**
     
@@ -294,3 +305,10 @@ For each approved unit, **record** `approval.output.yaml` with decision, timesta
 
 ## Concurrency cap
 Phase 5 honors cap of 4. Batch >4 units within a layer; lock acquire+release per batch.
+
+---
+
+## Hard rules
+
+- Hard rules from the orchestrator apply.
+- **Conflict resolution (Phase 5)**: escalation-only. On path collision or interface drift, surface to user; user re-plans, manually merges, or cancels. Full protocol: see the orchestrator's conflict-resolver agent.

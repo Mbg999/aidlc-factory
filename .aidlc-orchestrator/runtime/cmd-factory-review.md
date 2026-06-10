@@ -5,6 +5,17 @@ PRIORITY: P2
 Post-generation quality gate. **Parallel fan-out:** active reviewers in one
 `Task()` batch (≤ 4 concurrent).
 
+1. Read `manifest.yaml`. Refuse if construction isn't complete.
+
+1.5. **Collect framework skills from build** (Pre-Review Step 0.5): read
+`manifest.skill_paths` + all `code-generator.*.output.yaml` handoffs; extract
+skills not in the base set. Store as `framework_skill_paths`. Log the list
+even if empty.
+
+1.75. **Build validation** (Pre-Review Step 0.75): detect build system, run
+compile/check command, surface approval gate on failure. Skip if no build
+system detected.
+
 ## Reviewer pool
 
 | Reviewer | Stage ID | Skill | Active by default |
@@ -265,3 +276,10 @@ tree must still compile before quality review begins.
     Next command: /factory-ship <run-id>
     ```
     Do NOT auto-execute `/factory-ship`.
+
+---
+
+## Hard rules
+
+- Hard rules from the orchestrator apply.
+- **Phase 4 acceptance**: review wall-clock should be ~`max(reviewer wall-clocks)`, not their sum. Track via `manifest.events[]` timestamps and reviewer `cost.wall_clock_min`.

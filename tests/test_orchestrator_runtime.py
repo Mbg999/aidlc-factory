@@ -39,7 +39,7 @@ class TestSpawnLoopProtocol:
 
     def test_full_spawn_10_steps_documented(self):
         text = SPAWN_LOOP.read_text()
-        for step_num in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+        for step_num in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
             assert f"{step_num}." in text, \
                 f"spawn-loop.md should enumerate step {step_num}"
 

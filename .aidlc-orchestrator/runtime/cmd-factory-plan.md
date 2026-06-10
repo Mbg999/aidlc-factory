@@ -5,6 +5,9 @@ PRIORITY: P2
 Inception phase, post-requirements. Produces the execution plan and
 (optional) decomposes into units.
 
+1. Read `manifest.yaml` for the run. Refuse if missing or if the run is not
+   past `requirements-analyst`.
+
 Assume `<run-id>` points at an existing manifest. If missing, refuse
 ("run not found — start with `/factory-spec` first").
 
@@ -158,3 +161,9 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
 > **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
 > Plan stages use `.agents/custom-skills/` process skills only.
+
+---
+
+## Hard rules
+
+- Hard rules from the orchestrator apply.

@@ -51,6 +51,21 @@ Inject into the workspace-scout input handoff under `context_snapshot:` (or prep
 Execute `stage/workspace-scout.md` inline (no `Task()`). Follow the
 [post-execution loop](spawn-loop.md) for bookkeeping.
 
+**Greenfield shortcut (before workspace-scout):**
+Run this command to detect greenfield projects:
+```bash
+find . -maxdepth 2 \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.cpp" -o -name "*.cs" -o -name "*.rb" -o -name "package.json" -o -name "pyproject.toml" -o -name "go.mod" -o -name "Cargo.toml" \) \
+    -not -path "*/aidlc-scripts/*" \
+    -not -path "*/.aidlc-orchestrator/*" \
+    -not -path "*/aidlc-docs/*" \
+    -not -path "*/.agents/*" \
+    -not -path "*/.github/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" 2>/dev/null | head -1
+```
+If no output → workspace is greenfield. Build `workspace-scout.output.yaml` inline (set `project_type: greenfield`, `existing_code: false`, `next_phase: requirements-analysis`, `codegraph_state: {indexed: false}`) and log `[Inline] workspace-scout — greenfield, scanned inline`. Skip spawning workspace-scout. This saves 1 agent spawn.
+
 Pre-execution (steps 0-1): emit `spawn_start`, knowledge query.
 Then execute stage instructions directly — no handoff file, no contract validation.
 After execution: lightweight validation (see [`validation.md`](validation.md)),
@@ -260,3 +275,16 @@ Run complete: <run-id>
 Next command: /factory-plan <run-id>
 ```
 Offer `/factory-plan <run-id>` (MUST substitute the actual run_id). Do NOT auto-execute. Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.
+
+---
+
+## Hard rules
+
+- Validate every input AND every output. No exceptions.
+- Never fabricate stage output fields to satisfy schemas.
+- Sequential only — no parallel `Task()` calls in Phase 0.
+- audit.md is append-only and orchestrator-owned; timestamps come from
+  `timeline.jsonl`, not from agent-supplied strings. Agents emit plain bullet
+  `audit_entries[]`; orchestrator wraps with `## <ts> ... START/COMPLETE` headers.
+- Skill paths missing → log `[Skill] MISSING` and use rule file inline fallback.
+- Approval gates pause; never auto-approve (Step 3.5 RE prompt is an approval gate).
