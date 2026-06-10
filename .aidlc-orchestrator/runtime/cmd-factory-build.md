@@ -181,8 +181,38 @@ Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
        the gate.
     - AST drift check → knowledge save → audit append.
 3. If AST drift conflict OR strict-validation failure written, surface BEFORE approval gate.
-4. Approval gate: surface ALL units. User can approve all, reject specific units
-    (re-plan with revised context), or cancel layer.
+ 4. **Approval gate (structured contract) — code-generator:**
+    
+    1. **Construct** `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.code-generator.input.yaml` per unit:
+       ```yaml
+       stage: code-generator
+       run_id: <run-id>
+       title: "Code Generation — <unit-name> Approval"
+       units:
+         - label: "<unit-name>"
+           tasks:
+             - id: "GEN"
+               description: "Generated code for <unit-name>"
+               status: complete
+       artifacts:
+         - path: "src/<unit-name>/..."
+           kind: source
+           description: "Generated source files"
+         - path: "tests/<unit-name>/..."
+           kind: test
+           description: "Generated tests"
+       resolution:
+         options: [approve, request_changes, cancel]
+         note_prompt: "Describe what changes are needed"
+       next_command:
+         command: "/factory-build <run-id>"
+         description: "Continue to build & test for this unit"
+       context: "<AST drift check results + strict validation summary>"
+       ```
+    
+    2. **Validate** against `.aidlc-orchestrator/contracts/approval.input.v1.json`. Do NOT skip validation.
+    
+    3. **Surface** ALL units using the Structured Approval Format. **Explicitly ask the user for approval.** Do NOT proceed without an explicit approval signal. User can approve all, reject specific units (re-plan with revised context), or cancel layer.
 
 ### B.3 — Build & test (parallel per unit, after all reach `approved`)
 
@@ -203,14 +233,45 @@ Build input handoffs per B.1 Step 4 guidelines (filter to BTA-relevant skills on
 If `manifest.project_profile.ui == true`: add `browser-testing-with-devtools` to
 `skills_required[]` and set `design_system_path` from `manifest.project_profile.design_system_path`
 (mirrors code-generator Step B.1 pattern — see [`project-profile.md`](project-profile.md) §65-78).
-Per-unit post-processing same as B.2. Approval gate: surface all summaries.
+
+Per-unit post-processing same as B.2.
+
+**Approval gate (structured contract) — build-test-agent:**
+
+1. **Construct** `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.build-test.input.yaml` per unit:
+   ```yaml
+   stage: build-test-agent
+   run_id: <run-id>
+   title: "Build & Test — <unit-name> Approval"
+   units:
+     - label: "<unit-name>"
+       tasks:
+         - id: "BUILD"
+           description: "Build and test completed for <unit-name>"
+           status: complete
+   artifacts:
+     - path: "tests/<unit-name>/..."
+       kind: test
+       description: "Test results"
+   resolution:
+     options: [approve, request_changes, cancel]
+     note_prompt: "Describe what changes are needed"
+   next_command:
+     command: "/factory-build <run-id>"
+     description: "Continue to next layer or review"
+   context: "<build_status> | <tests_passing>/<tests_total> tests | <coverage>% coverage"
+   ```
+
+2. **Validate** against `.aidlc-orchestrator/contracts/approval.input.v1.json`. Do NOT skip validation.
+
+3. **Surface** all summaries. **Explicitly ask the user for approval.** Do NOT proceed without an explicit approval signal.
 
 ### B.4 — Release locks (always — leaks block future runs)
 ```bash
 python3 aidlc-scripts/factory_conflict.py release <run-id> code-generator:<unit>
 ```
 
-### B.5 — Per-unit commits (on approval only)
+### B.5 — Per-unit commits (on explicit approval only)
 After the build-test approval gate (B.3) accepts a unit:
 ```bash
 git add -A && git commit -m "feat(<unit-name>): generate <unit> code"
@@ -218,10 +279,17 @@ git add -A && git commit -m "build(<unit-name>): complete build and test"
 ```
 If any commit fails, log warning and continue.
 
+For each approved unit, **record** `approval.output.yaml` with decision, timestamp, and commit_sha. Validate against `.aidlc-orchestrator/contracts/approval.output.v1.json`.
+
+**If the user did not approve, do NOT run this step. Do NOT commit.**
+
 ## Step C — After all layers
 - Set `Current Stage: CONSTRUCTION - Complete`.
 - Present per-unit summary with key metrics (files changed, tests passing, coverage).
-- Offer `/factory-review <run-id>` (MUST substitute the actual run_id for `<run-id>`).
+- Present the **literal next command** (substitute the actual run_id, never output `<run-id>` as placeholder text):
+  ```
+  Next command: /factory-review <run-id>
+  ```
 - Do NOT auto-execute `/factory-review`. Wait for the user to run it explicitly.
 
 ## Concurrency cap

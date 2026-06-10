@@ -122,6 +122,76 @@ class TestAllToolOrchestratorsHaveApprovalRule:
             f"{name} should not mention applause (typo check)"
 
 
+class TestApprovalContractsExist:
+    """Approval gate contracts must exist and be valid."""
+
+    APPROVAL_INPUT = REPO_ROOT / ".aidlc-orchestrator" / "contracts" / "approval.input.v1.json"
+    APPROVAL_OUTPUT = REPO_ROOT / ".aidlc-orchestrator" / "contracts" / "approval.output.v1.json"
+
+    def test_approval_input_contract_exists(self):
+        assert self.APPROVAL_INPUT.exists(), "approval.input.v1.json must exist"
+
+    def test_approval_output_contract_exists(self):
+        assert self.APPROVAL_OUTPUT.exists(), "approval.output.v1.json must exist"
+
+    def test_approval_input_has_required_fields(self):
+        text = self.APPROVAL_INPUT.read_text(encoding="utf-8")
+        assert "run_id" in text, "approval input must require run_id"
+        assert "next_command" in text, "approval input must require next_command"
+        assert "artifacts" in text, "approval input must require artifacts"
+        assert "resolution" in text, "approval input must require resolution"
+
+    def test_approval_output_has_required_fields(self):
+        text = self.APPROVAL_OUTPUT.read_text(encoding="utf-8")
+        assert "decision" in text, "approval output must require decision"
+        assert "commit_triggered" in text, "approval output must require commit_triggered"
+        assert "commit_sha" in text, "approval output must require commit_sha"
+
+
+class TestApprovalContractsReferencedInOrchestrator:
+    """Every orchestrator must reference the approval contracts."""
+
+    TOOL_ORCHESTRATORS = [
+        (".claude/agents/orchestrator.md", REPO_ROOT / ".claude" / "agents" / "orchestrator.md"),
+        (".cursor/agents/orchestrator.md", REPO_ROOT / ".cursor" / "agents" / "orchestrator.md"),
+        (".github/agents/orchestrator.agent.md", REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md"),
+        (".opencode/agents/orchestrator.md", REPO_ROOT / ".opencode" / "agents" / "orchestrator.md"),
+    ]
+
+    @pytest.mark.parametrize("name,path", TOOL_ORCHESTRATORS)
+    def test_orchestrator_references_approval_contract(self, name, path):
+        text = path.read_text(encoding="utf-8")
+        assert "approval.input.v1.json" in text, \
+            f"{name} must reference approval.input.v1.json"
+        assert "approval.output.v1.json" in text, \
+            f"{name} must reference approval.output.v1.json"
+        assert "factory_validate.py" in text, \
+            f"{name} must reference validation of approval handoff"
+
+
+class TestApprovalContractsReferencedInCommands:
+    """Factory commands must reference the approval contracts."""
+
+    COMMAND_FILES = [
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-spec.md",
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-plan.md",
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-build.md",
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-review.md",
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-ship.md",
+        REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-product.md",
+    ]
+
+    @pytest.mark.parametrize("path", COMMAND_FILES)
+    def test_command_references_approval_contract(self, path):
+        text = path.read_text(encoding="utf-8")
+        assert "approval.input.v1.json" in text, \
+            f"{path.name} must reference approval.input.v1.json"
+        assert "approval.output.v1.json" in text, \
+            f"{path.name} must reference approval.output.v1.json"
+        assert "structured contract" in text.lower() or "approval gate (structured contract)" in text.lower(), \
+            f"{path.name} must use structured approval contract"
+
+
 class TestNoAutoCommitInFactoryCommands:
     """Factory commands must not have their own commit logic."""
 

@@ -55,7 +55,8 @@ Pre-execution (steps 0-1): emit `spawn_start`, knowledge query.
 Then execute stage instructions directly — no handoff file, no contract validation.
 After execution: lightweight validation (see [`validation.md`](validation.md)),
 context compaction (see [`compaction.md`](compaction.md)), audit
-append, state update, auto-commit, `spawn_end`, complete-stage, halt-check.
+append, state update, `spawn_end`, complete-stage, halt-check.
+**Do NOT commit here.** Commits are deferred to the command-boundary approval gate (Step 6).
 
 Stage-specific knobs:
 - **skills_required**: `[using-agent-skills]`
@@ -166,15 +167,59 @@ label is persisted for telemetry; what matters downstream is `fast_path`, `skip_
 
 **Merged codegen gate**: if `merge_codegen_gate`, set `merged_plan_generate: true` in code-generator input → agent skips plan-approval, outputs `sub_stage: generated`.
 
-## Step 5 — Approval gate
+## Step 5 — Approval gate (structured contract)
 
-Surface the full output to the user before committing:
-- `run_id`: (substitute actual run_id)
-- `requirements.md`: path to the generated requirements artifact
-- `questions file`: path for answering outstanding questions (if any)
-- `workspace_state`: one-line summary
-- `routing decisions`: `skip_stages`, `reviewer_pool`, `merge_codegen_gate`
-- `skill compliance`: table
+Before presenting to the user, build the approval handoff using the structured contract:
+
+1. **Construct** `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.input.yaml`:
+   ```yaml
+   stage: requirements-analyst
+   run_id: <run-id>
+   title: "Requirements Analysis — Final Approval"
+   units:
+     - label: "Requirements Document"
+       tasks:
+         - id: "REQ"
+           description: "Complete requirements analysis with user answers"
+           status: complete
+   artifacts:
+     - path: "aidlc-docs/inception/requirements/<run-id>-requirements.md"
+       kind: doc
+       description: "Requirements specification document"
+     - path: "aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md"
+       kind: questions
+       description: "Answered verification questions (if any)"
+   skill_compliance:
+     - skill: "using-agent-skills"
+       status: PASS
+     - skill: "idea-refine"
+       status: PASS
+     - skill: "spec-driven-development"
+       status: PASS
+     - skill: "requirements-intelligence"
+       status: PASS
+   resolution:
+     options: [approve, request_changes, cancel]
+     note_prompt: "Describe what changes are needed"
+   next_command:
+     command: "/factory-plan <run-id>"
+     description: "Generate execution plan and unit decomposition"
+   routing_decisions:
+     skip_stages: <list>
+     reviewer_pool: <list>
+     merge_codegen_gate: <bool>
+   context: "<workspace_state one-line summary + key findings>"
+   ```
+
+2. **Validate** against the contract:
+   ```bash
+   python3 aidlc-scripts/factory_validate.py \
+       .aidlc-orchestrator/contracts/approval.input.v1.json \
+       .aidlc-orchestrator/runs/<run-id>/handoffs/approval.input.yaml
+   ```
+   If validation fails, fix the handoff before presenting. Do NOT skip validation.
+
+3. **Present** the approval gate to the user using the Structured Approval Format from the validated handoff. **Explicitly ask for approval.** Do NOT proceed without an explicit approval signal.
 
 Wait for user response:
 - **Approve / LGTM / Continue** → proceed to Step 6 (auto-commit + suggest next command).
@@ -183,13 +228,30 @@ Wait for user response:
 
 ## Step 6 — Auto-commit + present next
 
-On approval:
-```bash
-git add -A && git commit -m "<type>(<scope>): <description>"
-```
-per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
+**On EXPLICIT user approval only:**
 
-Then present completion:
+1. Run commit:
+   ```bash
+   git add -A && git commit -m "<type>(<scope>): <description>"
+   ```
+   per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
+
+2. **Record the decision** in `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.output.yaml`:
+   ```yaml
+   run_id: <run-id>
+   stage: requirements-analyst
+   decision: approve
+   timestamp: <ISO8601>
+   commit_triggered: true
+   commit_sha: <sha>
+   audit_entries:
+     - "[Approval] User approved requirements for <run-id>"
+   ```
+   Validate against `.aidlc-orchestrator/contracts/approval.output.v1.json`.
+
+**If the user did not approve, do NOT run this step. Do NOT commit.**
+
+Then present completion with the **literal next command** (substitute the actual run_id, never output `<run-id>` as placeholder text):
 ```
 Run complete: <run-id>
   requirements: aidlc-docs/inception/requirements/<run-id>-requirements.md

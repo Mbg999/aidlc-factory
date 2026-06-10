@@ -68,7 +68,10 @@ validate → Task() → output validate) are SKIPPED for inline sequential stage
 
 10. **State update**: on `status: complete`, `factory_run.py complete-stage <run-id> <stage> --next-stage <next>`. On `status: failed`, `factory_run.py fail-stage <run-id> <stage> --reason "<text>"`.
 
-11. **Halt or surface**: if `status != complete`: halt and surface. If `status == needs_human`: pause, surface in [`## Structured Approval Format`](../../.claude/agents/orchestrator.md), wait for user response, log to audit, then continue.
+11. **Halt or surface**:
+    - `status == needs_human`: pause, surface in [`## Structured Approval Format`](../../.claude/agents/orchestrator.md), wait for user response, log to audit, then continue.
+    - `status != complete` (failed, blocked): halt and surface.
+    - `status == complete`: this means the stage agent finished its work. **It does NOT mean the user approved.** Continue to the next step in the active `cmd-factory-*.md` procedure, which may include a command-boundary approval gate. Do NOT auto-commit here.
 
 ## Post-execution loop (inline sequential stages)
 

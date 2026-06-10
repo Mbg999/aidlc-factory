@@ -186,31 +186,82 @@ tree must still compile before quality review begins.
    - `reviewer-performance` → `performance`
    - `reviewer-simplifier` → `simplifier`
    Example: `factory_merge_reviews.py <run-id> --reviewers code-quality security`
-6. **Approval gate**: surface report. On user response:
-   - **Fixes requested** → suggest the user run `/factory-build <run-id>` for the affected
-     units (code generation + build-test-agent with review findings as context). The build
-     is a separate command — do NOT auto-execute it.
+ 6. **Approval gate (structured contract)** — before presenting, build the approval handoff:
 
-     After the user completes the re-build and comes back to `/factory-review`, the
-     reviewers repeat against the fixed code. Log each iteration in audit.md:
-     `[Review-Fix] iteration <N>: <build-status> | <review-findings-count>`.
+    1. **Construct** `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.review.input.yaml`:
+       ```yaml
+       stage: reviewer-pool
+       run_id: <run-id>
+       title: "Review Report — Approval Gate"
+       units:
+         - label: "Code Quality"
+           tasks:
+             - id: "RQ"
+               description: "Code quality review findings"
+               status: complete
+         - label: "Security"
+           tasks:
+             - id: "SEC"
+               description: "Security review findings"
+               status: complete
+       artifacts:
+         - path: "aidlc-docs/construction/reviews/<run-id>-review-report.md"
+           kind: report
+           description: "Merged review report with all findings"
+       skill_compliance:
+         - skill: "code-review-and-quality"
+           status: "<PASS|FAIL>"
+         - skill: "security-and-hardening"
+           status: "<PASS|FAIL>"
+       resolution:
+         options: [approve, request_changes, cancel]
+         note_prompt: "Describe fixes needed or approve to continue"
+       next_command:
+         command: "/factory-ship <run-id>"
+         description: "Generate release notes and ship"
+       context: "<review findings summary + severity breakdown>"
+       ```
+    
+    2. **Validate** against `.aidlc-orchestrator/contracts/approval.input.v1.json`. Do NOT skip validation.
+    
+    3. **Surface** the report using the Structured Approval Format. **Explicitly ask the user for approval.** Do NOT proceed without an explicit approval signal.
 
-     If `manifest.project_profile.ui == true` AND `design_system_path` is set, capture the
-     rejection feedback as a design system antipattern before the fix loop:
-     ```bash
-     python3 aidlc-scripts/factory_design_system_learn.py reject \
-         --component <inferred-primitive> \
-         --reason "<user feedback or reviewer finding>" \
-         --source <primary-ui-file> \
-         --run-id <run-id>
-     ```
-   - **Approved** → proceed to Step 7.
+    On user response:
+    - **Fixes requested** → suggest the user run `/factory-build <run-id>` for the affected
+      units (code generation + build-test-agent with review findings as context). The build
+      is a separate command — do NOT auto-execute it.
 
-7. **Auto-commit + present next**
-   ```bash
-   git add -A && git commit -m "docs(review): complete review report"
-   ```
-   Update state.
+      After the user completes the re-build and comes back to `/factory-review`, the
+      reviewers repeat against the fixed code. Log each iteration in audit.md:
+      `[Review-Fix] iteration <N>: <build-status> | <review-findings-count>`.
 
-   Present completion + offer `/factory-ship <run-id>` (MUST substitute the
-   actual run_id for `<run-id>`). Do NOT auto-execute `/factory-ship`.
+      If `manifest.project_profile.ui == true` AND `design_system_path` is set, capture the
+      rejection feedback as a design system antipattern before the fix loop:
+      ```bash
+      python3 aidlc-scripts/factory_design_system_learn.py reject \
+          --component <inferred-primitive> \
+          --reason "<user feedback or reviewer finding>" \
+          --source <primary-ui-file> \
+          --run-id <run-id>
+      ```
+    - **Approved** → proceed to Step 7.
+
+ 7. **Auto-commit + present next**
+
+    **On EXPLICIT user approval only:**
+    ```bash
+    git add -A && git commit -m "docs(review): complete review report"
+    ```
+    Update state.
+
+    2. **Record** `approval.output.yaml` with decision, timestamp, and commit_sha. Validate against `.aidlc-orchestrator/contracts/approval.output.v1.json`.
+
+    **If the user did not approve, do NOT run this step. Do NOT commit.**
+
+    Present completion with the **literal next command** (substitute the actual run_id, never output `<run-id>` as placeholder text):
+    ```
+    Run complete: <run-id>
+
+    Next command: /factory-ship <run-id>
+    ```
+    Do NOT auto-execute `/factory-ship`.

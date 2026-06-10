@@ -117,6 +117,28 @@ Estimated: <N> tokens, <N> min
   `continue`, `lgtm`, or equivalent), then commit. This applies to every
   phase and command without exception.
 
+## Approval Gate Discipline
+
+- **`status: complete` from a stage agent means the agent finished its work. It does NOT mean the user approved.**
+- The orchestrator MUST NEVER treat `status: complete` as a user approval signal.
+- After every stage or group of stages that produces user-facing artifacts, the orchestrator MUST:
+  1. **Build the approval handoff** using the structured contract:
+     - Construct `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.<stage>.input.yaml` per `approval.input.v1.json`.
+     - The handoff MUST include: `run_id` (literal, never placeholder), `artifacts[]`, `units[]`, `next_command.command` (exact next command with literal run_id), and `resolution.options`.
+  2. **Validate** the handoff against `.aidlc-orchestrator/contracts/approval.input.v1.json` using `factory_validate.py`. Do NOT skip validation.
+  3. **Present** the artifacts to the user using the Structured Approval Format from the validated handoff.
+  4. **Explicitly ask** for approval.
+  5. **Wait** for an explicit approval signal from the user.
+  6. **Only after explicit approval**, run `git add -A && git commit -m "<type>(<scope>): <description>"`.
+  7. **Record the decision** in `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.output.yaml` per `approval.output.v1.json` with `decision`, `timestamp`, and `commit_sha` if applicable.
+- **NEVER commit silently. NEVER commit because "the output looks good". NEVER self-approve.**
+- **After every commit, ALWAYS present the exact next command to run** using the `next_command.command` from the approval handoff:
+  ```
+  Next command: /factory-<command> <run-id>
+  ```
+  Do NOT output placeholder text like `<run-id>` or `<command>`. Use the literal run_id and the exact next command from the active `cmd-factory-*.md` procedure.
+- If the user does not approve, do NOT proceed to the next step. Do NOT commit. Do NOT suggest the next command until after approval.
+
 ## Traceability Contextualization
 
 The orchestrator MUST inject historical context from traceability files into every stage input handoff. This ensures continuity and prevents agents from working without awareness of prior decisions.

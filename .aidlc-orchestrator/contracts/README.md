@@ -46,6 +46,7 @@ Exit 0 = valid. Exit 1 = invalid (with path to failing field on stderr).
 | reviewer (shared) | v1 | v1 | Phase 1 — shared across 4 reviewer types. `stage_id` (e.g. `reviewer-code`) maps to `reviewer` (e.g. `code-quality`) |
 | ship-agent | v1 | v1 | Phase 1 |
 | custom-agent | v1 | v1 | Generic contract for user-defined subagents (see `.claude/agents/custom/` or `.opencode/agents/custom/`) |
+| **approval gate** | **v1** | **v1** | **Structured approval input/output. Validates `run_id`, `artifacts[]`, `next_command`, and `resolution.options`. Ensures consistent approval format across all /factory-* commands.** |
 
 Phase 4+ refinements (parallelism, knowledge, conflict resolution) layer on
 top of these contracts without breaking them.

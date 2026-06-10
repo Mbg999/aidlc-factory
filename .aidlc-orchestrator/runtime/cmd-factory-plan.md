@@ -87,18 +87,49 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    > **Cookbook**: The unit-decomposer loads `ai-architecture-cookbook` (`get_decision_tree`) to ensure decomposed units carry architecture-standard context for each domain they touch. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present to incorporate the project's tech stack and previous decisions into the decomposition.
 
-5. **Approval gate** — present the full set of artifacts produced:
-   - Plan file path (show key sections)
-   - Unit decomposition (if run): list of units with descriptions
-   - Stories and personas (if run)
-   - Application design artifacts (if run)
-   - `Pre-mortem:` line from `workflow-planner.output.skill_compliance[].requirements-intelligence`:
-     - `Pre-mortem: PASS — <N> plan-risk question(s)` (when status=PASS)
-     - `Pre-mortem: N/A — <evidence>` (when status=N/A, e.g. trivial plan)
-     - `Pre-mortem: MISSING — workflow-planner contract violation` (when row absent)
-   - Skill compliance table
+5. **Approval gate (structured contract)** — before presenting, build the approval handoff:
 
-   Never omit the `Pre-mortem:` line. The user must see it.
+   1. **Construct** `.aidlc-orchestrator/runs/<run-id>/handoffs/approval.input.yaml` from the stage outputs:
+      ```yaml
+      stage: workflow-planner
+      run_id: <run-id>
+      title: "Execution Plan — Approval Gate"
+      units:
+        - label: "Execution Plan"
+          tasks:
+            - id: "PLAN"
+              description: "Complete workflow plan with task breakdown and acceptance criteria"
+              status: complete
+        - label: "Unit Decomposition"
+          tasks:
+            - id: "DECOMP"
+              description: "Per-unit specs with dependency matrix"
+              status: complete
+      artifacts:
+        - path: "aidlc-docs/inception/plans/<run-id>-execution-plan.md"
+          kind: plan
+          description: "Execution plan with task breakdown"
+      skill_compliance:
+        - skill: "requirements-intelligence"
+          status: "<PASS|N/A|MISSING>"
+          evidence: "Pre-mortem: <result>"
+        - skill: "planning-and-task-breakdown"
+          status: PASS
+      resolution:
+        options: [approve, request_changes, cancel]
+        note_prompt: "Describe what changes are needed"
+      next_command:
+        command: "/factory-build <run-id>"
+        description: "Generate code and run tests"
+      context: "<pre-mortem line + skill compliance summary>"
+      ```
+      Include optional artifacts (stories, personas, design artifacts) if they were produced.
+
+   2. **Validate** against `.aidlc-orchestrator/contracts/approval.input.v1.json`. Do NOT skip validation.
+
+   3. **Present** using the Structured Approval Format. Never omit the `Pre-mortem:` line.
+   
+   **Explicitly ask the user for approval.** Do NOT proceed without an explicit approval signal.
 
    Wait for user response:
    - **Approve / LGTM / Continue** → proceed to Step 6 (auto-commit + suggest next command).
@@ -107,14 +138,22 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
 6. **Auto-commit + present next**
 
-   On approval:
+   **On EXPLICIT user approval only:**
    ```bash
    git add -A && git commit -m "docs(workflow-planning): complete workflow planning"
    ```
    Update state.
 
-   Present completion + offer `/factory-build <run-id>` (MUST substitute the
-   actual run_id for `<run-id>` — e.g. `/factory-build 2026-05-23T13-10-58Z-dragon-ball-z-app`).
+   2. **Record** `approval.output.yaml` with decision, timestamp, and commit_sha. Validate against `.aidlc-orchestrator/contracts/approval.output.v1.json`.
+
+   **If the user did not approve, do NOT run this step. Do NOT commit.**
+
+   Present completion with the **literal next command** (substitute the actual run_id, never output `<run-id>` as placeholder text):
+   ```
+   Run complete: <run-id>
+
+   Next command: /factory-build <run-id>
+   ```
    Do NOT auto-execute `/factory-build`.
 
 > **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
