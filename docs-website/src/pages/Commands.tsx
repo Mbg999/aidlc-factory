@@ -118,6 +118,17 @@ export default function Commands() {
         <div className="space-y-4 mt-4">
           <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 mb-2">
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">/factory-context &lt;run-id&gt;</span>
+              <span className="px-2 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">Utility</span>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Build a contextual snapshot from traceability files (audit.md, state, manifest, timeline)
+              to understand project history and decisions before continuing work.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2">
               <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">/factory-state &lt;run-id&gt;</span>
               <span className="px-2 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">Utility</span>
             </div>
