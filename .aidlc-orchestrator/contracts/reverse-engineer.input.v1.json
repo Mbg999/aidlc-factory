@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "reverse-engineer.input.v1",
   "title": "Reverse Engineer — Input Contract (v1)",
+  "description": "Input contract for the Reverse Engineer stage. Receives workspace state for brownfield codebases to produce architecture docs, component inventory, and dependency graphs.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "workspace_state", "skills_required", "skill_paths_resolved"],
   "properties": {

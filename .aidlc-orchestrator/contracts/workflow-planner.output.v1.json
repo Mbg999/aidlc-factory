@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "workflow-planner.output.v1",
   "title": "Workflow Planner — Output Contract (v1)",
+  "description": "Output contract for the Workflow Planner stage. Reports execution plan with units, task count, Mermaid validation, depth, and decomposed dependencies.",
   "type": "object",
   "required": ["status", "artifacts", "audit_entries", "skill_compliance", "units", "task_count", "unit_count", "mermaid_validated"],
   "properties": {

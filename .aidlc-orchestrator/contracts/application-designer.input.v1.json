@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "application-designer.input.v1",
   "title": "Application Designer — Input Contract (v1)",
+  "description": "Input contract for the Application Designer stage. Receives requirements and produces high-level application design — components, interfaces, services, and dependencies.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "skills_required", "skill_paths_resolved"],
   "properties": {

@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "requirements-analyst.output.v1",
   "title": "Requirements Analyst — Output Contract (v1)",
+  "description": "Output contract for the Requirements Analyst stage. Delivers requirements.md spec, clarifying questions, depth classification, and request categorization.",
   "type": "object",
   "required": [
     "status",

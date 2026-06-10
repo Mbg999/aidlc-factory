@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "build-test-agent.output.v1",
   "title": "Build & Test Agent — Output Contract (v1)",
+  "description": "Output contract for the Build & Test Agent. Reports build status, test results, coverage, and compliance evidence for all checks performed.",
   "type": "object",
   "required": ["status", "unit_name", "build_status", "tests_total", "tests_passing", "tests_failing", "artifacts", "audit_entries", "skill_compliance"],
   "properties": {

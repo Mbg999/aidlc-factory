@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "code-generator.input.v1",
   "title": "Code Generator — Input Contract (v1)",
+  "description": "Input contract for the Code Generator stage. Receives unit specs, skills, and constraints; produces source code and tests per the execution plan.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "unit_name", "skills_required", "skill_paths_resolved"],
   "properties": {

@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "ship-agent.output.v1",
   "title": "Ship Agent — Output Contract (v1)",
+  "description": "Output contract for the Ship Agent stage. Reports version proposal, ADRs, release notes sections, and shipping artifacts.",
   "type": "object",
   "required": ["status", "artifacts", "audit_entries", "skill_compliance", "version_proposal", "adr_count", "release_sections_covered"],
   "properties": {

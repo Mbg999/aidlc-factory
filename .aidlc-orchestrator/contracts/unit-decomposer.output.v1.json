@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "unit-decomposer.output.v1",
   "title": "Unit Decomposer — Output Contract (v1)",
+  "description": "Output contract for the Unit Decomposer stage. Reports decomposed units with per-unit spec file paths and dependency chains.",
   "type": "object",
   "required": ["status", "artifacts", "audit_entries", "skill_compliance", "units_decomposed"],
   "properties": {

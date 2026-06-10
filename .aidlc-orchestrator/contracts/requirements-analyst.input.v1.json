@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "requirements-analyst.input.v1",
   "title": "Requirements Analyst — Input Contract (v1)",
+  "description": "Input contract for the Requirements Analyst stage. Receives workspace state and user request, performs adaptive-depth analysis with socratic probing and weasel-word detection.",
   "type": "object",
   "required": [
     "run_id",

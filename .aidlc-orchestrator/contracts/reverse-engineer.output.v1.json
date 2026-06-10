@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "reverse-engineer.output.v1",
   "title": "Reverse Engineer — Output Contract (v1)",
+  "description": "Output contract for the Reverse Engineer stage. Reports tech stack, component inventory, dependency graph, API docs, and architecture artifacts.",
   "type": "object",
   "required": ["status", "artifacts", "audit_entries", "skill_compliance", "tech_stack_summary"],
   "properties": {

@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "story-writer.input.v1",
   "title": "Story Writer — Input Contract (v1)",
+  "description": "Input contract for the Story Writer stage. Receives requirements and produces user stories, personas, and investment profiles for multi-component features.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "skills_required", "skill_paths_resolved"],
   "properties": {

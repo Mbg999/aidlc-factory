@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "code-generator.output.v1",
   "title": "Code Generator — Output Contract (v1)",
+  "description": "Output contract for the Code Generator stage. Reports generated artifacts, test results, fast-path mode, design system compliance, and open questions.",
   "type": "object",
   "required": ["status", "unit_name", "sub_stage", "artifacts", "audit_entries", "skill_compliance"],
   "allOf": [

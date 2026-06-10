@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "build-test-agent.input.v1",
   "title": "Build & Test Agent — Input Contract (v1)",
+  "description": "Input contract for the Build & Test Agent. Receives code-generator output and runs build/test cycles with debugging-and-error-recovery on failures.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "unit_name", "skills_required", "skill_paths_resolved"],
   "properties": {

@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "workspace-scout.input.v1",
   "title": "Workspace Scout — Input Contract (v1)",
+  "description": "Input contract for the Workspace Scout stage. Receives the raw user request and detects greenfield vs brownfield state, tech stack, and workspace structure.",
   "type": "object",
   "required": [
     "run_id",

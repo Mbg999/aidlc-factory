@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "application-designer.output.v1",
   "title": "Application Designer — Output Contract (v1)",
+  "description": "Output contract for the Application Designer stage. Delivers component diagrams, interface definitions, service boundaries, and dependency graphs.",
   "type": "object",
   "required": ["status", "run_id", "stage_id", "artifacts", "audit_entries", "skill_compliance"],
   "properties": {

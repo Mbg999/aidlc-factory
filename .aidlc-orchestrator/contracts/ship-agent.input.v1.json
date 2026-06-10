@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "ship-agent.input.v1",
   "title": "Ship Agent — Input Contract (v1)",
+  "description": "Input contract for the Ship Agent stage. Receives all construction and review outputs to produce release notes, ADRs, CHANGELOG updates, and CI/CD wiring.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "skills_required", "skill_paths_resolved"],
   "properties": {

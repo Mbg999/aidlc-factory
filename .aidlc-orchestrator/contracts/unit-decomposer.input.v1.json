@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "unit-decomposer.input.v1",
   "title": "Unit Decomposer — Input Contract (v1)",
+  "description": "Input contract for the Unit Decomposer stage. Receives the execution plan with units and decomposes them into per-unit specs with dependencies.",
   "type": "object",
   "required": ["run_id", "stage_id", "user_request", "predecessor_artifacts", "units", "skills_required", "skill_paths_resolved"],
   "properties": {
