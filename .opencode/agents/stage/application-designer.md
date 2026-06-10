@@ -45,7 +45,7 @@ Per upstream rule `inception/application-design.md` (content embedded in this ag
 - Load `aidlc-docs/inception/requirements/<run-id>-requirements.md` (required)
 - Load `aidlc-docs/inception/user-stories/<run-id>-stories.md` (if exists)
 - Load `aidlc-docs/inception/reverse-engineering/` (if brownfield)
-- **Design system**: If `input.design_system` is present or `design-system/INDEX.md` exists, load it to understand the UI primitives, tokens, and patterns available. The design system informs component boundaries and interface contracts — it does NOT replace the 5 design artifacts.
+- **Design system**: If `context_snapshot.project.design_system` is present or `design-system/INDEX.md` exists, load it to understand the UI primitives, tokens, and patterns available. The design system informs component boundaries and interface contracts — it does NOT replace the 5 design artifacts.
 - Identify key business capabilities, functional areas, and boundaries
 
 ### Step 2: Generate Questions

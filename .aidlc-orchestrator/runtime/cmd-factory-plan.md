@@ -35,28 +35,24 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
     > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and pass its contents as `context` to cookbook MCP calls.
 
-2. **Application Designer (conditional)** — skip when ANY of:
+2. **Application Designer** — skip ONLY when ALL of:
     - `manifest.skip_stages[]` contains `application-designer`
     - The request scope is single-component AND involves no new interfaces/components
+    - `manifest.project_profile.design_system_path` is empty or absent (no design system)
+    If ANY condition is false, execute `stage/application-designer.md` inline per the
+    [post-execution loop](spawn-loop.md).
 
-    When skipping, log `[Skip] application-designer` to audit. Otherwise execute
-    `stage/application-designer.md` inline per the [post-execution loop](spawn-loop.md).
+    **NEVER skip when a design system exists** (`design_system_path` is set). The
+    design system provides UI primitives — the designer still produces the 5
+    architecture artifacts (components, interfaces, services, dependencies,
+    consolidated design). Skipping would mean losing architecture definition
+    for the project.
 
-    **Design system context**: If `manifest.workspace_state.has_stitch_data == true` or
-    `design-system/INDEX.md` exists, inject the design system info into
-    `context_snapshot.project_context.design_system`:
-    ```yaml
-    context_snapshot:
-      project_context:
-        design_system:
-          has_stitch_data: <bool>
-          design_system_path: <path to design-system/>
-          has_figma_data: <bool>
-    ```
-    The application-designer uses this to inform component/service design — the
-    design system provides UI primitives, but the designer still produces the
-    5 architecture artifacts (components, interfaces, services, dependencies,
-    consolidated design). Do NOT skip the designer when a design system exists.
+    When skipping, log `[Skip] application-designer` to audit with reason.
+    **Rationale for mandatory execution with design system**: Stitch/Figma data
+    defines UI tokens and components, NOT application architecture (component
+    boundaries, service orchestration, interface contracts, dependencies).
+    The designer bridges UI primitives → application architecture.
 
     **Context Injection**: Before spawning, regenerate the context snapshot:
     ```bash

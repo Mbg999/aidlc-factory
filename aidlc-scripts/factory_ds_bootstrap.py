@@ -686,7 +686,7 @@ def cmd_import(repo_root: Path, source: str, fmt: str | None,
 
     # Regenerate INDEX.md with imported token values
     log.append("  Index:")
-    imported_index = _build_imported_index(tokens)
+    imported_index = _build_imported_index(tokens, repo_root=repo_root)
     _write(repo_root, "design-system/INDEX.md", imported_index, dry_run, force, log)
 
     # Regenerate primitives
@@ -716,24 +716,77 @@ def cmd_import(repo_root: Path, source: str, fmt: str | None,
     return 0
 
 
-def _build_imported_index(tokens: dict[str, Any]) -> str:
+def _extract_primitive_description(design_md: Path) -> str:
+    """Extract the first sentence from a primitive's design.md as description."""
+    try:
+        text = design_md.read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith(("#", "-", "|", ">", "---")):
+                # Take first ~80 chars as description
+                desc = stripped.rstrip(".").strip()[:80]
+                return desc + ("." if desc else "")
+    except OSError:
+        pass
+    return "Auto-imported."
+
+
+def _build_imported_index(tokens: dict[str, Any],
+                          repo_root: Path | None = None) -> str:
+    ds_dir = repo_root / DS_DIR if repo_root else None
     lines = ["# Design System Index", "",
              "Catalog of approved UI primitives, tokens, and composition patterns.",
              "Auto-generated from imported design system.", "",
              "---", "", "## Primitives", "",
              "| Primitive | Description | When to use | When NOT to use |",
-             "|-----------|-------------|-------------|-----------------|",
-             "| `Button` | Action trigger, clickable | Forms, dialogs, toolbars | Navigation links, non-action text |",
-             "| `Stack` | Vertical layout container | Arranging children top-to-bottom | Horizontal layouts (use `Inline`) |",
-             "| `Inline` | Horizontal layout container | Arranging children left-to-right | Vertical layouts (use `Stack`) |",
-             "| `Box` | Generic surface with padding + radius | Cards, panels, containers | Plain divs without styling |",
-             "| `Input` | Text input field | Forms, search, data entry | Read-only display (use `Text`) |",
-             "| `Text` | Typography element | Paragraphs, labels, headings | Interactive text |",
-             "| `Surface` | Themed background container | Page sections, modals | Inline elements (use `Text`) |",
-             "| `Icon` | SVG icon wrapper | Buttons, inputs, empty states | Decorative images |",
-             "", "---", "", "## Token categories", "",
-             "| Category | Values |",
-             "|----------|--------|"]
+             "|-----------|-------------|-------------|-----------------|"]
+
+    # Read primitives from disk if available, otherwise use hardcoded defaults
+    primitives_found = False
+    if ds_dir:
+        prim_dir = ds_dir / "primitives"
+        if prim_dir.exists():
+            prim_mds = sorted(prim_dir.glob("*/design.md"))
+            for pm in prim_mds:
+                name = pm.parent.name
+                desc = _extract_primitive_description(pm)
+                lines.append(f"| `{name}` | {desc} | Auto-imported | See `design.md` |")
+                primitives_found = True
+
+    if not primitives_found:
+        lines.extend([
+            "| `Button` | Action trigger, clickable | Forms, dialogs, toolbars | Navigation links, non-action text |",
+            "| `Stack` | Vertical layout container | Arranging children top-to-bottom | Horizontal layouts (use `Inline`) |",
+            "| `Inline` | Horizontal layout container | Arranging children left-to-right | Vertical layouts (use `Stack`) |",
+            "| `Box` | Generic surface with padding + radius | Cards, panels, containers | Plain divs without styling |",
+            "| `Input` | Text input field | Forms, search, data entry | Read-only display (use `Text`) |",
+            "| `Text` | Typography element | Paragraphs, labels, headings | Interactive text |",
+            "| `Surface` | Themed background container | Page sections, modals | Inline elements (use `Text`) |",
+            "| `Icon` | SVG icon wrapper | Buttons, inputs, empty states | Decorative images |",
+        ])
+
+    # Read patterns from disk if available
+    patterns_lines = []
+    if ds_dir:
+        pat_dir = ds_dir / "patterns"
+        if pat_dir.exists():
+            pat_mds = sorted(pat_dir.glob("*.md"))
+            if pat_mds:
+                patterns_lines.append("", "---", "", "## Patterns (compositions)", "",
+                                      "| Pattern | Primitives used | When |",
+                                      "|---------|----------------|------|")
+                for pm in pat_mds:
+                    name = pm.stem
+                    content = pm.read_text(encoding="utf-8", errors="replace")
+                    # Extract first table row with primitives info
+                    for line in content.splitlines():
+                        if line.startswith("|") and "`" in line:
+                            patterns_lines.append(line)
+                            break
+
+    lines.extend(["", "---", "", "## Token categories", "",
+                  "| Category | Values |",
+                  "|----------|--------|"])
 
     if "spacing" in tokens:
         vals = ", ".join(str(v) for v in tokens["spacing"].values())
@@ -746,6 +799,10 @@ def _build_imported_index(tokens: dict[str, Any]) -> str:
         lines.append(f"| Color | {len(tokens['color'])} tokens |")
     if "elevation" in tokens:
         lines.append(f"| Elevation | {len(tokens['elevation'])} levels |")
+
+    # Append patterns section if we found any
+    if patterns_lines:
+        lines.extend(patterns_lines)
 
     lines.extend(["", "---", "", "## Anti-patterns", "",
                   "See `anti-patterns/` for known bad patterns to avoid."])

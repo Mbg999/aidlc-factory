@@ -350,7 +350,7 @@ def _build_project_context(manifest: dict) -> dict:
     if version == "unknown" and SCRIPTS_VERSION.exists():
         version = SCRIPTS_VERSION.read_text(encoding="utf-8").strip()
     
-    return {
+    ctx = {
         "slug": manifest.get("project_slug", "unknown"),
         "version": version,
         "started": _format_timestamp(manifest.get("started_at", "")),
@@ -361,6 +361,17 @@ def _build_project_context(manifest: dict) -> dict:
             "framework": profile.get("framework", "none"),
         },
     }
+
+    # Include design system info when available
+    ds_path = profile.get("design_system_path", "")
+    if ds_path:
+        ctx["design_system"] = {
+            "path": ds_path,
+            "has_stitch_data": profile.get("has_stitch_data", False),
+            "has_figma_data": profile.get("has_figma_data", False),
+        }
+
+    return ctx
 
 
 def _build_current_state(state: dict, manifest: dict) -> dict:
