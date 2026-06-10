@@ -70,18 +70,20 @@ class TestResolveNpx:
             MagicMock(returncode=1, stdout="", stderr=""),
             MagicMock(returncode=1, stdout="", stderr=""),
         ]
-        with patch("factory_skill_sync.subprocess.run", side_effect=results):
+        with patch("factory_skill_sync.subprocess.run", side_effect=results), \
+             patch("pathlib.Path.home", return_value=Path("/tmp/no-nvm")):
             assert mod._resolve_npx() is None
 
     def test_node_too_old_continues_to_next(self):
         """node returns old version — fnm succeeds."""
         old_node = MagicMock(returncode=0, stdout="v18.17.0\n")
         good_node = MagicMock(returncode=0, stdout="v22.6.0\n")
-        with patch("factory_skill_sync.subprocess.run", side_effect=[old_node, good_node]):
+        with patch("factory_skill_sync.subprocess.run", side_effect=[old_node, good_node]), \
+             patch("pathlib.Path.home", return_value=Path("/tmp/no-nvm")):
             resolved = mod._resolve_npx()
         assert resolved is not None
-        prefix, label = resolved
-        assert prefix == ["fnm", "exec", "--using=22", "--"]
+        prefix, label, _nvm_bin = resolved
+        assert prefix == ["fnm", "exec", "--using=22", "--", "npx"]
         assert "fnm" in label
 
     def test_returns_system_node_when_meets_min(self):
@@ -91,7 +93,7 @@ class TestResolveNpx:
         with patch("factory_skill_sync.subprocess.run", return_value=result):
             resolved = mod._resolve_npx()
         assert resolved is not None
-        prefix, label = resolved
+        prefix, label, _nvm_bin = resolved
         assert prefix == ["node"]
         assert "22.6.0" in label
 
@@ -107,11 +109,12 @@ class TestResolveNpx:
             MagicMock(returncode=1, stdout="", stderr=""),
             MagicMock(returncode=0, stdout="v22.6.0\n"),
         ]
-        with patch("factory_skill_sync.subprocess.run", side_effect=results):
+        with patch("factory_skill_sync.subprocess.run", side_effect=results), \
+             patch("pathlib.Path.home", return_value=Path("/tmp/no-nvm")):
             resolved = mod._resolve_npx()
         assert resolved is not None
-        prefix, _label = resolved
-        assert prefix == ["fnm", "exec", "--using=22", "--"]
+        prefix, _label, _nvm_bin = resolved
+        assert prefix == ["fnm", "exec", "--using=22", "--", "npx"]
 
 
 # ── _run_npx ────────────────────────────────────────────────────
@@ -209,7 +212,7 @@ class TestCmdSync:
     def test_dry_run_displays_correctly(self, tmp_path, capsys):
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ):
             rc = mod.cmd_sync(tmp_path, dry_run=True)
         assert rc == 0
@@ -220,7 +223,7 @@ class TestCmdSync:
     def test_dry_run_with_tech(self, tmp_path, capsys):
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ):
             rc = mod.cmd_sync(tmp_path, dry_run=True, techs=["react", "nextjs"])
         assert rc == 0
@@ -230,7 +233,7 @@ class TestCmdSync:
     def test_runner_failure_is_graceful(self, tmp_path, capsys):
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=None):
             rc = mod.cmd_sync(tmp_path)
         assert rc == 0
@@ -244,13 +247,13 @@ class TestCmdSync:
         proc.stderr = ""
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=proc) as mock_run:
             mod.cmd_sync(tmp_path, techs=["react", "nextjs"])
         mock_run.assert_called_once_with(
             ["node"],
             ["-y", "--path", str(tmp_path), "--tech", "react,nextjs"],
-            project_dir=tmp_path,
+            project_dir=tmp_path, nvm_bin=None,
         )
 
     def test_no_techs_passed(self, tmp_path):
@@ -260,13 +263,13 @@ class TestCmdSync:
         proc.stderr = ""
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=proc) as mock_run:
             mod.cmd_sync(tmp_path)
         mock_run.assert_called_once_with(
             ["node"],
             ["-y", "--path", str(tmp_path)],
-            project_dir=tmp_path,
+            project_dir=tmp_path, nvm_bin=None,
         )
 
     def test_nonzero_exit_prints_error(self, tmp_path, capsys):
@@ -276,7 +279,7 @@ class TestCmdSync:
         proc.stderr = "some error\nline2\nline3\nline4\nline5\nline6\n"
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=proc):
             rc = mod.cmd_sync(tmp_path)
         assert rc == 0
@@ -293,7 +296,7 @@ class TestCmdSync:
         _make_skill_dir(skills_dir, "nextjs")
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=proc):
             rc = mod.cmd_sync(tmp_path)
         assert rc == 0
@@ -307,7 +310,7 @@ class TestCmdSync:
         proc.stderr = ""
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync._run_npx", return_value=proc):
             rc = mod.cmd_sync(tmp_path)
         assert rc == 0
@@ -328,7 +331,7 @@ class TestCmdListTech:
     def test_dry_run_prints_and_returns(self, tmp_path, capsys):
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ):
             rc = mod.cmd_list_tech(tmp_path, dry_run=True)
         assert rc == 0
@@ -343,7 +346,7 @@ class TestCmdListTech:
         proc.stderr = ""
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync.subprocess.run", return_value=proc):
             rc = mod.cmd_list_tech(tmp_path)
         assert rc == 0
@@ -359,7 +362,7 @@ class TestCmdListTech:
         proc.stderr = "error: something went wrong"
         with patch(
             "factory_skill_sync._resolve_npx",
-            return_value=(["node"], "node (v22.6.0)"),
+            return_value=(["node"], "node (v22.6.0)", None),
         ), patch("factory_skill_sync.subprocess.run", return_value=proc):
             rc = mod.cmd_list_tech(tmp_path)
         assert rc == 0

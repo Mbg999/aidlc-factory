@@ -141,7 +141,10 @@ def _run_npx(
         env = dict(os.environ)
         env["PATH"] = f"{nvm_bin}:{env.get('PATH', '')}"
     try:
-        return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+        kwargs = dict(cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        if env is not None:
+            kwargs["env"] = env
+        return subprocess.run(cmd, **kwargs)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
 
