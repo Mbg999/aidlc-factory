@@ -59,18 +59,35 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
    > **Cookbook**: The unit-decomposer loads `ai-architecture-cookbook` (`get_decision_tree`) to ensure decomposed units carry architecture-standard context for each domain they touch. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present to incorporate the project's tech stack and previous decisions into the decomposition.
 
-5. Auto-commit `docs(workflow-planning): complete workflow planning` and update
-   state. Present completion + offer `/factory-build <run-id>` (MUST substitute the
+5. **Approval gate** — present the full set of artifacts produced:
+   - Plan file path (show key sections)
+   - Unit decomposition (if run): list of units with descriptions
+   - Stories and personas (if run)
+   - Application design artifacts (if run)
+   - `Pre-mortem:` line from `workflow-planner.output.skill_compliance[].requirements-intelligence`:
+     - `Pre-mortem: PASS — <N> plan-risk question(s)` (when status=PASS)
+     - `Pre-mortem: N/A — <evidence>` (when status=N/A, e.g. trivial plan)
+     - `Pre-mortem: MISSING — workflow-planner contract violation` (when row absent)
+   - Skill compliance table
+
+   Never omit the `Pre-mortem:` line. The user must see it.
+
+   Wait for user response:
+   - **Approve / LGTM / Continue** → proceed to Step 6 (auto-commit + suggest next command).
+   - **Request changes** → re-run the relevant stage (workflow-planner or unit-decomposer) with revision context. Do NOT auto-commit until user approves.
+   - **Cancel** → mark run as cancelled, stop.
+
+6. **Auto-commit + present next**
+
+   On approval:
+   ```bash
+   git add -A && git commit -m "docs(workflow-planning): complete workflow planning"
+   ```
+   Update state.
+
+   Present completion + offer `/factory-build <run-id>` (MUST substitute the
    actual run_id for `<run-id>` — e.g. `/factory-build 2026-05-23T13-10-58Z-dragon-ball-z-app`).
-   Also show the plan file path so the user can inspect it before approving.
-
-   **User-facing summary MUST include a `Pre-mortem:` line** populated from
-   `workflow-planner.output.skill_compliance[].requirements-intelligence`:
-   - `Pre-mortem: PASS — <N> plan-risk question(s)` (when status=PASS)
-   - `Pre-mortem: N/A — <evidence>` (when status=N/A, e.g. trivial plan)
-   - `Pre-mortem: MISSING — workflow-planner contract violation` (when row absent)
-
-   Never omit this line. The user must see it.
+   Do NOT auto-execute `/factory-build`.
 
 > **Framework skills** are synced at `/factory-build` Pre-Build Step 0, not here.
 > Plan stages use `.agents/custom-skills/` process skills only.

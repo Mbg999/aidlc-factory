@@ -4,7 +4,7 @@ PRIORITY: P2
 
 For `/factory-spec <description>`. Pass `--tier=small` to force SMALL tier and skip routing.
 
-## Step 1 — Init run dir + budget
+## Step 1 — Init run dir + budget + audit.md
 
 Generate run-id via the cross-platform Python helper (no shell `date`command):
 
@@ -16,6 +16,12 @@ Generate run-id via the cross-platform Python helper (no shell `date`command):
 mkdir -p .aidlc-orchestrator/runs/<run-id>/handoffs
 ```
 Create `manifest.yaml` with `{run_id, started_at, user_request, current_stage: workspace-scout, completed_stages: []}`.
+
+Ensure `aidlc-docs/` exists:
+```bash
+mkdir -p aidlc-docs
+```
+`aidlc-docs/audit.md` is auto-created on first append by `spawn-loop.md` step 7 (via `factory_run.py emit_audit_block`).
 
 ## Step 2 — Resolve skill paths (once per run)
 Find each required SKILL.md: `.agents/custom-skills/<name>/SKILL.md` → `.agents/skills/<name>/SKILL.md` → `~/.agents/skills/<name>/SKILL.md`. Store in `manifest.skill_paths:`. Log `[Skill] MISSING: <name>` if not found (uses inline fallback).
@@ -132,8 +138,35 @@ label is persisted for telemetry; what matters downstream is `fast_path`, `skip_
 
 **Merged codegen gate**: if `merge_codegen_gate`, set `merged_plan_generate: true` in code-generator input → agent skips plan-approval, outputs `sub_stage: generated`.
 
-## Step 5 — Auto-commit
-`git add -A && git commit -m "<type>(<scope>): <description>"` per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
+## Step 5 — Approval gate
 
-## Step 6 — Present completion
-Show: run_id (MUST substitute the actual run_id, NOT the literal text `<run-id>`), workspace_state (1 line), requirements.md path, questions file path (from `questions_artifact_path` — so the user can answer via file), **routing decisions** (`skip_stages`, `reviewer_pool`, `merge_codegen_gate`), skill compliance table. Offer `/factory-plan <run-id>` (MUST substitute the actual run_id for `<run-id>`). Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.
+Surface the full output to the user before committing:
+- `run_id`: (substitute actual run_id)
+- `requirements.md`: path to the generated requirements artifact
+- `questions file`: path for answering outstanding questions (if any)
+- `workspace_state`: one-line summary
+- `routing decisions`: `skip_stages`, `reviewer_pool`, `merge_codegen_gate`
+- `skill compliance`: table
+
+Wait for user response:
+- **Approve / LGTM / Continue** → proceed to Step 6 (auto-commit + suggest next command).
+- **Request changes** → re-run requirements-analyst Pass 2 with revision context.
+- **Cancel** → mark run as cancelled, stop.
+
+## Step 6 — Auto-commit + present next
+
+On approval:
+```bash
+git add -A && git commit -m "<type>(<scope>): <description>"
+```
+per core-workflow.md. Types: `docs` (plans/requirements), `feat` (code), `build` (build/test). Scope = stage in kebab-case. If git fails, log warning and continue.
+
+Then present completion:
+```
+Run complete: <run-id>
+  requirements: aidlc-docs/inception/requirements/<run-id>-requirements.md
+  decisions:    skip_stages=<list>, reviewer_pool=<list>
+
+Next command: /factory-plan <run-id>
+```
+Offer `/factory-plan <run-id>` (MUST substitute the actual run_id). Do NOT auto-execute. Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.

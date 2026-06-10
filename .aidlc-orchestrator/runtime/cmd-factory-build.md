@@ -181,13 +181,19 @@ Per-unit post-processing same as B.2. Approval gate: surface all summaries.
 python3 aidlc-scripts/factory_conflict.py release <run-id> code-generator:<unit>
 ```
 
-### B.5 — Per-unit auto-commits
-- `feat(<unit-name>): generate <unit> code`
-- `build(<unit-name>): complete build and test`
+### B.5 — Per-unit commits (on approval only)
+After the build-test approval gate (B.3) accepts a unit:
+```bash
+git add -A && git commit -m "feat(<unit-name>): generate <unit> code"
+git add -A && git commit -m "build(<unit-name>): complete build and test"
+```
+If any commit fails, log warning and continue.
 
 ## Step C — After all layers
 - Set `Current Stage: CONSTRUCTION - Complete`.
-- Present per-unit summary + offer `/factory-review <run-id>` (MUST substitute the actual run_id for `<run-id>`).
+- Present per-unit summary with key metrics (files changed, tests passing, coverage).
+- Offer `/factory-review <run-id>` (MUST substitute the actual run_id for `<run-id>`).
+- Do NOT auto-execute `/factory-review`. Wait for the user to run it explicitly.
 
 ## Concurrency cap
 Phase 5 honors cap of 4. Batch >4 units within a layer; lock acquire+release per batch.

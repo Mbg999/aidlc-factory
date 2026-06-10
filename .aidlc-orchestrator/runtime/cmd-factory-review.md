@@ -187,18 +187,14 @@ tree must still compile before quality review begins.
    - `reviewer-simplifier` → `simplifier`
    Example: `factory_merge_reviews.py <run-id> --reviewers code-quality security`
 6. **Approval gate**: surface report. On user response:
-   - **Fixes requested** → route units back through `/factory-build`. After the re-build
-     completes successfully (build + tests pass per B.3), the system MUST automatically
-     **re-run `/factory-review`** on the fixed units to verify all findings are resolved:
-     1. Run `/factory-build <run-id>` for affected units (code generation + build-test-agent
-        with review findings as context in `context_pointers[]`).
-     2. **Wait for build + tests to pass** — if build or tests fail, surface the failure
-        to the user with the failed output. Do NOT proceed to re-review without green build.
-     3. Once build + tests are green, **auto-trigger `/factory-review <run-id>`** with the
-        same reviewer pool as the original review.
-     4. Present the re-review result. If all P0/P1 findings resolved, surface approval gate.
-        If new findings remain, loop back to step 1 (max 3 iterations, then escalate to user).
-     5. Log each loop iteration in audit.md: `[Review-Fix] iteration <N>: <build-status> | <review-findings-count>`.
+   - **Fixes requested** → suggest the user run `/factory-build <run-id>` for the affected
+     units (code generation + build-test-agent with review findings as context). The build
+     is a separate command — do NOT auto-execute it.
+
+     After the user completes the re-build and comes back to `/factory-review`, the
+     reviewers repeat against the fixed code. Log each iteration in audit.md:
+     `[Review-Fix] iteration <N>: <build-status> | <review-findings-count>`.
+
      If `manifest.project_profile.ui == true` AND `design_system_path` is set, capture the
      rejection feedback as a design system antipattern before the fix loop:
      ```bash
@@ -208,4 +204,13 @@ tree must still compile before quality review begins.
          --source <primary-ui-file> \
          --run-id <run-id>
      ```
-   - **Approved** → auto-commit `docs(review): complete review report`, update state, offer `/factory-ship`.
+   - **Approved** → proceed to Step 7.
+
+7. **Auto-commit + present next**
+   ```bash
+   git add -A && git commit -m "docs(review): complete review report"
+   ```
+   Update state.
+
+   Present completion + offer `/factory-ship <run-id>` (MUST substitute the
+   actual run_id for `<run-id>`). Do NOT auto-execute `/factory-ship`.

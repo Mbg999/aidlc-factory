@@ -212,6 +212,8 @@ AUDIT_BLOCK_EVT_VOCABULARY = {
     "user_decision":         {"required_stage": True, "required_fields": ("decision",)},
     "stage_skipped":         {"required_stage": True, "required_fields": ("reason",)},
     "orchestrator_note":     {"required_stage": False, "required_fields": ("summary",)},
+    "spawn_start":           {"required_stage": True, "required_fields": ()},
+    "spawn_end":             {"required_stage": True, "required_fields": ()},
 }
 
 VALID_PHASES = ("INCEPTION", "CONSTRUCTION", "OPERATIONS")
