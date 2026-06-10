@@ -29,11 +29,11 @@ Each stage maps to specific Cookbook tools:
 
 | Stage | Primary Tool | When to Call | Budget |
 |-------|-------------|--------------|--------|
-| `workspace-scout` | `recommend_pattern` | When project profile includes `has_auth`, `scale: enterprise`, or `scale: massive` | ≤ 2 calls |
-| `reverse-engineer` | `recommend_pattern` + `query_standard` | When brownfield and any domain detected in existing code patterns | ≤ 3 calls |
-| `requirements-analyst` | `search_standards` | When user mentions architectural domains (auth, API, infra, security) | ≤ 3 calls |
+| `workspace-scout` | `recommend_pattern_nl` | Pass project description as free text; let NLP extract domains and context | ≤ 2 calls |
+| `reverse-engineer` | `search_standards` + `query_standard` | When brownfield and any domain detected in existing code patterns | ≤ 3 calls |
+| `requirements-analyst` | `recommend_pattern_nl` or `recommend_workflow` | Pass user request as natural language to get recommendations + checklists | ≤ 3 calls |
 | `story-writer` | `search_standards` | When stories reference architectural concerns (auth, API, compliance) | ≤ 2 calls |
-| `workflow-planner` | `recommend_pattern` | When plan must consider architecture patterns for the feature scope | ≤ 3 calls |
+| `workflow-planner` | `recommend_workflow` | Orchestrated validation + recommendation + cross-domain check | ≤ 3 calls |
 | `unit-decomposer` | `get_decision_tree` | When decomposing into units that span different architectural domains | ≤ 2 calls |
 | `code-generator` | `get_decision_tree` → `query_standard` → `get_checklist` | Before writing code in a relevant domain | ≤ 5 calls |
 | `reviewer-code` | `get_checklist(severity: high)` | During five-axis review | ≤ 3 calls |
@@ -45,16 +45,29 @@ Each stage maps to specific Cookbook tools:
 
 ### Step 2 — Call the MCP tool
 
-When MCP is available, use the tool-specific invocation:
+**Entry-point for recommendations (use this first):**
 
-**recommend_pattern:**
+**recommend_pattern_nl** — Natural-language wrapper. The agent does NOT need to know the exact context keys.
 ```
-Call MCP tool `recommend_pattern` with:
-- context: { key: value pairs matching context_inputs }
+Call MCP tool `recommend_pattern_nl` with:
+- text: "Describe the project in plain language (e.g., 'Enterprise web app with auth, React frontend, PostgreSQL')"
+- format: "human" | "machine" | "short"
+- include_trace: true (optional)
+```
+The tool tokenizes the text, detects keywords, maps them to `context_inputs`, scores domains by tag relevance, and returns the top recommendations.
+
+**recommend_workflow** — Orchestrated workflow (validation + recommendation + checklist + cross-domain check).
+```
+Call MCP tool `recommend_workflow` with:
+- context: { projectName, summary, primaryGoals, scale, ... } (partial OK)
+- mode: "quick" | "audit" | "scaffold"
 - domains: [optional domain list]
 - include_trace: true (optional)
-- format: "human" | "machine" | "short"
+- include_checklist: true (optional)
 ```
+Even with incomplete context, this now returns a `mode: "discovery"` response with `suggested_domains` so the agent knows which inputs to ask for next.
+
+**Lower-level tools (use after you know the domain):**
 
 **search_standards:**
 ```
@@ -85,9 +98,33 @@ Call MCP tool `query_standard` with:
 ```
 
 **Batch calls by domain when possible** — multiple domains in a single `get_checklist`
-or `recommend_pattern` call is cheaper than separate calls.
+ or `recommend_pattern` call is cheaper than separate calls.
 
-### Step 3 — Apply the result
+### Step 3 — Discovery Flow (when recommendations are empty)
+
+If `recommend_pattern_nl` or `recommend_workflow` returns `mode: "discovery"` (no recommendations), the agent must **not** give up. Follow this recovery sequence:
+
+1. **Inspect `suggested_domains`** — the response includes up to 6 domains with their `context_inputs` (name, type, description, required, default). Pick the most relevant ones.
+2. **Call `get_decision_tree`** for each selected domain to see the exact inputs needed.
+3. **Ask the user (or infer from the codebase) for the missing inputs.**
+4. **Re-call `recommend_pattern` with the now-complete context** and the selected `domains`.
+
+Example recovery:
+```
+First call: recommend_pattern_nl({ text: "build a web app" })
+→ returns mode: "discovery", suggested_domains: [{ domain: "authentication", context_inputs: [...] }, ...]
+
+Second call: get_decision_tree({ domain: "authentication" })
+→ returns context_inputs: ["client_types", "needs_login", "security_level"]
+
+Third call: recommend_pattern({
+  context: { client_types: "web", needs_login: true, security_level: "medium" },
+  domains: ["authentication"]
+})
+→ returns a concrete pattern recommendation
+```
+
+### Step 4 — Apply the result
 
 - **Pattern recommendations** → include in code-generation plan output. Cite the
   Cookbook standard ID (e.g., `foundational/authentication/authentication.yaml`).
@@ -99,9 +136,10 @@ or `recommend_pattern` call is cheaper than separate calls.
 
 **Empty recommendation:** if `recommend_pattern` returns no recommendations for
 a domain, log `[Skill] ai-architecture-cookbook: no recommendation for <domain>` and
-proceed without blocking.
+proceed without blocking. However, **always prefer `recommend_pattern_nl` first** —
+it performs NLP discovery and rarely returns truly empty results.
 
-### Step 4 — Audit entries
+### Step 5 — Audit entries
 
 Emit at least one `[Skill]` audit entry per stage when Cookbook was consulted.
 Format: `[Skill] ai-architecture-cookbook: <tool> called for <domain> — <result-summary>`
