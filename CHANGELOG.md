@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5] - 2026-06-13
+
+### Fixed
+
+- pipx package was not installing .opencode/
+
 
 ## [0.3.4] - 2026-06-10
 

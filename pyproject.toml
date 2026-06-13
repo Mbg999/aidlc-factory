@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aidlc-factory-installer"
-version = "0.3.4"
+version = "0.3.5"
 description = "AIDLC Factory — multi-agent software development orchestrator (installer bootstrap)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,4 +35,30 @@ Tracker = "https://github.com/Mbg999/aidlc-factory/issues"
 aidlc-factory-installer = "aidlc_factory_installer:main"
 
 [tool.hatch.build.targets.wheel]
-include = ["aidlc-scripts/**", "aidlc_factory_installer/**"]
+include = [
+    "aidlc-scripts/**",
+    "aidlc_factory_installer/**",
+    ".aidlc-orchestrator/contracts/**",
+    ".aidlc-orchestrator/runtime/**",
+    ".aidlc-orchestrator/prompts/**",
+    ".aidlc-orchestrator/budgets/default.yaml",
+    ".claude/agents/**",
+    ".claude/commands/**",
+    ".cursor/agents/**",
+    ".cursor/commands/**",
+    ".cursor/mcp.json",
+    ".github/agents/**",
+    ".github/prompts/**",
+    ".github/instructions/**",
+    ".github/copilot-*.md",
+    ".opencode/agents/**",
+    ".opencode/commands/**",
+    ".codex/agents/**",
+    ".codex/config.toml",
+    ".frida/skills/**",
+    ".agents/custom-skills/**",
+    ".mcp.json",
+    "opencode.json",
+    ".vscode/mcp.json",
+    "skill-sources.yaml",
+]

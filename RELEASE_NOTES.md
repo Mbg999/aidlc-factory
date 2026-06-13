@@ -1,5 +1,5 @@
-# Release Notes — v0.3.4 (2026-06-10)
+# Release Notes — v0.3.5 (2026-06-13)
 
-### Changed
+### Fixed
 
-- some reinforcements after thin skills refactor
+- pipx package was not installing .opencode/
