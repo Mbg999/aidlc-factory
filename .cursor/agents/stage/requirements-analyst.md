@@ -1,6 +1,6 @@
 ---
 name: requirements-analyst
-description: Analyzes user requirements with adaptive depth, generates clarifying questions, and produces the requirements.md spec. Inception phase, runs after Workspace Scout. Two-pass execution due to the human-approval gate on questions. Do not invoke directly — use the orchestrator.
+description: Analyzes user requirements , generates clarifying questions, and produces the requirements.md spec. Inception phase, runs after Workspace Scout. Two-pass execution due to the human-approval gate on questions. Do not invoke directly — use the orchestrator.
 model: inherit
 readonly: false
 is_background: false
@@ -119,22 +119,11 @@ Execute Steps 1–6 of the upstream rule file `inception/requirements-analysis.m
 
 1. **Step 1** — Load Reverse Engineering context if `workspace_state.project_type == brownfield` AND `workspace_state.reverse_engineering_artifacts_present == true`. Read from `aidlc-docs/inception/reverse-engineering/`.
 2. **Step 2** — Classify request: clarity (Clear/Vague/Incomplete), type (New Feature/Bug Fix/Refactoring/Upgrade/Migration/Enhancement/New Project), scope (Single File/Single Component/Multiple Components/System-wide/Cross-system), complexity (Trivial/Simple/Moderate/Complex). Populate `request_classification` in your output.
-3. **Step 3** — Determine depth per Depth Levels protocol (embedded below). Populate `depth` in your output.
-   - **If input contains `depth_override`**: use that value instead of your own
-     classification result.
+3. **Step 3** — Set depth to comprehensive. Populate `depth: comprehensive` in your output.
 4. **Step 4** — Assess current requirements: search workspace for existing requirement docs, intent statements, etc. Convert non-markdown to markdown.
 5. **Step 5** — Completeness analysis across functional / non-functional / user scenarios / business / technical / quality attributes.
    - **5.1** — Extension opt-in prompts: scan `.aidlc-orchestrator/prompts/extensions/*.opt-in.md`, append each `## Opt-In Prompt` question to your questions file.
 6. **Step 6** — Generate `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md` per the Question Format Guide (embedded below). Use `[Answer]:` tag format. MCQ where appropriate, with `X) Other` always present.
-
-#### Depth Levels Protocol (embedded from upstream `common/depth-levels.md`)
-
-Determine depth based on request clarity, complexity, and risk:
-- **minimal**: Clear request + Trivial/Simple complexity + Single File scope → fewer tasks, fewer artifacts, compact output.
-- **standard**: Needs some clarification + Moderate complexity + Single/Multiple Component scope → standard artifact set, moderate detail.
-- **comprehensive**: Vague/Incomplete request + Complex scope + High risk → all artifacts, full detail, extensive questions.
-
-**Silent/spoken protocol**: Workspace scan, skill loading, checkbox updates produce NO chat output (silent). Design decisions, questions, and completion messages are spoken. Respect the `depth_mode` from input handoff.
 
 #### Question Format Guide (embedded from upstream `common/question-format-guide.md`)
 
@@ -157,7 +146,7 @@ Every question file MUST follow this format:
 - `questions_artifact_path: aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`
 - `artifacts`: include the questions file with `kind: questions`
 - `request_classification`: populated
-- `depth`: populated
+- `depth`: comprehensive
 - `audit_entries`: plain bullet lines — NO `##` section headers, NO timestamps.
   Orchestrator wraps them in dated headers when appending to `audit.md`. Include
   bullets for depth determination, completeness gaps identified, extension opt-in scan
@@ -246,8 +235,7 @@ Load the full error-handling protocol from `.aidlc-orchestrator/runtime/common/e
 - Do not exceed the user-request scope. If the user asks for X, requirements
   should document X — not also Y, Z, and W "while we're at it".
 - Do not write source code or implementation. That's Construction phase.
-- Do not skip the depth-levels.md guidance. Comprehensive depth requires
-  more rigor than minimal — choose deliberately.
+- Always operate at comprehensive depth — full rigor applies to every request.
 - **Do not invent requirements.** Never fill in gaps from training data.
   Missing information → question, not assumption. Every claim in the spec
   must trace to user input or workspace artifacts. See Anti-Invention Rule above.

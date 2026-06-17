@@ -2,19 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "code-generator.output.v1",
   "title": "Code Generator — Output Contract (v1)",
-  "description": "Output contract for the Code Generator stage. Reports generated artifacts, test results, fast-path mode, design system compliance, and open questions.",
+  "description": "Output contract for the Code Generator stage. Reports generated artifacts, test results, design system compliance, and open questions.",
   "type": "object",
   "required": ["status", "unit_name", "sub_stage", "artifacts", "audit_entries", "skill_compliance"],
-  "allOf": [
-    {
-      "if": { "properties": { "fast_path": { "const": true } } },
-      "then": { "properties": { "skill_compliance": { "minItems": 1 } } }
-    },
-    {
-      "if": { "properties": { "fast_path": { "const": false } } },
-      "then": { "properties": { "skill_compliance": { "minItems": 1 } } }
-    }
-  ],
   "properties": {
     "status": { "type": "string", "enum": ["complete", "blocked", "failed", "needs_human"] },
     "unit_name": { "type": "string", "pattern": "^[a-zA-Z0-9-]+$" },
@@ -45,9 +35,9 @@
           "evidence": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
-      }
+      },
+      "minItems": 1
     },
-    "fast_path": { "type": "boolean", "description": "True when running in FAST_PATH mode (TINY complexity tier), which loads fewer skills" },
     "cost": { "type": "object" },
     "tests_added": { "type": "integer", "minimum": 0 },
     "tests_passing": { "type": "integer", "minimum": 0 },

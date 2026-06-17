@@ -42,7 +42,6 @@ from factory_context_builder import (
     _render_markdown,
     _save_cached,
     _truncate_text,
-    AUTO_DEPTH_MAP,
     build_context,
 )
 
@@ -533,24 +532,10 @@ def test_render_markdown_basic() -> None:
     assert "code-generator" in result
 
 # ---------------------------------------------------------------------------
-# Auto depth
-# ---------------------------------------------------------------------------
-
-def test_auto_depth_mapping() -> None:
-    """Test that auto depth maps correctly based on completed stage count."""
-    for (min_s, max_s), expected in AUTO_DEPTH_MAP.items():
-        if min_s <= 1 <= max_s:
-            assert expected == "minimal"
-        if min_s <= 4 <= max_s:
-            assert expected == "standard"
-        if min_s <= 7 <= max_s:
-            assert expected == "comprehensive"
-
-# ---------------------------------------------------------------------------
 # build_context integration
 # ---------------------------------------------------------------------------
 
-def test_build_context_minimal_depth(tmp_path: Path, sample_manifest: dict) -> None:
+def test_build_context(tmp_path: Path, sample_manifest: dict) -> None:
     import factory_context_builder as fcb
     original_runs_root = fcb.RUNS_ROOT
     original_docs = fcb.AIDLC_DOCS
@@ -563,95 +548,13 @@ def test_build_context_minimal_depth(tmp_path: Path, sample_manifest: dict) -> N
         (run_dir / "timeline.jsonl").write_text("", encoding="utf-8")
         (tmp_path / "audit.md").write_text("# Audit Log\n", encoding="utf-8")
         
-        result = build_context("2026-05-08-healthz-endpoint", depth="minimal", format="compact")
+        result = build_context("2026-05-08-healthz-endpoint", format="compact")
         assert result["run_id"] == "2026-05-08-healthz-endpoint"
-        assert result["depth"] == "minimal"
         assert "tokens" in result
         assert "context" in result
         assert "project" in result["data"]
         assert "state" in result["data"]
         assert "decisions" in result["data"]
-        assert "timeline" not in result["data"]
-    finally:
-        fcb.RUNS_ROOT = original_runs_root
-        fcb.AIDLC_DOCS = original_docs
-
-
-def test_build_context_standard_depth(tmp_path: Path, sample_manifest: dict) -> None:
-    import factory_context_builder as fcb
-    original_runs_root = fcb.RUNS_ROOT
-    original_docs = fcb.AIDLC_DOCS
-    fcb.RUNS_ROOT = tmp_path
-    fcb.AIDLC_DOCS = tmp_path
-    try:
-        run_dir = tmp_path / "2026-05-08-healthz-endpoint"
-        run_dir.mkdir(parents=True)
-        (run_dir / "manifest.yaml").write_text(yaml.safe_dump(sample_manifest), encoding="utf-8")
-        (run_dir / "timeline.jsonl").write_text(
-            "\n".join([
-                json.dumps({"ts": "2026-05-08T00:00:00Z", "evt": "run_init", "run_id": "2026-05-08-healthz-endpoint"}),
-                json.dumps({"ts": "2026-05-08T00:01:00Z", "evt": "stage_complete", "stage": "workspace-scout", "run_id": "2026-05-08-healthz-endpoint"}),
-            ]),
-            encoding="utf-8",
-        )
-        (tmp_path / "audit.md").write_text(
-            "# Audit Log\n\n## 2026-05-08T00:01:00Z INCEPTION - User Decision (workspace-scout)\n- [User] Approved\n",
-            encoding="utf-8",
-        )
-        
-        result = build_context("2026-05-08-healthz-endpoint", depth="standard", format="compact")
-        assert result["depth"] == "standard"
-        assert "timeline" in result["data"]
-        assert "open" in result["data"]
-    finally:
-        fcb.RUNS_ROOT = original_runs_root
-        fcb.AIDLC_DOCS = original_docs
-
-
-def test_build_context_comprehensive_depth(tmp_path: Path, sample_manifest: dict) -> None:
-    import factory_context_builder as fcb
-    original_runs_root = fcb.RUNS_ROOT
-    original_docs = fcb.AIDLC_DOCS
-    fcb.RUNS_ROOT = tmp_path
-    fcb.AIDLC_DOCS = tmp_path
-    try:
-        run_dir = tmp_path / "2026-05-08-healthz-endpoint"
-        run_dir.mkdir(parents=True)
-        handoffs_dir = run_dir / "handoffs"
-        handoffs_dir.mkdir()
-        (run_dir / "manifest.yaml").write_text(yaml.safe_dump(sample_manifest), encoding="utf-8")
-        (run_dir / "timeline.jsonl").write_text("", encoding="utf-8")
-        (tmp_path / "audit.md").write_text("# Audit Log\n", encoding="utf-8")
-        
-        handoff = handoffs_dir / "workspace-scout.output.yaml"
-        handoff.write_text("status: complete\nstage: workspace-scout\n", encoding="utf-8")
-        
-        result = build_context("2026-05-08-healthz-endpoint", depth="comprehensive", format="compact")
-        assert result["depth"] == "comprehensive"
-        assert "skills" in result["data"]
-        assert "handoffs" in result["data"]
-        assert any(h["name"] == "workspace-scout.output.yaml" for h in result["data"]["handoffs"])
-    finally:
-        fcb.RUNS_ROOT = original_runs_root
-        fcb.AIDLC_DOCS = original_docs
-
-
-def test_build_context_auto_depth(tmp_path: Path, sample_manifest: dict) -> None:
-    import factory_context_builder as fcb
-    original_runs_root = fcb.RUNS_ROOT
-    original_docs = fcb.AIDLC_DOCS
-    fcb.RUNS_ROOT = tmp_path
-    fcb.AIDLC_DOCS = tmp_path
-    try:
-        # 1 completed stage → should select minimal
-        run_dir = tmp_path / "auto-test"
-        run_dir.mkdir(parents=True)
-        (run_dir / "manifest.yaml").write_text(yaml.safe_dump(sample_manifest), encoding="utf-8")
-        (run_dir / "timeline.jsonl").write_text("", encoding="utf-8")
-        (tmp_path / "audit.md").write_text("# Audit Log\n", encoding="utf-8")
-        
-        result = build_context("auto-test", depth="auto", format="compact")
-        assert result["depth"] == "minimal"
     finally:
         fcb.RUNS_ROOT = original_runs_root
         fcb.AIDLC_DOCS = original_docs
@@ -664,10 +567,9 @@ def test_build_context_missing_run(tmp_path: Path) -> None:
     fcb.RUNS_ROOT = tmp_path
     fcb.AIDLC_DOCS = tmp_path
     try:
-        # Pre-create the run dir so cache can be saved
         run_dir = tmp_path / "nonexistent-run"
         run_dir.mkdir(parents=True)
-        result = build_context("nonexistent-run", depth="minimal", format="compact")
+        result = build_context("nonexistent-run", format="compact")
         assert result["run_id"] == "nonexistent-run"
         assert "context" in result
     finally:

@@ -210,7 +210,7 @@ On user response, call `emit_audit_block` per [`audit-block.protocol.md` § reve
 
 **On approve**: spawn `reverse-engineer` via shared spawn loop. On completion, append to `manifest.completed_stages[]`, set `current_stage: requirements-analyst`.
 
-**On reject**: `factory_run.py set <run-id> --field skipped_stages='[..., "reverse-engineer"]'` (read-modify-write).
+**On reject**: no action needed — reverse-engineer is skipped and the run proceeds to Step 4.
 
 **Else** (greenfield, or brownfield-with-RE-artifacts already present): no prompt; proceed directly to Step 4.
 

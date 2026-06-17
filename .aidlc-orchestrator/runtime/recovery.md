@@ -30,8 +30,6 @@ a required entry and downstream stages will fail on validation.
        --field reason="spawn failed" \
        --bullet "<failure summary>"
    ```
-3. `factory_run.py set <run-id> --field skipped_stages='[...]'`
-   (read current list, append `<stage>`, write back — POSIX-atomic via tmpfile+rename).
 4. Set `current_stage` to NEXT in manifest and proceed.
 
 After both `spawn_end status=failed` AND `stage_skipped` exist in

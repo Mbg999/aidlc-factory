@@ -28,12 +28,12 @@ artifacts — stage agents own domain cognition. You own the state machine.
 
 | Command | Route | Phase |
 |---|---|---|
-| `/factory-spec` | triage → FAST_PATH OR workspace-scout → requirements-analyst | 0 |
-| `/factory-plan` | (cond) story-writer → (cond) application-designer → workflow-planner → (cond) unit-decomposer | 1 |
-| `/factory-build` | per-unit: code-generator → build-test-agent | 1 |
-| `/factory-review` | parallel reviewer pool (code, security, performance, simplifier) | 1 |
-| `/factory-ship` | ship-agent | 1 |
-| `/factory-resume` | resume / replay / legacy adopt | 6 |
+| `/factory-spec` | workspace-scout → reverse-engineer → requirements-analyst | 0 |
+| `/factory-plan` | story-writer → application-designer → workflow-planner → unit-decomposer | 1 |
+| `/factory-build` | per-unit: code-generator → build-test-agent | 5 |
+| `/factory-review` | parallel reviewer pool (code, security, performance, simplifier) | 4 |
+| `/factory-ship` | ship-agent | 6 |
+| `/factory-resume` | resume / replay / legacy adopt | Recovery |
 
 ## Runtime architecture
 
@@ -43,8 +43,6 @@ architecture (principles, execution model, boundary rules, file index).
 All stage execution follows [`runtime/spawn-loop.md`](.aidlc-orchestrator/runtime/spawn-loop.md):
 **Full spawn** (Task() + validation) for build/review; **Post-execution** (inline)
 for all others.
-
-**FAST_PATH** (TINY tier): bypasses all primitives. See [`runtime/fast-path.md`](.aidlc-orchestrator/runtime/fast-path.md).
 
 Load the relevant `runtime/cmd-factory-*.md` file for the active command's
 procedure (spec, plan, build, review, ship).
@@ -100,16 +98,8 @@ The orchestrator MUST inject historical context from traceability files into eve
 
 Before writing any stage input handoff, generate a context snapshot:
 ```bash
-python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>
+python3 aidlc-scripts/factory_context_builder.py <run-id>
 ```
-
-**Depth mapping by stage:**
-- `workspace-scout`: `minimal` — only current stage + last 3 audit entries
-- `requirements-analyst`, `story-writer`: `standard` — full state + last 10 decisions
-- `workflow-planner`, `application-designer`, `unit-decomposer`: `standard`
-- `code-generator`, `build-test-agent`: `comprehensive` — full timeline + handoff summaries
-- `reviewer-*`: `standard` — enough to understand what was built
-- `ship-agent`: `comprehensive` — full history for release notes
 
 **Injection location:** Add the context snapshot to the input handoff YAML under the key `context_snapshot:`, which every stage contract already includes as optional. If the stage contract does not define it, prepend the snapshot as a comment block in the handoff file.
 
@@ -117,7 +107,7 @@ python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>
 
 Users can request a context snapshot at any time:
 ```
-/factory-context <run-id> [--depth minimal|standard|comprehensive]
+/factory-context <run-id>
 ```
 
 This is useful for:
@@ -145,10 +135,6 @@ If `.codegraph/codegraph.db` does NOT exist on a brownfield workspace:
 - Workspace-scout surfaces a one-line suggestion to run `codegraph init -i`.
 - The user opts in. The orchestrator MUST NOT auto-init without explicit consent.
 
-## Depth Levels (embedded from upstream `common/depth-levels.md`)
-
-Set `depth_mode` in input handoffs: `minimal` | `standard` | `comprehensive`. Agents must respect silent/spoken protocol: workspace scan, skill loading, checkbox updates produce NO chat output. Design decisions, questions, completion messages are spoken.
-
 ## Mid-Workflow Changes (embedded from upstream `common/workflow-changes.md`)
 
 Handle these user requests during a run:
@@ -158,7 +144,6 @@ Handle these user requests during a run:
 | "add stage X" | Mark X as EXECUTE in phase checklist. If X has predecessor artifacts needed: spawn predecessor first. |
 | "skip stage Y" | Log `[WorkflowChange] SKIPPED: Y` with user's reason. Mark Y as SKIP. Check that skippable Y has no downstream dependency failures. |
 | "restart from Z" | Archive current state. Reset `aidlc-state.md` Current Stage to Z. Re-spawn from Z. |
-| "change depth to minimal/comprehensive" | Update `depth_mode` in the active input handoff. If the current stage already passed its depth gate, cascade to next stage. |
 | "pause" | Set `status: paused` in manifest. Preserve all handoffs and artifacts. Wait for resume signal. |
 | "change architecture" | Log ADR. Archive current design artifacts. Restart from Application Design stage. |
 

@@ -2,7 +2,7 @@
 
 PRIORITY: P2
 
-For `/factory-spec <description>`. Pass `--tier=small` to force SMALL tier and skip routing.
+For `/factory-spec <description>`.
 
 ## Step 1 — Init run dir + budget + audit.md
 
@@ -171,23 +171,6 @@ Stage-specific knobs:
   2. `Stage Progress`: mark `[x] Requirements Analysis — <ISO date>`.
   3. `Extension Configuration` table (upsert per current iteration): parse the answered questions file for `^## Question: (.+) Extension$` headings. Map answer letter → enabled value via the option text: `A → Yes`; `B`/`C` → `Partial` if option text contains "Partial"/"only", else `No`; anything else → `Unknown` (and log warning). Upsert into `## Extension Configuration` table with `Decided At = Current iteration: Requirements Analysis (Answer <letter>) — run_id <run-id>`. Create the table with 3-column shape (`| Extension | Enabled | Decided At |`) if absent. Log `[Orchestrator] Extension Configuration upserted: <ext>=<val>` per row.
 
-## Step 4.5 — Stage-Routing Decisions (once per run, after Pass 2)
-
-Derive concrete pipeline decisions from `request_classification` + `project_profile`. The tier
-label is persisted for telemetry; what matters downstream is `fast_path`, `skip_stages[]`,
-`reviewer_pool[]`, `merge_codegen_gate`.
-
-1. `factory_complexity.py <run-id> --apply` (on failure default to "run everything": empty skip list, full reviewer pool).
-2. Parse JSON output. **If `fast_path == true` (tier=TINY)**: route immediately to
-   [`fast-path.md`](fast-path.md) — do NOT proceed to Step 5 or `/factory-plan`. Run terminates
-   after fast-path completes or user rejects.
-3. `factory_run.py set <run-id> --field complexity_tier=<tier> --field skip_stages='<json>' --field merge_codegen_gate=<bool> --field reviewer_pool='<json>'`. Validate against `shared/complexity-tier.schema.json` (non-blocking warn only). `complexity_tier` is persisted for telemetry but is not the user-facing artifact.
-4. `emit_audit_block` with skip list + reviewer pool + one-line rationale per decision.
-
-**Skip enforcement**: for each skipped stage, `emit_audit_block --evt stage_skipped` → append to `manifest.skipped_stages[]` → continue. Do NOT spawn.
-
-**Merged codegen gate**: if `merge_codegen_gate`, set `merged_plan_generate: true` in code-generator input → agent skips plan-approval, outputs `sub_stage: generated`.
-
 ## Step 5 — Approval gate (structured contract)
 
 Before presenting to the user, build the approval handoff using the structured contract:
@@ -225,11 +208,7 @@ Before presenting to the user, build the approval handoff using the structured c
    next_command:
      command: "/factory-plan <run-id>"
      description: "Generate execution plan and unit decomposition"
-   routing_decisions:
-     skip_stages: <list>
-     reviewer_pool: <list>
-     merge_codegen_gate: <bool>
-   context: "<workspace_state one-line summary + key findings>"
+    context: "<workspace_state one-line summary + key findings>"
    ```
 
 2. **Validate** against the contract:
@@ -276,11 +255,10 @@ Then present completion with the **literal next command** (substitute the actual
 ```
 Run complete: <run-id>
   requirements: aidlc-docs/inception/requirements/<run-id>-requirements.md
-  decisions:    skip_stages=<list>, reviewer_pool=<list>
 
 Next command: /factory-plan <run-id>
 ```
-Offer `/factory-plan <run-id>` (MUST substitute the actual run_id). Do NOT auto-execute. Do NOT prominently display the abstract `complexity_tier` label — the decisions are the user-visible artifact.
+Offer `/factory-plan <run-id>` (MUST substitute the actual run_id). Do NOT auto-execute.
 
 ---
 

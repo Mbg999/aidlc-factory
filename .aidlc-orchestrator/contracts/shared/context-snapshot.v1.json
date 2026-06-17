@@ -13,11 +13,6 @@
           "type": "string",
           "description": "Run identifier"
         },
-        "depth": {
-          "type": "string",
-          "enum": ["minimal", "standard", "comprehensive"],
-          "description": "Snapshot depth level"
-        },
         "generated_at": {
           "type": "string",
           "format": "date-time",

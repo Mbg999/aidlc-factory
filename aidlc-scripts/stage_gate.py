@@ -172,24 +172,13 @@ def next_stage(run_id: str) -> int:
         print("All stages completed!")
         return 0
     
-    # Prioritize: show mandatory stages first, then conditional
-    mandatory = ["workspace-scout", "requirements-analyst", "workflow-planner", 
-                 "code-generator", "build-test-agent", "ship-agent"]
-    prioritized = [s for s in available if s in mandatory] + [s for s in available if s not in mandatory]
-    
     print(f"Available stages to run:")
-    for stage in prioritized:
+    for stage in available:
         cmd = f"/factory-{stage.replace('_', '-')} {run_id}"
-        marker = " (MANDATORY)" if stage in mandatory else " (conditional)"
-        print(f"  - {stage}{marker}")
+        print(f"  - {stage}")
         print(f"    Command: {cmd}")
     
-    # Highlight the first mandatory stage
-    first_mandatory = next((s for s in prioritized if s in mandatory), None)
-    if first_mandatory:
-        print(f"\nRecommended next stage: {first_mandatory}")
-    else:
-        print(f"\nNext stage: {prioritized[0]}")
+    print(f"\nNext stage: {available[0]}")
     
     return 0
 

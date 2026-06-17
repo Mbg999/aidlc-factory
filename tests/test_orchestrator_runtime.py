@@ -1,17 +1,12 @@
-"""ORC-03/04/05/09/10: Orchestrator runtime protocol tests.
+"""ORC-03/05/10: Orchestrator runtime protocol tests.
 
 Validates:
 - ORC-03: Spawn-loop protocol (Task() boundary, bookkeeping steps)
-- ORC-04: Fast-path decision-table (TINY bypass vs full pipeline)
 - ORC-05: Recovery & resume (critical vs non-critical, fail-stage, replay)
-- ORC-09: Depth mode propagation (minimal/standard/comprehensive)
 - ORC-10: Mid-workflow changes (skip, restart, pause)
 """
 from __future__ import annotations
 
-import json
-import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -20,10 +15,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "aidlc-scripts"
 RUN_PY = SCRIPTS / "factory_run.py"
-TRIAGE_PY = SCRIPTS / "factory_triage.py"
 
 SPAWN_LOOP = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "spawn-loop.md"
-FAST_PATH = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "fast-path.md"
 RECOVERY = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "recovery.md"
 CMD_FACTORY_RESUME = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-resume.md"
 CMD_FACTORY_REPLAY = REPO_ROOT / ".aidlc-orchestrator" / "runtime" / "cmd-factory-replay.md"
@@ -96,103 +89,6 @@ class TestSpawnLoopProtocol:
 
 
 # ---------------------------------------------------------------------------
-# ORC-04: Fast-path decision table
-# ---------------------------------------------------------------------------
-
-class TestFastPathDecisionTable:
-    """Validate FAST_PATH and factory_triage.py decision logic."""
-
-    def test_fast_path_documentation_exists(self):
-        assert FAST_PATH.exists(), "fast-path.md must exist"
-        text = FAST_PATH.read_text()
-        assert "FAST_PATH" in text
-        assert "TINY" in text
-
-    def test_fast_path_both_dimensions_required(self):
-        text = FAST_PATH.read_text()
-        txt_lower = text.lower()
-        assert "single file" in txt_lower and "trivial" in txt_lower, \
-            "FAST_PATH requires scope=Single File AND complexity=Trivial"
-
-    def test_fast_path_what_it_skips_is_documented(self):
-        text = FAST_PATH.read_text()
-        assert "sacrifices" in text or "skips" in text.lower(), \
-            "FAST_PATH must document what it skips"
-
-    def test_fast_path_bailout_paths(self):
-        text = FAST_PATH.read_text()
-        assert "Bailout" in text or "escalat" in text.lower(), \
-            "FAST_PATH must document bailout paths when user rejects"
-
-    def test_triage_prefilter_tiny_triggers(self):
-        for trivial in ("fix typo in README", "update docs", "add license file"):
-            result = subprocess.run(
-                [sys.executable, str(TRIAGE_PY), "prefilter", trivial],
-                capture_output=True, text=True,
-            )
-            assert result.returncode == 0 or result.returncode == 10
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                assert data["tier"] == "TINY", f"Expected TINY for {trivial!r}"
-
-    def test_triage_prefilter_complex_unknown(self):
-        result = subprocess.run(
-            [sys.executable, str(TRIAGE_PY), "prefilter", "add healthz endpoint"],
-            capture_output=True, text=True,
-        )
-        assert result.returncode == 10
-        data = json.loads(result.stdout)
-        assert data["tier"] == "UNKNOWN"
-
-    def test_fast_path_apply_function(self):
-        """Decision-table test: various inputs map to expected tiers."""
-        cases = [
-            # (scope, risk, arch_impact, security, data_impact, coordination, expected_tier)
-            ("single_file", "low", "none", "none", "none", False, "SMALL"),
-            ("multi_module", "medium", "medium", "none", "medium", True, "MEDIUM"),
-            ("system_wide", "high", "high", "high", "high", True, "LARGE"),
-        ]
-        for scope, risk, arch, sec, data, coord, expected in cases:
-            data_dict = {
-                "scope": scope, "risk": risk, "architecture_impact": arch,
-                "security_relevance": sec, "data_layer_impact": data,
-                "coordination_required": coord, "ambiguity": "low",
-                "estimated_affected_components": "1-2" if scope == "single_file" else "3-5",
-                "intent": "modify" if scope == "single_file" else "create",
-                "external_dependencies": [],
-            }
-            result = subprocess.run(
-                [sys.executable, str(TRIAGE_PY), "apply", "-"],
-                input=json.dumps(data_dict), capture_output=True, text=True,
-            )
-            data_out = json.loads(result.stdout)
-            assert data_out["tier"] == expected, \
-                f"Expected {expected} for scope={scope}, got {data_out['tier']}"
-
-    def test_non_tiny_never_fast_path(self):
-        """Decision-table: no non-TINY input should produce fast_path: true."""
-        cases = [
-            ("single_file", "low", "none"),
-            ("multi_module", "low", "none"),
-            ("single_file", "medium", "none"),
-        ]
-        for scope, risk, arch in cases:
-            data_dict = {
-                "scope": scope, "risk": risk, "architecture_impact": arch,
-                "security_relevance": "none", "data_layer_impact": "none",
-                "coordination_required": False, "ambiguity": "low",
-                "estimated_affected_components": "1-2",
-                "intent": "modify",
-                "external_dependencies": [],
-            }
-            result = subprocess.run(
-                [sys.executable, str(TRIAGE_PY), "apply", "-"],
-                input=json.dumps(data_dict), capture_output=True, text=True,
-            )
-            assert result.returncode in (1, 10)
-
-
-# ---------------------------------------------------------------------------
 # ORC-05: Recovery & resume (enhanced)
 # ---------------------------------------------------------------------------
 
@@ -249,48 +145,6 @@ class TestRecoveryProtocol:
 
 
 # ---------------------------------------------------------------------------
-# ORC-09: Depth mode propagation
-# ---------------------------------------------------------------------------
-
-class TestDepthMode:
-    """Validate depth mode (minimal/standard/comprehensive) is propagated."""
-
-    PROMPT_FILES_WITH_DEPTH = [
-        REPO_ROOT / ".claude" / "agents" / "orchestrator.md",
-        REPO_ROOT / ".cursor" / "agents" / "orchestrator.md",
-        REPO_ROOT / ".opencode" / "agents" / "orchestrator.md",
-        REPO_ROOT / ".github" / "agents" / "orchestrator.md",
-    ]
-
-    def test_depth_mode_referenced_in_orchestrator(self):
-        for path in self.PROMPT_FILES_WITH_DEPTH:
-            if path.exists():
-                text = path.read_text()
-                assert "depth" in text.lower() or "depth_mode" in text, \
-                    f"{path.name} must reference depth mode"
-                break
-
-    def test_depth_levels_defined(self):
-        levels = ("minimal", "standard", "comprehensive")
-        for path in self.PROMPT_FILES_WITH_DEPTH:
-            if path.exists():
-                text = path.read_text()
-                found = [l for l in levels if l in text.lower()]
-                assert len(found) >= 1, \
-                    f"Orchestrator should reference at least one depth level, found {found}"
-                return
-        pytest.skip("No orchestrator agent prompt found")
-
-    def test_silent_spoken_protocol(self):
-        for path in self.PROMPT_FILES_WITH_DEPTH:
-            if path.exists():
-                text = path.read_text()
-                if "no chat output" in text.lower() or "spoken" in text.lower():
-                    return
-        pytest.skip("No orchestrator with silent/spoken protocol found")
-
-
-# ---------------------------------------------------------------------------
 # ORC-10: Mid-workflow changes
 # ---------------------------------------------------------------------------
 
@@ -323,11 +177,6 @@ class TestMidWorkflowChanges:
         assert "pause" in text.lower(), \
             "Orchestrator must support pausing a run"
 
-    def test_depth_change_documented(self):
-        text = self.ORCHESTRATOR_MDS[0].read_text()
-        assert "change depth" in text.lower() or "depth_mode" in text, \
-            "Orchestrator must support changing depth mid-run"
-
     def test_archival_before_restart(self):
         text = self.ORCHESTRATOR_MDS[0].read_text()
         assert "archive" in text.lower(), \
@@ -335,7 +184,7 @@ class TestMidWorkflowChanges:
 
 
 # ---------------------------------------------------------------------------
-# Context compaction (referenced by ORC-03/09)
+# Context compaction (referenced by ORC-03)
 # ---------------------------------------------------------------------------
 
 class TestContextCompaction:

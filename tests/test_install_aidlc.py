@@ -414,14 +414,14 @@ class TestAutoInitCodeGraph:
 
     def test_skip_when_node_too_old(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr(
-            install_aidlc, "_check_node_version",
+            "_install_aidlc.codegraph._check_node_version",
             lambda m: (False, "v16.0.0"),
         )
         install_aidlc._auto_init_codegraph(tmp_path, dry_run=False)
 
     def test_skip_when_codegraph_not_on_path(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr(
-            install_aidlc, "_check_node_version",
+            "_install_aidlc.codegraph._check_node_version",
             lambda m: (True, "v20.0.0"),
         )
 
@@ -433,7 +433,7 @@ class TestAutoInitCodeGraph:
 
     def test_skip_when_codegraph_returns_nonzero(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr(
-            install_aidlc, "_check_node_version",
+            "_install_aidlc.codegraph._check_node_version",
             lambda m: (True, "v20.0.0"),
         )
         mock = MagicMock()
@@ -443,7 +443,7 @@ class TestAutoInitCodeGraph:
 
     def test_dry_run_does_not_init(self, tmp_path: Path, capsys):
         with (
-            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("_install_aidlc.codegraph._check_node_version", return_value=(True, "v20.0.0")),
             patch("subprocess.run") as mock_run,
         ):
             mock_version = MagicMock()
@@ -459,7 +459,7 @@ class TestAutoInitCodeGraph:
 
     def test_init_success_runs_status(self, tmp_path: Path, capsys):
         with (
-            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("_install_aidlc.codegraph._check_node_version", return_value=(True, "v20.0.0")),
             patch("subprocess.run") as mock_run,
         ):
             mock_version = MagicMock()
@@ -482,7 +482,7 @@ class TestAutoInitCodeGraph:
 
     def test_init_failure_shows_warning(self, tmp_path: Path, capsys):
         with (
-            patch.object(install_aidlc, "_check_node_version", return_value=(True, "v20.0.0")),
+            patch("_install_aidlc.codegraph._check_node_version", return_value=(True, "v20.0.0")),
             patch("subprocess.run") as mock_run,
         ):
             mock_version = MagicMock()
@@ -503,7 +503,7 @@ class TestAutoInitCodeGraph:
 
     def test_skip_when_subprocess_times_out(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr(
-            install_aidlc, "_check_node_version",
+            "_install_aidlc.codegraph._check_node_version",
             lambda m: (True, "v20.0.0"),
         )
 
@@ -850,7 +850,7 @@ class TestUpdateGitignoreForcePreservesContent:
 
 class TestWindowsPythonCmds:
     def test_windows_includes_py_launcher(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
         called: list[str] = []
 
         def fake_run(cmd, **kwargs):
@@ -863,7 +863,7 @@ class TestWindowsPythonCmds:
 
         venv_path = Path("/fake/.venv")
         fake_py = venv_path / "Scripts" / "python.exe"
-        monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: fake_py)
+        monkeypatch.setattr("_install_aidlc.utils._venv_python", lambda p: fake_py)
 
         import types
         fake_venv_py = types.SimpleNamespace(returncode=0)
@@ -885,7 +885,7 @@ class TestWindowsPythonCmds:
         assert first_cmd[0] == "py", f"Expected 'py' as first venv cmd on Windows, got {first_cmd[0]!r}"
 
     def test_non_windows_starts_with_python3(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         import types
         with patch("subprocess.run") as mock_run:
@@ -894,7 +894,7 @@ class TestWindowsPythonCmds:
                 types.SimpleNamespace(returncode=0),
                 types.SimpleNamespace(returncode=0),
             ]
-            monkeypatch.setattr(install_aidlc, "_venv_python", lambda p: p / "bin" / "python")
+            monkeypatch.setattr("_install_aidlc.utils._venv_python", lambda p: p / "bin" / "python")
             try:
                 install_aidlc.create_venv_and_install_requirements(
                     Path("/fake"), Path("/fake/requirements.txt"), dry_run=False,
@@ -927,7 +927,7 @@ class TestProbeVersion:
         assert ver == "not found"
 
     def test_timeout_expired(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         def _raise(*a, **kw):
             raise subprocess.TimeoutExpired(cmd="some-cmd", timeout=10)
@@ -937,7 +937,7 @@ class TestProbeVersion:
         assert ver == "not found"
 
     def test_file_not_found_on_unix_no_fallback(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         def _raise(*a, **kw):
             raise FileNotFoundError("not found")
@@ -948,7 +948,7 @@ class TestProbeVersion:
 
     def test_cmd_c_succeeds_first_on_windows(self, monkeypatch):
         """On Windows, cmd /c is tried first — succeed immediately."""
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
 
         calls = []
 
@@ -968,7 +968,7 @@ class TestProbeVersion:
 
     def test_cmd_c_fails_falls_back_to_powershell(self, monkeypatch):
         """When cmd /c fails, PowerShell is tried next."""
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
 
         calls = []
 
@@ -993,7 +993,7 @@ class TestProbeVersion:
 
     def test_cmd_c_and_powershell_fail_falls_back_to_direct(self, monkeypatch):
         """When cmd /c and PowerShell both fail, raw subprocess is tried last."""
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
 
         calls = []
 
@@ -1017,7 +1017,7 @@ class TestProbeVersion:
         assert calls[2] == ["npm", "--version"]
 
     def test_all_windows_fallbacks_fail(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
 
         def _raise(*a, **kw):
             raise FileNotFoundError("not found")
@@ -1050,7 +1050,7 @@ class TestProbeVersion:
 
 class TestCheckNodeVersion:
     def test_ok_when_version_sufficient(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         mock = MagicMock()
         mock.returncode = 0
@@ -1061,7 +1061,7 @@ class TestCheckNodeVersion:
         assert ver == "v22.0.0"
 
     def test_fail_when_version_too_low(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         mock = MagicMock()
         mock.returncode = 0
@@ -1073,7 +1073,7 @@ class TestCheckNodeVersion:
 
     def test_cmd_c_on_windows(self, monkeypatch):
         """On Windows, _check_node_version uses cmd /c to resolve node.exe."""
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: True)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: True)
 
         calls = []
 
@@ -1092,7 +1092,7 @@ class TestCheckNodeVersion:
         assert calls[0] == ["cmd", "/c", "node", "--version"]
 
     def test_file_not_found_returns_not_found(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         def _raise(*a, **kw):
             raise FileNotFoundError("not found")
@@ -1102,7 +1102,7 @@ class TestCheckNodeVersion:
         assert ver == "not found"
 
     def test_timeout_returns_not_found(self, monkeypatch):
-        monkeypatch.setattr(install_aidlc, "_is_windows", lambda: False)
+        monkeypatch.setattr("_install_aidlc.utils._is_windows", lambda: False)
 
         def _raise(*a, **kw):
             raise subprocess.TimeoutExpired(cmd="node", timeout=10)
@@ -1168,7 +1168,7 @@ class TestRunCodegraph:
 
     def test_windows_adds_cmd_prefix(self):
         """On Windows, _run_codegraph should prefix with ['cmd', '/c']."""
-        with patch("install_aidlc._is_windows", return_value=True):
+        with patch("_install_aidlc.codegraph._is_windows", return_value=True):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
                 install_aidlc._run_codegraph(["codegraph", "init"])
@@ -1177,7 +1177,7 @@ class TestRunCodegraph:
 
     def test_non_windows_passes_through(self):
         """On non-Windows, _run_codegraph should pass the command as-is."""
-        with patch("install_aidlc._is_windows", return_value=False):
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
                 install_aidlc._run_codegraph(["codegraph", "init"])
@@ -1186,7 +1186,7 @@ class TestRunCodegraph:
 
     def test_windows_passes_target_root(self, tmp_path):
         """On Windows, _run_codegraph should forward cwd to subprocess.run."""
-        with patch("install_aidlc._is_windows", return_value=True):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
                 install_aidlc._run_codegraph(["codegraph", "status"], target_root=tmp_path)
@@ -1194,4 +1194,160 @@ class TestRunCodegraph:
                 assert kwargs["cwd"] == str(tmp_path)
 
 
+# ── _rewrite_python3_win (Windows python3→python) ──────────────────────
 
+
+class TestRewritePython3Win:
+    def test_skips_on_macos(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
+            f = tmp_path / "test.md"
+            f.write_text("python3 script.py")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python3 script.py"
+
+    def test_rewrites_python3_in_md(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.md"
+            f.write_text("Run: python3 script.py\nAlso: python3 -m venv\n")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "Run: python script.py\nAlso: python -m venv\n"
+
+    def test_skips_non_md(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.py"
+            f.write_text("python3 --version")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python3 --version"
+
+    def test_respects_package_names_and_versions(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.md"
+            f.write_text("python3.12 -m venv\npython3_code\n")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python3.12 -m venv\npython3_code\n"
+
+    def test_rewrites_python3_followed_by_dash(self, tmp_path):
+        """python3-* (package names like python3-venv) are replaced on Windows."""
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.md"
+            f.write_text("apt-get install python3-venv")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "apt-get install python-venv"
+
+    def test_skips_mdx_on_non_windows(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
+            f = tmp_path / "test.mdx"
+            f.write_text("python3 script.py")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python3 script.py"
+
+    def test_rewrites_mdx_on_windows(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.mdx"
+            f.write_text("python3 script.py")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python script.py"
+
+    def test_silent_on_no_changes(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.md"
+            f.write_text("python script.py")
+            install_aidlc._rewrite_python3_win(f)
+            assert f.read_text() == "python script.py"
+
+
+class TestRewritePython3WinTree:
+    def test_rewrites_all_md_in_tree(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            (tmp_path / "sub").mkdir()
+            f1 = tmp_path / "a.md"
+            f1.write_text("python3 a.py")
+            f2 = tmp_path / "sub" / "b.md"
+            f2.write_text("python3 b.py")
+            install_aidlc._rewrite_python3_win_tree(tmp_path)
+            assert f1.read_text() == "python a.py"
+            assert f2.read_text() == "python b.py"
+
+    def test_skips_non_md_files(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            f = tmp_path / "test.sh"
+            f.write_text("python3 script.py")
+            install_aidlc._rewrite_python3_win_tree(tmp_path)
+            assert f.read_text() == "python3 script.py"
+
+    def test_noop_on_non_windows(self, tmp_path):
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
+            f = tmp_path / "test.md"
+            f.write_text("python3 script.py")
+            install_aidlc._rewrite_python3_win_tree(tmp_path)
+            assert f.read_text() == "python3 script.py"
+
+
+# ── copy_file wiring with _rewrite_python3_win ──────────────────────────
+
+
+class TestCopyFileWindowsRewrite:
+    def test_rewrites_md_on_windows(self, tmp_path):
+        src = tmp_path / "test.md"
+        src.write_text("python3 script.py")
+        dst = tmp_path / "out" / "test.md"
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            install_aidlc.copy_file(src, dst, dry_run=False)
+        assert dst.read_text() == "python script.py"
+
+    def test_preserves_non_md_on_windows(self, tmp_path):
+        src = tmp_path / "test.py"
+        src.write_text("python3 script.py")
+        dst = tmp_path / "out" / "test.py"
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            install_aidlc.copy_file(src, dst, dry_run=False)
+        assert dst.read_text() == "python3 script.py"
+
+    def test_dry_run_does_not_write(self, tmp_path):
+        src = tmp_path / "test.md"
+        src.write_text("python3 script.py")
+        dst = tmp_path / "out" / "test.md"
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            install_aidlc.copy_file(src, dst, dry_run=True)
+        assert not dst.exists()
+
+    def test_preserves_md_on_macos(self, tmp_path):
+        src = tmp_path / "test.md"
+        src.write_text("python3 script.py")
+        dst = tmp_path / "out" / "test.md"
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
+            install_aidlc.copy_file(src, dst, dry_run=False)
+        assert dst.read_text() == "python3 script.py"
+
+
+class TestCopyTreeWindowsRewrite:
+    def test_rewrites_md_in_tree_on_windows(self, tmp_path):
+        src = tmp_path / "src"
+        (src / "sub").mkdir(parents=True)
+        (src / "readme.md").write_text("Run: python3 -m venv")
+        (src / "sub" / "guide.md").write_text("Use: python3 script.py")
+        (src / "sub" / "config.py").write_text("python3 only here")
+        dst = tmp_path / "dst"
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            install_aidlc.copy_tree(src, dst, dry_run=False)
+        assert (dst / "readme.md").read_text() == "Run: python -m venv"
+        assert (dst / "sub" / "guide.md").read_text() == "Use: python script.py"
+        assert (dst / "sub" / "config.py").read_text() == "python3 only here"
+
+    def test_preserves_md_on_macos_in_tree(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "readme.md").write_text("Run: python3 -m venv")
+        dst = tmp_path / "dst"
+        with patch("_install_aidlc.utils._is_windows", return_value=False):
+            install_aidlc.copy_tree(src, dst, dry_run=False)
+        assert (dst / "readme.md").read_text() == "Run: python3 -m venv"
+
+    def test_dry_run_skips_rewrite(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "readme.md").write_text("python3 script.py")
+        dst = tmp_path / "dst"
+        with patch("_install_aidlc.utils._is_windows", return_value=True):
+            install_aidlc.copy_tree(src, dst, dry_run=True)
+        assert not dst.exists()

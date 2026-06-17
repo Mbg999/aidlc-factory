@@ -63,12 +63,12 @@ def test_per_unit_stages_scale_with_unit_count(fake_repo_with_run):
     assert codegen_5["multiplier"] == 5
 
 
-def test_reverse_engineer_skipped_when_no_legacy(fake_repo_with_run):
+def test_reverse_engineer_included_even_without_legacy(fake_repo_with_run):
     repo, run_dir = fake_repo_with_run
     result = _run("--repo-root", str(repo), "--run-dir", str(run_dir), "--json")
     proj = json.loads(result.stdout)
     stages = {r["stage"] for r in proj["rows"]}
-    assert "reverse-engineer" not in stages
+    assert "reverse-engineer" in stages
 
 
 def test_reverse_engineer_included_for_brownfield(tmp_path: Path):

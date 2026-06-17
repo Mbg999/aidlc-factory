@@ -36,11 +36,11 @@ Exit 0 = valid. Exit 1 = invalid (with path to failing field on stderr).
 |---|---|---|---|
 | workspace-scout | v1 | v1 | Phase 0 |
 | requirements-analyst | v1 | v1 | Phase 0 — two-pass with question gate |
-| reverse-engineer | v1 | v1 | Phase 1 — conditional (brownfield) |
-| story-writer | v1 | v1 | Phase 1 — conditional, two-pass |
+| reverse-engineer | v1 | v1 | Phase 1 — brownfield only |
+| story-writer | v1 | v1 | Phase 1 — two-pass |
 | application-designer | v1 | v1 | Phase 1 — two-pass with question gate, 5 design artifacts |
 | workflow-planner | v1 | v1 | Phase 1 — Opus |
-| unit-decomposer | v1 | v1 | Phase 1 — conditional |
+| unit-decomposer | v1 | v1 | Phase 1 |
 | code-generator | v1 | v1 | Phase 1 — per unit, three sub-stages (plan/generated/approved) |
 | build-test-agent | v1 | v1 | Phase 1 — per unit |
 | reviewer (shared) | v1 | v1 | Phase 1 — shared across 4 reviewer types. `stage_id` (e.g. `reviewer-code`) maps to `reviewer` (e.g. `code-quality`) |

@@ -54,7 +54,6 @@
     },
     "task_count": { "type": "integer", "minimum": 1 },
     "unit_count": { "type": "integer", "minimum": 1 },
-    "depth": { "type": "string", "enum": ["minimal", "standard", "comprehensive"] },
     "mermaid_validated": { "type": "boolean" },
     "emitted_knowledge": {
       "type": "array",

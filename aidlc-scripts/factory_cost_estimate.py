@@ -71,8 +71,6 @@ DEFAULT_TOKEN_ESTIMATES = {
 # Stages that scale with unit count (×N for N units).
 PER_UNIT_STAGES = {"code-generator", "build-test-agent"}
 
-# Stages that are conditional on project profile.
-CONDITIONAL_STAGES = {"reverse-engineer", "story-writer", "unit-decomposer"}
 
 
 def _die(msg: str, code: int = 2) -> None:
@@ -161,22 +159,11 @@ def project(
     unit_count: int = 1,
     profile: dict | None = None,
 ) -> dict:
-    """Build the cost projection.
-
-    profile: optional project profile {ui: bool, api: bool, has_legacy: bool}
-             used to skip conditional stages.
-    """
+    """Build the cost projection."""
     profile = profile or {}
-    has_legacy = profile.get("has_legacy", False)
-    is_multi_unit = unit_count >= 2
 
     rows: list[dict] = []
     for stage in DEFAULT_TOKEN_ESTIMATES:
-        # Skip conditional stages that don't apply to this profile
-        if stage == "reverse-engineer" and not has_legacy:
-            continue
-        if stage == "unit-decomposer" and not is_multi_unit:
-            continue
 
         tokens, wall, conf, src = _stage_estimate(repo_root, stage)
         multiplier = unit_count if stage in PER_UNIT_STAGES else 1

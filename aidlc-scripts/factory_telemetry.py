@@ -143,7 +143,6 @@ POINTER_PHRASES = [
 ]
 
 COLD_HINTS = [
-    "FAST_PATH",
     "Failed→skipped",
     "Failed->skipped",
     "Legacy adoption",
@@ -495,19 +494,13 @@ def cmd_count_tokens(args: argparse.Namespace) -> None:
 def _derive_tier(manifest: dict) -> str:
     """Best-effort tier from manifest. Order:
        1. explicit `complexity_tier`
-       2. heuristics on skip_stages / units
+       2. unit count heuristic
        3. 'unknown'
     """
     tier = manifest.get("complexity_tier")
     if isinstance(tier, str) and tier.upper() in {"TINY", "SMALL", "MEDIUM", "LARGE"}:
         return tier.upper()
-    skipped = set(manifest.get("skip_stages") or [])
-    skipped |= set(manifest.get("skipped_stages") or [])
     units = manifest.get("units") or []
-    if "unit-decomposer" in skipped and "story-writer" in skipped:
-        return "SMALL"
-    if "story-writer" in skipped and len(units) <= 1:
-        return "SMALL"
     if len(units) >= 3:
         return "LARGE"
     if len(units) >= 1:
@@ -553,7 +546,7 @@ def _discover_one_root(repo_root: Path) -> list[dict]:
             "tier": _derive_tier(manifest),
             "status": _run_status(manifest, timeline_path.exists()),
             "completed_stages": [str(s) for s in (manifest.get("completed_stages") or [])],
-            "skipped_stages": [str(s) for s in ((manifest.get("skipped_stages") or []) + (manifest.get("skip_stages") or []))],
+            "skipped_stages": [str(s) for s in (manifest.get("skipped_stages") or [])],
             "current_stage": str(manifest.get("current_stage")) if manifest.get("current_stage") else None,
             "started_at": str(manifest.get("started_at")) if manifest.get("started_at") else None,
             "stage_token_count": len(stages),
@@ -831,8 +824,8 @@ def _render_runs_table(out: io.StringIO, runs: list[dict]) -> None:
     out.write(f"**Total runs discovered:** {len(runs)}  across "
               f"{len(set(r['repo_root'] for r in runs))} repo root(s).\n\n")
     out.write("> **Tier legend:** `UNKNOWN` means the manifest has no `complexity_tier`\n"
-              "> field and the heuristic (skip-stages + unit count) couldn't classify the\n"
-              "> run -- normal for runs that crashed before the Complexity Routing Gate.\n"
+               "> field and the heuristic (unit count) couldn't classify the\n"
+               "> run -- normal for runs that crashed before the Complexity Routing Gate.\n"
               "> The token data is still usable as a baseline.\n\n")
     out.write("| Tier | Status | Tokens | Stages | Events | Run ID | Project |\n")
     out.write("|---|---|---:|---:|---:|---|---|\n")

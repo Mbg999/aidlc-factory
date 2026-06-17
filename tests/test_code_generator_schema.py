@@ -1,111 +1,72 @@
-"""Validate code-generator.output.v1.json skill_compliance minItems conditional.
-
-Regression test for Bug 4 — FAST_PATH runs with < 8 skills were rejected.
-"""
-
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCHEMA_PATH = (
-    REPO_ROOT
-    / ".aidlc-orchestrator"
-    / "contracts"
-    / "code-generator.output.v1.json"
-)
-
-pytest.importorskip("jsonschema")
-from jsonschema import Draft7Validator
+CONTRACTS = REPO_ROOT / ".aidlc-orchestrator" / "contracts"
+INPUT_SCHEMA = json.loads((CONTRACTS / "code-generator.input.v1.json").read_text())
+OUTPUT_SCHEMA = json.loads((CONTRACTS / "code-generator.output.v1.json").read_text())
 
 
-@pytest.fixture(scope="session")
-def validator():
-    return Draft7Validator(json.loads(SCHEMA_PATH.read_text()))
+@pytest.fixture
+def input_validator():
+    return jsonschema.Draft7Validator(INPUT_SCHEMA)
 
 
-def _make_doc(fast_path: bool, n_skills: int, **overrides) -> dict:
-    skills = [
-        {"skill": f"skill-{i}", "status": "PASS",
-         "evidence": "test evidence"}
-        for i in range(n_skills)
-    ]
+@pytest.fixture
+def output_validator():
+    return jsonschema.Draft7Validator(OUTPUT_SCHEMA)
+
+
+def _make_doc(**overrides) -> dict:
     doc = {
-        "status": "complete",
-        "unit_name": "test-unit",
-        "sub_stage": "generated",
-        "artifacts": [
-            {"path": "src/main.py", "kind": "source",
-             "hash": "abc123"}
-        ],
-        "audit_entries": ["test entry"],
-        "skill_compliance": skills,
-        "fast_path": fast_path,
-        **overrides,
+        "run_id": "test-run",
+        "stage_id": "code-generator",
+        "user_request": "Build a login page",
+        "predecessor_artifacts": ["plan.md"],
+        "unit_name": "login-ui",
+        "skills_required": ["tdd", "testing", "security", "docs"],
+        "skill_paths_resolved": [".agents/skills/tdd/SKILL.md"],
     }
+    doc.update(overrides)
     return doc
 
 
-class TestFastPathMinItems:
-    def test_fast_path_with_2_skills_passes(self, validator):
-        doc = _make_doc(fast_path=True, n_skills=2)
-        errors = list(validator.iter_errors(doc))
-        assert not errors, [e.message for e in errors]
+class TestInputSchema:
+    def test_valid_doc_passes(self, input_validator):
+        errors = list(input_validator.iter_errors(_make_doc()))
+        assert len(errors) == 0
 
-    def test_fast_path_with_8_skills_passes(self, validator):
-        doc = _make_doc(fast_path=True, n_skills=8)
-        errors = list(validator.iter_errors(doc))
-        assert not errors
+    def test_missing_required_fails(self, input_validator):
+        doc = _make_doc()
+        del doc["run_id"]
+        errors = list(input_validator.iter_errors(doc))
+        assert len(errors) >= 1
 
-    def test_fast_path_with_0_skills_fails(self, validator):
-        doc = _make_doc(fast_path=True, n_skills=0)
-        errors = list(validator.iter_errors(doc))
-        assert errors
+    def test_skills_required_min_4(self, input_validator):
+        doc = _make_doc(skills_required=["tdd"])
+        errors = list(input_validator.iter_errors(doc))
+        assert any("skills_required" in str(e.path) for e in errors)
 
-    def test_fast_path_with_1_skill_passes(self, validator):
-        doc = _make_doc(fast_path=True, n_skills=1)
-        errors = list(validator.iter_errors(doc))
-        assert not errors
-
-
-class TestNormalPathMinItems:
-    def test_normal_with_8_skills_passes(self, validator):
-        doc = _make_doc(fast_path=False, n_skills=8)
-        errors = list(validator.iter_errors(doc))
-        assert not errors, [e.message for e in errors]
-
-    def test_normal_with_2_skills_passes(self, validator):
-        doc = _make_doc(fast_path=False, n_skills=2)
-        errors = list(validator.iter_errors(doc))
-        assert not errors
-
-    def test_normal_with_0_skills_fails(self, validator):
-        doc = _make_doc(fast_path=False, n_skills=0)
-        errors = list(validator.iter_errors(doc))
-        assert errors
-
-    def test_normal_with_7_skills_passes(self, validator):
-        doc = _make_doc(fast_path=False, n_skills=7)
-        errors = list(validator.iter_errors(doc))
-        assert not errors
+    def test_skill_paths_min_1(self, input_validator):
+        doc = _make_doc(skill_paths_resolved=[])
+        errors = list(input_validator.iter_errors(doc))
+        assert any("skill_paths_resolved" in str(e.path) for e in errors)
 
 
-class TestFastPathDefault:
-    def test_fast_path_missing_requires_8(self, validator):
-        """When fast_path is absent, the allOf's const: false condition
-        matches vacuously (absent property satisfies properties keyword),
-        so minItems: 8 is enforced as the safe default."""
-        doc = _make_doc(fast_path=False, n_skills=8)
-        del doc["fast_path"]
-        errors = list(validator.iter_errors(doc))
-        assert not errors, [e.message for e in errors]
-
-    def test_fast_path_missing_with_2_skills_passes(self, validator):
-        """Absent fast_path means both if branches match vacuously → minItems 1."""
-        doc = _make_doc(fast_path=False, n_skills=2)
-        del doc["fast_path"]
-        errors = list(validator.iter_errors(doc))
-        assert not errors
+class TestOutputSchema:
+    def test_valid_output_passes(self, output_validator):
+        doc = {
+            "status": "complete",
+            "unit_name": "login-ui",
+            "sub_stage": "generated",
+            "artifacts": [{"path": "src/login.tsx", "kind": "source"}],
+            "audit_entries": ["Generated login component"],
+            "skill_compliance": [{"skill": "tdd", "status": "PASS", "evidence": "tests written"}],
+        }
+        errors = list(output_validator.iter_errors(doc))
+        assert len(errors) == 0

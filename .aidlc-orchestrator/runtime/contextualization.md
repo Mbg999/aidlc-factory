@@ -34,16 +34,8 @@ The canonical tool is `aidlc-scripts/factory_context_builder.py`.
 ### Invocation
 
 ```bash
-python3 aidlc-scripts/factory_context_builder.py <run-id> [--depth minimal|standard|comprehensive] [--output path] [--format markdown|yaml|json]
+python3 aidlc-scripts/factory_context_builder.py <run-id> --depth comprehensive [--output path] [--format markdown|yaml|json]
 ```
-
-### Depth levels
-
-| Depth | Tokens | Content | Stages |
-|---|---|---|---|
-| `minimal` | ~200 | Current stage + last 3 audit entries | workspace-scout |
-| `standard` | ~800 | Full state + last 10 decisions + stage timing | requirements-analyst, story-writer, workflow-planner, application-designer, unit-decomposer, reviewer-* |
-| `comprehensive` | ~2000 | Everything + handoff summaries | code-generator, build-test-agent, ship-agent |
 
 ### Output format
 
@@ -95,7 +87,7 @@ stage or by user decisions. A stale snapshot is worse than no snapshot.
 Users can request a context snapshot at any time:
 
 ```
-/factory-context <run-id> [--depth minimal|standard|comprehensive]
+/factory-context <run-id> --depth comprehensive
 ```
 
 This is a read-only command. It does not modify state, handoffs, or the audit

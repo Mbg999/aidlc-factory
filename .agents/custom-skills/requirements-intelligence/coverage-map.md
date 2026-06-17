@@ -1,8 +1,8 @@
 # Coverage Map — Requirements Axes
 
-The requirements analyst MUST cover these axes via questions. Each axis has a
-*required-at* depth gate. If the axis is required at the active depth and zero
-questions cover it, generation HALTS until a question is added.
+The requirements analyst MUST cover all 8 axes via questions. Every axis is
+required at all times. If an axis has zero questions covering it, generation
+HALTS until a question is added.
 
 ## The 8 axes
 
@@ -10,7 +10,6 @@ questions cover it, generation HALTS until a question is added.
 **Why is this being built?** What user/business outcome does it produce? What
 problem does it solve that was not solved before?
 
-- **Required at**: minimal, standard, comprehensive
 - **Question pattern**: anchor against the status quo. "If this ships and works perfectly, what specifically changes for the user?"
 - **Bad question**: "What is the goal of this project?" (too abstract, invites prose)
 - **Good question**:
@@ -30,7 +29,6 @@ problem does it solve that was not solved before?
 ### 2. Needs
 **What does it functionally do?** Inputs, outputs, key behaviors, integrations.
 
-- **Required at**: minimal, standard, comprehensive
 - **Question pattern**: split must-have from nice-to-have. For each capability mentioned in the request, probe input source, output destination, trigger.
 - **Example**:
   ```
@@ -51,7 +49,6 @@ problem does it solve that was not solved before?
 **What does it explicitly NOT do?** Out-of-scope items, hard NO-GO behaviors,
 boundary constraints.
 
-- **Required at**: standard, comprehensive
 - **Question pattern**: enumerate adjacent features and ask which are out of scope.
 - **Why this matters**: implicit scope creep destroys plans. Explicit limits stop it.
 - **Example**:
@@ -73,7 +70,6 @@ boundary constraints.
 **What does "done" feel like?** Performance bar, UX feel, quality threshold.
 Every adjective from the ambiguity-detection sweep maps to a question here.
 
-- **Required at**: minimal, standard, comprehensive
 - **Question pattern**: convert every quality adjective in the request into a quantified target.
 - **Example**:
   ```
@@ -93,21 +89,18 @@ Every adjective from the ambiguity-detection sweep maps to a question here.
 **Where does this live?** Stack, dependencies, deployment target,
 brownfield/greenfield, team conventions.
 
-- **Required at**: standard, comprehensive
 - **Question pattern**: surface constraints the existing system imposes.
 - **Skip when**: workspace-scout already classified greenfield AND request explicitly states stack — quote the source instead of asking.
 
 ### 6. Risks
 **What could go wrong?** Failure modes, edge cases, security, compliance, data loss.
 
-- **Required at**: comprehensive
 - **Question pattern**: from `pre-mortem.md` — *"If this fails publicly in 90 days, what broke?"*
 - **Example**: see `pre-mortem.md` for full templates.
 
 ### 7. Acceptance
 **How do we know it works?** Measurable criteria, demo path, the one-thing test.
 
-- **Required at**: minimal, standard, comprehensive
 - **Question pattern**: "What's the one thing that, if true, means this is done?"
 - **Example**:
   ```
@@ -127,7 +120,6 @@ brownfield/greenfield, team conventions.
 **What does the user explicitly not know yet?** Open decisions, blocking
 research, items to revisit later.
 
-- **Required at**: comprehensive
 - **Question pattern**: invite the user to flag unresolved items for later.
 - **Example**:
   ```
@@ -144,30 +136,23 @@ research, items to revisit later.
   [Answer]:
   ```
 
-## Depth → axis matrix
-
-| Depth | Purpose | Needs | Limits | Expectations | Context | Risks | Acceptance | Unknowns |
-|---|---|---|---|---|---|---|---|---|
-| minimal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| standard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| comprehensive | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+All 8 axes are required at all times. No depth gating — every axis must be covered.
 
 ## Enforcement
 
 SKILL.md Step 4 emits a coverage table built from this taxonomy. SKILL.md Step 7
-verification gate refuses any cell `status != covered` for axes required at the
-active depth. This is non-negotiable.
+verification gate refuses any cell `status != covered`. This is non-negotiable.
 
 ### Per-axis minimum questions
 
-Each axis also has a MINIMUM question count at each depth (defined in `questioning-policy.md`).
+Each axis has a MINIMUM question count (defined in `questioning-policy.md`).
 The agent MUST generate enough questions to reach the per-axis minimum before proceeding. Log
 re-runs with `[CoverageRecovery] <axis>: re-ran <technique> — <n> questions added`.
 
 ## Skipping axes (legitimate cases)
 
-- **Context skipped at minimal depth** when workspace-scout output answers all context questions. Quote workspace-scout's output as the evidence (`[CoverageMap] Context: covered by workspace-scout L<n>`).
-- **Limits skipped at minimal depth** when the request explicitly defines all boundaries. Quote the request as evidence (`[CoverageMap] Limits: covered by request <L<n>>`).
-- **Risks skipped at minimal depth** for Trivial+Clear+Single File requests with `stakes != prod`. Quote the classification as evidence.
-- **Unknowns skipped at minimal depth** when the user explicitly states no unknowns remain.
-- Never skip Purpose, Needs, Expectations, or Acceptance at any depth. They are universal gates.
+- **Context skipped** when workspace-scout output answers all context questions. Quote workspace-scout's output as the evidence (`[CoverageMap] Context: covered by workspace-scout L<n>`).
+- **Limits skipped** when the request explicitly defines all boundaries. Quote the request as evidence (`[CoverageMap] Limits: covered by request <L<n>>`).
+- **Risks skipped** for Trivial+Clear+Single File requests with `stakes != prod`. Quote the classification as evidence.
+- **Unknowns skipped** when the user explicitly states no unknowns remain.
+- Never skip Purpose, Needs, Expectations, or Acceptance. They are universal gates.

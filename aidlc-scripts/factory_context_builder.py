@@ -8,16 +8,10 @@ Key features:
 - Precise token counting (tiktoken when available, adaptive fallback)
 - Intelligent caching with checksum-based invalidation
 - Compact YAML output format (saves ~40% tokens vs Markdown)
-- Auto depth adjustment for short runs
 - Cost tracking metrics
 
 Usage
-    python3 aidlc-scripts/factory_context_builder.py <run-id> [--depth minimal|standard|comprehensive] [--output path] [--format markdown|yaml|json|compact]
-
-    --depth minimal       → 200 tokens max. Current stage + last 3 audit entries.
-    --depth standard      → 800 tokens max. Full state + last 10 audit entries + stage timing.
-    --depth comprehensive → 2000 tokens max. Everything + handoff summaries.
-    --depth auto          → Auto-select based on completed stage count (default).
+    python3 aidlc-scripts/factory_context_builder.py <run-id> [--output path] [--format markdown|yaml|json|compact]
 
     --format compact      → Dense YAML-like format (saves ~40% tokens vs Markdown).
 
@@ -29,7 +23,7 @@ Output
     - timeline: per-stage events
     - open: incomplete units, pending approvals
     - skills: resolved paths
-    - handoffs: recent output statuses (comprehensive)
+    - handoffs: recent output statuses
 """
 
 from __future__ import annotations
@@ -82,16 +76,7 @@ SCRIPTS_VERSION = REPO_ROOT / "aidlc-scripts" / "VERSION"
 # Depth budgets (token estimates) — these are MAXIMUMS, not targets
 # ---------------------------------------------------------------------------
 DEPTH_BUDGETS = {
-    "minimal": 200,
-    "standard": 800,
     "comprehensive": 2000,
-}
-
-# Auto-depth mapping by completed stage count
-AUTO_DEPTH_MAP = {
-    (0, 2): "minimal",       # 0-2 completed stages
-    (3, 5): "standard",       # 3-5 completed stages
-    (6, float("inf")): "comprehensive",  # 6+ stages
 }
 
 # ---------------------------------------------------------------------------
@@ -528,12 +513,12 @@ def _render_compact(data: dict) -> str:
 # Main build function
 # ---------------------------------------------------------------------------
 
-def build_context(run_id: str, depth: str = "auto", format: str = "compact") -> dict:
+def build_context(run_id: str, depth: str = "comprehensive", format: str = "compact") -> dict:
     """Build the full context snapshot for a run.
     
     Args:
         run_id: The run identifier
-        depth: "minimal", "standard", "comprehensive", or "auto"
+        depth: ignored — always comprehensive
         format: "markdown", "yaml", "json", or "compact"
     
     Returns:
@@ -544,17 +529,7 @@ def build_context(run_id: str, depth: str = "auto", format: str = "compact") -> 
     audit_blocks = _load_audit_md()
     state = _load_state_md()
     
-    # Auto depth selection
-    if depth == "auto":
-        completed_count = len(manifest.get("completed_stages", []))
-        for (min_stages, max_stages), selected_depth in AUTO_DEPTH_MAP.items():
-            if min_stages <= completed_count <= max_stages:
-                depth = selected_depth
-                break
-        else:
-            depth = "standard"
-    
-    budget = DEPTH_BUDGETS.get(depth, 800)
+    #     budget = DEPTH_BUDGETS.get(depth, 2000)
     
     # Check cache
     checksums = _file_checksums(run_id)
@@ -574,21 +549,12 @@ def build_context(run_id: str, depth: str = "auto", format: str = "compact") -> 
         "state": current,
     }
     
-    # Depth-dependent sections
-    if depth == "minimal":
-        data["decisions"] = _build_recent_decisions(audit_blocks, max_entries=3)
-    
-    elif depth == "standard":
-        data["decisions"] = _build_recent_decisions(audit_blocks, max_entries=10)
-        data["timeline"] = _build_stage_timeline(timeline, max_events=5)
-        data["open"] = _build_open_items(manifest, timeline)
-    
-    elif depth == "comprehensive":
-        data["decisions"] = _build_recent_decisions(audit_blocks, max_entries=20)
-        data["timeline"] = _build_stage_timeline(timeline, max_events=10)
-        data["open"] = _build_open_items(manifest, timeline)
-        data["skills"] = _build_skills(manifest)
-        data["handoffs"] = _build_handoff_summary(run_id, max_handoffs=10)
+    # Always comprehensive
+    data["decisions"] = _build_recent_decisions(audit_blocks, max_entries=20)
+    data["timeline"] = _build_stage_timeline(timeline, max_events=10)
+    data["open"] = _build_open_items(manifest, timeline)
+    data["skills"] = _build_skills(manifest)
+    data["handoffs"] = _build_handoff_summary(run_id, max_handoffs=10)
     
     # Render based on format
     if format == "compact":
@@ -689,14 +655,14 @@ def main() -> None:
         epilog="""
 Examples:
     %(prog)s 2026-05-08-healthz-endpoint
-    %(prog)s 2026-05-08-healthz-endpoint --depth comprehensive --format compact
-    %(prog)s 2026-05-08-healthz-endpoint --depth auto --output context.yaml --format yaml
+    %(prog)s 2026-05-08-healthz-endpoint --format compact
+    %(prog)s 2026-05-08-healthz-endpoint --output context.yaml --format yaml
     %(prog)s 2026-05-08-healthz-endpoint --format json | jq .tokens
         """
     )
     p.add_argument("run_id", help="Run identifier")
-    p.add_argument("--depth", choices=["minimal", "standard", "comprehensive", "auto"], default="auto",
-                   help="Context depth (default: auto — selects based on completed stage count)")
+    p.add_argument("--depth", default="comprehensive",
+                   help="Ignored — always uses comprehensive depth")
     p.add_argument("--output", "-o", help="Output file path (default: stdout)")
     p.add_argument("--format", choices=["markdown", "yaml", "json", "compact"], default="compact",
                    help="Output format (default: compact YAML-like)")
@@ -705,14 +671,14 @@ Examples:
     
     args = p.parse_args()
     
-    result = build_context(args.run_id, args.depth, args.format)
+    result = build_context(args.run_id, "comprehensive", args.format)
     
     if args.no_cache:
         # Regenerate ignoring cache
         cache_path = _cache_path(args.run_id)
         if cache_path.exists():
             cache_path.unlink()
-        result = build_context(args.run_id, args.depth, args.format)
+        result = build_context(args.run_id, "comprehensive", args.format)
     
     # Format output
     if args.format == "json":

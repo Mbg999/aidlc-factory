@@ -410,7 +410,6 @@ def test_code_generator_handoff_with_token_bridge_artifacts(tmp_path: Path):
         "skill_paths_resolved": ["path/to/skill.md"],
         "token_bridge_artifacts": artifacts,
         "design_system_path": "design-system/",
-        "fast_path": False,
     }
 
     # 3. Write handoff to temp YAML (factory_validate.py reads YAML)
@@ -452,7 +451,6 @@ def test_code_generator_handoff_minimal_no_artifacts(tmp_path: Path):
             "source-driven-development",
         ],
         "skill_paths_resolved": ["path/to/skill.md"],
-        "fast_path": False,
     }
 
     handoff_path = tmp_path / "minimal-handoff.yaml"

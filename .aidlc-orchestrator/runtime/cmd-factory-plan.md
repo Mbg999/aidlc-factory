@@ -17,16 +17,10 @@ Inception phase, post-requirements. Produces the execution plan and
 Assume `<run-id>` points at an existing manifest. If missing, refuse
 ("run not found — start with `/factory-spec` first").
 
-1. **Story Writer (conditional)** — skip when ANY of:
-   - `manifest.skip_stages[]` contains `story-writer` (set by ComplexityGov)
-   - `requirements-analyst` output's `request_classification.scope` ∉ `{Multiple Components, System-wide, Cross-system}`
-   - The user request does not involve user-facing flows
+1. **Story Writer (always)** — Execute `stage/story-writer.md` inline per the [post-execution loop](spawn-loop.md).
+   Predecessor: requirements-analyst output.
 
-    When skipping, follow complexity-gate skip enforcement. Otherwise execute
-    `stage/story-writer.md` inline per the [post-execution loop](spawn-loop.md).
-    Predecessor: requirements-analyst output.
-
-    **Context Injection**: Before spawning, generate the context snapshot:
+   **Context Injection**: Before spawning, generate the context snapshot:
     ```bash
     python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
     ```
@@ -35,26 +29,9 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
 
     > **Cookbook**: The story-writer loads `ai-architecture-cookbook` (`search_standards`) to align user stories with relevant architecture standards before passing to the planner. Read `.aidlc-orchestrator/runs/<run-id>/cookbook-context.json` if present and pass its contents as `context` to cookbook MCP calls.
 
-2. **Application Designer** — skip ONLY when ALL of:
-    - `manifest.skip_stages[]` contains `application-designer`
-    - The request scope is single-component AND involves no new interfaces/components
-    - `manifest.project_profile.design_system_path` is empty or absent (no design system)
-    If ANY condition is false, execute `stage/application-designer.md` inline per the
-    [post-execution loop](spawn-loop.md).
+2. **Application Designer (always)** — Execute `stage/application-designer.md` inline per the [post-execution loop](spawn-loop.md).
 
-    **NEVER skip when a design system exists** (`design_system_path` is set). The
-    design system provides UI primitives — the designer still produces the 5
-    architecture artifacts (components, interfaces, services, dependencies,
-    consolidated design). Skipping would mean losing architecture definition
-    for the project.
-
-    When skipping, log `[Skip] application-designer` to audit with reason.
-    **Rationale for mandatory execution with design system**: Stitch/Figma data
-    defines UI tokens and components, NOT application architecture (component
-    boundaries, service orchestration, interface contracts, dependencies).
-    The designer bridges UI primitives → application architecture.
-
-    **Context Injection**: Before spawning, regenerate the context snapshot:
+   **Context Injection**: Before spawning, regenerate the context snapshot:
     ```bash
     python3 aidlc-scripts/factory_context_builder.py <run-id> --depth auto --format compact --output .aidlc-orchestrator/runs/<run-id>/context-snapshot.yaml
     ```
@@ -91,12 +68,7 @@ Assume `<run-id>` points at an existing manifest. If missing, refuse
      If the `skill_compliance[]` row is present but no `[PlanPreMortem]` bullet exists → append `[PlanPreMortem] orphan compliance row — workflow-planner emitted skill_compliance without matching audit_entry` to `audit_entries[]` and continue.
    - These guards exist because the workflow-planner contract requires DUAL emission (compliance row + matching audit bullet); the orchestrator must log any violation so it appears in `audit.md` instead of being silently swallowed.
 
-4. **Unit Decomposer (conditional)** — skip when ANY of:
-   - `manifest.skip_stages[]` contains `unit-decomposer` (set by ComplexityGov)
-   - The approved plan enumerates < 2 units AND requirements do not call out distinct services/components
-
-   When skipping due to ComplexityGov, follow complexity-gate skip enforcement.
-   Otherwise execute `stage/unit-decomposer.md` inline per the [post-execution loop](spawn-loop.md).
+4. **Unit Decomposer (always)** — Execute `stage/unit-decomposer.md` inline per the [post-execution loop](spawn-loop.md).
 
    **Context Injection**: Before spawning, regenerate the context snapshot:
    ```bash

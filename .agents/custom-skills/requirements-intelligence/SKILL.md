@@ -8,8 +8,7 @@ description: Adaptive elicitation engine for the Requirements Analyst stage. Rou
 Adaptive elicitation skill that makes question generation deliberate. Routes
 between four elicitation techniques based on signals from the user's request and
 enforces a coverage map so the questions file always probes **purpose, needs,
-limits, expectations, context, risks, acceptance, and unknowns** at the depth
-the request warrants.
+limits, expectations, context, risks, acceptance, and unknowns** at comprehensive depth.
 
 ## Why this skill exists
 
@@ -22,10 +21,9 @@ This skill closes that gap by:
 
 1. **Reading first.** Stage rule file must be quoted before any question is generated.
 2. **Routing by signal.** Cheap techniques (ambiguity-detection, coverage-map)
-   run at all depths; expensive ones (socratic, pre-mortem, assumption-mining)
-   only when the signal warrants.
-3. **Enforcing coverage.** Every axis required at the active depth gets ≥1
-   question or generation halts.
+   always run; expensive ones (socratic, pre-mortem, assumption-mining)
+   fire when their trigger conditions are met.
+3. **Enforcing coverage.** Every axis gets ≥1 question or generation halts.
 4. **Surfacing assumptions** before they become spec bugs.
 
 ## Process (mandatory order)
@@ -59,21 +57,10 @@ Score five axes from the request and prior context:
 
 Emit one audit entry: `[SignalScore] {clarity, risk, novelty, stakes, ambiguity_count}`.
 
-### Step 3 — Apply the routing policy
+### Step 3 — Apply all techniques
 
-Routing matrix (full version in `questioning-policy.md`):
-
-| Technique | Always at | Triggered by signal |
-|---|---|---|
-| coverage-map | all depths | always (axes required vary by depth) |
-| ambiguity-detection | standard, comprehensive | `ambiguity_count ≥ 3` (even at minimal) |
-| socratic | comprehensive | `clarity == Vague` at any depth |
-| assumption-mining | comprehensive | `novelty == high` at any depth |
-| pre-mortem | comprehensive | `stakes == prod` AND `risk ∈ {medium, high}` |
-
-For each triggered technique, load its reference file from this skill folder
-and follow its rubric. Do NOT load technique files that did not trigger —
-deferred loading keeps token cost near zero in the common case.
+All techniques always fire at comprehensive depth. Load each technique's
+reference file from this skill folder and follow its rubric.
 
 Emit: `[Techniques] applied: [<list>]`.
 
@@ -96,7 +83,7 @@ generated question covers it. Emit the table to `audit_entries[]` prefixed
 | Unknowns | all | Q9 | covered |
 ```
 
-If any axis required at the active depth is missing, STOP and add a question
+If any axis is missing coverage, STOP and add a question
 before continuing. This is a hard gate.
 
 ### Step 5 — Apply techniques
@@ -114,13 +101,8 @@ Each technique outputs candidate questions tagged with the axis it covers.
 
 1. Deduplicate candidates that probe the same axis with overlapping intent — keep the most specific.
 2. Order: Purpose → Needs → Expectations → Limits → Context → Risks → Acceptance → Unknowns.
-3. Apply the depth budget:
-   | Depth | Min Qs | Max Qs |
-   |---|---|---|
-   | minimal | 8 | 14 |
-   | standard | 12 | 20 |
-   | comprehensive | 18 | 30 |
-4. Below min → escalate depth per questioning-policy.md (minimal→standard→comprehensive). Above max → drop lowest-priority candidates (Unknowns drops first, Purpose never drops).
+3. Apply the question budget: minimum 18, maximum 30 questions.
+   Above max → drop lowest-priority candidates (Unknowns drops first, Purpose never drops).
 5. Write to `aidlc-docs/inception/requirements/<run-id>-requirement-verification-questions.md`
    using the `[Answer]:` MCQ format from `aidlc-rules/aws-aidlc-rule-details/common/question-format-guide.md`.
    Every question MUST end with `X) Other (please describe after [Answer]: tag below)`.
@@ -147,7 +129,7 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 ```yaml
 - skill: requirements-intelligence
   status: PASS
-  evidence: "axes covered: 8/8; techniques: [coverage-map, ambiguity-detection, socratic]; questions: 14/20; rule-file quoted: requirements-analysis.md L47"
+  evidence: "axes covered: 8/8; techniques: [coverage-map, ambiguity-detection, socratic]; questions: 18/30; rule-file quoted: requirements-analysis.md L47"
 ```
 
 ## Verification (objective gates)
@@ -155,11 +137,11 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 | Check | How to verify |
 |---|---|
 | Rule file was read | ≥1 `[SkillRead]` entry in `audit_entries[]` |
-| Coverage map complete | all 8 axes show `status: covered` at any depth |
+| Coverage map complete | all 8 axes show `status: covered` |
 | No chat questions | zero `?` in the chat reply outside artifact paths |
 | Ambiguity sweep performed | weasel words from `ambiguity-detection.md` lexicon either flagged or addressed |
 | MCQ format respected | every question has ≥2 options plus `X) Other` |
-| Budget respected | question count within the depth cap |
+| Budget respected | question count between 18–30 |
 
 ## Common rationalizations (REJECT)
 
@@ -167,9 +149,9 @@ Emit: `[QuestionBudget] used/max: <n>/<max>`.
 |---|---|
 | "The request is clear, no questions needed" | Even clear requests have implicit assumptions. Run ambiguity-detection first. If `ambiguity_count == 0` AND classification is `Trivial + Single File + Clear`, the existing rule allows skipping — but log the skip with evidence. |
 | "I'll ask follow-up questions later in chat" | Forbidden by `question-format-guide.md`. All questions live in the file. |
-| "Coverage map is overkill for a small feature" | Even at `minimal` depth, all 8 axes are required. Use the Trivial+Clear+Single File skip path if eligible, or generate tighter questions instead of skipping axes. |
+| "Coverage map is overkill for a small feature" | All 8 axes are always required. Use the Trivial+Clear+Single File skip path if eligible, or generate tighter questions instead of skipping axes. |
 | "I already have enough context from workspace-scout" | Quote it. If you cannot quote, you do not have it. |
-| "Pre-mortem only matters for big stuff" | Pre-mortem fires only at `comprehensive` depth with prod stakes. If you are there, it IS the big stuff. |
+| "Pre-mortem only matters for big stuff" | Pre-mortem always fires at comprehensive depth. Every request gets full treatment. |
 
 ## Red flags (escalate)
 
@@ -177,7 +159,7 @@ If any fire, set output `status: needs_human` and add the red flag verbatim to
 `audit_entries[]` prefixed `[RedFlag] requirements-intelligence:`:
 
 - Request contradicts itself ("must support 1M users" + "no database" + "no caching").
-- User refuses to answer a question on an axis required at the active depth.
+- User refuses to answer a question on a required axis.
 - Ambiguity count exceeds 8 — the request is too vague for an MCQ file; needs conversational triage first.
 - Pre-mortem surfaces a failure mode the stated requirements cannot prevent
   (e.g. "no data loss tolerance" + "no persistence specified").
@@ -201,4 +183,4 @@ When invoked by `workflow-planner` (not `requirements-analyst`):
 - `pre-mortem.md` — failure-mode generation rubric
 - `assumption-mining.md` — implicit-assumption extraction rubric
 - `aidlc-rules/aws-aidlc-rule-details/common/question-format-guide.md` — MCQ format contract
-- `aidlc-rules/aws-aidlc-rule-details/common/depth-levels.md` — depth model
+

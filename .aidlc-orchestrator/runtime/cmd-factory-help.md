@@ -16,8 +16,6 @@ The orchestrator uses specialized subagents per stage. Start with:
 /factory-spec "add JWT auth to the API gateway"
 ```
 
-This triggers triage (TINY → FastPath, or SMALL+ → full pipeline).
-
 ### Full pipeline
 
 ```
@@ -31,18 +29,6 @@ This triggers triage (TINY → FastPath, or SMALL+ → full pipeline).
 Each command waits for your approval before proceeding. You inspect, approve,
 and move to the next stage.
 
-### Fast Path (TINY tier)
-
-For trivial requests (typo, README fix, one-file change), the orchestrator
-skips all stages and goes directly to code-generator:
-
-```
-/factory-spec "fix typo in README"
-→ triage: TINY (score 0)
-→ code-generator → commit
-→ done. No manifest, no audit, no multi-agent overhead.
-```
-
 ---
 
 ## Command reference
@@ -51,7 +37,7 @@ skips all stages and goes directly to code-generator:
 |---------|-------------|-------------|
 | `/factory-onboarding` | First time using the orchestrator | Guided tour of the system |
 | `/factory-code-tour` | Onboard a human to any codebase | Architecture map, key flows, conventions, next steps |
-| `/factory-spec "<request>"` | **Start here** for any new feature | Triages your request, spawns scout + analyst |
+| `/factory-spec "<request>"` | **Start here** for any new feature | Spawns scout + analyst |
 | `/factory-plan <run-id>` | After `/factory-spec` completes | Creates execution plan + design units |
 | `/factory-build <run-id>` | After plan is approved | Generates code + runs tests in parallel |
 | `/factory-review <run-id>` | After build completes | 4 reviewers analyze code in parallel |

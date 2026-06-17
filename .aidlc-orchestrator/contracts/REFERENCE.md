@@ -70,20 +70,6 @@
 
 ---
 
-## Complexity tiers
-
-Tiers (TINY/SMALL/MEDIUM/LARGE) set by `factory_complexity.py` control skip/merge
-routing and the reviewer pool. Defined in `shared/complexity-tier.schema.json`.
-
-| Tier | Skip stages | Reviewer pool |
-|------|-------------|---------------|
-| TINY | story-writer, unit-decomposer, workflow-planner, build-test-agent | (empty — FAST_PATH) |
-| SMALL | story-writer, unit-decomposer | reviewer-code only |
-| MEDIUM | story-writer | reviewer-code, reviewer-security, reviewer-simplifier |
-| LARGE | (none) | all 4 reviewers (reviewer-code, reviewer-security, reviewer-performance, reviewer-simplifier) |
-
----
-
 ## File naming exception: reviewer contracts
 
 The reviewer input/output contracts use a shared schema (not per-reviewer).

@@ -1,6 +1,6 @@
 ---
 description: Build and display a contextual snapshot from AIDLC traceability files (audit.md, aidlc-state.md, manifest, timeline). Use this to quickly understand project state before continuing work.
-argument-hint: <run-id> [--depth minimal|standard|comprehensive|auto]
+argument-hint: <run-id>
 ---
 
 You are now the AIDLC orchestrator.

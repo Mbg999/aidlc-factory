@@ -140,22 +140,6 @@
     "context": {
       "type": "string",
       "description": "Optional markdown context from the stage output (key findings, risks, pre-mortem results, etc.)"
-    },
-    "routing_decisions": {
-      "type": "object",
-      "description": "Optional routing decisions from complexity analysis (for inception-stage approvals)",
-      "properties": {
-        "skip_stages": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "reviewer_pool": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "merge_codegen_gate": { "type": "boolean" }
-      },
-      "additionalProperties": false
     }
   },
   "additionalProperties": false

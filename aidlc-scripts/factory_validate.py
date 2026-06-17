@@ -56,21 +56,20 @@ def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
         if not valid_paths:
             issues.append("status=complete but no artifact with a non-empty `path`")
 
-    # code-generator: any non-FAST_PATH sub_stage MUST produce a plan artifact on disk.
+    # code-generator: sub_stage=generated MUST produce a plan artifact on disk.
     # Without this check, agents can claim sub_stage=generated without writing the plan,
     # and downstream stages silently fail. See TOKEN-OPTIMIZATION-PLAN.md #6.
     if schema_id.startswith("code-generator.output"):
         sub_stage = doc.get("sub_stage")
-        fast_path = bool(doc.get("fast_path"))
-        if sub_stage in {"plan", "generated"} and not fast_path:
+        if sub_stage in {"plan", "generated"}:
             plan_artifacts = [
                 a for a in artifacts
                 if isinstance(a, dict) and a.get("kind") == "plan" and a.get("path")
             ]
             if not plan_artifacts:
                 issues.append(
-                    f"sub_stage={sub_stage} (non-fast_path) but no artifact with kind=plan — "
-                    "the construction plan file is mandatory whenever fast_path is not set; "
+                    f"sub_stage={sub_stage} but no artifact with kind=plan — "
+                    "the construction plan file is mandatory; "
                     "merged_plan_generate removes the approval gate, not the plan file"
                 )
             else:
@@ -87,8 +86,6 @@ def _strict_check(doc: dict, doc_path: Path, schema_id: str = "") -> list[str]:
                         )
                     else:
                         # Plan content: scan for remaining unchecked checkboxes.
-                        # This catches the silent-skip failure where an agent claims
-                        # "generated" / "complete" but left tasks unchecked.
                         text = resolved.read_text(encoding="utf-8", errors="replace")
                         unchecked = [ln.strip() for ln in text.splitlines() if "- [ ]" in ln]
                         if unchecked:

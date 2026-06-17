@@ -24,7 +24,7 @@ Scope: command/stage in kebab-case (e.g. `requirements-analysis`, `workflow-plan
 ---
 
 # INCEPTION PHASE
-Purpose: WHAT to build. Stages: Workspace Detection, Reverse Engineering (cond), Requirements Analysis, User Stories (cond), Application Design (cond), Workflow Planning, Units Generation (cond).
+Purpose: WHAT to build. Stages: Workspace Detection, Reverse Engineering, Requirements Analysis, User Stories, Application Design, Workflow Planning, Units Generation.
 
 ## Workspace Detection (ALWAYS)
 Classify workspace → detect greenfield/brownfield → scan tech stack → determine next phase.
@@ -78,19 +78,14 @@ Every stage input handoff MUST include a `context_snapshot` built from traceabil
 **Procedure:**
 1. Before writing any stage input handoff, run:
    ```bash
-   python3 aidlc-scripts/factory_context_builder.py <run-id> --depth <depth>
+    python3 aidlc-scripts/factory_context_builder.py <run-id> --depth comprehensive
    ```
 2. Inject the output into the handoff YAML under `context_snapshot:` (or prepend as a comment block if the contract lacks this field).
 3. Regenerate fresh for each stage — do NOT cache across stages.
 
-**Depth mapping:**
-- `minimal` (~200 tokens): `workspace-scout` — current stage + last 3 audit entries
-- `standard` (~800 tokens): `requirements-analyst`, `story-writer`, `workflow-planner`, `application-designer`, `unit-decomposer`, `reviewer-*`
-- `comprehensive` (~2000 tokens): `code-generator`, `build-test-agent`, `ship-agent`
-
 **Manual inspection:**
 ```
-/factory-context <run-id> [--depth minimal|standard|comprehensive]
+/factory-context <run-id> --depth comprehensive
 ```
 
 <!-- AIDLC-ORCHESTRATOR-POINTER -->

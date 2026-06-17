@@ -193,7 +193,7 @@ Code-generator runs `plan` → `generated` → `approved`. For each sub_stage:
           .aidlc-orchestrator/contracts/code-generator.output.v1.json \
           <output-handoff-path> --strict
       ```
-       `--strict` is MANDATORY: it enforces that any non-fast_path output with
+       `--strict` is MANDATORY: it enforces that any output with
        `sub_stage` in {`plan`, `generated`} declares a `kind: plan` artifact AND
        that the plan file exists on disk AND that the plan file has ZERO remaining
        unchecked `[ ]` checkboxes. This catches both the silent-skip failure

@@ -33,7 +33,7 @@ user_request: <verbatim>
 harness: product
 current_stage: workspace-scout
 completed_stages: []
-skipped_stages: [complexity-routing, unit-decomposer, build-test, reviewer-pool, ship]
+skipped_stages: [unit-decomposer, build-test, reviewer-pool, ship]
 ```
 
 ## Step 2 — Resolve skill paths
@@ -224,6 +224,5 @@ Skill compliance: <table>
 - audit.md is append-only, orchestrator-owned.
 - story-writer ALWAYS runs in product harness — no scope/complexity gate.
 - workflow-planner depth is always `minimal` in product harness.
-- No complexity routing — `factory_complexity.py` is NOT called.
 - No unit-decomposer, no build, no review, no ship.
 - Approval gates pause; never auto-approve.

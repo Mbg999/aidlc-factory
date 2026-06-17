@@ -67,7 +67,6 @@ skill_paths: {<name>: <resolved path>}
 | `cmd-factory-build.md` | P2 | `/factory-build` procedure |
 | `cmd-factory-review.md` | P2 | `/factory-review` procedure |
 | `cmd-factory-ship.md` | P2 | `/factory-ship` procedure |
-| `fast-path.md` | P3 | TINY tier execution |
 | `recovery.md` | P3 | Failed→skipped recovery |
 | `cmd-factory-resume.md` | P3 | `/factory-resume` procedure |
 | `cmd-factory-replay.md` | P3 | `/factory-replay` procedure |

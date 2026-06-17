@@ -8,8 +8,7 @@
     "status",
     "artifacts",
     "audit_entries",
-    "skill_compliance",
-    "depth"
+    "skill_compliance"
   ],
   "properties": {
     "status": {
@@ -61,10 +60,6 @@
         "wall_clock_min": { "type": "number", "minimum": 0 },
         "retries_used": { "type": "integer", "minimum": 0 }
       }
-    },
-    "depth": {
-      "type": "string",
-      "enum": ["minimal", "standard", "comprehensive"]
     },
     "request_classification": {
       "type": "object",

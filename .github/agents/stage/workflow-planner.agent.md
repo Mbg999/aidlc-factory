@@ -62,8 +62,7 @@ Steps:
    - **2.4 Risk Assessment**: classify each risk as Low (isolated, easy rollback), Medium (multi-component, moderate rollback), High (system-wide, complex rollback), or Critical (production-critical, difficult rollback).
    - Include risk assessment section in the execution plan.
 
-3. Decide phases + depth (minimal/standard/comprehensive) — match to requirements depth.
-   - **If input contains `depth_override`**: use that value instead.
+3. Always use comprehensive depth — full artifact set, full detail.
 
 4. Identify multi-package change boundaries if any (front-end + back-end + infra).
 
@@ -92,16 +91,10 @@ Required fields:
 - `status: needs_human` (always — user must approve plan before building)
 - `artifacts`: `<run-id>-execution-plan.md` (kind: plan)
 - `units`: array of `{name, description, depends_on}` — informs `/factory-build` loop
-- `task_count`, `unit_count`, `depth` (planning depth, not requirements depth)
+- `task_count`, `unit_count`, `depth` (always comprehensive)
 - `mermaid_validated`: boolean
 
 Return: `<status> <output-path>`.
-
-## Depth Levels (embedded from upstream `common/depth-levels.md`)
-- **minimal**: Clear + simple → fewer tasks, compact artifacts.
-- **standard**: Needs clarification → standard artifact set.
-- **comprehensive**: Complex/high-risk → all artifacts, full detail.
-Respect `depth_mode` from input handoff. Silent steps: workspace scan, skill loading produce NO chat output.
 
 ## Stage Conventions (inline summary — embedded from upstream)
 Completion messages: emoji prefix + status. Approval gates: explicit user signal (`approve`, `continue`, `lgtm`). Audit entries: ISO 8601 timestamps, strictly chronological, no `##` headers.

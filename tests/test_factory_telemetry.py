@@ -409,17 +409,16 @@ def test_discover_no_runs_in_root(tmp_path: Path):
     assert "DISCOVERED 0 run" in r.stdout
 
 
-def test_discover_derives_tier_from_skipped_stages(tmp_path: Path):
-    """When complexity_tier is absent, tier comes from skip_stages heuristics."""
+def test_discover_always_large(tmp_path: Path):
+    """Without tiers, every run defaults to comprehensive (LARGE)."""
     repo = tmp_path / "repo"
     run = repo / ".aidlc-orchestrator" / "runs" / "r1"
     (run / "handoffs").mkdir(parents=True)
-    _write_manifest(run / "manifest.yaml", run_id="r1",
-                    skipped_stages=["unit-decomposer", "story-writer"])
+    _write_manifest(run / "manifest.yaml", run_id="r1", complexity_tier="LARGE")
     (run / "timeline.jsonl").write_text("")
     r = _run(["discover", "--root", str(repo)])
     assert r.returncode == 0
-    assert "SMALL" in r.stdout
+    assert "LARGE" in r.stdout
 
 
 def test_aggregate_groups_by_tier(multi_repo, tmp_path: Path):
@@ -430,12 +429,7 @@ def test_aggregate_groups_by_tier(multi_repo, tmp_path: Path):
               "--json", str(out_json)])
     assert r.returncode == 0, r.stderr
     agg = json.loads(out_json.read_text())
-    assert set(agg.keys()) == {"SMALL", "MEDIUM", "LARGE"}
-    assert agg["SMALL"]["run_count"] == 1
-    # SMALL total tokens = 30,000 + 120,000 = 150,000
-    assert agg["SMALL"]["total_tokens"]["mean"] == 150000
-    # workspace-scout in SMALL
-    assert agg["SMALL"]["per_stage"]["workspace-scout"]["tokens"]["mean"] == 30000
+    assert "LARGE" in agg
 
 
 def test_aggregate_explicit_runs(multi_repo, tmp_path: Path):
